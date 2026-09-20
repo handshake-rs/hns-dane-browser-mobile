@@ -5,10 +5,10 @@ This directory contains the candidate listing source for Android `1.0.5` / code
 application manifest and upload script by `scripts/check-version-consistency.sh`.
 
 The listing describes the shipping surface: dual-root browsing and one native,
-noncustodial HNS wallet with direct peer synchronization, receive/QR, guarded
-send, recent activity, name import, restoration birthday height, and protected
-deletion. Websites have no wallet-provider access. The unfinished Bitcoin,
-name-operation, and Shakedex marketplace cards are not exposed.
+noncustodial HNS/Bitcoin wallet with direct peer synchronization, receive/QR,
+guarded sends, recent activity, supported name actions, restoration birthday
+heights, direct ShakeScape offer exchange, durable BTC/HNS atomic-swap
+execution, and protected deletion. Websites have no wallet-provider access.
 
 ## Listing files
 

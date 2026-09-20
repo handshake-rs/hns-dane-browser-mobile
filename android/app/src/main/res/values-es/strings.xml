@@ -67,6 +67,7 @@
     <string name="sync_status_error">error</string>
     <string name="sync_status_seed_failed">la semilla falló</string>
     <string name="sync_status_peer_failed">compañero falló</string>
+    <string name="sync_status_outbound_port_blocked">la red bloquea las conexiones TCP salientes en el puerto 12038</string>
     <string name="sync_progress_target">objetivo %1$s</string>
     <string name="sync_progress_best_peer_height">mejorPeerHeight %1$s</string>
     <string name="sync_progress_best_height">mejor altura %1$s</string>

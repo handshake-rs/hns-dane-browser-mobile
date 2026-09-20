@@ -19,8 +19,9 @@ The listing describes the shipping surface: dual-root browsing and one native,
 noncustodial HNS wallet with direct peer synchronization, receive/QR, guarded
 send, recent activity, name import, restoration birthday height, protected
 deletion, supported name operations, and capability-gated direct Shakedex and
-Bitcoin controls. Websites have no wallet-provider access, and value-changing
-actions remain behind explicit native review and approval.
+Bitcoin controls, including signed peer offers and durable noncustodial BTC/HNS
+atomic-swap execution. Websites have no wallet-provider access, and
+value-changing actions remain behind explicit native review and approval.
 
 Canonical metadata files are the text files in `en-US/`. Product, support, and
 privacy URLs must use `https://shakescape.com/`; `review-notes.txt` must explain

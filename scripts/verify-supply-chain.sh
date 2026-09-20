@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+"$ROOT_DIR/scripts/prepare-source-cohort.sh"
+
 EXPECTED_WRAPPER_JAR_SHA256="7a9ce74cff467ca1bf60a4fcd9f05185acceda4d0f382434d393e17864262c5d"
 EXPECTED_DISTRIBUTION_SHA256="acd53f1edaf02f1a8ff99879f8a34b302661a057d9b063ae9e35b552f804d20a"
 EXPECTED_DISTRIBUTION_URL='https\://services.gradle.org/distributions/gradle-9.7.1-bin.zip'

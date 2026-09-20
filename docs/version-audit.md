@@ -89,14 +89,16 @@ Notes:
   `31411048376`. This evidence does not qualify or prove a signed `0.5.9`
   artifact.
 - The native controller exposes create, restore, open, status, unlock, lock,
-  one-time recovery display, direct HNS peer synchronization, receive/QR,
-  guarded send, recent activity, birthday height, tracked-name import, and
-  protected deletion on both platforms.
+  one-time recovery display, direct HNS and Bitcoin peer synchronization,
+  receive/QR, guarded sends, recent activity, birthday height, tracked-name
+  actions, signed ShakeScape offers, durable noncustodial BTC/HNS atomic-swap
+  execution, and protected deletion on both platforms.
 - The product uses its wallet-owned direct peer controller and does not depend
   on the older scoped-loopback indexed-wallet compatibility seam.
-- Website-provider access, unfinished Bitcoin and name-operation screens,
-  settlement, exchange features, HNSA/HNSR controls, and P2P marketplaces
-  remain independently unavailable in the release UI.
+- Website-provider access and HNSA/HNSR service-role controls remain
+  independently unavailable. Bitcoin, supported name operations, direct signed
+  offers, and participant-controlled atomic-swap settlement are exposed only
+  when their exact native synchronization and approval prerequisites hold.
   The exact Apple CI gate covers retirement queue/lease behavior and
   stale-completion publication-authority predicates in the app/simulator matrix;
   it does not execute an end-to-end credentialed native read in flight. Product

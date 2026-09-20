@@ -67,6 +67,7 @@
 <string name="sync_status_error">lỗi</string>
 <string name="sync_status_seed_failed">hạt giống thất bại</string>
 <string name="sync_status_peer_failed">ngang hàng thất bại</string>
+<string name="sync_status_outbound_port_blocked">mạng chặn kết nối TCP đi trên cổng 12038</string>
 <string name="sync_progress_target">mục tiêu %1$s</string>
 <string name="sync_progress_best_peer_height">tốt nhấtPeerHeight %1$s</string>
 <string name="sync_progress_best_height">chiều cao tốt nhất %1$s</string>

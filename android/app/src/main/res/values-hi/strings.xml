@@ -67,6 +67,7 @@
 <string name="sync_status_error">त्रुटि</string>
 <string name="sync_status_seed_failed">बीज फेल हो गया</string>
 <string name="sync_status_peer_failed">सहकर्मी विफल</string>
+<string name="sync_status_outbound_port_blocked">नेटवर्क पोर्ट 12038 पर आउटबाउंड TCP को रोक रहा है</string>
 <string name="sync_progress_target">लक्ष्य %1$s</string>
 <string name="sync_progress_best_peer_height">बेस्टपीयरहाइट %1$s</string>
 <string name="sync_progress_best_height">सर्वोत्तम ऊंचाई %1$s</string>

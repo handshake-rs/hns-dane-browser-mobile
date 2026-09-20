@@ -67,6 +67,7 @@
 <string name="sync_status_error">błąd</string>
 <string name="sync_status_seed_failed">ziarno nie powiodło się</string>
 <string name="sync_status_peer_failed">kolega nie powiódł się</string>
+<string name="sync_status_outbound_port_blocked">sieć blokuje wychodzące połączenia TCP na porcie 12038</string>
 <string name="sync_progress_target">cel %1$s</string>
 <string name="sync_progress_best_peer_height">bestPeerHeight %1$s</string>
 <string name="sync_progress_best_height">bestHeight %1$s</string>

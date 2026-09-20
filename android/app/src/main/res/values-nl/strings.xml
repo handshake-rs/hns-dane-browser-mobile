@@ -67,6 +67,7 @@
 <string name="sync_status_error">fout</string>
 <string name="sync_status_seed_failed">zaad mislukt</string>
 <string name="sync_status_peer_failed">peer is mislukt</string>
+<string name="sync_status_outbound_port_blocked">het netwerk blokkeert uitgaand TCP-verkeer op poort 12038</string>
 <string name="sync_progress_target">doel %1$s</string>
 <string name="sync_progress_best_peer_height">bestePeerHeight %1$s</string>
 <string name="sync_progress_best_height">beste hoogte %1$s</string>

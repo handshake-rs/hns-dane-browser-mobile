@@ -1,1 +1,1 @@
-1.0.5 improves wallet synchronization and name tracking, including Unicode Handshake names, lifecycle status, raw records, and clearer native name controls.
+1.0.5 adds native Bitcoin synchronization and guarded sends, direct ShakeScape offer exchange, durable noncustodial BTC/HNS atomic-swap progress, supported Handshake name actions, Unicode names, raw records, peer discovery, clearer lifecycle status, and improved wallet synchronization.

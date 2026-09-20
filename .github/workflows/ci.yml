@@ -40,7 +40,7 @@ jobs:
         run: ./scripts/ci-changed-targets.sh
 
       - name: Install pinned Rust toolchain for metadata policy
-        run: rustup toolchain install 1.92.0 --profile minimal
+        run: rustup toolchain install 1.98.1 --profile minimal
 
       - name: Verify repository policy and release metadata
         run: |
@@ -65,11 +65,11 @@ jobs:
 
       - name: Install pinned Rust toolchain
         run: |
-          rustup toolchain install 1.92.0 --profile minimal --component rustfmt --component clippy
-          rustup default 1.92.0
+          rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
+          rustup default 1.98.1
 
       - name: Install pinned cargo-deny
-        run: cargo +1.92.0 install cargo-deny --version 0.19.9 --locked
+        run: cargo +1.98.1 install cargo-deny --version 0.19.9 --locked
 
       - name: Run Rust, fuzz, tool, and supply-chain checks
         run: ./scripts/check.sh
@@ -94,13 +94,13 @@ jobs:
 
       - name: Install pinned Rust Android tools
         run: |
-          rustup toolchain install 1.92.0 --profile minimal
-          rustup default 1.92.0
-          rustup target add --toolchain 1.92.0 \
+          rustup toolchain install 1.98.1 --profile minimal
+          rustup default 1.98.1
+          rustup target add --toolchain 1.98.1 \
             armv7-linux-androideabi \
             aarch64-linux-android \
             x86_64-linux-android
-          cargo +1.92.0 install cargo-ndk --version 4.1.2 --locked
+          cargo +1.98.1 install cargo-ndk --version 4.1.2 --locked
 
       - name: Install pinned Android SDK components
         run: |
@@ -151,13 +151,13 @@ jobs:
 
       - name: Install pinned Rust Android tools
         run: |
-          rustup toolchain install 1.92.0 --profile minimal
-          rustup default 1.92.0
-          rustup target add --toolchain 1.92.0 \
+          rustup toolchain install 1.98.1 --profile minimal
+          rustup default 1.98.1
+          rustup target add --toolchain 1.98.1 \
             armv7-linux-androideabi \
             aarch64-linux-android \
             x86_64-linux-android
-          cargo +1.92.0 install cargo-ndk --version 4.1.2 --locked
+          cargo +1.98.1 install cargo-ndk --version 4.1.2 --locked
 
       - name: Install pinned Android SDK components
         run: |

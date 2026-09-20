@@ -81,20 +81,23 @@ iOS UI / Browser Shell                             [public; device qualification
 - The active listener generation is published only after its bind succeeds. Replacement revokes the old authority before preparing the new listener; stale stop/drop calls compare-and-clear only their own generation. Every origin operation mints one canonical stamp at whole-request entry before maintenance, DNS, or classification, and carries that exact stamp through transport, status, sticky binding, response, file, or tunnel publication without reminting after a same-generation recovery. It also captures the exact nonzero maintenance epoch while holding the request read lock. Final response or 101 head publication reacquires that lock, validates the epoch, and holds it together with the exact-result lifecycle permit through the head flush. Header-mutating maintenance advances the epoch before mutation under its exclusive lock, preventing stale pre-maintenance results from crossing the boundary. Direct file output is staged privately and renamed only within the analogous final guard; Android raw/JNI wrappers propagate any post-parse runtime failure instead of synthesizing bytes outside it. Stop signals socket/work cancellation before waiting on revocation. Redirects, subresources, Service Workers, downloads, and WebSockets therefore share the same authority boundary as the initial page.
 - Shared success status is constructed from the request-local retained `NamespaceDecision`, its canonical decision fingerprint, and the exact selected-root DNS question/transport. Canonical failure status retains the request-local exact HNS and ICANN `RootFailure` values and, after selection, the retained decision; bogus DNSSEC is represented as bogus and never as TLSA absence. ICANN-selected status uses `ValidatingIcannDoh` without an HNS chain anchor. The Rustls verifier records an exact DANE association mismatch and the transport preserves it as `DaneFailed` across blocking/controlled HTTP/1.1, Tokio HTTP/2, Quinn HTTP/3, and TLS Upgrade boundaries without inspecting display strings; origin-SNI remains unavailable unless independently evidenced. A generic transport or WebPKI failure without typed trust evidence, an HNS cache hit with no exact transport event, an unrepresentable legacy HNS DoH path, or a P2P relay lacking negotiated registry fingerprint/protocol identity remains an explicit unavailable status rather than a fabricated valid snapshot. These additions are internal to Rust and preserve the JNI, Apple C ABI, bundle identifiers, and platform preference schemas.
 - Android and iOS carry a separate native-only wallet slice in the configured
-  `1.0.0` release candidate
+  `1.0.5` release candidate
   backed by the exact pinned `hns-wallet-mobile` controller. Narrow JNI and
   Apple C-ABI surfaces expose create, restore, open, status, unlock, lock,
   one-shot recovery retrieval, destruction, one HNS account identity, and a
-  strict wallet projection/UI for balance, receive targets, recent activity,
-  direct peer synchronization, guarded HNS send, birthday height, and a
-  separate closed trusted-native exact-text name import.
+  strict wallet projection/UI for HNS and Bitcoin balances, receive targets,
+  recent activity, direct peer synchronization, guarded sends, birthday
+  heights, supported name actions, signed direct ShakeScape offers, and
+  durable participant-controlled BTC/HNS atomic-swap execution.
   Legacy HNWR-v1 and current HNWR-v2 are decoded through separate exact
   five- and six-field schemas; HNWI-v1 preserves the exact UTF-8 name bytes and
   returns only a minimized one-name summary. Platform-owned screens and
   device-bound 32-byte database keys manage this controller. The product uses a
   wallet-owned direct peer path and does not depend on the older scoped-loopback
-  compatibility seam. Website-provider, unfinished Bitcoin/name-operation UI,
-  settlement, HNSA/HNSR, exchange, and marketplace gates remain false. Both shells perform
+  compatibility seam. Website-provider and HNSA/HNSR service-role gates remain
+  false; wallet value and marketplace actions remain gated by native
+  synchronization, peer, balance, fee, deadline, and explicit-approval
+  predicates. Both shells perform
   read/retirement work off the UI thread. Historical HNWR-v1 code-bearing source
   `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
   `31433931682`, including Android instrumentation and the complete Apple

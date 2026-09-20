@@ -12,6 +12,7 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SOURCE_COHORT = ROOT / "scripts" / "prepare-source-cohort.sh"
 PLAY_UPLOAD = ROOT / "scripts" / "play-upload-closed-testing.sh"
 IOS_UPLOAD = ROOT / "scripts" / "upload-ios-app-store.sh"
 BUILD_IOS = ROOT / "scripts" / "build-ios.sh"
@@ -30,6 +31,31 @@ APP_STORE_VALIDATOR = ROOT / "store-assets" / "app-store" / "validate.py"
 
 
 class ReleaseCandidateMetadataTests(unittest.TestCase):
+    def test_clean_builds_materialize_one_immutable_source_cohort(self) -> None:
+        cohort = SOURCE_COHORT.read_text(encoding="utf-8")
+        for repository, commit in (
+            ("hns-wallet-rs", "c322f3cdb86f0c2d60d548a10a68f41365b9c252"),
+            ("hns-dane-engine", "bf6855aba037dcb3720e0624c04eb7ee1e09cb5b"),
+            ("hns-rs", "f43f8dd325c221766787810fdd1fa3b3657689ca"),
+        ):
+            self.assertIn(repository, cohort)
+            self.assertIn(commit, cohort)
+        self.assertIn('actual_commit="$(git -C "$destination" rev-parse HEAD)"', cohort)
+        self.assertIn('if [[ "$actual_commit" != "$expected_commit" ]]', cohort)
+        self.assertIn('diff --cached --quiet', cohort)
+
+        for relative in (
+            "scripts/verify-supply-chain.sh",
+            "scripts/build-rust-android.sh",
+            "scripts/build-rust-ios.sh",
+            "scripts/build-rust.sh",
+        ):
+            source = (ROOT / relative).read_text(encoding="utf-8")
+            self.assertIn('scripts/prepare-source-cohort.sh', source)
+
+        for workflow in (ROOT / ".github/workflows").glob("*.yml"):
+            self.assertNotIn("1.92.0", workflow.read_text(encoding="utf-8"))
+
     def test_platform_identity_and_reviewed_wallet_source_pin(self) -> None:
         gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
         self.assertRegex(gradle, r"(?m)^\s*versionName = \"1\.0\.5\"$")
@@ -189,7 +215,8 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
             "guarded hns send",
             "websites cannot",
             "processed on the device",
-            "not expose the unfinished bitcoin",
+            "bitcoin",
+            "atomic swap",
         ):
             self.assertIn(marker, full_listing)
 
@@ -197,9 +224,9 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
             encoding="utf-8"
         ).casefold()
         for marker in (
-            "native device-local hns wallet",
+            "native device-local, noncustodial handshake and bitcoin wallet controls",
             "device-bound database key",
-            "directly to handshake peers",
+            "directly to handshake and bitcoin peers",
             "broadcast transaction bytes only after native review",
             "camera access is requested only after you tap the scanner",
             "websites cannot invoke wallet operations",
@@ -223,10 +250,13 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         ):
             self.assertIn(marker, play)
             self.assertIn(marker, app_store)
-        self.assertIn("unfinished bitcoin", play)
+        self.assertNotIn("unfinished bitcoin", play)
+        self.assertIn("bitcoin peers", play)
+        self.assertIn("noncustodial btc/hns atomic swaps", play)
         for marker in (
-            "name transfer/finalization",
-            "capability-gated direct shakedex and bitcoin controls",
+            "supported transfer/finalization actions",
+            "pair with a shakescape peer",
+            "noncustodial btc/hns atomic swaps",
         ):
             self.assertIn(marker, app_store)
         for marker in (

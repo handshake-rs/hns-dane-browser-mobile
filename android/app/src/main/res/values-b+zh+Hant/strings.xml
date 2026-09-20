@@ -67,6 +67,7 @@
 <string name="sync_status_error">錯誤</string>
 <string name="sync_status_seed_failed">種子失敗</string>
 <string name="sync_status_peer_failed">對等失敗</string>
+<string name="sync_status_outbound_port_blocked">網路封鎖了連接埠 12038 上的對外 TCP 連線</string>
 <string name="sync_progress_target">目標%1$s</string>
 <string name="sync_progress_best_peer_height">最佳對等高度 %1$s</string>
 <string name="sync_progress_best_height">最佳高度 %1$s</string>

@@ -67,6 +67,7 @@
   <string name="sync_status_error">kesalahan</string>
   <string name="sync_status_seed_failed">benih gagal</string>
   <string name="sync_status_peer_failed">rekan gagal</string>
+  <string name="sync_status_outbound_port_blocked">jaringan memblokir TCP keluar pada port 12038</string>
   <string name="sync_progress_target">target %1$s</string>
   <string name="sync_progress_best_peer_height">tinggi rekan terbaik %1$s</string>
   <string name="sync_progress_best_height">Tinggi terbaik %1$s</string>

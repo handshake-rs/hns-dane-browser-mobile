@@ -67,6 +67,7 @@
 <string name="sync_status_error">hata</string>
 <string name="sync_status_seed_failed">tohumlama başarısız oldu</string>
 <string name="sync_status_peer_failed">eş başarısız oldu</string>
+<string name="sync_status_outbound_port_blocked">ağ, 12038 numaralı bağlantı noktasındaki giden TCP bağlantılarını engelliyor</string>
 <string name="sync_progress_target">%1$s\'i hedefle</string>
 <string name="sync_progress_best_peer_height">bestPeerHeight %1$s</string>
 <string name="sync_progress_best_height">en iyiYükseklik %1$s</string>

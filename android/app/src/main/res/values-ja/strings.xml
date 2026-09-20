@@ -67,6 +67,7 @@
     <string name="sync_status_error">エラー</string>
     <string name="sync_status_seed_failed">シードに失敗しました</string>
     <string name="sync_status_peer_failed">ピアが失敗しました</string>
+    <string name="sync_status_outbound_port_blocked">ネットワークがポート 12038 への送信 TCP 接続をブロックしています</string>
     <string name="sync_progress_target">ターゲット %1$s</string>
     <string name="sync_progress_best_peer_height">最高のピア高さ %1$s</string>
     <string name="sync_progress_best_height">最高の高さ %1$s</string>

@@ -153,8 +153,8 @@ jobs:
         if: ${{ inputs.qualified_gate_run_id != '' && inputs.qualified_gate_commit != '' }}
         run: |
           set -euo pipefail
-          rustup toolchain install 1.92.0 --profile minimal
-          rustup target add --toolchain 1.92.0 \
+          rustup toolchain install 1.98.1 --profile minimal
+          rustup target add --toolchain 1.98.1 \
             aarch64-apple-ios \
             aarch64-apple-ios-sim \
             x86_64-apple-ios

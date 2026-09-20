@@ -3,6 +3,7 @@ import UIKit
 import UniformTypeIdentifiers
 import LocalAuthentication
 import Network
+import UserNotifications
 @preconcurrency import AVFoundation
 import CoreImage
 
@@ -16,8 +17,152 @@ private let minimumBitcoinHtlcSats = bitcoinHtlcReceiverDustSats + minimumBitcoi
 private let minimumHnsSwapDollarydoos =
     hnsSwapReceiverDustDollarydoos + minimumHnsFeeReserveDollarydoos
 private let directShakescapeNetworkMaintenanceTicks = 30
+private let directShakescapeExecutionPollTicks = 5
 private let maximumVisibleDirectShakescapePeers = 3
 private let showShakedexWalletCard = true
+
+/// Presents authenticated journal transitions without persisting wallet data.
+/// UserDefaults contains only a random session identifier and presentation
+/// fingerprint; amounts, addresses, peers, and signed transaction material
+/// never leave the encrypted native wallet database.
+@MainActor
+private final class AtomicSwapNotificationCoordinator {
+    private struct Record {
+        let sessionId: String
+        let fingerprint: String
+        let title: String
+        let body: String
+        let historicalTerminal: Bool
+    }
+
+    private let center = UNUserNotificationCenter.current()
+    private let defaults = UserDefaults.standard
+    private let initializedKey = "atomic-swap-notifications.initialized.v1"
+    private let fingerprintsKey = "atomic-swap-notifications.fingerprints.v1"
+    private let terminalStates: Set<String> = ["completed", "refunded", "failed"]
+    private var authorizationRequestInFlight = false
+
+    func reconcile(
+        _ status: NativeShakescapeExecutionStatus,
+        stageText: (NativeShakescapeExecutionSummary) -> String
+    ) {
+        var records: [String: Record] = [:]
+        for pending in status.pendingAcceptances {
+            records[pending.sessionId] = Record(
+                sessionId: pending.sessionId,
+                fingerprint: "pending-acceptance",
+                title: "Atomic swap updated",
+                body: "Offer accepted; negotiating countersigned terms · Session \(pending.sessionId.prefix(12))…",
+                historicalTerminal: false
+            )
+        }
+        for execution in status.executions {
+            let stage = stageText(execution)
+            let title: String
+            switch execution.state {
+            case "completed": title = "Atomic swap completed"
+            case "refunded": title = "Atomic swap refunded"
+            case "failed": title = "Atomic swap needs attention"
+            default where stage.localizedCaseInsensitiveContains("ready") ||
+                stage.localizedCaseInsensitiveContains("redeem"):
+                title = "Atomic swap action required"
+            default: title = "Atomic swap updated"
+            }
+            records[execution.sessionId] = Record(
+                sessionId: execution.sessionId,
+                fingerprint: "\(execution.state):\(execution.localRole):\(stage)",
+                title: title,
+                body: "\(stage) · Session \(execution.sessionId.prefix(12))…",
+                historicalTerminal: terminalStates.contains(execution.state)
+            )
+        }
+
+        var fingerprints = defaults.dictionary(forKey: fingerprintsKey) as? [String: String] ?? [:]
+        if !defaults.bool(forKey: initializedKey) {
+            for record in records.values {
+                fingerprints[record.sessionId] = record.fingerprint
+            }
+            persist(fingerprints)
+            defaults.set(true, forKey: initializedKey)
+            if records.values.contains(where: { !$0.historicalTerminal }) {
+                requestAuthorizationIfNeeded()
+            }
+            return
+        }
+
+        for record in records.values {
+            let previous = fingerprints[record.sessionId]
+            guard previous != record.fingerprint else { continue }
+            fingerprints[record.sessionId] = record.fingerprint
+            if previous == nil && record.historicalTerminal { continue }
+            post(record)
+        }
+        persist(fingerprints)
+    }
+
+    private func requestAuthorizationIfNeeded() {
+        guard !authorizationRequestInFlight else { return }
+        authorizationRequestInFlight = true
+        center.getNotificationSettings { [weak self] settings in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                guard settings.authorizationStatus == .notDetermined else {
+                    self.authorizationRequestInFlight = false
+                    return
+                }
+                self.center.requestAuthorization(options: [.alert, .sound]) { [weak self] _, _ in
+                    DispatchQueue.main.async { self?.authorizationRequestInFlight = false }
+                }
+            }
+        }
+    }
+
+    private func post(_ record: Record) {
+        center.getNotificationSettings { [weak self] settings in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                switch settings.authorizationStatus {
+                case .authorized, .provisional, .ephemeral:
+                    self.add(record)
+                case .notDetermined:
+                    self.center.requestAuthorization(options: [.alert, .sound]) {
+                        [weak self] granted, _ in
+                        guard granted else { return }
+                        DispatchQueue.main.async { self?.add(record) }
+                    }
+                case .denied:
+                    break
+                @unknown default:
+                    break
+                }
+            }
+        }
+    }
+
+    private func add(_ record: Record) {
+        let content = UNMutableNotificationContent()
+        content.title = record.title
+        content.body = record.body
+        content.sound = .default
+        content.categoryIdentifier = "ATOMIC_SWAP_STATUS"
+        UNUserNotificationCenter.current().add(
+            UNNotificationRequest(
+                identifier: "atomic-swap:\(record.sessionId)",
+                content: content,
+                trigger: nil
+            )
+        )
+    }
+
+    private func persist(_ fingerprints: [String: String]) {
+        let bounded = Dictionary(
+            uniqueKeysWithValues: fingerprints.keys.sorted().suffix(1_024).compactMap { key in
+                fingerprints[key].map { (key, $0) }
+            }
+        )
+        defaults.set(bounded, forKey: fingerprintsKey)
+    }
+}
 
 /// Native wallet-control surface.  Every HNS peer, consensus, block scan,
 /// signing, and broadcast operation remains in the Rust controller; UIKit
@@ -109,7 +254,10 @@ final class WalletViewController: UIViewController {
     private var directShakescapeServiceTimer: Timer?
     private var directShakescapeServiceInFlight = false
     private var directShakescapeServiceTicks = 0
+    private var directShakescapeExecutionTicks = 0
     private var directShakescapeStatusSnapshot: NativeDirectShakescapeStatus?
+    private var shakescapeExecutionStatusSnapshot: NativeShakescapeExecutionStatus?
+    private let atomicSwapNotifications = AtomicSwapNotificationCoordinator()
     private var recentDirectShakescapePeers: [String] = []
     private var hnsSyncPresentationTimer: Timer?
     private var bitcoinSyncInProgress = false
@@ -3668,7 +3816,9 @@ final class WalletViewController: UIViewController {
             directShakescapeServiceTimer?.invalidate()
             directShakescapeServiceTimer = nil
             directShakescapeServiceTicks = 0
+            directShakescapeExecutionTicks = 0
             directShakescapeStatusSnapshot = nil
+            shakescapeExecutionStatusSnapshot = nil
             return
         }
         guard directShakescapeServiceTimer == nil else { return }
@@ -3686,9 +3836,11 @@ final class WalletViewController: UIViewController {
         directShakescapeServiceInFlight = true
         let identity = ObjectIdentifier(wallet)
         let authority = walletAuthorityGeneration
+        let pollExecutions = directShakescapeExecutionTicks == 0
         DispatchQueue.global(qos: .utility).async {
             _ = try? wallet.serviceDirectShakescape()
             let status = try? wallet.directShakescapeStatus()
+            let executions = pollExecutions ? try? wallet.shakescapeExecutions() : nil
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self.directShakescapeServiceInFlight = false
@@ -3709,14 +3861,96 @@ final class WalletViewController: UIViewController {
                 if let status, previousPeerEndpoint != status.peerEndpoint {
                     self.renderWalletDashboard()
                 }
+                if let executions {
+                    let previous = self.shakescapeExecutionStatusSnapshot
+                    self.shakescapeExecutionStatusSnapshot = executions
+                    self.atomicSwapNotifications.reconcile(
+                        executions,
+                        stageText: self.shakescapeExecutionStage
+                    )
+                    if previous != executions {
+                        self.publishShakescapeExecutionStatus(executions)
+                    }
+                }
                 self.directShakescapeServiceTicks =
                     (self.directShakescapeServiceTicks + 1) % directShakescapeNetworkMaintenanceTicks
+                self.directShakescapeExecutionTicks =
+                    (self.directShakescapeExecutionTicks + 1) % directShakescapeExecutionPollTicks
                 if self.directShakescapeServiceTicks == 0,
                    status?.publiclyReachable == true,
                    status?.networkServiceReady == false {
                     self.synchronizeWalletReads(resumeAutomaticSync: false)
                 }
             }
+        }
+    }
+
+    private func publishShakescapeExecutionStatus(_ status: NativeShakescapeExecutionStatus) {
+        let terminal: Set<String> = ["completed", "refunded", "failed"]
+        if let execution = status.executions
+            .filter({ !terminal.contains($0.state) })
+            .max(by: { $0.lastVerifiedAtUnix < $1.lastVerifiedAtUnix }) {
+            bitcoinStatusLabel.text = "Atomic swap · \(shakescapeExecutionStage(execution)) · Session \(execution.sessionId.prefix(12))…"
+        } else if let pending = status.pendingAcceptances.max(by: {
+            $0.createdAtUnix < $1.createdAtUnix
+        }) {
+            bitcoinStatusLabel.text = "Atomic swap · Offer accepted; negotiating countersigned terms · Session \(pending.sessionId.prefix(12))…"
+        } else if let latest = status.executions.max(by: {
+            $0.lastVerifiedAtUnix < $1.lastVerifiedAtUnix
+        }) {
+            bitcoinStatusLabel.text = "Atomic swap · \(shakescapeExecutionStage(latest)) · Session \(latest.sessionId.prefix(12))…"
+        }
+    }
+
+    private func shakescapeExecutionStage(
+        _ execution: NativeShakescapeExecutionSummary
+    ) -> String {
+        let first = execution.firstChain.capitalized
+        let second = execution.secondChain.capitalized
+        let now = UInt64(Date().timeIntervalSince1970)
+        switch execution.state {
+        case "terms_frozen", "refunds_prepared":
+            return "Terms are frozen; waiting for first funding"
+        case "first_funding_pending":
+            if now >= execution.fundingDeadlineUnix {
+                return "The new-funding window expired"
+            }
+            return execution.localRole == "maker"
+                ? "\(first) funding is ready for approval on this device"
+                : "Waiting for the counterparty to fund \(first)"
+        case "first_funded", "second_funding_pending":
+            if execution.localRole == "taker" {
+                return now < execution.fundingDeadlineUnix
+                    ? "\(second) funding is ready for approval on this device"
+                    : "The new-funding window expired"
+            }
+            if now >= execution.firstRefundAtUnix {
+                return "\(first) refund is ready on this device"
+            }
+            return "Waiting for the counterparty to fund \(second)"
+        case "both_funded":
+            return execution.localRole == "maker"
+                ? "\(second) redemption is ready on this device"
+                : "Waiting for the counterparty to redeem \(second)"
+        case "first_redeemed", "secret_observed":
+            return execution.localRole == "taker"
+                ? "The secret is verified; redeem \(first) on this device"
+                : "Waiting for the counterparty to redeem \(first)"
+        case "second_redeemed":
+            return "Both redemptions are being verified"
+        case "completed":
+            return "Completed"
+        case "refund_eligible":
+            return "A refund is eligible for approval"
+        case "refund_broadcast":
+            return "Refund broadcast; waiting for confirmation"
+        case "refunded":
+            return "Refunded"
+        case "failed":
+            return execution.failureReason.map { "Needs attention: \($0)" }
+                ?? "Needs attention"
+        default:
+            return execution.state.replacingOccurrences(of: "_", with: " ")
         }
     }
 
@@ -6159,6 +6393,7 @@ final class WalletViewController: UIViewController {
         directShakescapeServiceTimer?.invalidate()
         directShakescapeServiceTimer = nil
         directShakescapeServiceTicks = 0
+        directShakescapeExecutionTicks = 0
         clearWalletNameImportPrompt(dismiss: true)
         dismissPendingHnsSendApproval(rejectNatively: true)
         dismissPendingHnsValueApproval(rejectNatively: true)

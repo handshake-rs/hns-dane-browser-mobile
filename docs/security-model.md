@@ -138,17 +138,18 @@ authorization value that is consumed and wiped. Output is bounded and its
 version-specific closed JSON shape, canonical values, exact equal nonzero
 account identities, distinct target purposes, unique transaction/name
 identities, coherent heights, and envelope length are validated before UI
-publication. The product currently
-creates no such configuration, so the visible read fields remain fail-closed
-and unavailable. The browser proxy credential is not reused as wallet authority.
-The app provisions no scoped indexed backend. A pruned indexed/authenticated
+publication. The product currently creates no such compatibility
+configuration; its shipping wallet reads instead use the separate wallet-owned
+direct coordinator. The browser proxy credential is not reused as wallet
+authority. The app provisions no scoped indexed backend. A pruned indexed/authenticated
 node can return indexed confirmation/history, and an existing wallet may reuse its authenticated
 retained raw bytes. Fresh restore additionally needs archive-capable raw
 transaction bytes or another durable wallet-relevant raw-transaction source
 behind the dedicated scoped loopback gateway. The trusted-native exact-text name
-import uses only that gateway, stays unavailable without it, and never enters
-provider or renderer data. Provider, sending/value, HNSA/HNSR, settlement, exchange, and
-marketplace gates remain independently false.
+import uses only that legacy gateway, stays unavailable without it, and never
+enters provider or renderer data. Website-provider and HNSA/HNSR service-role
+gates remain independently false; shipping native value, name, offer, and
+atomic-swap actions do not acquire authority through this compatibility seam.
 
 The dormant cross-platform HRM/HNSA wallet consumer does not weaken those
 gates. It accepts no raw or legacy authority object and cannot derive service

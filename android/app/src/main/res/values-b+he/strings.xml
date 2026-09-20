@@ -67,6 +67,7 @@
     <string name="sync_status_error">שְׁגִיאָה</string>
     <string name="sync_status_seed_failed">הזרע נכשל</string>
     <string name="sync_status_peer_failed">עמית נכשל</string>
+    <string name="sync_status_outbound_port_blocked">הרשת חוסמת חיבורי TCP יוצאים ביציאה 12038</string>
     <string name="sync_progress_target">היעד %1$s</string>
     <string name="sync_progress_best_peer_height">bestPeerHeight %1$s</string>
     <string name="sync_progress_best_height">bestHeight %1$s</string>

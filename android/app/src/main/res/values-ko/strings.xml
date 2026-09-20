@@ -67,6 +67,7 @@
 <string name="sync_status_error">오류</string>
 <string name="sync_status_seed_failed">시드 실패</string>
 <string name="sync_status_peer_failed">피어 실패</string>
+<string name="sync_status_outbound_port_blocked">네트워크가 포트 12038의 아웃바운드 TCP 연결을 차단합니다</string>
 <string name="sync_progress_target">타겟 %1$s</string>
 <string name="sync_progress_best_peer_height">bestPeerHeight %1$s</string>
 <string name="sync_progress_best_height">최고 높이 %1$s</string>

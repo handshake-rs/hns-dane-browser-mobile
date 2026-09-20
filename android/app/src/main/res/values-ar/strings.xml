@@ -67,6 +67,7 @@
     <string name="sync_status_error">خطأ</string>
     <string name="sync_status_seed_failed">فشلت البذور</string>
     <string name="sync_status_peer_failed">فشل الأقران</string>
+    <string name="sync_status_outbound_port_blocked">تحظر الشبكة اتصالات TCP الصادرة على المنفذ 12038</string>
     <string name="sync_progress_target">الهدف %1$s</string>
     <string name="sync_progress_best_peer_height">أفضل ارتفاع نظير %1$s</string>
     <string name="sync_progress_best_height">أفضل ارتفاع %1$s</string>

@@ -67,6 +67,7 @@
 <string name="sync_status_error">помилка</string>
 <string name="sync_status_seed_failed">насіння не вдалося</string>
 <string name="sync_status_peer_failed">одноранговий невдало</string>
+<string name="sync_status_outbound_port_blocked">мережа блокує вихідні TCP-з’єднання на порту 12038</string>
 <string name="sync_progress_target">мета %1$s</string>
 <string name="sync_progress_best_peer_height">bestPeerHeight %1$s</string>
 <string name="sync_progress_best_height">bestHeight %1$s</string>

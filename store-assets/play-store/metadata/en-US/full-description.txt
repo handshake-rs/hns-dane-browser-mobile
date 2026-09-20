@@ -11,16 +11,21 @@ Browser features:
 - Resolver trace, HNS proof details, and TLSA inspection
 - Local controls for cookies, history, downloads, diagnostics, and resolver cache
 
-Native HNS wallet features:
+Native noncustodial wallet features:
 - Create or restore one device-local Shakescape wallet
 - Protect the wallet key with Android device security
 - Synchronize HNS balance and recent activity directly with Handshake peers
+- Synchronize Bitcoin with compact filters and relevant blocks from Bitcoin peers
 - Receive HNS with an address or payment QR code
 - Scan a Handshake payment QR code on the device
 - Review and approve guarded HNS sends with an explicit fee cap
-- Import tracked Handshake names and set a restoration birthday height
+- Review and approve guarded Bitcoin sends
+- Import and search tracked Handshake names, edit raw resource records, and perform supported transfer/finalization actions
+- Set restoration birthday heights for bounded wallet recovery scans
+- Pair with a ShakeScape peer, publish or cancel signed BTC/HNS offers, and inspect available offers
+- Negotiate noncustodial BTC/HNS atomic swaps with durable stage, redemption, and refund recovery
 - Delete the encrypted local wallet through a protected confirmation flow
 
-Wallet operations are native-only. Websites cannot invoke wallet actions or read wallet state, and the app does not install a website wallet provider. Recovery phrases and private keys are not sent to Denuo Web, websites, advertising, or analytics services. The camera is used only after you choose the QR scanner, and the decoded payment address is processed locally.
+Wallet operations are native-only. Websites cannot invoke wallet actions or read wallet state, and the app does not install a website wallet provider. Recovery phrases and private keys are not sent to Denuo Web, websites, advertising, or analytics services. The camera is used only after you choose the QR scanner, and the decoded payment address is processed on the device.
 
-The current release does not expose the unfinished Bitcoin, name-operation, or Shakedex marketplace screens. Shakescape has no developer-operated account, ads, analytics SDK, subscription, in-app purchase, exchange service, or paid feature unlock. Donations are optional and do not unlock features.
+ShakeScape offer and atomic-swap controls require an unlocked, synchronized wallet and a compatible peer. Denuo Web does not take custody, choose counterparties, hold exchange balances, or guarantee settlement. Participants review and approve their own on-chain transactions, and the app resumes from a durable local execution journal after interruption. Shakescape has no developer-operated account, ads, analytics SDK, subscription, in-app purchase, custodial exchange service, or paid feature unlock. Donations are optional and do not unlock features.

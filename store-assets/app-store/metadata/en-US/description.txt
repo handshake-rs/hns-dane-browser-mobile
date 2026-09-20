@@ -13,16 +13,21 @@ Browser features:
 - Keep website data in a persistent WebKit profile
 - Download files and share pages with standard iOS controls
 
-Native HNS wallet features:
+Native noncustodial wallet features:
 
 - Create or restore one device-local Shakescape wallet
 - Unlock it with device-protected key storage
 - Synchronize balance and recent activity directly with Handshake peers
+- Synchronize Bitcoin with compact filters and relevant blocks from Bitcoin peers
 - Receive HNS with an address or payment QR code
 - Review and approve guarded HNS sends with an explicit fee cap
-- Import tracked Handshake names and set a restoration birthday height
+- Review and approve guarded Bitcoin sends
+- Import and search tracked Handshake names, edit raw resource records, and perform supported transfer/finalization actions
+- Set restoration birthday heights for bounded recovery scans
+- Pair with a ShakeScape peer, publish or cancel signed BTC/HNS offers, and inspect available offers
+- Negotiate noncustodial BTC/HNS atomic swaps with durable stage, redemption, and refund recovery
 - Delete the encrypted local wallet through a protected confirmation flow
 
 Wallet actions remain inside the native app. Websites cannot invoke wallet operations or receive wallet data, and the app does not install a website wallet provider. Recovery phrases and private keys are not sent to Denuo Web or analytics services. The camera is used only when you choose to scan a Handshake payment QR code; the decoded address is processed on the device.
 
-The native wallet also exposes tracked-name management, supported name transfer/finalization and raw-record actions, and capability-gated direct Shakedex and Bitcoin controls. These controls remain inside the app, require an unlocked synchronized wallet and explicit native approval where value can move, and may remain unavailable until their native prerequisites are satisfied. The app has no developer-operated account, advertising SDK, analytics SDK, subscription, in-app purchase, custodial exchange service, or paid feature unlock.
+ShakeScape offer and atomic-swap controls remain inside the app and require an unlocked, synchronized wallet, a compatible peer, and explicit native approval where value can move. Denuo Web does not take custody, choose counterparties, hold exchange balances, or guarantee settlement. Participants review and approve their own on-chain transactions, and the app resumes from a durable local execution journal after interruption. The app has no developer-operated account, advertising SDK, analytics SDK, subscription, in-app purchase, custodial exchange service, or paid feature unlock.

@@ -67,6 +67,7 @@
     <string name="sync_status_error">خطا</string>
     <string name="sync_status_seed_failed">دانه شکست خورد</string>
     <string name="sync_status_peer_failed">همتا شکست خورد</string>
+    <string name="sync_status_outbound_port_blocked">شبکه اتصال خروجی TCP روی درگاه ۱۲۰۳۸ را مسدود می‌کند</string>
     <string name="sync_progress_target">هدف %1$s</string>
     <string name="sync_progress_best_peer_height">bestPeerHeight %1$s</string>
     <string name="sync_progress_best_height">بهترین ارتفاع %1$s</string>
