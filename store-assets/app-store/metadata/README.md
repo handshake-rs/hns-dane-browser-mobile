@@ -1,11 +1,11 @@
 # App Store metadata
 
-This directory contains the reviewed listing source for iOS `1.0.5` / build
-`66`, bundle ID `com.denuoweb.hnsdane.ios`. The preceding iOS release and its
+This directory contains the reviewed listing source for iOS `1.0.6` / build
+`67`, bundle ID `com.denuoweb.hnsdane.ios`. The preceding iOS release and its
 screenshots predate this candidate and are not evidence for it.
 
-- Version: `1.0.5`
-- Build: `66`
+- Version: `1.0.6`
+- Build: `67`
 
 This update brings the current native wallet synchronization, recovery, name
 tracking, Unicode-name, record, transfer/finalization, and diagnostic work to

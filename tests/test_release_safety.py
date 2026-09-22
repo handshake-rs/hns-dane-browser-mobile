@@ -71,8 +71,8 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
 
     def test_platform_identity_and_reviewed_wallet_source_pin(self) -> None:
         gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
-        self.assertRegex(gradle, r"(?m)^\s*versionName = \"1\.0\.5\"$")
-        self.assertRegex(gradle, r"(?m)^\s*versionCode = 57$")
+        self.assertRegex(gradle, r"(?m)^\s*versionName = \"1\.0\.6\"$")
+        self.assertRegex(gradle, r"(?m)^\s*versionCode = 58$")
         self.assertIn(
             '?: listOf("armeabi-v7a", "arm64-v8a")',
             gradle,
@@ -200,8 +200,8 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertEqual(deny["advisories"]["ignore"], ["RUSTSEC-2024-0436"])
 
         project = (ROOT / "ios/project.yml").read_text(encoding="utf-8")
-        self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 1\.0\.5$")
-        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 66$")
+        self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 1\.0\.6$")
+        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 67$")
         self.assertIn("- sdk: SystemConfiguration.framework", project)
 
         xcode_project = (

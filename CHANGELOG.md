@@ -19,6 +19,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.0.6 - 2026-09-22
+
+Android `1.0.6` / code `58` and iOS `1.0.6` / build `67` are the coordinated
+store candidates. They retain embedded Rust workspace `1.0.2` and the pinned
+wallet/engine dependency cohort.
+
 - Bring the iOS wallet lifecycle and direct-swap surface up to the current
   Android behavior. Wallet-owned sheets and system authentication no longer
   retire the sole protected-storage authority; live swaps automatically
@@ -30,8 +36,8 @@ All notable changes to this project will be documented in this file.
   available through the equivalent iOS flows. iOS still obeys its platform
   suspension rules and resumes this durable state when protected foreground
   execution returns.
-- Keep the Android and iOS application identities at `1.0.5` (Android code
-  `57`, iOS build `66`) while advancing the embedded Rust workspace to `1.0.2`
+- Advance the Android and iOS application identities to `1.0.6` (Android code
+  `58`, iOS build `67`) while retaining the embedded Rust workspace at `1.0.2`
   on pinned Rust `1.98.1`.
 - Complete the Rust 1.92-to-1.98.1 migration. Android file locking now uses
   the standard library support delivered by Rust 1.98, so the target-specific
@@ -60,8 +66,8 @@ All notable changes to this project will be documented in this file.
 
 ## 1.0.5 - 2026-09-05
 
-Android `1.0.5` / code `57` and iOS `1.0.5` / build `66` are the current store
-candidates. They embed Rust workspace `1.0.2` and the complete prepared
+Android `1.0.5` / code `57` and iOS `1.0.5` / build `66` were the coordinated
+store candidates. They embed Rust workspace `1.0.2` and the complete prepared
 `hns-wallet-rs 0.2.3` cohort. The prior iOS `1.0.4` submission is retained only
 as release history.
 

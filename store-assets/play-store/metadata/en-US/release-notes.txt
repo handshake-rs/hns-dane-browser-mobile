@@ -1,1 +1,1 @@
-1.0.5 adds native Bitcoin synchronization and guarded sends, direct ShakeScape offer exchange, durable noncustodial BTC/HNS atomic-swap progress, supported Handshake name actions, Unicode names, raw records, peer discovery, clearer lifecycle status, and improved wallet synchronization.
+1.0.6 aligns Android and iOS wallet behavior, improves direct ShakeScape swap recovery and status notifications, keeps authenticated peer sessions responsive, and fixes lifecycle and transaction-approval races.

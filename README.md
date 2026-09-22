@@ -12,7 +12,7 @@ uses the stable iOS 26.5 SDK with Xcode 26.5 or 26.6.
 - [Apple App Store](https://apps.apple.com/us/app/hns-dane-browser/id6791914326)
 - [GitHub Release v1.0.3](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v1.0.3)
 
-Android `1.0.5` / code `57`, iOS `1.0.5` / build `66`, and embedded Rust
+Android `1.0.6` / code `58`, iOS `1.0.6` / build `67`, and embedded Rust
 `1.0.2` are the current release-source versions. Android retains its
 default-browser registration; the iOS candidate deliberately omits
 Apple's still-unapproved managed default-browser entitlement.
@@ -22,8 +22,8 @@ publishes the signed universal Android APK. The exact Android `1.0.4` / code
 `56` signed AAB has been committed to the Google Play production track and its
 generated APK set is available; existing listing assets were preserved.
 
-The prior iOS `1.0.4` / build `65` submission is no longer the pending
-candidate. The next iOS candidate is `1.0.5` / build `66`, carrying the current
+The prior iOS `1.0.5` / build `66` candidate is retained as release history.
+The next iOS candidate is `1.0.6` / build `67`, carrying the current
 wallet, name-management, synchronization, and browser-diagnostic work without
 the unapproved managed default-browser or MarketplaceKit app-installation
 entitlements. No TestFlight distribution is planned.
@@ -34,8 +34,8 @@ back for the historical `0.5.8` candidate. Version-neutral read-boundary source
 `31485234945`. The `1.0.4` submission workflows reconciled and read back the
 current store metadata while preserving the existing screenshots.
 
-Current source coordinates Android `1.0.5` / code `57`, iOS `1.0.5` / build
-`66`, and the embedded non-publishable Rust workspace at `1.0.2`. It directly pins
+Current source coordinates Android `1.0.6` / code `58`, iOS `1.0.6` / build
+`67`, and the embedded non-publishable Rust workspace at `1.0.2`. It directly pins
 the reviewed `hns-rs 0.4.1` graph, the published `hns-dane-engine`
 light-client `0.2.3` patch cohort, and the remaining exact engine releases.
 The SQLite-backed chain, P2P, and resolver adapters use adjacent
@@ -210,7 +210,7 @@ Android has completed its Rust-only proxy cutover: `MainActivity` uses the
 shared Rust runtime and proxy, while Kotlin owns only platform UI, WebView
 admission, lifecycle, and JNI conversion. The Apple C ABI, XCFramework build,
 and native iOS shell use the same runtime and proxy. The current iOS release
-candidate is `1.0.5` / build `66`. Linux validates the Rust, ABI, header, and
+candidate is `1.0.6` / build `67`. Linux validates the Rust, ABI, header, and
 architecture boundaries; macOS compilation and simulator tests against the
 iOS 26.5 SDK form the Apple build gate. The signed physical-device matrix in
 `docs/ios-device-validation.md` is not an archive, upload, or App Store
