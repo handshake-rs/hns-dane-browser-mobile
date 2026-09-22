@@ -6,6 +6,34 @@ import org.junit.Test
 
 class WalletActiveSwapHnsRefreshTest {
     @Test
+    fun `initial execution projection inherits the just verified snapshot`() {
+        assertEquals(
+            42_000L,
+            walletActiveSwapFingerprintBaseline(
+                previousFingerprint = null,
+                currentSnapshotObservedAtElapsedMillis = 42_000L,
+            ),
+        )
+        assertNull(
+            walletActiveSwapFingerprintBaseline(
+                previousFingerprint = null,
+                currentSnapshotObservedAtElapsedMillis = null,
+            ),
+        )
+    }
+
+    @Test
+    fun `changed execution projection requests an immediate refresh`() {
+        assertEquals(
+            Long.MIN_VALUE,
+            walletActiveSwapFingerprintBaseline(
+                previousFingerprint = "previous",
+                currentSnapshotObservedAtElapsedMillis = 42_000L,
+            ),
+        )
+    }
+
+    @Test
     fun `new header beyond wallet snapshot schedules one refresh`() {
         assertEquals(
             347_849L,

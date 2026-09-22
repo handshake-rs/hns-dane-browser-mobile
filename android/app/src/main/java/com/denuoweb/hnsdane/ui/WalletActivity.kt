@@ -4616,9 +4616,13 @@ class WalletActivity : ComponentActivity() {
         val previousFingerprint = lastAutomaticSwapHnsSyncFingerprint
         if (fingerprint != previousFingerprint) {
             lastAutomaticSwapHnsSyncFingerprint = fingerprint
-            if (previousFingerprint != null) {
-                lastAutomaticSwapHnsSyncAtElapsedMillis = Long.MIN_VALUE
-            }
+            walletActiveSwapFingerprintBaseline(
+                previousFingerprint = previousFingerprint,
+                currentSnapshotObservedAtElapsedMillis =
+                    latestReadSnapshotObservedAtElapsedMillis.takeIf {
+                        latestReadSnapshot != null && hasCurrentWalletReadSnapshot(walletHandle)
+                    },
+            )?.let { lastAutomaticSwapHnsSyncAtElapsedMillis = it }
         }
         val now = SystemClock.elapsedRealtime()
         if (
@@ -6860,11 +6864,32 @@ class WalletActivity : ComponentActivity() {
      * eventual native preparation remains the signing/ownership authority.
      */
     private fun freshValueActionStatus(handle: Long): NativeWalletStatus? {
-        repeat(5) { attempt ->
-            NativeWalletBridge.status(handle)?.let { return it }
-            if (attempt < 4) Thread.sleep(10)
+        return awaitWalletValueActionStatus(
+            attempts = 5,
+            readStatus = { NativeWalletBridge.status(handle) },
+            waitBeforeRetry = { Thread.sleep(10) },
+        )
+    }
+
+    /**
+     * Capture only Android-owned controller identity before starting an exact
+     * value operation. Native `status()` is a non-blocking `try_lock`; asking
+     * it on the UI thread immediately after the device-credential Activity
+     * returns used to turn harmless direct-peer contention into a false
+     * "synchronize first" rejection. Once [beginOperation] owns `busy`, the
+     * direct worker yields and the blocking native preparation accessor waits
+     * for any already-running tick without freezing the UI.
+     *
+     * A read snapshot is deliberately not required here. The preparation path
+     * already performs a fresh authenticated synchronization whenever its
+     * existing snapshot cannot safely be reused.
+     */
+    private fun valueActionPreparationContext(): Pair<WalletStorageOwnershipGate.Lease, Long>? {
+        val lease = currentStorageLease() ?: return null
+        val handle = walletHandle
+        return (lease to handle).takeIf {
+            handle != INVALID_HANDLE && unconfirmedDatabaseKey == null
         }
-        return null
     }
 
     private fun directShakescapeContext(): Pair<WalletStorageOwnershipGate.Lease, Long>? {
@@ -6904,19 +6929,9 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun prepareWalletValueActionAfterAuthentication(intent: NativeHnsValueIntent) {
-        val requiresShakedex = when (intent) {
-            is NativeHnsValueIntent.TransferName,
-            is NativeHnsValueIntent.FinalizeName,
-            is NativeHnsValueIntent.SetNameRecords -> false
-            is NativeHnsValueIntent.CreateFixedPriceOffer,
-            is NativeHnsValueIntent.CancelOffer,
-            is NativeHnsValueIntent.AcceptOffer,
-            is NativeHnsValueIntent.FinalizePurchase,
-            is NativeHnsValueIntent.RecoverName -> true
-        }
-        val (lease, handle) = valueActionContext(requiresShakedex) ?: run {
+        val (lease, handle) = valueActionPreparationContext() ?: run {
             valueActionStatusView.text = getString(R.string.wallet_value_actions_requires_sync)
-            Log.w(TAG, "Value action stopped before native preparation because fresh wallet authority was unavailable")
+            Log.w(TAG, "Value action stopped before native preparation because the wallet controller was unavailable")
             showValueActionUnavailable()
             return
         }
@@ -6964,6 +6979,12 @@ class WalletActivity : ComponentActivity() {
                 NativeHnsValueApprovalKind.NAME_MARKET_PURCHASE
         }
         thread(name = "hns-wallet-value-prepare") {
+            // Effectful JNI entry points use the blocking controller accessor
+            // and run only on this worker thread. `busy` prevents every new
+            // direct-peer tick, so an already-running tick drains and hands
+            // the controller to synchronization/preparation without a polling
+            // race. Native preparation remains the exact lock, capability,
+            // ownership, and transaction authority.
             val synchronization = if (reusableSnapshot == null) {
                 synchronizeHnsReadsWithRollbackFloor(handle)
             } else {
@@ -9709,6 +9730,38 @@ internal const val HNS_CATCHUP_PROGRESS_RETRY_DELAY_MILLIS = 2_000L
 internal const val HNS_CATCHUP_DEGRADED_RETRY_DELAY_MILLIS = 30_000L
 internal const val SWAP_HNS_AUTO_SYNC_INTERVAL_MILLIS = 2 * 60_000L
 internal const val WALLET_VALUE_ACTION_SNAPSHOT_REUSE_MILLIS = 60_000L
+
+/**
+ * Loading an existing execution journal immediately after a verified unlock
+ * sync must inherit that sync's observation time. A later execution revision
+ * remains urgent and resets the cadence so settlement changes are scanned.
+ */
+internal fun walletActiveSwapFingerprintBaseline(
+    previousFingerprint: String?,
+    currentSnapshotObservedAtElapsedMillis: Long?,
+): Long? = when {
+    previousFingerprint != null -> Long.MIN_VALUE
+    currentSnapshotObservedAtElapsedMillis != null -> currentSnapshotObservedAtElapsedMillis
+    else -> null
+}
+
+/**
+ * Retry only a non-blocking native status read. A returned status is final for
+ * this gate, including a genuinely locked or disabled wallet; callers must
+ * never retry transaction preparation or any other effectful native call.
+ */
+internal inline fun awaitWalletValueActionStatus(
+    attempts: Int,
+    readStatus: () -> NativeWalletStatus?,
+    waitBeforeRetry: () -> Unit,
+): NativeWalletStatus? {
+    require(attempts > 0)
+    repeat(attempts) { attempt ->
+        readStatus()?.let { return it }
+        if (attempt + 1 < attempts) waitBeforeRetry()
+    }
+    return null
+}
 
 /**
  * A value-action review may skip a redundant network round only while its
