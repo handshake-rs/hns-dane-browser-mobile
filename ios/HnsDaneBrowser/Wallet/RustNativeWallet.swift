@@ -301,17 +301,19 @@ struct NativeBitcoinHtlcFundingApproval {
 struct NativeBitcoinHtlcFundingReceipt: Decodable, Equatable, Sendable {
     let sessionId: String
     let txid: String
+    let outputIndex: UInt32
     let attemptCount: UInt8
     let submittedAtUnix: UInt64?
 
     private enum CodingKeys: String, CodingKey, CaseIterable {
-        case sessionId, txid, attemptCount, submittedAtUnix
+        case sessionId, txid, outputIndex, attemptCount, submittedAtUnix
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
         sessionId = try container.decode(String.self, forKey: .sessionId)
         txid = try container.decode(String.self, forKey: .txid)
+        outputIndex = try container.decode(UInt32.self, forKey: .outputIndex)
         attemptCount = try container.decode(UInt8.self, forKey: .attemptCount)
         submittedAtUnix = try container.decodeIfPresent(UInt64.self, forKey: .submittedAtUnix)
         guard Self.validHash(sessionId), Self.validHash(txid),
@@ -343,16 +345,18 @@ struct NativeHnsHtlcFundingApproval {
 struct NativeHnsHtlcFundingReceipt: Decodable, Equatable, Sendable {
     let sessionId: String
     let transactionId: String
+    let outputIndex: UInt32
     let acceptedAtUnix: UInt64
 
     private enum CodingKeys: String, CodingKey, CaseIterable {
-        case sessionId, transactionId, acceptedAtUnix
+        case sessionId, transactionId, outputIndex, acceptedAtUnix
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
         sessionId = try container.decode(String.self, forKey: .sessionId)
         transactionId = try container.decode(String.self, forKey: .transactionId)
+        outputIndex = try container.decode(UInt32.self, forKey: .outputIndex)
         acceptedAtUnix = try container.decode(UInt64.self, forKey: .acceptedAtUnix)
         guard NativeBitcoinHtlcFundingReceipt.validHash(sessionId),
               NativeBitcoinHtlcFundingReceipt.validHash(transactionId), acceptedAtUnix > 0 else {
@@ -508,6 +512,11 @@ struct NativeDirectOfferTakeApproval {
     let approvalExpiresAtUnix: UInt64
 }
 
+enum NativeDirectOfferTakePreparation {
+    case approval(NativeDirectOfferTakeApproval)
+    case insufficientFunds(receivedAsset: String, confirmedAmount: UInt64)
+}
+
 struct NativeDirectOfferTakeSummary: Decodable, Equatable, Sendable {
     let offerId: String
     let sessionId: String
@@ -588,6 +597,7 @@ struct NativeShakescapeExecutionSummary: Decodable, Equatable, Sendable {
     let fundingDeadlineUnix: UInt64
     let firstRefundAtUnix: UInt64
     let secondRefundAtUnix: UInt64
+    let localFundingState: String?
     let firstFundingConfirmed: Bool
     let secondFundingConfirmed: Bool
     let firstRedemptionConfirmed: Bool
@@ -599,7 +609,7 @@ struct NativeShakescapeExecutionSummary: Decodable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case sessionId, revision, state, firstChain, secondChain, offeredAsset, offeredAmount
         case receivedAsset, receivedAmount, localRole, fundingDeadlineUnix
-        case firstRefundAtUnix, secondRefundAtUnix
+        case firstRefundAtUnix, secondRefundAtUnix, localFundingState
         case firstFundingConfirmed, secondFundingConfirmed, firstRedemptionConfirmed
         case secondRedemptionConfirmed, refundConfirmed, lastVerifiedAtUnix, failureReason
     }
@@ -619,6 +629,9 @@ struct NativeShakescapeExecutionSummary: Decodable, Equatable, Sendable {
         fundingDeadlineUnix = try container.decode(UInt64.self, forKey: .fundingDeadlineUnix)
         firstRefundAtUnix = try container.decode(UInt64.self, forKey: .firstRefundAtUnix)
         secondRefundAtUnix = try container.decode(UInt64.self, forKey: .secondRefundAtUnix)
+        localFundingState = try container.decodeIfPresent(
+            String.self, forKey: .localFundingState
+        )
         firstFundingConfirmed = try container.decode(Bool.self, forKey: .firstFundingConfirmed)
         secondFundingConfirmed = try container.decode(Bool.self, forKey: .secondFundingConfirmed)
         firstRedemptionConfirmed = try container.decode(Bool.self, forKey: .firstRedemptionConfirmed)
@@ -639,6 +652,9 @@ struct NativeShakescapeExecutionSummary: Decodable, Equatable, Sendable {
               ["btc", "hns"].contains(offeredAsset), ["btc", "hns"].contains(receivedAsset),
               offeredAsset != receivedAsset, ["maker", "taker"].contains(localRole),
               offeredAmount > 0, receivedAmount > 0,
+              localFundingState.map {
+                  ["broadcast", "seen", "confirmed", "reorged"].contains($0)
+              } ?? true,
               fundingDeadlineUnix > 0, fundingDeadlineUnix < secondRefundAtUnix,
               firstRefundAtUnix > secondRefundAtUnix, lastVerifiedAtUnix > 0,
               failureReason.map { !$0.isEmpty && $0.count <= 256 } ?? true else {
@@ -2685,25 +2701,60 @@ private struct NativeDirectOfferTakeApprovalPayload: Decodable {
     }
 }
 
-private extension NativeDirectOfferTakeApproval {
+private struct NativeDirectOfferTakeFailurePayload: Decodable {
+    let failure: String
+    let receivedAsset: String
+    let confirmedAmount: UInt64
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case failure, receivedAsset, confirmedAmount
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        failure = try container.decode(String.self, forKey: .failure)
+        receivedAsset = try container.decode(String.self, forKey: .receivedAsset)
+        confirmedAmount = try container.decode(UInt64.self, forKey: .confirmedAmount)
+        guard (failure == "insufficientBitcoin" && receivedAsset == "btc") ||
+                (failure == "insufficientHns" && receivedAsset == "hns") else {
+            throw NativeWalletBridgeError.invalidOutput(
+                "invalid direct offer take failure"
+            )
+        }
+    }
+}
+
+extension NativeDirectOfferTakePreparation {
     static func decode(bundle: [UInt8]) throws -> Self {
         var payload = try NativeHnsValueBundle.payload(
             bundle, magic: Array("HNBW".utf8), maximumJSONBytes: 16 * 1_024
         )
         defer { payload.resetBytes(in: payload.startIndex..<payload.endIndex) }
-        let decoded = try JSONDecoder().decode(NativeDirectOfferTakeApprovalPayload.self, from: payload)
+        if let failure = try? JSONDecoder().decode(
+            NativeDirectOfferTakeFailurePayload.self, from: payload
+        ) {
+            return .insufficientFunds(
+                receivedAsset: failure.receivedAsset,
+                confirmedAmount: failure.confirmedAmount
+            )
+        }
+        let decoded = try JSONDecoder().decode(
+            NativeDirectOfferTakeApprovalPayload.self, from: payload
+        )
         var token = Array(decoded.actionToken.utf8)
         guard let actionToken = NativeHnsSendActionToken(takingASCII: &token) else {
-            throw NativeWalletBridgeError.invalidOutput("invalid direct offer take action token")
+            throw NativeWalletBridgeError.invalidOutput(
+                "invalid direct offer take action token"
+            )
         }
-        return Self(
+        return .approval(NativeDirectOfferTakeApproval(
             actionToken: actionToken,
             offer: decoded.offer,
             receivedFeeReserve: decoded.receivedFeeReserve,
             totalReceivedAssetCommitment: decoded.totalReceivedAssetCommitment,
             takeExpiresAtUnix: decoded.takeExpiresAtUnix,
             approvalExpiresAtUnix: decoded.approvalExpiresAtUnix
-        )
+        ))
     }
 }
 
@@ -3860,7 +3911,7 @@ final class RustNativeWallet: @unchecked Sendable {
     func prepareDirectOfferTake(
         offerId: String,
         receivedFeeReserve: UInt64
-    ) throws -> NativeDirectOfferTakeApproval {
+    ) throws -> NativeDirectOfferTakePreparation {
         var offer = Array(offerId.utf8)
         defer { WalletSecretBytes.wipe(&offer) }
         var output = HnsBrowserBuffer()
@@ -3876,7 +3927,7 @@ final class RustNativeWallet: @unchecked Sendable {
         try NativeWalletBridge.check(result, operation: "direct offer take preparation")
         var bundle = try NativeWalletBridge.bytes(copying: output)
         defer { WalletSecretBytes.wipe(&bundle) }
-        return try NativeDirectOfferTakeApproval.decode(bundle: bundle)
+        return try NativeDirectOfferTakePreparation.decode(bundle: bundle)
     }
 
     func approveDirectOfferTake(

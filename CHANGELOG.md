@@ -19,6 +19,17 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+- Bring the iOS wallet lifecycle and direct-swap surface up to the current
+  Android behavior. Wallet-owned sheets and system authentication no longer
+  retire the sole protected-storage authority; live swaps automatically
+  refresh both verified HNS state and Bitcoin compact-filter watches; current
+  funding-state and output-index fields are authenticated instead of rejected
+  as schema drift; insufficient balances and existing swap reservations remain
+  distinguishable; and authenticated recovery frames, live execution ordering,
+  reconnect replay, notifications, funding, settlement, and abandonment stay
+  available through the equivalent iOS flows. iOS still obeys its platform
+  suspension rules and resumes this durable state when protected foreground
+  execution returns.
 - Keep the Android and iOS application identities at `1.0.5` (Android code
   `57`, iOS build `66`) while advancing the embedded Rust workspace to `1.0.2`
   on pinned Rust `1.98.1`.

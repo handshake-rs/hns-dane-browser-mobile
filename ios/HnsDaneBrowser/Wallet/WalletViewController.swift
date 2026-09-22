@@ -18,6 +18,10 @@ private let minimumHnsSwapDollarydoos =
     hnsSwapReceiverDustDollarydoos + minimumHnsFeeReserveDollarydoos
 private let directShakescapeNetworkMaintenanceTicks = 30
 private let directShakescapeExecutionPollTicks = 5
+private let maximumDirectShakescapeFramesPerTick = 16
+private let automaticSwapHnsSyncInterval: TimeInterval = 2 * 60
+private let automaticSwapBitcoinSyncInterval: TimeInterval = 15 * 60
+private let automaticSwapBitcoinStopGraceInterval: TimeInterval = 5 * 60
 private let maximumVisibleDirectShakescapePeers = 3
 private let showShakedexWalletCard = true
 
@@ -257,6 +261,12 @@ final class WalletViewController: UIViewController {
     private var directShakescapeExecutionTicks = 0
     private var directShakescapeStatusSnapshot: NativeDirectShakescapeStatus?
     private var shakescapeExecutionStatusSnapshot: NativeShakescapeExecutionStatus?
+    private var latestReadSnapshotObservedAtUptime: TimeInterval?
+    private var lastAutomaticSwapHnsSyncAtUptime: TimeInterval?
+    private var lastAutomaticSwapHnsSyncFingerprint: String?
+    private var lastAutomaticSwapBitcoinSyncAtUptime: TimeInterval?
+    private var lastAutomaticSwapBitcoinSyncFingerprint: String?
+    private var automaticSwapBitcoinSyncPausedUntilUptime: TimeInterval?
     private let atomicSwapNotifications = AtomicSwapNotificationCoordinator()
     private var recentDirectShakescapePeers: [String] = []
     private var hnsSyncPresentationTimer: Timer?
@@ -365,7 +375,7 @@ final class WalletViewController: UIViewController {
         view.backgroundColor = .systemGroupedBackground
         configureView()
         for name in [
-            UIApplication.willResignActiveNotification,
+            UIApplication.didEnterBackgroundNotification,
             UIApplication.protectedDataWillBecomeUnavailableNotification,
         ] {
             NotificationCenter.default.addObserver(
@@ -423,11 +433,21 @@ final class WalletViewController: UIViewController {
     }
 
     override func viewWillDisappear(_ animated: Bool) {
-        walletAuthorityRequested = false
-        stopWalletNetworkMonitoring()
-        stopPendingOutgoingRefreshObserver()
-        stopHnsSyncPresentationWatcher()
-        protectWalletLifecycle()
+        let remainsInNavigationStack = navigationController?.viewControllers.contains {
+            $0 === self
+        } ?? true
+        if walletViewDepartureRequiresRetirement(
+            screenIsMovingFromParent: isMovingFromParent,
+            screenIsBeingDismissed: isBeingDismissed,
+            navigationIsBeingDismissed: navigationController?.isBeingDismissed == true,
+            screenRemainsInNavigationStack: remainsInNavigationStack
+        ) {
+            walletAuthorityRequested = false
+            stopWalletNetworkMonitoring()
+            stopPendingOutgoingRefreshObserver()
+            stopHnsSyncPresentationWatcher()
+            protectWalletLifecycle()
+        }
         super.viewWillDisappear(animated)
     }
 
@@ -1287,6 +1307,7 @@ final class WalletViewController: UIViewController {
                 self.bitcoinSyncStopRequested = false
                 switch outcome {
                 case .success(let synchronization):
+                    self.lastAutomaticSwapBitcoinSyncAtUptime = ProcessInfo.processInfo.systemUptime
                     self.renderBitcoinSnapshot(synchronization.snapshot)
                     let elapsed = String(format: "%.2fs", Double(synchronization.totalMs) / 1_000)
                     self.bitcoinStatusLabel.text = "Bitcoin synchronized at height \(synchronization.checkpointHeight) with \(synchronization.connectedPeerCount)/\(synchronization.requiredPeerCount) peers in \(elapsed)."
@@ -1307,6 +1328,8 @@ final class WalletViewController: UIViewController {
     private func stopBitcoinSynchronization() {
         guard let wallet, bitcoinSyncInProgress, !bitcoinSyncStopRequested else { return }
         bitcoinSyncStopRequested = true
+        automaticSwapBitcoinSyncPausedUntilUptime =
+            ProcessInfo.processInfo.systemUptime + automaticSwapBitcoinStopGraceInterval
         bitcoinStatusLabel.text = "Stopping Bitcoin synchronization now…"
         refreshButtonStates()
         DispatchQueue.global(qos: .userInitiated).async { [wallet] in
@@ -1942,11 +1965,21 @@ final class WalletViewController: UIViewController {
                 guard let self, self.wallet === wallet else { return }
                 self.isOperating = false
                 switch outcome {
-                case .success(let approval) where approval.offer.offerId == offer.offerId:
+                case .success(.approval(let approval)) where
+                    approval.offer.offerId == offer.offerId:
                     self.presentDirectOfferTakeApproval(approval, wallet: wallet)
-                case .success(let approval):
+                case .success(.approval(let approval)):
                     try? wallet.rejectDirectOfferTake(approval.actionToken)
                     self.showErrorMessage("The native offer review did not match the selected offer.")
+                case .success(.insufficientFunds(let receivedAsset, let confirmedAmount)):
+                    let required = offer.receivedAmount
+                    let amount = self.swapAmount(confirmedAmount, asset: receivedAsset)
+                    let requiredAmount = self.swapAmount(required, asset: receivedAsset)
+                    let message = required > confirmedAmount
+                        ? "This offer requires \(requiredAmount) total, but the synchronized wallet has \(amount) confirmed."
+                        : "This offer requires \(requiredAmount) total. The wallet has \(amount) confirmed, but existing active or unfunded swap commitments reserve enough funds that this take cannot be funded. Complete, refund, or abandon an eligible swap before retrying."
+                    self.bitcoinStatusLabel.text = message
+                    self.showErrorMessage(message)
                 case .failure(let error):
                     self.bitcoinStatusLabel.text = "The direct-offer take was not prepared."
                     self.showError(error)
@@ -2031,6 +2064,21 @@ final class WalletViewController: UIViewController {
                     self.bitcoinStatusLabel.text = self.bitcoinBroadcastRecoveryText(
                         status.bitcoinBroadcastRecovery
                     )
+                    let terminal: Set<String> = ["completed", "refunded", "failed"]
+                    let orderedExecutions = status.executions.sorted {
+                        let leftTerminal = terminal.contains($0.state)
+                        let rightTerminal = terminal.contains($1.state)
+                        if leftTerminal != rightTerminal { return !leftTerminal }
+                        return $0.lastVerifiedAtUnix > $1.lastVerifiedAtUnix
+                    }
+                    let liveExecutions = orderedExecutions.filter {
+                        !terminal.contains($0.state)
+                    }
+                    if status.pendingAcceptances.isEmpty, liveExecutions.count == 1,
+                       let execution = liveExecutions.first {
+                        self.showShakescapeExecution(execution, wallet: wallet)
+                        return
+                    }
                     let alert = UIAlertController(
                         title: "Atomic swap executions",
                         message: "Statuses advance only from independently verified chain evidence.\n\n\(self.bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery))",
@@ -2040,14 +2088,14 @@ final class WalletViewController: UIViewController {
                         let offered = self.swapAmount(take.offeredAmount, asset: take.offeredAsset)
                         let received = self.swapAmount(take.receivedAmount, asset: take.receivedAsset)
                         alert.addAction(UIAlertAction(
-                            title: "Unfunded acceptance · \(offered) → \(received) · \(take.sessionId.prefix(12))…",
+                            title: "Unfunded acceptance · \(offered) → \(received) · reserve \(self.swapAmount(take.receivedFeeReserve, asset: take.receivedAsset)) · \(take.sessionId.prefix(12))…",
                             style: .default
                         ) { [weak self, weak wallet] _ in
                             guard let self, let wallet, self.wallet === wallet else { return }
                             self.confirmAbandonPendingAcceptance(take, wallet: wallet)
                         })
                     }
-                    for execution in status.executions {
+                    for execution in orderedExecutions {
                         alert.addAction(UIAlertAction(
                             title: "\(execution.state.replacingOccurrences(of: "_", with: " ")) · \(execution.sessionId.prefix(12))…",
                             style: .default
@@ -2096,6 +2144,7 @@ final class WalletViewController: UIViewController {
                     case .success:
                         self.bitcoinStatusLabel.text = "The unfunded acceptance was abandoned and its reserved funds were released."
                         if let snapshot = self.latestReadSnapshot { self.publish(snapshot) }
+                        self.showShakescapeExecutions()
                     case .failure(let error):
                         self.bitcoinStatusLabel.text = "The acceptance could not be abandoned. It may already have reached countersigned or funded state."
                         self.showError(error)
@@ -2129,6 +2178,7 @@ final class WalletViewController: UIViewController {
         Funding order: \(execution.firstChain), then \(execution.secondChain)
         First funding confirmed: \(execution.firstFundingConfirmed)
         Second funding confirmed: \(execution.secondFundingConfirmed)
+        Local funding status: \(execution.localFundingState ?? "Not submitted")
         New-funding deadline: Unix \(execution.fundingDeadlineUnix)
         First-chain refund time: Unix \(execution.firstRefundAtUnix)
         Second-chain refund time: Unix \(execution.secondRefundAtUnix)
@@ -3818,6 +3868,11 @@ final class WalletViewController: UIViewController {
             directShakescapeExecutionTicks = 0
             directShakescapeStatusSnapshot = nil
             shakescapeExecutionStatusSnapshot = nil
+            lastAutomaticSwapHnsSyncAtUptime = nil
+            lastAutomaticSwapHnsSyncFingerprint = nil
+            lastAutomaticSwapBitcoinSyncAtUptime = nil
+            lastAutomaticSwapBitcoinSyncFingerprint = nil
+            automaticSwapBitcoinSyncPausedUntilUptime = nil
             return
         }
         guard directShakescapeServiceTimer == nil else { return }
@@ -3837,9 +3892,15 @@ final class WalletViewController: UIViewController {
         let authority = walletAuthorityGeneration
         let pollExecutions = directShakescapeExecutionTicks == 0
         DispatchQueue.global(qos: .utility).async {
-            _ = try? wallet.serviceDirectShakescape()
+            var transportWorkServiced = false
+            for _ in 0..<maximumDirectShakescapeFramesPerTick {
+                guard (try? wallet.serviceDirectShakescape()) == true else { break }
+                transportWorkServiced = true
+            }
             let status = try? wallet.directShakescapeStatus()
-            let executions = pollExecutions ? try? wallet.shakescapeExecutions() : nil
+            let executions = pollExecutions || transportWorkServiced
+                ? try? wallet.shakescapeExecutions()
+                : nil
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self.directShakescapeServiceInFlight = false
@@ -3878,10 +3939,108 @@ final class WalletViewController: UIViewController {
                 if self.directShakescapeServiceTicks == 0,
                    status?.publiclyReachable == true,
                    status?.networkServiceReady == false {
-                    self.synchronizeWalletReads(resumeAutomaticSync: false)
+                    self.synchronizeWalletReads(
+                        resumeAutomaticSync: false,
+                        reportFailure: false
+                    )
+                } else if let executions,
+                          !self.maybeStartAutomaticSwapHnsSync(executions) {
+                    _ = self.maybeStartAutomaticSwapBitcoinSync(executions)
                 }
             }
         }
+    }
+
+    private func liveAtomicSwapFingerprint(
+        _ status: NativeShakescapeExecutionStatus
+    ) -> String? {
+        let terminal: Set<String> = ["completed", "refunded", "failed"]
+        let live = status.executions
+            .filter { !terminal.contains($0.state) }
+            .sorted { $0.sessionId < $1.sessionId }
+        let pending = status.pendingAcceptances.sorted { $0.sessionId < $1.sessionId }
+        guard !live.isEmpty || !pending.isEmpty else { return nil }
+        let executions = live.map {
+            "\($0.sessionId):\($0.revision):\($0.state)"
+        }
+        let acceptances = pending.map {
+            "\($0.sessionId):\($0.createdAtUnix)"
+        }
+        return (executions + acceptances).joined(separator: ";")
+    }
+
+    /// Keep the HNS half of every live swap current while the protected wallet
+    /// is foreground-owned. A newly loaded journal inherits a just-published
+    /// snapshot; a later journal revision schedules an immediate bounded scan.
+    @discardableResult
+    private func maybeStartAutomaticSwapHnsSync(
+        _ status: NativeShakescapeExecutionStatus
+    ) -> Bool {
+        guard let fingerprint = liveAtomicSwapFingerprint(status) else {
+            lastAutomaticSwapHnsSyncAtUptime = nil
+            lastAutomaticSwapHnsSyncFingerprint = nil
+            return false
+        }
+        if fingerprint != lastAutomaticSwapHnsSyncFingerprint {
+            lastAutomaticSwapHnsSyncAtUptime = walletAutomaticSwapHnsLastRun(
+                previousFingerprint: lastAutomaticSwapHnsSyncFingerprint,
+                currentSnapshotObservedAtUptime: latestReadSnapshot == nil
+                    ? nil
+                    : latestReadSnapshotObservedAtUptime
+            )
+            lastAutomaticSwapHnsSyncFingerprint = fingerprint
+        }
+        guard !isOperating,
+              !bitcoinSyncInProgress,
+              walletAuthorityRequested,
+              storageLease != nil,
+              wallet != nil,
+              synchronizedReadsAvailable else { return false }
+        let now = ProcessInfo.processInfo.systemUptime
+        if let last = lastAutomaticSwapHnsSyncAtUptime,
+           now - last < automaticSwapHnsSyncInterval {
+            return false
+        }
+        lastAutomaticSwapHnsSyncAtUptime = now
+        synchronizeWalletReads(resumeAutomaticSync: false, reportFailure: false)
+        return isOperating
+    }
+
+    /// Keep the Bitcoin compact-filter/watch state current for live swaps.
+    /// This is read-only maintenance; every funding, redemption, and refund
+    /// remains behind its exact native approval flow.
+    @discardableResult
+    private func maybeStartAutomaticSwapBitcoinSync(
+        _ status: NativeShakescapeExecutionStatus
+    ) -> Bool {
+        guard let fingerprint = liveAtomicSwapFingerprint(status) else {
+            lastAutomaticSwapBitcoinSyncAtUptime = nil
+            lastAutomaticSwapBitcoinSyncFingerprint = nil
+            automaticSwapBitcoinSyncPausedUntilUptime = nil
+            return false
+        }
+        if fingerprint != lastAutomaticSwapBitcoinSyncFingerprint {
+            lastAutomaticSwapBitcoinSyncFingerprint = fingerprint
+            lastAutomaticSwapBitcoinSyncAtUptime = nil
+        }
+        let now = ProcessInfo.processInfo.systemUptime
+        if let pausedUntil = automaticSwapBitcoinSyncPausedUntilUptime,
+           now < pausedUntil {
+            return false
+        }
+        guard !isOperating,
+              !bitcoinSyncInProgress,
+              !bitcoinBirthdayResetInProgress,
+              walletAuthorityRequested,
+              wallet != nil,
+              bitcoinValueAvailable else { return false }
+        if let last = lastAutomaticSwapBitcoinSyncAtUptime,
+           now - last < automaticSwapBitcoinSyncInterval {
+            return false
+        }
+        lastAutomaticSwapBitcoinSyncAtUptime = now
+        startBitcoinSynchronization()
+        return bitcoinSyncInProgress
     }
 
     private func publishShakescapeExecutionStatus(_ status: NativeShakescapeExecutionStatus) {
@@ -3907,6 +4066,11 @@ final class WalletViewController: UIViewController {
         let first = execution.firstChain.capitalized
         let second = execution.secondChain.capitalized
         let now = UInt64(Date().timeIntervalSince1970)
+        let fundingWasSubmitted = ["broadcast", "seen", "confirmed"]
+            .contains(execution.localFundingState ?? "")
+        if bitcoinSyncInProgress {
+            return "Synchronizing Bitcoin compact filters and watched transactions"
+        }
         switch execution.state {
         case "terms_frozen", "refunds_prepared":
             return "Terms are frozen; waiting for first funding"
@@ -3914,14 +4078,28 @@ final class WalletViewController: UIViewController {
             if now >= execution.fundingDeadlineUnix {
                 return "The new-funding window expired"
             }
+            if execution.localRole == "maker", fundingWasSubmitted {
+                return "\(first) funding was submitted; waiting for confirmation"
+            }
+            if execution.localRole == "maker", execution.localFundingState == "reorged" {
+                return "\(first) funding was reorganized; review before retrying"
+            }
             return execution.localRole == "maker"
                 ? "\(first) funding is ready for approval on this device"
                 : "Waiting for the counterparty to fund \(first)"
         case "first_funded", "second_funding_pending":
             if execution.localRole == "taker" {
-                return now < execution.fundingDeadlineUnix
-                    ? "\(second) funding is ready for approval on this device"
-                    : "The new-funding window expired"
+                guard now < execution.fundingDeadlineUnix ||
+                        execution.state == "second_funding_pending" else {
+                    return "The new-funding window expired"
+                }
+                if fundingWasSubmitted {
+                    return "\(second) funding was submitted; waiting for confirmation"
+                }
+                if execution.localFundingState == "reorged" {
+                    return "\(second) funding was reorganized; review before retrying"
+                }
+                return "\(second) funding is ready for approval on this device"
             }
             if now >= execution.firstRefundAtUnix {
                 return "\(first) refund is ready on this device"
@@ -4752,7 +4930,10 @@ final class WalletViewController: UIViewController {
         synchronizeWalletReads(resumeAutomaticSync: true)
     }
 
-    private func synchronizeWalletReads(resumeAutomaticSync: Bool) {
+    private func synchronizeWalletReads(
+        resumeAutomaticSync: Bool,
+        reportFailure: Bool = true
+    ) {
         guard let lease = storageLease,
               let wallet,
               unconfirmedDatabaseKey == nil,
@@ -4838,7 +5019,7 @@ final class WalletViewController: UIViewController {
                 case .failure(let detail):
                     self.readStatusLabel.text = "HNS synchronization did not finish. The direct wallet was locked; unlock before retrying."
                     self.clearReadProjection()
-                    self.showErrorMessage(detail)
+                    if reportFailure { self.showErrorMessage(detail) }
                 }
                 WalletHnsSyncPresentationCache.clear(networkID: keychain.networkID)
                 self.refreshButtonStates()
@@ -5586,6 +5767,12 @@ final class WalletViewController: UIViewController {
         let presentation = WalletReadPresenter.present(snapshot)
         let balance = WalletHnsBalancePresenter.present(snapshot)
         latestReadSnapshot = snapshot
+        latestReadSnapshotObservedAtUptime = ProcessInfo.processInfo.systemUptime
+        if shakescapeExecutionStatusSnapshot.flatMap({
+            liveAtomicSwapFingerprint($0)
+        }) != nil {
+            lastAutomaticSwapHnsSyncAtUptime = latestReadSnapshotObservedAtUptime
+        }
         latestPublishedSnapshotHeight = snapshot.moduleStatus.validatedHeight
         if balance.hasPendingOutgoing {
             pendingOutgoingSnapshotHeight = snapshot.moduleStatus.validatedHeight
@@ -5793,6 +5980,7 @@ final class WalletViewController: UIViewController {
         }
         namesGalleryViewController = nil
         latestReadSnapshot = nil
+        latestReadSnapshotObservedAtUptime = nil
         receiveTargets = nil
         recentTransactions = nil
         finalizeNotices = []
@@ -6050,10 +6238,16 @@ final class WalletViewController: UIViewController {
     }
 
     private func performWalletOperation(_ operation: () throws -> Void) {
+        if storageLease == nil {
+            // A newly visible controller can overlap the preceding controller's
+            // checked native close for a short time. Re-attempt the exact lease
+            // and leave the disabled dashboard in its automatic waiting state;
+            // presenting a false concurrent-wallet error only interrupts that
+            // handoff and can itself trigger more UIKit lifecycle transitions.
+            resumeWalletLifecycle()
+        }
         guard storageLease != nil else {
-            showErrorMessage(retirementInFlight
-                ? "Wallet protection is still finishing. Try again after it completes."
-                : "Another wallet screen owns this network's local wallet storage.")
+            refreshState()
             return
         }
         guard !isOperating else {
@@ -6098,9 +6292,9 @@ final class WalletViewController: UIViewController {
                 accountLabel.text = "Account unavailable until protected foreground access resumes."
                 setReadAvailability(false, message: "Read-only synchronization unavailable outside protected foreground access.")
             } else {
-                statusLabel.text = "Wallet storage is active in another screen."
-                accountLabel.text = "Account unavailable. Close the other wallet screen and try again."
-                setReadAvailability(false, message: "Read-only synchronization unavailable while storage is owned elsewhere.")
+                statusLabel.text = "Finishing the previous wallet screen's protected storage handoff."
+                accountLabel.text = "Account access will resume automatically when native wallet closure completes."
+                setReadAvailability(false, message: "Read-only synchronization is waiting for protected wallet storage handoff.")
             }
             refreshButtonStates()
             return

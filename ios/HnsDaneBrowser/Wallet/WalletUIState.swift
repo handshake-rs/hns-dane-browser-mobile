@@ -6,6 +6,34 @@ enum WalletNetworkTransport: Equatable, Sendable {
     case other
 }
 
+/// A wallet-owned sheet or child controller can cover the dashboard without
+/// surrendering the one native database authority. Retire that authority only
+/// when the wallet controller itself leaves its navigation/presentation flow.
+/// App backgrounding and protected-data loss are handled independently by the
+/// application lifecycle notifications.
+func walletViewDepartureRequiresRetirement(
+    screenIsMovingFromParent: Bool,
+    screenIsBeingDismissed: Bool,
+    navigationIsBeingDismissed: Bool,
+    screenRemainsInNavigationStack: Bool
+) -> Bool {
+    screenIsMovingFromParent ||
+        screenIsBeingDismissed ||
+        navigationIsBeingDismissed ||
+        !screenRemainsInNavigationStack
+}
+
+/// The first durable execution projection often arrives immediately after the
+/// user has completed a verified HNS scan. Inherit that observation time so
+/// loading the journal does not start a redundant scan; any later protocol
+/// revision returns nil and is therefore eligible for immediate refresh.
+func walletAutomaticSwapHnsLastRun(
+    previousFingerprint: String?,
+    currentSnapshotObservedAtUptime: TimeInterval?
+) -> TimeInterval? {
+    previousFingerprint == nil ? currentSnapshotObservedAtUptime : nil
+}
+
 func walletCellularDataWarningVisible(
     walletUnlocked: Bool,
     transport: WalletNetworkTransport

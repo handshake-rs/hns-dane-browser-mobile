@@ -357,6 +357,33 @@ require_source_contains "$ios_wallet_controller" \
 require_source_contains "$ios_wallet_controller" \
   'clearWalletNameImportPrompt(dismiss: true)' \
   "iOS lifecycle protection must clear and dismiss the trusted-native name prompt."
+require_source_contains "$ios_native_wallet" \
+  'case firstRefundAtUnix, secondRefundAtUnix, localFundingState' \
+  "iOS must decode the same current atomic-swap funding state as Android."
+require_source_contains "$ios_native_wallet" \
+  'case sessionId, txid, outputIndex, attemptCount, submittedAtUnix' \
+  "iOS must authenticate the complete Bitcoin funding receipt shape."
+require_source_contains "$ios_native_wallet" \
+  'case sessionId, transactionId, outputIndex, acceptedAtUnix' \
+  "iOS must authenticate the complete HNS funding receipt shape."
+require_source_contains "$ios_native_wallet" \
+  'case insufficientFunds(receivedAsset: String, confirmedAmount: UInt64)' \
+  "iOS must preserve the native insufficient-funds reason just as Android does."
+require_source_contains "$ios_wallet_controller" \
+  'maybeStartAutomaticSwapHnsSync(executions)' \
+  "iOS live atomic swaps must keep their HNS watch state current."
+require_source_contains "$ios_wallet_controller" \
+  'maybeStartAutomaticSwapBitcoinSync(executions)' \
+  "iOS live atomic swaps must keep their Bitcoin watch state current."
+require_source_contains "$ios_wallet_controller" \
+  'maximumDirectShakescapeFramesPerTick = 16' \
+  "iOS must drain a bounded burst of authenticated swap recovery frames."
+require_source_contains "$ios_ffi_dir/src/lib.rs" \
+  'IOS_SHAKESCAPE_ACTIVE_SWAP_RECONCILIATION_INTERVAL_SECONDS' \
+  "iOS live swaps must replay durable session recovery promptly after reconnect."
+require_source_contains "$ios_ffi_dir/src/lib.rs" \
+  'service_connected_shakescape_peer(' \
+  "iOS must prioritize already-authenticated board traffic before ordinary maintenance."
 require_source_contains "$ios_ffi_dir/src/lib.rs" \
   'NativeWalletController::HnsReads(controller) =>' \
   "iOS native name import must be unavailable outside the synchronized HNS read controller."

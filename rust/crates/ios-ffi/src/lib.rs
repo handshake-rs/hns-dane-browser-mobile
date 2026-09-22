@@ -187,6 +187,7 @@ const WALLET_HNS_SYNC_FINALIZING: u8 = 4;
 const IOS_DIRECT_SHAKESCAPE_LISTEN_PORT: u16 = 12_038;
 const IOS_DIRECT_SHAKESCAPE_SOCKET_TIMEOUT: Duration = Duration::from_secs(2);
 const IOS_SHAKESCAPE_HSD_PEER_MAINTENANCE_INTERVAL_SECONDS: u64 = 30;
+const IOS_SHAKESCAPE_ACTIVE_SWAP_RECONCILIATION_INTERVAL_SECONDS: u64 = 15;
 // Initial negotiation already replays complete durable recovery state. Keep
 // periodic replay as a five-minute loss/reconnect safety net so it cannot
 // create an ever-growing duplicate queue on a slower peer.
@@ -201,6 +202,75 @@ fn promote_direct_shakescape_primary<T>(primary: &mut Option<T>, replicas: &mut 
         *primary = Some(replicas.swap_remove(0));
     }
     primary.is_some()
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum IosDirectPeerService {
+    Idle,
+    Retain { board_changed: bool },
+    Drop,
+}
+
+/// Service authenticated board traffic before ordinary HSD discovery and
+/// reachability maintenance. Recovery can enqueue several bounded envelopes;
+/// keeping this path first lets UIKit drain them as one interactive burst.
+fn service_connected_shakescape_peer(
+    peer: &mut HnsDirectShakescapePeer,
+    coordinator: &mut HnsDirectPeerCoordinator,
+    controller: &mut MobileHnsValueController<EmbeddedHnsBackend>,
+    shakescape_sessions: &MobileShakescapeSessionController,
+    now_unix: u64,
+) -> IosDirectPeerService {
+    match peer.try_receive_shakescape_message_serving_network(coordinator.backend(), now_unix) {
+        Ok(None) => IosDirectPeerService::Idle,
+        Ok(Some(HnsDirectShakescapeMessage::NameMarket {
+            request_id,
+            message,
+        })) => {
+            let retry_message = message.clone();
+            match controller.service_wallet_owned_direct_shakedex_message(peer, request_id, message)
+            {
+                Ok(report) => IosDirectPeerService::Retain {
+                    board_changed: report.offers_admitted != 0
+                        || report.cancellations_admitted != 0,
+                },
+                Err(_) => {
+                    let board_changed = coordinator
+                        .synchronize_name_market_message_evidence(&retry_message, now_unix)
+                        .ok()
+                        .and_then(|_| {
+                            controller
+                                .service_wallet_owned_direct_shakedex_message(
+                                    peer,
+                                    request_id,
+                                    retry_message,
+                                )
+                                .ok()
+                        })
+                        .is_some_and(|report| {
+                            report.offers_admitted != 0 || report.cancellations_admitted != 0
+                        });
+                    // Board or evidence rejection is not an authenticated
+                    // transport failure. Retain the socket for later replay.
+                    IosDirectPeerService::Retain { board_changed }
+                }
+            }
+        }
+        Ok(Some(HnsDirectShakescapeMessage::CrossChain { envelope })) => {
+            match shakescape_sessions.service_direct_envelope(peer, envelope.as_slice(), now_unix) {
+                Ok(_) => IosDirectPeerService::Retain {
+                    board_changed: false,
+                },
+                Err(error) if error.invalidates_direct_shakescape_transport() => {
+                    IosDirectPeerService::Drop
+                }
+                Err(_) => IosDirectPeerService::Retain {
+                    board_changed: false,
+                },
+            }
+        }
+        Err(_) => IosDirectPeerService::Drop,
+    }
 }
 const WALLET_RPC_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 const WALLET_RPC_READ_TIMEOUT: Duration = Duration::from_secs(20);
@@ -1388,7 +1458,7 @@ impl NativeWalletController {
         offer_id: &str,
         confirmed_btc_sats: u64,
         received_fee_reserve: u64,
-    ) -> Result<hns_wallet_mobile::MobileDirectOfferTakeApproval, MobileWalletError> {
+    ) -> Result<hns_wallet_mobile::MobileDirectOfferTakeApproval, (MobileWalletError, u64)> {
         let Self::DirectHnsValue {
             controller,
             shakescape_sessions,
@@ -1397,21 +1467,30 @@ impl NativeWalletController {
             ..
         } = self
         else {
-            return Err(MobileWalletError::ControllerFailed);
+            return Err((MobileWalletError::ControllerFailed, 0));
         };
         if !promote_direct_shakescape_primary(shakescape_peer, shakescape_replication_peers) {
-            return Err(MobileWalletError::ControllerFailed);
+            return Err((MobileWalletError::ControllerFailed, 0));
         }
-        let confirmed_hns_dollarydoos =
-            u64::try_from(controller.synchronize()?.balance.base_units.get())
-                .map_err(|_| MobileWalletError::ControllerFailed)?;
-        shakescape_sessions.prepare_direct_offer_take(
-            offer_id,
-            confirmed_btc_sats,
-            confirmed_hns_dollarydoos,
-            received_fee_reserve,
-            HnsReadSystemClock.now_unix()?,
-        )
+        let confirmed_hns_dollarydoos = controller
+            .synchronize()
+            .map_err(|error| (error, 0))?
+            .balance
+            .base_units
+            .get();
+        let confirmed_hns_dollarydoos = u64::try_from(confirmed_hns_dollarydoos)
+            .map_err(|_| (MobileWalletError::ControllerFailed, 0))?;
+        shakescape_sessions
+            .prepare_direct_offer_take(
+                offer_id,
+                confirmed_btc_sats,
+                confirmed_hns_dollarydoos,
+                received_fee_reserve,
+                HnsReadSystemClock
+                    .now_unix()
+                    .map_err(|error| (MobileWalletError::from(error), confirmed_hns_dollarydoos))?,
+            )
+            .map_err(|error| (error, confirmed_hns_dollarydoos))
     }
 
     fn approve_direct_offer_take(
@@ -1940,6 +2019,75 @@ impl NativeWalletController {
         let Ok(now_unix) = HnsReadSystemClock.now_unix() else {
             return false;
         };
+        if let Some(peer) = shakescape_peer.as_mut() {
+            match service_connected_shakescape_peer(
+                peer,
+                coordinator,
+                controller,
+                shakescape_sessions,
+                now_unix,
+            ) {
+                IosDirectPeerService::Idle => {}
+                IosDirectPeerService::Retain { board_changed } => {
+                    if board_changed {
+                        for replica in shakescape_replication_peers.iter_mut() {
+                            let _ = controller.begin_wallet_owned_direct_shakedex(replica);
+                        }
+                    }
+                    return true;
+                }
+                IosDirectPeerService::Drop => {
+                    shakescape_peer.take();
+                    promote_direct_shakescape_primary(
+                        shakescape_peer,
+                        shakescape_replication_peers,
+                    );
+                    *shakescape_next_paired_reconnect_at = Some(
+                        now_unix.saturating_add(IOS_SHAKESCAPE_PAIRED_RECONNECT_INTERVAL_SECONDS),
+                    );
+                    return true;
+                }
+            }
+        }
+        let mut replication_index = 0usize;
+        while replication_index < shakescape_replication_peers.len() {
+            let service = {
+                let peer = &mut shakescape_replication_peers[replication_index];
+                service_connected_shakescape_peer(
+                    peer,
+                    coordinator,
+                    controller,
+                    shakescape_sessions,
+                    now_unix,
+                )
+            };
+            match service {
+                IosDirectPeerService::Idle => {
+                    replication_index = replication_index.saturating_add(1)
+                }
+                IosDirectPeerService::Drop => {
+                    shakescape_replication_peers.swap_remove(replication_index);
+                    *shakescape_next_paired_reconnect_at = Some(
+                        now_unix.saturating_add(IOS_SHAKESCAPE_PAIRED_RECONNECT_INTERVAL_SECONDS),
+                    );
+                    return true;
+                }
+                IosDirectPeerService::Retain { board_changed } => {
+                    if board_changed {
+                        if let Some(primary) = shakescape_peer.as_mut() {
+                            let _ = controller.begin_wallet_owned_direct_shakedex(primary);
+                        }
+                        for (index, replica) in shakescape_replication_peers.iter_mut().enumerate()
+                        {
+                            if index != replication_index {
+                                let _ = controller.begin_wallet_owned_direct_shakedex(replica);
+                            }
+                        }
+                    }
+                    return true;
+                }
+            }
+        }
         let connected_hsd_peers = coordinator
             .shakescape_discovery_status(now_unix)
             .map_or(0, |status| status.hsd_peers_connected);
@@ -1953,9 +2101,17 @@ impl NativeWalletController {
             *shakescape_last_peer_maintenance_at = Some(now_unix);
             let _ = coordinator.connect_available(now_unix);
         }
-        if shakescape_last_offer_inventory_at.is_none_or(|last| {
-            now_unix >= last.saturating_add(IOS_SHAKESCAPE_OFFER_INVENTORY_INTERVAL_SECONDS)
-        }) {
+        let offer_inventory_interval = if shakescape_sessions
+            .has_direct_swap_reconciliation(now_unix)
+            .unwrap_or(false)
+        {
+            IOS_SHAKESCAPE_ACTIVE_SWAP_RECONCILIATION_INTERVAL_SECONDS
+        } else {
+            IOS_SHAKESCAPE_OFFER_INVENTORY_INTERVAL_SECONDS
+        };
+        if shakescape_last_offer_inventory_at
+            .is_none_or(|last| now_unix >= last.saturating_add(offer_inventory_interval))
+        {
             *shakescape_last_offer_inventory_at = Some(now_unix);
             if let Some(peer) = shakescape_peer.as_mut() {
                 let _ = controller.announce_wallet_owned_direct_shakedex(peer);
@@ -2000,156 +2156,6 @@ impl NativeWalletController {
         match coordinator.refresh_shakescape_discovery(now_unix) {
             Ok(_) | Err(HnsDirectPeerError::NoReadyPeers) => {}
             Err(_) => return false,
-        }
-        if let Some(peer) = shakescape_peer.as_mut() {
-            let mut board_changed = false;
-            let accepted = match peer
-                .try_receive_shakescape_message_serving_network(coordinator.backend(), now_unix)
-            {
-                Ok(None) => None,
-                Ok(Some(HnsDirectShakescapeMessage::NameMarket {
-                    request_id,
-                    message,
-                })) => {
-                    let retry_message = message.clone();
-                    Some(
-                        match controller
-                            .service_wallet_owned_direct_shakedex_message(peer, request_id, message)
-                        {
-                            Ok(report) => {
-                                board_changed = report.offers_admitted != 0
-                                    || report.cancellations_admitted != 0;
-                                true
-                            }
-                            Err(_) => match coordinator
-                                .synchronize_name_market_message_evidence(&retry_message, now_unix)
-                            {
-                                Ok(_) => controller
-                                    .service_wallet_owned_direct_shakedex_message(
-                                        peer,
-                                        request_id,
-                                        retry_message,
-                                    )
-                                    .map(|report| {
-                                        board_changed = report.offers_admitted != 0
-                                            || report.cancellations_admitted != 0;
-                                        true
-                                    })
-                                    // A board/evidence failure is not a transport
-                                    // failure. Retain the authenticated socket for
-                                    // later inventory and chain-evidence retries.
-                                    .unwrap_or(true),
-                                Err(_) => true,
-                            },
-                        },
-                    )
-                }
-                Ok(Some(HnsDirectShakescapeMessage::CrossChain { envelope })) => Some(
-                    match shakescape_sessions.service_direct_envelope(
-                        peer,
-                        envelope.as_slice(),
-                        now_unix,
-                    ) {
-                        Ok(_) => true,
-                        Err(error) => !error.invalidates_direct_shakescape_transport(),
-                    },
-                ),
-                Err(_) => Some(false),
-            };
-            if accepted == Some(false) {
-                shakescape_peer.take();
-                promote_direct_shakescape_primary(shakescape_peer, shakescape_replication_peers);
-                *shakescape_next_paired_reconnect_at =
-                    Some(now_unix.saturating_add(IOS_SHAKESCAPE_PAIRED_RECONNECT_INTERVAL_SECONDS));
-            } else if accepted == Some(true) {
-                if board_changed {
-                    for peer in shakescape_replication_peers.iter_mut() {
-                        let _ = controller.begin_wallet_owned_direct_shakedex(peer);
-                    }
-                }
-                return true;
-            }
-        }
-        let mut replication_index = 0usize;
-        while replication_index < shakescape_replication_peers.len() {
-            let mut board_changed = false;
-            let accepted = {
-                let peer = &mut shakescape_replication_peers[replication_index];
-                match peer
-                    .try_receive_shakescape_message_serving_network(coordinator.backend(), now_unix)
-                {
-                    Ok(None) => None,
-                    Ok(Some(HnsDirectShakescapeMessage::NameMarket {
-                        request_id,
-                        message,
-                    })) => {
-                        let retry_message = message.clone();
-                        Some(
-                            match controller.service_wallet_owned_direct_shakedex_message(
-                                peer, request_id, message,
-                            ) {
-                                Ok(report) => {
-                                    board_changed = report.offers_admitted != 0
-                                        || report.cancellations_admitted != 0;
-                                    true
-                                }
-                                Err(_) => match coordinator
-                                    .synchronize_name_market_message_evidence(
-                                        &retry_message,
-                                        now_unix,
-                                    ) {
-                                    Ok(_) => controller
-                                        .service_wallet_owned_direct_shakedex_message(
-                                            peer,
-                                            request_id,
-                                            retry_message,
-                                        )
-                                        .map(|report| {
-                                            board_changed = report.offers_admitted != 0
-                                                || report.cancellations_admitted != 0;
-                                            true
-                                        })
-                                        .unwrap_or(true),
-                                    Err(_) => true,
-                                },
-                            },
-                        )
-                    }
-                    Ok(Some(HnsDirectShakescapeMessage::CrossChain { envelope })) => Some(
-                        match shakescape_sessions.service_direct_envelope(
-                            peer,
-                            envelope.as_slice(),
-                            now_unix,
-                        ) {
-                            Ok(_) => true,
-                            Err(error) => !error.invalidates_direct_shakescape_transport(),
-                        },
-                    ),
-                    Err(_) => Some(false),
-                }
-            };
-            match accepted {
-                None => replication_index = replication_index.saturating_add(1),
-                Some(false) => {
-                    shakescape_replication_peers.swap_remove(replication_index);
-                    *shakescape_next_paired_reconnect_at = Some(
-                        now_unix.saturating_add(IOS_SHAKESCAPE_PAIRED_RECONNECT_INTERVAL_SECONDS),
-                    );
-                }
-                Some(true) => {
-                    if board_changed {
-                        if let Some(peer) = shakescape_peer.as_mut() {
-                            let _ = controller.begin_wallet_owned_direct_shakedex(peer);
-                        }
-                        for (index, peer) in shakescape_replication_peers.iter_mut().enumerate() {
-                            if index != replication_index {
-                                let _ = controller.begin_wallet_owned_direct_shakedex(peer);
-                            }
-                        }
-                    }
-                    return true;
-                }
-            }
         }
         let Some(listener) = shakescape_listener.as_ref() else {
             return false;
@@ -5822,19 +5828,33 @@ pub unsafe extern "C" fn hns_browser_wallet_prepare_direct_offer_take(
         let entry = wallet_entry(wallet)?;
         let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
         ensure_wallet_active(&entry)?;
-        let approval = entry
-            .controller
-            .prepare_direct_offer_take(&offer_id, confirmed_btc_sats, received_fee_reserve)
-            .map_err(|error| match error {
-                MobileWalletError::InsufficientBitcoinForDirectOffer => wallet_runtime_failure(
-                    "confirmed Bitcoin does not cover this offer, its fee reserve, and existing accepted swap reservations",
-                ),
-                MobileWalletError::InsufficientHnsForDirectOffer => wallet_runtime_failure(
-                    "confirmed HNS does not cover this offer, its fee reserve, and existing accepted swap reservations",
-                ),
-                _ => wallet_runtime_failure("direct offer take preparation failed"),
-            })?;
-        let bundle = wallet_bitcoin_bundle(&approval)?;
+        let preparation = entry.controller.prepare_direct_offer_take(
+            &offer_id,
+            confirmed_btc_sats,
+            received_fee_reserve,
+        );
+        let bundle = match preparation {
+            Ok(approval) => wallet_bitcoin_bundle(&approval)?,
+            Err((MobileWalletError::InsufficientBitcoinForDirectOffer, _)) => {
+                wallet_bitcoin_bundle(&json!({
+                    "failure": "insufficientBitcoin",
+                    "receivedAsset": "btc",
+                    "confirmedAmount": confirmed_btc_sats,
+                }))?
+            }
+            Err((MobileWalletError::InsufficientHnsForDirectOffer, confirmed_hns)) => {
+                wallet_bitcoin_bundle(&json!({
+                    "failure": "insufficientHns",
+                    "receivedAsset": "hns",
+                    "confirmedAmount": confirmed_hns,
+                }))?
+            }
+            Err(_) => {
+                return Err(wallet_runtime_failure(
+                    "direct offer take preparation failed",
+                ));
+            }
+        };
         let output = allocate_output(&bundle.0, true)?;
         unsafe { write_output(out_approval_bundle, output) };
         Ok(())

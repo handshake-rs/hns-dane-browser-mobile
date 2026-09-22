@@ -2191,6 +2191,57 @@ final class BrowserRuntimeControlTests: XCTestCase {
         ))
     }
 
+    func testWalletOwnedPresentationDoesNotRetireStorageAuthority() {
+        XCTAssertFalse(walletViewDepartureRequiresRetirement(
+            screenIsMovingFromParent: false,
+            screenIsBeingDismissed: false,
+            navigationIsBeingDismissed: false,
+            screenRemainsInNavigationStack: true
+        ))
+    }
+
+    func testWalletNavigationDepartureRetiresStorageAuthority() {
+        XCTAssertTrue(walletViewDepartureRequiresRetirement(
+            screenIsMovingFromParent: true,
+            screenIsBeingDismissed: false,
+            navigationIsBeingDismissed: false,
+            screenRemainsInNavigationStack: true
+        ))
+        XCTAssertTrue(walletViewDepartureRequiresRetirement(
+            screenIsMovingFromParent: false,
+            screenIsBeingDismissed: true,
+            navigationIsBeingDismissed: false,
+            screenRemainsInNavigationStack: true
+        ))
+        XCTAssertTrue(walletViewDepartureRequiresRetirement(
+            screenIsMovingFromParent: false,
+            screenIsBeingDismissed: false,
+            navigationIsBeingDismissed: true,
+            screenRemainsInNavigationStack: true
+        ))
+        XCTAssertTrue(walletViewDepartureRequiresRetirement(
+            screenIsMovingFromParent: false,
+            screenIsBeingDismissed: false,
+            navigationIsBeingDismissed: false,
+            screenRemainsInNavigationStack: false
+        ))
+    }
+
+    func testInitialAtomicSwapProjectionInheritsVerifiedHnsSnapshotTime() {
+        XCTAssertEqual(walletAutomaticSwapHnsLastRun(
+            previousFingerprint: nil,
+            currentSnapshotObservedAtUptime: 42
+        ), 42)
+        XCTAssertNil(walletAutomaticSwapHnsLastRun(
+            previousFingerprint: nil,
+            currentSnapshotObservedAtUptime: nil
+        ))
+        XCTAssertNil(walletAutomaticSwapHnsLastRun(
+            previousFingerprint: "previous",
+            currentSnapshotObservedAtUptime: 42
+        ))
+    }
+
     @MainActor
     func testWalletHnsLifecyclePausesForViewAndSceneThenReconnectsToProgress() {
         let progress = WalletHnsSyncProgress(
@@ -4450,6 +4501,64 @@ final class BrowserRuntimeControlTests: XCTestCase {
         let bitcoinTransaction = String(repeating: "2", count: 64)
         let hnsTransaction = String(repeating: "3", count: 64)
 
+        let bitcoinFundingReceipt = try JSONDecoder().decode(
+            NativeBitcoinHtlcFundingReceipt.self,
+            from: Data("""
+            {"sessionId":"\(session)","txid":"\(bitcoinTransaction)","outputIndex":2,"attemptCount":1,"submittedAtUnix":2100}
+            """.utf8)
+        )
+        XCTAssertEqual(bitcoinFundingReceipt.outputIndex, 2)
+        let hnsFundingReceipt = try JSONDecoder().decode(
+            NativeHnsHtlcFundingReceipt.self,
+            from: Data("""
+            {"sessionId":"\(session)","transactionId":"\(hnsTransaction)","outputIndex":0,"acceptedAtUnix":2100}
+            """.utf8)
+        )
+        XCTAssertEqual(hnsFundingReceipt.outputIndex, 0)
+        XCTAssertThrowsError(try JSONDecoder().decode(
+            NativeBitcoinHtlcFundingReceipt.self,
+            from: Data("""
+            {"sessionId":"\(session)","txid":"\(bitcoinTransaction)","attemptCount":1,"submittedAtUnix":2100}
+            """.utf8)
+        ))
+
+        let insufficientTake = try NativeDirectOfferTakePreparation.decode(
+            bundle: hnsValueBundle(
+                magic: "HNBW",
+                json: """
+                {"failure":"insufficientHns","receivedAsset":"hns","confirmedAmount":226400}
+                """
+            )
+        )
+        guard case .insufficientFunds(let asset, let confirmed) = insufficientTake else {
+            return XCTFail("expected a structured insufficient-funds result")
+        }
+        XCTAssertEqual(asset, "hns")
+        XCTAssertEqual(confirmed, 226_400)
+        let directOffer = String(repeating: "4", count: 64)
+        let approvedTake = try NativeDirectOfferTakePreparation.decode(
+            bundle: hnsValueBundle(
+                magic: "HNBW",
+                json: """
+                {"actionToken":"\(token)","offer":{"offerId":"\(directOffer)","sessionId":"\(session)","makerSellsHns":false,"offeredAsset":"btc","offeredAmount":10000,"receivedAsset":"hns","receivedAmount":2000000,"btcAmountSats":10000,"hnsAmountDollarydoos":2000000,"offeredFeeReserve":null,"local":false,"createdAtUnix":1000,"expiresAtUnix":5000},"receivedFeeReserve":100000,"totalReceivedAssetCommitment":2000000,"takeExpiresAtUnix":5000,"approvalExpiresAtUnix":2000}
+                """
+            )
+        )
+        guard case .approval(let takeApproval) = approvedTake else {
+            return XCTFail("expected an exact direct-offer take approval")
+        }
+        XCTAssertEqual(takeApproval.offer.offerId, directOffer)
+        XCTAssertEqual(takeApproval.totalReceivedAssetCommitment, 2_000_000)
+        takeApproval.actionToken.discard()
+        XCTAssertThrowsError(try NativeDirectOfferTakePreparation.decode(
+            bundle: hnsValueBundle(
+                magic: "HNBW",
+                json: """
+                {"failure":"insufficientHns","receivedAsset":"btc","confirmedAmount":226400}
+                """
+            )
+        ))
+
         let bitcoinApproval = try NativeSwapSettlementApproval.decode(
             bundle: hnsValueBundle(
                 magic: "HNBW",
@@ -4509,6 +4618,22 @@ final class BrowserRuntimeControlTests: XCTestCase {
         )
         XCTAssertEqual(status.bitcoinBroadcastRecovery?.totalApproved, 3)
         XCTAssertEqual(status.bitcoinBroadcastRecovery?.unobservedSubmissionStarted, 1)
+
+        let executionJSON = """
+        {"executions":[{"sessionId":"\(session)","revision":7,"state":"first_funded","firstChain":"bitcoin","secondChain":"handshake","offeredAsset":"btc","offeredAmount":10000,"receivedAsset":"hns","receivedAmount":2000000,"localRole":"maker","fundingDeadlineUnix":1000,"firstRefundAtUnix":2000,"secondRefundAtUnix":1500,"localFundingState":"confirmed","firstFundingConfirmed":true,"secondFundingConfirmed":false,"firstRedemptionConfirmed":false,"secondRedemptionConfirmed":false,"refundConfirmed":false,"lastVerifiedAtUnix":1200,"failureReason":null}],"pendingAcceptances":[],"bitcoinBroadcastRecovery":null}
+        """
+        let executionStatus = try JSONDecoder().decode(
+            NativeShakescapeExecutionStatus.self, from: Data(executionJSON.utf8)
+        )
+        XCTAssertEqual(executionStatus.executions.count, 1)
+        XCTAssertEqual(executionStatus.executions.first?.localFundingState, "confirmed")
+        XCTAssertThrowsError(try JSONDecoder().decode(
+            NativeShakescapeExecutionStatus.self,
+            from: Data(executionJSON.replacingOccurrences(
+                of: "\"localFundingState\":\"confirmed\"",
+                with: "\"localFundingState\":\"invented\""
+            ).utf8)
+        ))
 
         XCTAssertThrowsError(try JSONDecoder().decode(
             NativeShakescapeExecutionStatus.self,
