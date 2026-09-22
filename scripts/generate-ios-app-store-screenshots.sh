@@ -3,8 +3,6 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IOS_SDK_VERSION="26.5"
-EXPECTED_WIDTH=1284
-EXPECTED_HEIGHT=2778
 SCENE_KEY="HNS_APP_STORE_SCREENSHOT_SCENE"
 OUTPUT_REQUESTED="${1:-$ROOT_DIR/build/app-store-live-screenshots}"
 DIAGNOSTICS_DIR="$ROOT_DIR/build/ios-screenshot-diagnostics"
@@ -13,6 +11,27 @@ fail() {
   echo "ERROR: $*" >&2
   exit 1
 }
+
+if [[ -z "${HNS_SCREENSHOT_DEVICE_FAMILY:-}" ]]; then
+  if [[ "$OUTPUT_REQUESTED" != /* ]]; then
+    OUTPUT_REQUESTED="$ROOT_DIR/$OUTPUT_REQUESTED"
+  fi
+  case "$OUTPUT_REQUESTED" in
+    "$ROOT_DIR"/build/*) ;;
+    *) fail "output must remain below $ROOT_DIR/build" ;;
+  esac
+  rm -rf -- "$OUTPUT_REQUESTED"
+  mkdir -p -- "$OUTPUT_REQUESTED"
+  HNS_SCREENSHOT_DEVICE_FAMILY=iphone "$0" "$OUTPUT_REQUESTED/iphone"
+  HNS_SCREENSHOT_DEVICE_FAMILY=ipad "$0" "$OUTPUT_REQUESTED/ipad"
+  printf 'Created verified iPhone and iPad App Store screenshot sets in %s\n' \
+    "$OUTPUT_REQUESTED"
+  exit 0
+fi
+
+DEVICE_FAMILY="$HNS_SCREENSHOT_DEVICE_FAMILY"
+[[ "$DEVICE_FAMILY" == iphone || "$DEVICE_FAMILY" == ipad ]] ||
+  fail "HNS_SCREENSHOT_DEVICE_FAMILY must be iphone or ipad."
 
 [[ "$(uname -s)" == "Darwin" ]] || fail "screenshot generation requires macOS and Xcode."
 [[ -z "${HNS_APP_STORE_SCREENSHOT_SCENE+x}" ]] ||
@@ -111,10 +130,13 @@ RUNTIME_ID="$(
 )"
 DEVICE_SELECTION="$(
   python3 "$ROOT_DIR/scripts/ios_screenshot_tools.py" select-device-type \
+    --family "$DEVICE_FAMILY" \
     --input "$WORK_DIR/devicetypes.json"
 )"
-IFS=$'\t' read -r DEVICE_TYPE_ID DEVICE_NAME <<<"$DEVICE_SELECTION"
-[[ -n "$DEVICE_TYPE_ID" && -n "$DEVICE_NAME" ]] || fail "device type selection failed."
+IFS=$'\t' read -r DEVICE_TYPE_ID DEVICE_NAME EXPECTED_WIDTH EXPECTED_HEIGHT \
+  <<<"$DEVICE_SELECTION"
+[[ -n "$DEVICE_TYPE_ID" && -n "$DEVICE_NAME" && -n "$EXPECTED_WIDTH" && \
+   -n "$EXPECTED_HEIGHT" ]] || fail "device type selection failed."
 
 SIMULATOR_ID="$(
   xcrun simctl create "HNS App Store Screenshots $$" "$DEVICE_TYPE_ID" "$RUNTIME_ID"
@@ -197,6 +219,7 @@ python3 "$ROOT_DIR/scripts/ios_screenshot_tools.py" manifest \
   --xcode "$XCODE_VERSION" \
   --sdk "$IOS_SDK_VERSION" \
   --device "$DEVICE_NAME" \
+  --device-family "$DEVICE_FAMILY" \
   --configuration Release \
   --runtime-provenance "$RUNTIME_PROVENANCE"
 
@@ -204,4 +227,5 @@ python3 "$ROOT_DIR/scripts/ios_screenshot_tools.py" verify-live \
   --directory "$OUTPUT_DIR" \
   --expected-commit "$COMMIT"
 
-printf 'Created four live Release App Store screenshots and provenance in %s\n' "$OUTPUT_DIR"
+printf 'Created four live Release %s App Store screenshots and provenance in %s\n' \
+  "$DEVICE_FAMILY" "$OUTPUT_DIR"

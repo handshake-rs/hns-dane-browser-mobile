@@ -11,6 +11,7 @@ APPLE_TARGETS=(
 )
 IOS_GATE_DIAGNOSTICS_DIR="$ROOT_DIR/build/ios-gate-diagnostics"
 IOS_GATE_RESULT_BUNDLE="$IOS_GATE_DIAGNOSTICS_DIR/HnsDaneBrowserTests.xcresult"
+IOS_ACCESSIBILITY_RESULT_BUNDLE="$IOS_GATE_DIAGNOSTICS_DIR/AccessibilityAudit.xcresult"
 IOS_GATE_PHASE_FILE="$IOS_GATE_DIAGNOSTICS_DIR/phase.txt"
 
 fail() {
@@ -148,6 +149,17 @@ HNS_RUST_IOS_CLEAN_TARGET=1 \
   HNS_IOS_DESTINATION="platform=iOS Simulator,id=$simulator_id" \
   HNS_IOS_RESULT_BUNDLE_PATH="$IOS_GATE_RESULT_BUNDLE" \
   ./scripts/build-ios.sh
+
+record_ios_gate_phase accessibility-audit
+xcodebuild \
+  -project "$ROOT_DIR/ios/HnsDaneBrowser.xcodeproj" \
+  -scheme HnsDaneBrowserScreenshots \
+  -configuration Debug \
+  -destination "platform=iOS Simulator,id=$simulator_id" \
+  -resultBundlePath "$IOS_ACCESSIBILITY_RESULT_BUNDLE" \
+  -only-testing:HnsDaneBrowserScreenshotTests/AccessibilityAuditTests/testBrowserChromePassesAutomatedAccessibilityAudit \
+  CODE_SIGNING_ALLOWED=NO \
+  test
 
 record_ios_gate_phase unsigned-device-link
 HNS_IOS_REUSE_XCFRAMEWORK=1 \

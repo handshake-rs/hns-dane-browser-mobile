@@ -1,6 +1,8 @@
 No sign-in is required. Shakescape has no developer-operated account, subscription, in-app purchase, advertising, analytics, custodial service, or custodial exchange service. It includes native, noncustodial HNS and Bitcoin wallet controls. A user can create or restore a wallet, synchronize public chain activity, receive HNS, scan a Handshake payment QR code, and review and approve guarded HNS or Bitcoin sends. The wallet also exposes tracked-name import and search, name transfer/finalization, raw resource records, direct signed ShakeScape offers, and participant-to-participant BTC/HNS atomic swaps. Denuo Web does not take custody, choose a counterparty, or control settlement. These controls require their native synchronization and peer prerequisites. Websites cannot access or invoke the wallet.
 
-WKWebView uses an authenticated 127.0.0.1 loopback proxy; the app installs no VPN and changes no system proxy. This build requests neither Apple's managed default-browser nor MarketplaceKit app-installation entitlements.
+WKWebView uses an authenticated 127.0.0.1 loopback proxy; the app installs no VPN and changes no system proxy. This build has no default-browser or app-installation entitlement. It registers `http`/`https`, opens incoming web URLs at their requested target, and leaves exact `marketplace-kit` navigation to WebKit for capability review.
+
+The app supports iPhone, iPad, and Apple-silicon Macs. Native surfaces support scalable text, VoiceOver, Voice Control, non-color status text, contrast/dark appearance, reduced motion, and keyboard browser commands. It has no first-party audio or video, so captions and audio descriptions are not claimed.
 
 Ordinary web test:
 1. Launch the app. When "Enter an address to begin" appears, enter https://shakescape.com/ and tap Go.
@@ -17,13 +19,13 @@ Native wallet test:
 2. A fresh install reports that no wallet exists. Creating or restoring a wallet is optional. If Create is exercised, securely record and confirm the one-time recovery phrase.
 3. Unlock may take longer on older devices while device-protected signing authority is prepared. During that operation the controls remain disabled and show progress.
 4. The unlocked wallet can synchronize directly with Handshake and Bitcoin peers, show both wallet projections, produce a receive address and QR code, and prepare guarded sends. It can also track names and, when synchronized, expose transfer, finalize, and raw-record actions through native review. Every value-changing action displays a native review and requires explicit approval. No website can open that approval.
-5. The ShakeScape card can pair with the public raw-TCP rendezvous endpoint `35.212.156.128:12048`. Signed offers and atomic-swap actions remain unavailable until the required HNS/Bitcoin wallet state is synchronized. An end-to-end value test requires reviewer-controlled HNS and Bitcoin test funds; no developer account or server balance is used. The durable execution screen shows locally verified funding, redemption, completion, or refund state.
+5. The ShakeScape card can pair with `35.212.156.128:12048`. Swap actions require synchronized HNS/Bitcoin state and reviewer-controlled test funds; no account or server balance is used. The execution screen shows locally verified funding, redemption, completion, or refund state.
 6. The camera permission is requested only after tapping the scanner in the native send form. The QR image and decoded Handshake address are processed on the device and are not uploaded.
 7. An unlocked wallet can be deleted after two destructive confirmations that identify the network/account and require typing DELETE. This removes the device-bound key before encrypted database files; it does not remove a recovery phrase saved elsewhere.
 
-Network note: some review networks block Handshake peer traffic or direct authoritative DNS. Experimental P2P DNS relay consumption is off by default. Recursive HNS DoH recovery is also blank by default. Answers obtained through an enabled recovery path still require local HNS proof, DNSSEC, TLSA, and DANE validation. If no permitted validated path succeeds, the request fails closed.
+Network note: some review networks block Handshake traffic. Optional recovery paths are off by default and still require local HNS proof, DNSSEC, TLSA, and DANE validation; otherwise navigation fails closed.
 
-Cleartext HTTP pages are marked insecure. No reviewer-supplied personal data or credentials are needed.
+HTTP pages are marked insecure. No reviewer credentials are needed.
 
 Privacy policy: https://shakescape.com/privacy/
 Source code: https://github.com/handshake-rs/hns-dane-browser-mobile

@@ -15,6 +15,7 @@ final class BrowserViewController: UIViewController {
     private static let appStoreScreenshotSceneKey = "HNS_APP_STORE_SCREENSHOT_SCENE"
 
     private enum AppStoreScreenshotScene: String {
+        case accessibilityChrome = "accessibility-chrome"
         case hnsPage = "hns-page"
         case proofDetails = "proof-details"
         case webPKIPage = "webpki-page"
@@ -73,6 +74,37 @@ final class BrowserViewController: UIViewController {
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) is unavailable")
+    }
+
+    override var canBecomeFirstResponder: Bool { true }
+
+    override var keyCommands: [UIKeyCommand]? {
+        [
+            UIKeyCommand(
+                title: "Open Location",
+                action: #selector(focusAddressBar),
+                input: "l",
+                modifierFlags: .command
+            ),
+            UIKeyCommand(
+                title: "Reload",
+                action: #selector(reloadOrStop),
+                input: "r",
+                modifierFlags: .command
+            ),
+            UIKeyCommand(
+                title: "New Tab",
+                action: #selector(openNewTabShortcut),
+                input: "t",
+                modifierFlags: .command
+            ),
+            UIKeyCommand(
+                title: "Close Tab",
+                action: #selector(closeCurrentTabShortcut),
+                input: "w",
+                modifierFlags: .command
+            ),
+        ]
     }
 
     override func viewDidLoad() {
@@ -238,6 +270,7 @@ final class BrowserViewController: UIViewController {
         configureTabsButton()
         controlsButton.setImage(UIImage(systemName: "gearshape"), for: .normal)
         controlsButton.accessibilityLabel = "Settings"
+        controlsButton.accessibilityHint = "Opens browser, privacy, and Handshake settings"
         controlsButton.accessibilityIdentifier = "app-store-screenshot.controls"
         controlsButton.addTarget(self, action: #selector(presentBrowserSettings), for: .touchUpInside)
         backButton.isEnabled = false
@@ -253,14 +286,17 @@ final class BrowserViewController: UIViewController {
         addressField.autocorrectionType = .no
         addressField.spellCheckingType = .no
         addressField.placeholder = "Enter a web or Handshake address"
+        addressField.font = .preferredFont(forTextStyle: .body)
+        addressField.adjustsFontForContentSizeCategory = true
         addressField.accessibilityLabel = "Address"
+        addressField.accessibilityHint = "Enter a web address, search, or Handshake name"
         addressField.accessibilityIdentifier = "app-store-screenshot.address"
         addressField.delegate = self
 
         securityLabel.font = .preferredFont(forTextStyle: .caption1)
         securityLabel.adjustsFontForContentSizeCategory = true
         securityLabel.textColor = .secondaryLabel
-        securityLabel.numberOfLines = 1
+        securityLabel.numberOfLines = 0
         securityLabel.text = "Security pending"
         securityLabel.accessibilityIdentifier = "app-store-screenshot.security"
 
@@ -288,25 +324,31 @@ final class BrowserViewController: UIViewController {
                 backButton,
                 forwardButton,
                 addressField,
-                tabsButton,
                 reloadButton,
-                shareButton,
-                controlsButton,
             ]
         )
         addressRow.axis = .horizontal
         addressRow.alignment = .center
         addressRow.spacing = 8
-        backButton.widthAnchor.constraint(equalToConstant: 36).isActive = true
-        forwardButton.widthAnchor.constraint(equalToConstant: 36).isActive = true
-        tabsButton.widthAnchor.constraint(equalToConstant: 36).isActive = true
-        reloadButton.widthAnchor.constraint(equalToConstant: 36).isActive = true
-        shareButton.widthAnchor.constraint(equalToConstant: 36).isActive = true
-        controlsButton.widthAnchor.constraint(equalToConstant: 36).isActive = true
+        let utilityRow = UIStackView(arrangedSubviews: [tabsButton, shareButton, controlsButton])
+        utilityRow.axis = .horizontal
+        utilityRow.alignment = .fill
+        utilityRow.distribution = .fillEqually
+        utilityRow.spacing = 8
+        for button in [
+            backButton, forwardButton, tabsButton, reloadButton, shareButton, controlsButton,
+        ] {
+            button.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        }
+        backButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        forwardButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        reloadButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        addressField.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
 
         let chrome = UIStackView(
             arrangedSubviews: [
                 addressRow,
+                utilityRow,
                 securityLabel,
                 syncProgressView,
                 syncLabel,
@@ -367,6 +409,7 @@ final class BrowserViewController: UIViewController {
     ) {
         button.setImage(UIImage(systemName: symbol), for: .normal)
         button.accessibilityLabel = label
+        button.accessibilityHint = "Activates \(label.lowercased()) navigation"
         button.addTarget(self, action: action, for: .touchUpInside)
     }
 
@@ -397,6 +440,19 @@ final class BrowserViewController: UIViewController {
         reloadButton.isEnabled = true
         shareButton.isEnabled = true
 
+        if scene == .accessibilityChrome {
+            addressField.isUserInteractionEnabled = true
+            placeholderLabel.isHidden = false
+            placeholderLabel.text = "Enter an address to begin"
+            securityLabel.text = "Security appears after a page loads"
+            securityLabel.accessibilityLabel = securityLabel.text
+            syncLabel.text = "Handshake headers current"
+            syncLabel.accessibilityLabel = syncLabel.text
+            syncProgressView.isHidden = true
+            webContainer.accessibilityIdentifier = "accessibility-audit.ready"
+            return true
+        }
+
         let webView = WKWebView(frame: .zero, configuration: screenshotWebViewConfiguration())
         webView.translatesAutoresizingMaskIntoConstraints = false
         webView.accessibilityIdentifier = "app-store-screenshot.ready.\(scene.rawValue)"
@@ -410,6 +466,8 @@ final class BrowserViewController: UIViewController {
         ])
 
         switch scene {
+        case .accessibilityChrome:
+            preconditionFailure("Accessibility chrome exits before creating a WebView")
         case .hnsPage, .proofDetails:
             updateCanonicalAddress("https://shakescape/")
             updateSecuritySummary(
@@ -653,6 +711,12 @@ final class BrowserViewController: UIViewController {
         coordinator?.goBack()
     }
 
+    @objc private func focusAddressBar() {
+        guard presentedViewController == nil else { return }
+        addressField.becomeFirstResponder()
+        addressField.selectAll(nil)
+    }
+
     @objc private func goForward() {
         coordinator?.goForward()
     }
@@ -703,6 +767,23 @@ final class BrowserViewController: UIViewController {
             sheet.prefersGrabberVisible = true
         }
         present(navigation, animated: true)
+    }
+
+    @objc private func openNewTabShortcut() {
+        guard presentedViewController == nil,
+              let tab = browserTabs.open(homepage: BrowserSettingsPreferences.homepage)
+        else { return }
+        refreshTabsButton()
+        replaceBrowsingContext(with: tab.address)
+        focusAddressBar()
+    }
+
+    @objc private func closeCurrentTabShortcut() {
+        guard presentedViewController == nil, browserTabs.tabs.count > 1 else { return }
+        let result = browserTabs.close(id: browserTabs.activeID)
+        guard case .selected(let address) = result else { return }
+        refreshTabsButton()
+        replaceBrowsingContext(with: address)
     }
 
     /// A tab switch is a browsing-context boundary. Replacing the coordinator is the supported
@@ -1980,7 +2061,12 @@ private final class ProofDetailsViewController: UIViewController {
         textView.isEditable = false
         textView.isSelectable = true
         textView.alwaysBounceVertical = true
-        textView.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
+        textView.font = AppAccessibility.scaledMonospacedFont(
+            size: 13,
+            weight: .regular,
+            textStyle: .body
+        )
+        textView.adjustsFontForContentSizeCategory = true
         textView.text = "\(details.detail)\n\n\(details.formattedJSON)"
         textView.accessibilityLabel = "Handshake proof details for \(details.host)"
         textView.accessibilityIdentifier = accessibilityIdentifier
@@ -2060,7 +2146,12 @@ private final class TextDocumentViewController: UIViewController {
         textView.isEditable = false
         textView.isSelectable = true
         textView.alwaysBounceVertical = true
-        textView.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+        textView.font = AppAccessibility.scaledMonospacedFont(
+            size: 12,
+            weight: .regular,
+            textStyle: .body
+        )
+        textView.adjustsFontForContentSizeCategory = true
         textView.text = documentText
         textView.accessibilityLabel = documentTitle
         view.addSubview(textView)

@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   capture:
-    name: Capture live Release runtime on a 6.5-inch simulator
+    name: Capture live Release runtime on iPhone and iPad simulators
     runs-on: macos-26
     timeout-minutes: 180
     steps:
@@ -63,17 +63,17 @@ jobs:
         env:
           EXPECTED_COMMIT: ${{ inputs.expected_commit }}
         run: |
-          python3 scripts/ios_screenshot_tools.py verify-live \
-            --directory build/app-store-live-screenshots \
-            --expected-commit "$EXPECTED_COMMIT"
+          for family in iphone ipad; do
+            python3 scripts/ios_screenshot_tools.py verify-live \
+              --directory "build/app-store-live-screenshots/$family" \
+              --expected-commit "$EXPECTED_COMMIT"
+          done
 
       - name: Upload live screenshots and provenance for human review
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ios-app-store-live-screenshots-${{ inputs.expected_commit }}
-          path: |
-            build/app-store-live-screenshots/*.jpg
-            build/app-store-live-screenshots/manifest.json
+          path: build/app-store-live-screenshots
           if-no-files-found: error
           retention-days: 14
           compression-level: 0

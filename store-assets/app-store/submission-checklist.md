@@ -1,13 +1,14 @@
 # App Store submission checklist
 
-Candidate: iOS `1.0.6`, build `67`, `com.denuoweb.hnsdane.ios`, iPhone, Free,
+Candidate: iOS `1.0.6`, build `68`, `com.denuoweb.hnsdane.ios`, iPhone/iPad,
+compatible Apple-silicon Macs, Free,
 manual release.
 
 ## Source and artifact
 
-- [x] Increment every iOS candidate, metadata, test, and workflow version surface to `1.0.6` / build `67` while retaining the independently versioned Android and Rust releases.
-- [x] Keep the pending `com.apple.developer.web-browser` capability out of this candidate and defer default-browser activation to a later version after Apple approval.
-- [x] Keep `com.apple.developer.browser.app-installation` absent until MarketplaceKit installation behavior is implemented and separately reviewed.
+- [x] Increment every iOS candidate, metadata, test, and workflow version surface to `1.0.6` / build `68` while retaining the independently versioned Android and Rust releases.
+- [x] Keep the rejected/unapproved `com.apple.developer.web-browser` capability out of this candidate while registering `http`/`https` and directly handling incoming targets for the renewed request.
+- [x] Keep `com.apple.developer.browser.app-installation` absent until Apple approves it; exact `marketplace-kit` navigation now remains in WebKit for MarketplaceKit validation.
 - [ ] Push the exact candidate and require all repository, Rust, Android, Apple, Required CI, and CodeQL gates to pass.
 - [ ] Build and sign the IPA from that exact commit; record its digest, identity, signing, encryption declaration, and processing state.
 - [ ] Confirm the selected App Store Connect build is `VALID` and unexpired.
@@ -22,14 +23,15 @@ manual release.
 
 ## Screenshots
 
-- [ ] Replace the retained historical screenshots with exact-commit iPhone captures of the current UI.
+- [ ] Replace the retained historical screenshots with exact-commit iPhone and iPad captures of the current UI.
 - [ ] Show the native wallet entry without any recovery phrase, account identifier, address, balance, or transaction identifier.
-- [ ] Use an accepted iPhone resolution with no alpha channel.
+- [ ] Use accepted 6.5-inch iPhone and 13-inch iPad resolutions with no alpha channel.
 - [ ] Run `python3 store-assets/app-store/validate.py --expected-commit SHA` successfully.
 
 ## Review and release
 
 - [ ] Paste the reviewed metadata and review notes and provide a real review contact.
 - [ ] Read back metadata, questionnaire answers, screenshots, review details, version, and build relationship.
+- [ ] Confirm **Make this app available on Mac** remains enabled in App Store Connect.
 - [ ] Attach everything to the same versioned commit and choose manual release.
 - [ ] Intentionally submit only after all gates above pass and archive the final readback.

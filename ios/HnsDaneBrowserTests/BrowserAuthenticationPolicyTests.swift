@@ -165,6 +165,21 @@ final class BrowserAuthenticationPolicyTests: XCTestCase {
             .performDefaultHandling
         )
     }
+
+    func testMarketplaceKitNavigationPassesToWebKitExactly() throws {
+        XCTAssertTrue(BrowserSystemNavigationPolicy.allowsMarketplaceKitPassThrough(
+            try XCTUnwrap(URL(string: "marketplace-kit://install?token=opaque"))
+        ))
+        XCTAssertTrue(BrowserSystemNavigationPolicy.allowsMarketplaceKitPassThrough(
+            try XCTUnwrap(URL(string: "MARKETPLACE-KIT://install"))
+        ))
+        XCTAssertFalse(BrowserSystemNavigationPolicy.allowsMarketplaceKitPassThrough(
+            try XCTUnwrap(URL(string: "https://example.com/marketplace-kit://install"))
+        ))
+        XCTAssertFalse(BrowserSystemNavigationPolicy.allowsMarketplaceKitPassThrough(
+            try XCTUnwrap(URL(string: "marketplace-kit-evil://install"))
+        ))
+    }
 }
 
 final class FakeRuntime: BrowserRuntime {

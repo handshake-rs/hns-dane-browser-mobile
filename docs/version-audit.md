@@ -12,7 +12,7 @@ into the app.
 | --- | --- | --- |
 | Android app | `1.0.6` / code `58` | `android/app/build.gradle.kts` |
 | Embedded Rust workspace | `1.0.2` (`publish = false`) | `rust/Cargo.toml` |
-| iOS app | `1.0.6` / build `67` | `ios/project.yml` |
+| iOS app | `1.0.6` / build `68` | `ios/project.yml` |
 | Native wallet controller | adjacent prepared `0.2.3` cohort | `rust/Cargo.toml`, `rust/Cargo.lock` |
 | Wallet protocol closure | published `hns-rs 0.4.1` | `rust/Cargo.lock` |
 | Rust toolchain | `1.98.1` | `rust/rust-toolchain.toml` |

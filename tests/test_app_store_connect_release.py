@@ -143,6 +143,43 @@ class ScreenshotApi:
         raise AssertionError(f"unexpected API request: {method} {path}")
 
 
+class AccessibilityApi:
+    def __init__(self, declarations=None):
+        self.declarations = list(declarations or [])
+        self.requests = []
+
+    def list(self, path, *, params=None):
+        self.requests.append(("LIST", path, params, None))
+        if path == "/v1/apps/app/accessibilityDeclarations":
+            return list(self.declarations)
+        raise AssertionError(f"unexpected list request: {path}")
+
+    def request(self, method, path, *, params=None, body=None, expected=(200,)):
+        self.requests.append((method, path, params, body))
+        if method == "POST" and path == "/v1/accessibilityDeclarations":
+            attributes = dict(body["data"]["attributes"])
+            attributes["state"] = "DRAFT"
+            declaration = resource(
+                "accessibilityDeclarations",
+                f"declaration-{attributes['deviceFamily'].lower()}",
+                **attributes,
+            )
+            self.declarations.append(declaration)
+            return {"data": declaration}
+        if method == "PATCH" and path.startswith("/v1/accessibilityDeclarations/"):
+            declaration_id = path.rsplit("/", 1)[-1]
+            declaration = next(
+                item for item in self.declarations if item["id"] == declaration_id
+            )
+            attributes = body["data"]["attributes"]
+            if attributes.get("publish") is True:
+                declaration["attributes"]["state"] = "PUBLISHED"
+            else:
+                declaration["attributes"].update(attributes)
+            return {"data": declaration}
+        raise AssertionError(f"unexpected API request: {method} {path}")
+
+
 def complete_screenshot(resource_id, filename, contents=b"old screenshot"):
     return resource(
         "appScreenshots",
@@ -161,7 +198,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             "a" * 40,
             "a" * 40,
             "1.0.6",
-            "67",
+            "68",
             {},
         )
 
@@ -171,14 +208,14 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             "a" * 40,
             "a" * 40,
             "1.0.6",
-            "67",
+            "68",
         )
         plan = release_client.local_plan(release)
         self.assertEqual(plan["mode"], "plan")
         self.assertEqual(plan["networkRequests"], 0)
         self.assertEqual(plan["mutations"], 0)
         self.assertEqual(plan["version"], "1.0.6")
-        self.assertEqual(plan["build"], "67")
+        self.assertEqual(plan["build"], "68")
         serialized = json.dumps(plan)
         self.assertNotIn(release.metadata["reviewNotes"], serialized)
 
@@ -199,7 +236,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             "--expected-version",
             "1.0.6",
             "--expected-build",
-            "67",
+            "68",
         ]
         with (
             mock.patch.object(sys, "argv", arguments),
@@ -216,7 +253,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             "a" * 40,
             "a" * 40,
             "1.0.6",
-            "67",
+            "68",
         )
 
     def test_mutations_require_release_specific_confirmation_strings(self):
@@ -258,7 +295,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
                 None,
                 None,
                 False,
-                cancel_build="67",
+                cancel_build="68",
                 cancel_confirmation=None,
             )
         release_client.validate_confirmations(
@@ -267,8 +304,8 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             None,
             None,
             False,
-            cancel_build="67",
-            cancel_confirmation="CANCEL_SUBMISSION_1.0.6_67",
+            cancel_build="68",
+            cancel_confirmation="CANCEL_SUBMISSION_1.0.6_68",
         )
 
     def test_screenshot_replacement_confirmation_is_exact_and_mutation_only(self):
@@ -312,7 +349,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             "--expected-version",
             "1.0.6",
             "--expected-build",
-            "67",
+            "68",
         ]
         self.assertIsNone(parser.parse_args(base).screenshots_dir)
 
@@ -580,6 +617,76 @@ class SubmissionSafetyTests(unittest.TestCase):
                     appStoreState="WAITING_FOR_REVIEW",
                 )
             )
+
+    def test_accessibility_declarations_are_exact_published_and_read_back(self):
+        api = AccessibilityApi()
+        manager = self.make_manager(api)
+
+        manager._ensure_accessibility_declarations("app")
+
+        readback = manager.accessibility_readback(api.declarations)
+        self.assertEqual(set(readback), {"IPHONE", "IPAD"})
+        for attributes in readback.values():
+            self.assertEqual(attributes["state"], "PUBLISHED")
+            for feature, expected in release_client.ACCESSIBILITY_FEATURES.items():
+                self.assertIs(attributes[feature], expected)
+        mutations = [request for request in api.requests if request[0] != "LIST"]
+        self.assertEqual(
+            [(method, path) for method, path, _params, _body in mutations],
+            [
+                ("POST", "/v1/accessibilityDeclarations"),
+                ("PATCH", "/v1/accessibilityDeclarations/declaration-iphone"),
+                ("POST", "/v1/accessibilityDeclarations"),
+                ("PATCH", "/v1/accessibilityDeclarations/declaration-ipad"),
+            ],
+        )
+        self.assertTrue(
+            all(
+                request[3]["data"]["attributes"] == {"publish": True}
+                for request in mutations
+                if request[0] == "PATCH"
+            )
+        )
+
+    def test_published_accessibility_mismatch_fails_without_mutation(self):
+        attributes = {
+            "deviceFamily": "IPHONE",
+            "state": "PUBLISHED",
+            **release_client.ACCESSIBILITY_FEATURES,
+        }
+        attributes["supportsVoiceover"] = False
+        api = AccessibilityApi([
+            resource("accessibilityDeclarations", "iphone", **attributes)
+        ])
+        manager = self.make_manager(api)
+
+        with self.assertRaisesRegex(
+            release_client.ReleaseError,
+            "published IPHONE accessibility declaration differs for supportsVoiceover",
+        ):
+            manager._ensure_accessibility_declarations("app")
+
+        self.assertFalse(
+            any(request[0] in {"POST", "PATCH"} for request in api.requests)
+        )
+
+    def test_duplicate_current_accessibility_declarations_fail_closed(self):
+        declarations = [
+            resource(
+                "accessibilityDeclarations",
+                f"iphone-{index}",
+                deviceFamily="IPHONE",
+                state="DRAFT",
+                **release_client.ACCESSIBILITY_FEATURES,
+            )
+            for index in range(2)
+        ]
+        manager = self.make_manager(AccessibilityApi(declarations))
+        with self.assertRaisesRegex(
+            release_client.ReleaseError,
+            "multiple current IPHONE",
+        ):
+            manager._ensure_accessibility_declarations("app")
 
     def test_existing_screenshot_mismatch_without_confirmation_deletes_nothing(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -854,10 +961,10 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn('[[ "$DISPATCH_COMMIT" == "$EXPECTED_COMMIT" ]]', workflow)
         self.assertIn("git ls-remote --exit-code origin refs/heads/main", workflow)
         self.assertIn("group: global-ios-app-store-upload-lease", workflow)
-        self.assertIn("APPLY_METADATA_1.0.6_67", workflow)
-        self.assertIn("REPLACE_SCREENSHOTS_1.0.6_67", workflow)
-        self.assertIn("SUBMIT_FOR_REVIEW_1.0.6_67", workflow)
-        self.assertIn("CANCEL_SUBMISSION_1.0.6_67", workflow)
+        self.assertIn("APPLY_METADATA_1.0.6_68", workflow)
+        self.assertIn("REPLACE_SCREENSHOTS_1.0.6_68", workflow)
+        self.assertIn("SUBMIT_FOR_REVIEW_1.0.6_68", workflow)
+        self.assertIn("CANCEL_SUBMISSION_1.0.6_68", workflow)
         self.assertIn('[[ "$ACCOUNT_READY" == true ]]', workflow)
         self.assertIn('.path == ".github/workflows/ios-app-store-upload.yml"', workflow)
         self.assertIn("expected_artifact_commit:", workflow)

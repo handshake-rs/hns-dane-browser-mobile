@@ -1,7 +1,8 @@
 # Live iOS App Store screenshots
 
 The `Live iOS App Store Screenshots` workflow produces four truthful iPhone
-screenshots without a physical iPhone. It runs only when manually dispatched
+screenshots and four matching iPad screenshots without physical devices. It
+runs only when manually dispatched
 because it performs real network navigation and is intended to create a
 reviewed submission artifact, not a required pull-request check. The protected
 App Store upload workflow runs the same capture and full verification as a
@@ -9,7 +10,7 @@ mandatory pre-credential gate; capture or verification failure blocks signing
 and upload.
 
 The checked-in images and manifest predate the current candidate and are not
-submission-ready for configured `1.0.6` / build `67`. Prior
+submission-ready for configured `1.0.6` / build `68`. Prior
 code-bearing
 source `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
 `31433931682`, including the complete Apple app/simulator gate. No fresh
@@ -33,7 +34,8 @@ The workflow checks out and reads back that exact commit, keys concurrency and
 artifact names to it, and refuses an uppercase, abbreviated, or otherwise
 malformed revision. Download the artifact named
 `ios-app-store-live-screenshots-COMMIT_SHA`. Before upload, the workflow also
-requires `manifest.json` to name the same exact commit. The artifact contains:
+requires both manifests to name the same exact commit. The artifact contains
+`iphone/` and `ipad/` directories. Each contains:
 
 - `01-hns-page.jpg`, captured after the shipping runtime loads
   `https://shakescape/`
@@ -47,9 +49,10 @@ requires `manifest.json` to name the same exact commit. The artifact contains:
   Xcode/SDK/device provenance, the security labels actually shown by the app,
   dimensions, and SHA-256 digest for every image
 
-Each JPEG is exactly `1284 x 2778`, has no alpha channel, and fits App Store
-Connect's 6.5-inch iPhone screenshot slot. The workflow creates a fresh iPhone
-14 Plus simulator, with 13 Pro Max and 12 Pro Max as equivalent fallbacks.
+The iPhone JPEGs are exactly `1284 x 2778`; the iPad JPEGs are an accepted
+13-inch size (`2064 x 2752` or `2048 x 2732`). Every image is opaque. The
+workflow uses an iPhone 14 Plus simulator (with equivalent Pro Max fallbacks)
+and an approved 13-inch/12.9-inch iPad Pro simulator.
 
 ## Truthfulness guarantees
 
@@ -124,14 +127,13 @@ qualification matrix in `docs/ios-device-validation.md`.
      --expected-commit "$expected_commit"
    ```
 
-   The staging script verifies every digest, replaces
-   `store-assets/app-store/screenshots/en-US/` with only the four live JPEGs,
-   and writes the adjacent `store-assets/app-store/screenshots/manifest.json`
-   provenance gate. Do
+   The staging script verifies every digest and stages independent `iphone/`
+   and `ipad/` image and manifest directories below
+   `store-assets/app-store/screenshots/`. Do
    not copy or rename fixture images into the upload folder.
-4. Upload the four approved JPEGs to App Store Connect's 6.5-inch iPhone slot
-   in numerical order, either through the guarded release client or directly
-   in App Store Connect.
+4. Upload each approved set in numerical order to its 6.5-inch iPhone or
+   13-inch iPad slot. The guarded release client treats both families as one
+   operation and refuses a partial universal-app replacement.
 
 The committed `0.5.5` set was captured from exact source
 `d926561091634cd69fc9b7e79a4b76003fa4ee47` in successful workflow run

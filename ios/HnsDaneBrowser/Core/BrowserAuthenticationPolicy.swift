@@ -1,5 +1,11 @@
 import Foundation
 
+struct BrowserSystemNavigationPolicy {
+    static func allowsMarketplaceKitPassThrough(_ url: URL) -> Bool {
+        url.scheme?.caseInsensitiveCompare("marketplace-kit") == .orderedSame
+    }
+}
+
 struct BrowserAuthenticationContext: Equatable {
     enum Kind: Equatable {
         case proxy(authenticationMethod: String)

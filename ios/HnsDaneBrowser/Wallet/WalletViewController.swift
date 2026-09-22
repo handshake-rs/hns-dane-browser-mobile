@@ -576,6 +576,9 @@ final class WalletViewController: UIViewController {
         recoveryTextView.backgroundColor = .secondarySystemGroupedBackground
         recoveryTextView.layer.cornerRadius = 12
         recoveryTextView.textContainerInset = UIEdgeInsets(top: 14, left: 12, bottom: 14, right: 12)
+        recoveryTextView.accessibilityLabel = "Recovery phrase"
+        recoveryTextView.accessibilityHint =
+            "Private wallet words. Record them offline before continuing."
         recoveryTextView.accessibilityIdentifier = "wallet.recovery-phrase"
         recoveryTextView.isHidden = true
         recoveryTextView.heightAnchor.constraint(greaterThanOrEqualToConstant: 150).isActive = true
@@ -1226,7 +1229,11 @@ final class WalletViewController: UIViewController {
     ) {
         alert.addTextField { field in
             field.text = address
-            field.font = .monospacedSystemFont(ofSize: 17, weight: .regular)
+            field.font = AppAccessibility.scaledMonospacedFont(
+                size: 17,
+                weight: .regular,
+                textStyle: .body
+            )
             field.adjustsFontSizeToFitWidth = true
             field.minimumFontSize = 8
             field.textAlignment = .center
@@ -2279,6 +2286,17 @@ final class WalletViewController: UIViewController {
             })
         }
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        if let popover = alert.popoverPresentationController {
+            let sourceView = walletPresentationHost.view
+            popover.sourceView = sourceView
+            popover.sourceRect = CGRect(
+                x: sourceView.bounds.midX,
+                y: sourceView.bounds.midY,
+                width: 1,
+                height: 1
+            )
+            popover.permittedArrowDirections = []
+        }
         walletPresentationHost.present(alert, animated: true)
     }
 
@@ -2845,7 +2863,12 @@ final class WalletViewController: UIViewController {
     ) {
         let label = UILabel()
         label.text = "\(visibleLabel)  "
-        label.font = .systemFont(ofSize: 12, weight: .semibold)
+        label.font = AppAccessibility.scaledSystemFont(
+            size: 12,
+            weight: .semibold,
+            textStyle: .caption1
+        )
+        label.adjustsFontForContentSizeCategory = true
         label.textColor = .secondaryLabel
         label.sizeToFit()
         field.leftView = label
@@ -4643,6 +4666,9 @@ final class WalletViewController: UIViewController {
             field.autocorrectionType = .no
             field.spellCheckingType = .no
             field.textContentType = nil
+            field.accessibilityLabel = "24-word recovery phrase"
+            field.accessibilityHint =
+                "Secure input. Enter the wallet recovery words in order."
             field.accessibilityIdentifier = "wallet.restore.phrase"
             self?.restorePhraseField = field
         }
@@ -4650,6 +4676,9 @@ final class WalletViewController: UIViewController {
             field.placeholder = "Birthday height"
             field.text = "0"
             field.keyboardType = .numberPad
+            field.accessibilityLabel = "Wallet birthday block height"
+            field.accessibilityHint =
+                "Enter zero to scan from genesis, or the earliest possible wallet block."
             field.accessibilityIdentifier = "wallet.restore.birthday"
         }
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
@@ -7060,6 +7089,7 @@ private final class WalletMenuViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemGroupedBackground
+        AppAccessibility.configureModal(view)
         view.layer.cornerRadius = 24
         view.layer.cornerCurve = .continuous
         view.layer.borderWidth = 1
@@ -7268,6 +7298,7 @@ private final class WalletFormViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemGroupedBackground
+        AppAccessibility.configureModal(view)
         view.layer.cornerRadius = 24
         view.layer.cornerCurve = .continuous
         view.layer.borderWidth = 1
@@ -8428,7 +8459,12 @@ private final class NameRecordsEditorViewController: UIViewController, UITextVie
         feeField.accessibilityIdentifier = "wallet.name-records.maximum-fee"
 
         recordsView.delegate = self
-        recordsView.font = .monospacedSystemFont(ofSize: 14, weight: .regular)
+        recordsView.font = AppAccessibility.scaledMonospacedFont(
+            size: 14,
+            weight: .regular,
+            textStyle: .body
+        )
+        recordsView.adjustsFontForContentSizeCategory = true
         recordsView.autocapitalizationType = .none
         recordsView.autocorrectionType = .no
         recordsView.spellCheckingType = .no
@@ -8612,7 +8648,12 @@ private final class WalletMultipleNameImportEditorViewController: UIViewControll
             "Enter Unicode or canonical ASCII Handshake names separated by spaces only. Up to 10,000 unique on-chain names may be imported at once. Commas, tabs, line breaks, trailing dots, and duplicate identities are rejected."
 
         namesView.delegate = self
-        namesView.font = .monospacedSystemFont(ofSize: 15, weight: .regular)
+        namesView.font = AppAccessibility.scaledMonospacedFont(
+            size: 15,
+            weight: .regular,
+            textStyle: .body
+        )
+        namesView.adjustsFontForContentSizeCategory = true
         namesView.autocapitalizationType = .none
         namesView.autocorrectionType = .no
         namesView.spellCheckingType = .no
@@ -8740,7 +8781,12 @@ private final class WalletMultipleNameImportReviewViewController: UIViewControll
         let list = UITextView()
         list.isEditable = false
         list.isSelectable = true
-        list.font = .monospacedSystemFont(ofSize: 14, weight: .regular)
+        list.font = AppAccessibility.scaledMonospacedFont(
+            size: 14,
+            weight: .regular,
+            textStyle: .body
+        )
+        list.adjustsFontForContentSizeCategory = true
         list.text = names.enumerated().map {
             "\($0.offset + 1). \(displayHandshakeNameText($0.element))"
         }.joined(separator: "\n")
@@ -8800,16 +8846,21 @@ final class HandshakeReceiveQrViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
+        AppAccessibility.configureModal(view)
         image = Self.qrImage("handshake:\(address)")
         let imageView = UIImageView(image: image)
         imageView.contentMode = .scaleAspectFit
         imageView.accessibilityLabel = "Handshake payment QR code"
+        imageView.accessibilityIgnoresInvertColors = true
         let addressLabel = UILabel()
         addressLabel.text = address
-        addressLabel.font = .monospacedSystemFont(ofSize: 15, weight: .regular)
-        addressLabel.adjustsFontSizeToFitWidth = true
-        addressLabel.minimumScaleFactor = 0.45
-        addressLabel.numberOfLines = 1
+        addressLabel.font = AppAccessibility.scaledMonospacedFont(
+            size: 15,
+            weight: .regular,
+            textStyle: .body
+        )
+        addressLabel.adjustsFontForContentSizeCategory = true
+        addressLabel.numberOfLines = 0
         addressLabel.textAlignment = .center
         let copy = button("Copy address", #selector(copyAddress))
         let share = button("Save or share QR code", #selector(shareQr))
@@ -8873,6 +8924,7 @@ final class HandshakeQrScannerViewController:
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .black
+        AppAccessibility.configureModal(view)
         let close = UIButton(type: .system)
         close.setTitle("Cancel", for: .normal)
         close.addTarget(self, action: #selector(cancel), for: .touchUpInside)

@@ -201,13 +201,39 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
 
         project = (ROOT / "ios/project.yml").read_text(encoding="utf-8")
         self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 1\.0\.6$")
-        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 67$")
+        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 68$")
+        self.assertIn('TARGETED_DEVICE_FAMILY: "1,2"', project)
+        self.assertIn("SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: YES", project)
         self.assertIn("- sdk: SystemConfiguration.framework", project)
 
         xcode_project = (
             ROOT / "ios/HnsDaneBrowser.xcodeproj/project.pbxproj"
         ).read_text(encoding="utf-8")
         self.assertIn("SystemConfiguration.framework in Frameworks", xcode_project)
+        self.assertIn("AccessibilityAuditTests.swift in Sources", xcode_project)
+
+        self.assertIn(
+            "performAccessibilityAudit",
+            (
+                ROOT
+                / "ios/HnsDaneBrowserScreenshotTests/AccessibilityAuditTests.swift"
+            ).read_text(encoding="utf-8"),
+        )
+        self.assertIn("accessibility-audit", ios_gate)
+
+        release_client = (
+            ROOT / "scripts/app_store_connect_release.py"
+        ).read_text(encoding="utf-8")
+        for feature in (
+            "supportsDarkInterface",
+            "supportsDifferentiateWithoutColorAlone",
+            "supportsLargerText",
+            "supportsReducedMotion",
+            "supportsSufficientContrast",
+            "supportsVoiceControl",
+            "supportsVoiceover",
+        ):
+            self.assertIn(f'"{feature}": True', release_client)
 
         upload = (ROOT / "scripts/upload-ios-app-store.sh").read_text(
             encoding="utf-8"
@@ -549,10 +575,11 @@ class IosReleaseWorkflowSafetyTests(unittest.TestCase):
         )
         self.assertIn(
             'scripts/ios_screenshot_tools.py verify-live \\\n'
-            "            --directory build/app-store-live-screenshots \\\n"
-            '            --expected-commit "$EXPECTED_COMMIT"',
+            '              --directory "build/app-store-live-screenshots/$family" \\\n'
+            '              --expected-commit "$EXPECTED_COMMIT"',
             workflow,
         )
+        self.assertIn("for family in iphone ipad; do", workflow)
         self.assertIn("group: global-ios-app-store-upload-lease", workflow)
         self.assertIn(
             "group: sha-${{ inputs.expected_commit }}-ios-app-store-upload",
@@ -587,9 +614,7 @@ class IosReleaseWorkflowSafetyTests(unittest.TestCase):
             workflow,
             r"(?s)name: ios-app-store-live-screenshots-"
             r"\$\{\{ inputs\.expected_commit \}\}"
-            r".*?path: \|"
-            r".*?build/app-store-live-screenshots/\*\.jpg"
-            r".*?build/app-store-live-screenshots/manifest\.json",
+            r".*?path: build/app-store-live-screenshots",
         )
 
     def test_upload_script_rechecks_main_immediately_before_apple_upload(self) -> None:
@@ -623,10 +648,11 @@ class IosReleaseWorkflowSafetyTests(unittest.TestCase):
         )
         self.assertIn(
             'scripts/ios_screenshot_tools.py verify-live \\\n'
-            "            --directory build/app-store-live-screenshots \\\n"
-            '            --expected-commit "$EXPECTED_COMMIT"',
+            '              --directory "build/app-store-live-screenshots/$family" \\\n'
+            '              --expected-commit "$EXPECTED_COMMIT"',
             workflow,
         )
+        self.assertIn("for family in iphone ipad; do", workflow)
 
     def test_screenshot_evidence_requires_a_visible_native_wallet_row(self) -> None:
         ui_test = SCREENSHOT_UI_TEST.read_text(encoding="utf-8")

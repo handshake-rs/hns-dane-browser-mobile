@@ -1,19 +1,21 @@
 # App Store metadata
 
 This directory contains the reviewed listing source for iOS `1.0.6` / build
-`67`, bundle ID `com.denuoweb.hnsdane.ios`. The preceding iOS release and its
+`68`, bundle ID `com.denuoweb.hnsdane.ios`. The preceding iOS release and its
 screenshots predate this candidate and are not evidence for it.
 
 - Version: `1.0.6`
-- Build: `67`
+- Build: `68`
 
 This update brings the current native wallet synchronization, recovery, name
 tracking, Unicode-name, record, transfer/finalization, and diagnostic work to
-iOS. Apple's managed `com.apple.developer.web-browser`
-request remains pending, so neither that entitlement nor the separate
-`com.apple.developer.browser.app-installation` entitlement is requested or
-shipped in this candidate. Default-browser activation is reserved for a later
-version after Apple grants the capability.
+iOS. Apple rejected the preceding managed `com.apple.developer.web-browser`
+request because the submitted binary did not register `http` and `https` URL
+schemes. Build 68 registers both schemes, routes incoming URLs directly, and
+keeps exact `marketplace-kit` navigation in WebKit. Neither entitlement is
+requested in this candidate; after Apple approves the renewed capability
+request, a later signed build will add `com.apple.developer.web-browser` and
+`com.apple.developer.browser.app-installation`.
 
 The listing describes the shipping surface: dual-root browsing and one native,
 noncustodial HNS wallet with direct peer synchronization, receive/QR, guarded
@@ -27,8 +29,9 @@ Canonical metadata files are the text files in `en-US/`. Product, support, and
 privacy URLs must use `https://shakescape.com/`; `review-notes.txt` must explain
 the native wallet and camera QR flow accurately.
 
-The screenshots under `../screenshots/en-US/` are retained historical assets.
-Generate a fresh exact-commit set after the final version increment, then run:
+The legacy screenshots under `../screenshots/en-US/` are retained historical
+iPhone-only assets. Generate fresh exact-commit iPhone and iPad sets after the
+final version increment, then run:
 
 ```sh
 python3 store-assets/app-store/validate.py --metadata-only

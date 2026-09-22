@@ -908,6 +908,19 @@ extension BrowserProxyCoordinator: WKNavigationDelegate {
             return
         }
 
+        // Apple requires a WebKit browser with the managed browser
+        // app-installation entitlement to allow MarketplaceKit's published
+        // installation URI through its navigation delegate. WebKit and
+        // MarketplaceKit perform the origin, ownership, token, region, and
+        // entitlement checks; treating this one system scheme as ordinary
+        // web navigation would incorrectly send it through the HNS proxy
+        // classifier and cancel it before the system can validate it.
+        if #available(iOS 17.4, *),
+           BrowserSystemNavigationPolicy.allowsMarketplaceKitPassThrough(url) {
+            decisionHandler(.allow, preferences)
+            return
+        }
+
         do {
             let destination = try runtime.classifyNavigation(url.absoluteString)
             if isAdmitted(destination, in: webView) {

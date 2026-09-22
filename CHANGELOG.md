@@ -21,7 +21,7 @@ All notable changes to this project will be documented in this file.
 
 ## 1.0.6 - 2026-09-22
 
-Android `1.0.6` / code `58` and iOS `1.0.6` / build `67` are the coordinated
+Android `1.0.6` / code `58` and iOS `1.0.6` / build `68` are the coordinated
 store candidates. They retain embedded Rust workspace `1.0.2` and the pinned
 wallet/engine dependency cohort.
 
@@ -36,8 +36,24 @@ wallet/engine dependency cohort.
   available through the equivalent iOS flows. iOS still obeys its platform
   suspension rules and resumes this durable state when protected foreground
   execution returns.
+- Expand the iOS target from iPhone-only to a universal iPhone/iPad app and
+  permit the unmodified iOS app on compatible Apple-silicon Macs. App Store
+  capture and guarded upload now require exact-commit 6.5-inch iPhone and
+  13-inch iPad screenshot sets rather than silently retaining an incomplete
+  iPhone-only listing.
+- Add scalable native typography, VoiceOver and Voice Control descriptions,
+  page/status announcements, reduced-motion behavior, reduced-transparency
+  accommodations, non-color-only status text, keyboard browser commands, and
+  automated UIKit accessibility audits. Publish the corresponding supported
+  accessibility declarations for iPhone and iPad while leaving captions and
+  audio descriptions unclaimed because the app provides no first-party media.
+- Register and directly handle `http` and `https` URLs and pass the exact
+  `marketplace-kit` scheme through WebKit, completing the implementation Apple
+  cited as missing before the default-browser and Browser App Installation
+  capability request is resubmitted. The managed entitlements remain absent
+  until Apple approves them.
 - Advance the Android and iOS application identities to `1.0.6` (Android code
-  `58`, iOS build `67`) while retaining the embedded Rust workspace at `1.0.2`
+  `58`, iOS build `68`) while retaining the embedded Rust workspace at `1.0.2`
   on pinned Rust `1.98.1`.
 - Complete the Rust 1.92-to-1.98.1 migration. Android file locking now uses
   the standard library support delivered by Rust 1.98, so the target-specific

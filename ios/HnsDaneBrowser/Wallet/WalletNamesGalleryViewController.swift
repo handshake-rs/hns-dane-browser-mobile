@@ -21,6 +21,8 @@ final class WalletNamesGalleryViewController: UIViewController,
     private let optionsButton = UIButton(type: .system)
     private let nextButton = UIButton(type: .system)
     private var searchHeightConstraint: NSLayoutConstraint!
+    private var footerButtonsHeightConstraint: NSLayoutConstraint!
+    private let footerButtons = UIStackView()
     private var searchIsVisible = false
 
     init(
@@ -49,6 +51,15 @@ final class WalletNamesGalleryViewController: UIViewController,
         configureSearch()
         configureCard()
         configureFooter()
+        updateAccessibilityLayout()
+        renderSelection()
+    }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        guard previousTraitCollection?.preferredContentSizeCategory
+            != traitCollection.preferredContentSizeCategory else { return }
+        updateAccessibilityLayout()
         renderSelection()
     }
 
@@ -132,19 +143,25 @@ final class WalletNamesGalleryViewController: UIViewController,
         footer.spacing = 7
         view.addSubview(footer)
 
-        positionLabel.font = .monospacedSystemFont(ofSize: 12, weight: .bold)
+        positionLabel.font = AppAccessibility.scaledMonospacedFont(
+            size: 12,
+            weight: .bold,
+            textStyle: .caption1
+        )
+        positionLabel.adjustsFontForContentSizeCategory = true
         positionLabel.textColor = UIColor(red: 0.62, green: 0.70, blue: 0.80, alpha: 1)
         positionLabel.textAlignment = .center
         positionLabel.accessibilityIdentifier = "wallet.names.position"
         footer.addArrangedSubview(positionLabel)
 
-        let buttons = UIStackView(arrangedSubviews: [
-            previousButton, searchButton, optionsButton, nextButton,
-        ])
-        buttons.axis = .horizontal
-        buttons.spacing = 6
-        buttons.distribution = .fillEqually
-        footer.addArrangedSubview(buttons)
+        footerButtons.addArrangedSubview(previousButton)
+        footerButtons.addArrangedSubview(searchButton)
+        footerButtons.addArrangedSubview(optionsButton)
+        footerButtons.addArrangedSubview(nextButton)
+        footerButtons.axis = .horizontal
+        footerButtons.spacing = 6
+        footerButtons.distribution = .fillEqually
+        footer.addArrangedSubview(footerButtons)
 
         configureFooterButton(previousButton, title: "← PREVIOUS", action: #selector(showPrevious))
         configureFooterButton(searchButton, title: "SEARCH", action: #selector(toggleSearch))
@@ -156,8 +173,11 @@ final class WalletNamesGalleryViewController: UIViewController,
             footer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
             footer.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -8),
             card.bottomAnchor.constraint(equalTo: footer.topAnchor, constant: -8),
-            buttons.heightAnchor.constraint(equalToConstant: 46),
         ])
+        footerButtonsHeightConstraint = footerButtons.heightAnchor.constraint(
+            greaterThanOrEqualToConstant: 48
+        )
+        footerButtonsHeightConstraint.isActive = true
     }
 
     private func configureFooterButton(
@@ -173,11 +193,32 @@ final class WalletNamesGalleryViewController: UIViewController,
         configuration.baseBackgroundColor = UIColor.clear
         configuration.contentInsets = NSDirectionalEdgeInsets(top: 5, leading: 2, bottom: 5, trailing: 2)
         button.configuration = configuration
-        button.titleLabel?.font = .systemFont(ofSize: 10, weight: .bold)
+        let titleFont = AppAccessibility.scaledSystemFont(
+            size: 10,
+            weight: .bold,
+            textStyle: .caption1
+        )
+        configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer {
+            incoming in
+            var outgoing = incoming
+            outgoing.font = titleFont
+            return outgoing
+        }
+        button.configuration = configuration
+        button.titleLabel?.adjustsFontForContentSizeCategory = true
+        button.titleLabel?.numberOfLines = 0
         button.layer.borderWidth = 1
         button.layer.borderColor = (primary ? UIColor.systemTeal : UIColor.systemIndigo).cgColor
         button.layer.cornerRadius = 14
         button.addTarget(self, action: action, for: .touchUpInside)
+    }
+
+    private func updateAccessibilityLayout() {
+        let usesAccessibilitySizes = traitCollection.preferredContentSizeCategory
+            .isAccessibilityCategory
+        footerButtons.axis = usesAccessibilitySizes ? .vertical : .horizontal
+        footerButtonsHeightConstraint?.constant = usesAccessibilitySizes ? 224 : 48
+        card.setAccessibilityTextLayoutEnabled(usesAccessibilitySizes)
     }
 
     private func renderSelection() {
@@ -193,6 +234,7 @@ final class WalletNamesGalleryViewController: UIViewController,
         nextButton.isEnabled = actionsAvailable && selectedIndex + 1 < names.count
         searchButton.isEnabled = actionsAvailable && !names.isEmpty
         optionsButton.isEnabled = actionsAvailable
+        positionLabel.accessibilityLabel = positionLabel.text
     }
 
     @objc private func showPrevious() {
@@ -200,6 +242,7 @@ final class WalletNamesGalleryViewController: UIViewController,
         selectedIndex -= 1
         closeSearch(animated: false)
         renderSelection()
+        UIAccessibility.post(notification: .pageScrolled, argument: positionLabel.text)
     }
 
     @objc private func showNext() {
@@ -207,6 +250,7 @@ final class WalletNamesGalleryViewController: UIViewController,
         selectedIndex += 1
         closeSearch(animated: false)
         renderSelection()
+        UIAccessibility.post(notification: .pageScrolled, argument: positionLabel.text)
     }
 
     @objc private func showOptions() {
@@ -224,13 +268,14 @@ final class WalletNamesGalleryViewController: UIViewController,
         searchHeightConstraint.constant = 56
         searchContainer.transform = CGAffineTransform(translationX: 0, y: -56)
         view.layoutIfNeeded()
-        UIView.animate(withDuration: 0.22, delay: 0, options: [.curveEaseOut]) {
+        AppAccessibility.animate(duration: 0.22, options: [.curveEaseOut]) {
             self.searchContainer.alpha = 1
             self.searchContainer.transform = .identity
             self.view.layoutIfNeeded()
         } completion: { _ in
             self.searchField.becomeFirstResponder()
             self.updateSearchSuggestions()
+            UIAccessibility.post(notification: .layoutChanged, argument: self.searchField)
         }
     }
 
@@ -250,7 +295,11 @@ final class WalletNamesGalleryViewController: UIViewController,
             self.view.layoutIfNeeded()
         }
         if animated {
-            UIView.animate(withDuration: 0.22, delay: 0, options: [.curveEaseIn], animations: changes)
+            AppAccessibility.animate(
+                duration: 0.22,
+                options: [.curveEaseIn],
+                animations: changes
+            )
         } else {
             changes()
         }
@@ -309,6 +358,7 @@ private final class HolographicWalletNameCardView: UIView {
     private let backgroundGradient = CAGradientLayer()
     private let lightGradient = CAGradientLayer()
     private let borderLayer = CAShapeLayer()
+    private let scrollView = UIScrollView()
     private let content = UIStackView()
     private let titleLabel = UILabel()
     private let cardInset: CGFloat = 10
@@ -357,21 +407,35 @@ private final class HolographicWalletNameCardView: UIView {
         borderLayer.lineWidth = 2.5
         layer.addSublayer(borderLayer)
 
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.alwaysBounceVertical = true
+        scrollView.showsVerticalScrollIndicator = true
+        addSubview(scrollView)
+
         content.translatesAutoresizingMaskIntoConstraints = false
         content.axis = .vertical
         content.spacing = 3
-        content.distribution = .fillProportionally
-        addSubview(content)
+        content.distribution = .fill
+        scrollView.addSubview(content)
         NSLayoutConstraint.activate([
-            content.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 18),
-            content.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -18),
-            content.topAnchor.constraint(equalTo: topAnchor, constant: 15),
-            content.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -15),
+            scrollView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+            scrollView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
+            scrollView.topAnchor.constraint(equalTo: topAnchor, constant: 10),
+            scrollView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -10),
+            content.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor, constant: 8),
+            content.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor, constant: -8),
+            content.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor, constant: 5),
+            content.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -5),
+            content.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor, constant: -16),
         ])
 
         let pan = UIPanGestureRecognizer(target: self, action: #selector(tiltCard(_:)))
         addGestureRecognizer(pan)
         isUserInteractionEnabled = true
+        isAccessibilityElement = true
+        accessibilityTraits = .staticText
+        content.accessibilityElementsHidden = true
+        updateVisualAccessibility()
     }
 
     override func layoutSubviews() {
@@ -385,6 +449,20 @@ private final class HolographicWalletNameCardView: UIView {
         layer.shadowPath = borderLayer.path
     }
 
+    func setAccessibilityTextLayoutEnabled(_ enabled: Bool) {
+        scrollView.isScrollEnabled = enabled
+        gestureRecognizers?.forEach {
+            $0.isEnabled = !enabled && !UIAccessibility.isReduceMotionEnabled
+        }
+    }
+
+    private func updateVisualAccessibility() {
+        if UIAccessibility.isReduceTransparencyEnabled {
+            lightGradient.isHidden = true
+            layer.shadowOpacity = 0
+        }
+    }
+
     func configure(name: NativeHnsReadSnapshot.KnownName?, snapshotHeight: UInt64) {
         content.arrangedSubviews.forEach {
             content.removeArrangedSubview($0)
@@ -394,6 +472,7 @@ private final class HolographicWalletNameCardView: UIView {
             titleLabel.attributedText = tronTitle("NO NAME")
             content.addArrangedSubview(titleLabel)
             accessibilityLabel = "No tracked Handshake name"
+            accessibilityValue = nil
             return
         }
 
@@ -438,7 +517,19 @@ private final class HolographicWalletNameCardView: UIView {
              ("BYTES", name.rawResourceHex.map { String($0.utf8.count / 2) } ?? "UNKNOWN")],
             [("RAW RESOURCE HEX PREVIEW", resource.isEmpty ? "EMPTY" : resource)],
         ], singleLineRows: [1])
-        accessibilityLabel = "Tracked Handshake name \(displayedName). \(ownershipLabel(name.ownershipStatus)), \(codeLabel(name.resourceStatus))"
+        accessibilityLabel = "Tracked Handshake name \(displayedName)"
+        accessibilityValue = [
+            "Ownership \(ownershipLabel(name.ownershipStatus))",
+            "resource status \(codeLabel(name.resourceStatus))",
+            "proof height \(name.proofHeight)",
+            "snapshot height \(snapshotHeight == 0 ? name.proofHeight : snapshotHeight)",
+            "registered \(optionalBoolean(name.registered))",
+            "expired before \(optionalBoolean(name.expired))",
+            name.canonicalState.map {
+                "value \(formatHns($0.valueBaseUnits)) HNS, highest bid \(formatHns($0.highestBaseUnits)) HNS, start height \($0.startHeight), renewal height \($0.renewalHeight), transfer height \($0.transferHeight), revoked height \($0.revokedHeight)"
+            } ?? "canonical covenant state unavailable",
+            "resource records \(name.resourceRecordCount.map { String($0) } ?? "unknown")",
+        ].joined(separator: ". ")
     }
 
     private func addSection(
@@ -448,7 +539,13 @@ private final class HolographicWalletNameCardView: UIView {
     ) {
         let heading = UILabel()
         heading.text = title
-        heading.font = UIFont(name: "AvenirNext-Heavy", size: 11) ?? .systemFont(ofSize: 11, weight: .heavy)
+        heading.font = AppAccessibility.scaledNamedFont(
+            name: "AvenirNext-Heavy",
+            size: 11,
+            fallbackWeight: .heavy,
+            textStyle: .caption1
+        )
+        heading.adjustsFontForContentSizeCategory = true
         heading.textColor = UIColor(red: 1, green: 0.88, blue: 0.24, alpha: 1)
         heading.layer.shadowColor = UIColor.black.cgColor
         heading.layer.shadowOpacity = 1
@@ -488,7 +585,12 @@ private final class HolographicWalletNameCardView: UIView {
 
         let heading = UILabel()
         heading.text = label
-        heading.font = .systemFont(ofSize: 8.5, weight: .heavy)
+        heading.font = AppAccessibility.scaledSystemFont(
+            size: 8.5,
+            weight: .heavy,
+            textStyle: .caption2
+        )
+        heading.adjustsFontForContentSizeCategory = true
         heading.textColor = .systemTeal
         heading.adjustsFontSizeToFitWidth = true
         heading.minimumScaleFactor = 0.7
@@ -498,8 +600,17 @@ private final class HolographicWalletNameCardView: UIView {
         let detail = UILabel()
         detail.text = value
         detail.font = monospace
-            ? .monospacedSystemFont(ofSize: 11, weight: .medium)
-            : .systemFont(ofSize: 12.5, weight: .bold)
+            ? AppAccessibility.scaledMonospacedFont(
+                size: 11,
+                weight: .medium,
+                textStyle: .caption1
+            )
+            : AppAccessibility.scaledSystemFont(
+                size: 12.5,
+                weight: .bold,
+                textStyle: .body
+            )
+        detail.adjustsFontForContentSizeCategory = true
         detail.textColor = .white
         detail.layer.shadowColor = UIColor.black.cgColor
         detail.layer.shadowOpacity = 1
@@ -515,9 +626,17 @@ private final class HolographicWalletNameCardView: UIView {
     private func tronTitle(_ text: String) -> NSAttributedString {
         let requiresSystemGlyphs = text.unicodeScalars.contains { $0.value >= 0x80 }
         let font = requiresSystemGlyphs
-            ? UIFont.systemFont(ofSize: 40, weight: .black)
-            : (UIFont(name: "AvenirNext-Heavy", size: 40)
-                ?? .systemFont(ofSize: 40, weight: .black))
+            ? AppAccessibility.scaledSystemFont(
+                size: 40,
+                weight: .black,
+                textStyle: .largeTitle
+            )
+            : AppAccessibility.scaledNamedFont(
+                name: "AvenirNext-Heavy",
+                size: 40,
+                fallbackWeight: .black,
+                textStyle: .largeTitle
+            )
         return NSAttributedString(string: text, attributes: [
             .font: font,
             .foregroundColor: UIColor(red: 0.10, green: 1, blue: 0.91, alpha: 1),
@@ -556,6 +675,10 @@ private final class HolographicWalletNameCardView: UIView {
     }
 
     @objc private func tiltCard(_ gesture: UIPanGestureRecognizer) {
+        guard !UIAccessibility.isReduceMotionEnabled else {
+            layer.transform = CATransform3DIdentity
+            return
+        }
         let point = gesture.location(in: self)
         switch gesture.state {
         case .began, .changed:
@@ -569,7 +692,7 @@ private final class HolographicWalletNameCardView: UIView {
             lightGradient.startPoint = CGPoint(x: 0.5 + normalizedX, y: 0.5 + normalizedY)
             lightGradient.endPoint = CGPoint(x: 0.5 - normalizedX, y: 0.5 - normalizedY)
         default:
-            UIView.animate(withDuration: 0.28, delay: 0, options: [.curveEaseOut]) {
+            AppAccessibility.animate(duration: 0.28, options: [.curveEaseOut]) {
                 self.layer.transform = CATransform3DIdentity
                 self.lightGradient.startPoint = CGPoint(x: 0, y: 0.1)
                 self.lightGradient.endPoint = CGPoint(x: 1, y: 0.9)

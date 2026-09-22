@@ -10,10 +10,11 @@ The committed application identity is:
 - Deployment floor: iOS 17.0
 - Previous candidate: `1.0.5` (`66`), retained as historical submission
   evidence and no longer pending
-- Current candidate: `1.0.6` (`67`), manual release
-- Device family: iPhone
+- Current candidate: `1.0.6` (`68`), manual release
+- Device families: iPhone and iPad; compatible iOS-on-Apple-silicon-Mac use is
+  permitted by the target
 
-Candidate build `67` includes the current native-only wallet screen for
+Candidate build `68` includes the current native-only wallet screen for
 create/restore/open/status/unlock/lock, one HNS account identity, and strict
 HNWR-v2 read-only fields for balance, distinct HNS payment and name-transfer
 receive targets, history, tracked names, and module status. The decoder retains
@@ -74,7 +75,10 @@ open.
 
 1. In Apple Developer, accept all current agreements and register an explicit App ID for `com.denuoweb.hnsdane.ios`. No optional capabilities are currently required.
 2. In App Store Connect, verify the existing iOS app record against the fixed
-   values in `store-assets/app-store/metadata/README.md`.
+   values in `store-assets/app-store/metadata/README.md`. Under Pricing and
+   Availability, leave **Make this app available on Mac** enabled. Apple makes
+   compatible iPhone/iPad apps available on Apple-silicon Macs by default, but
+   this account-level switch must still be read back before submission.
 3. In App Store Connect **Users and Access → Integrations → App Store Connect API**, enable API access if needed and create a **team** API key for CI.
 4. Download the `.p8` private key once. Record its 10-character Key ID and issuer UUID. Never commit the key, attach it to an issue, paste it into chat, or publish it as a workflow artifact.
 5. Create an Apple Distribution certificate and an App Store provisioning profile for the explicit App ID. Export the certificate and private key as a password-protected `.p12` that macOS Keychain can import. Use Keychain Access, or OpenSSL 3's legacy-compatible PKCS#12 export mode instead of its default PBES2/AES encoding. App Store profiles contain no registered devices, so this setup does not require an iPhone.
@@ -111,7 +115,8 @@ reviewed and qualified. The requested commit must equal the `main` commit
 selected at dispatch. Screenshot capture defaults off so a binary-only release
 preserves the screenshots already in App Store Connect and cannot be blocked by
 an unrelated capture run. Set `capture_screenshots=true` only when preparing a
-replacement set; that path fully verifies the exact-commit manifest, digests,
+replacement sets; that path captures and fully verifies exact-commit iPhone and
+iPad manifests, digests,
 runtime trust evidence, and visible native wallet row before Apple credentials
 are read. The workflow then re-reads remote `main` and stops
 before materializing credentials if the branch moved. The signed-upload helper
@@ -156,7 +161,7 @@ The workflow then:
 
 ## Apply metadata and submit through the API
 
-After the upload run succeeds and build `67` finishes processing, use the
+After the upload run succeeds and build `68` finishes processing, use the
 separate protected workflow. Its default `discover` mode performs authenticated
 GET requests only. Pin both the exact current `main` automation commit and the
 signed-artifact commit from the successful upload run. They may differ only by
@@ -199,8 +204,8 @@ gh workflow run ios-app-store-submit.yml \
   -f expected_upload_run_id="$upload_run_id" \
   -f mode=submit \
   -f review_contact_source_version=1.0.4 \
-  -f confirm_metadata=APPLY_METADATA_1.0.6_67 \
-  -f confirm_submit=SUBMIT_FOR_REVIEW_1.0.6_67 \
+  -f confirm_metadata=APPLY_METADATA_1.0.6_68 \
+  -f confirm_submit=SUBMIT_FOR_REVIEW_1.0.6_68 \
   -f confirm_account_readiness=true
 ```
 
@@ -210,7 +215,7 @@ downloads nor validates a replacement artifact. To replace it, first run the
 upload workflow with `-f capture_screenshots=true`; after visually reviewing its
 retained exact-artifact images, a metadata or submission run may replace only
 that version's `APP_IPHONE_65` set by adding the exact confirmation
-`-f confirm_screenshot_replacement=REPLACE_SCREENSHOTS_1.0.6_67`. Replacement
+`-f confirm_screenshot_replacement=REPLACE_SCREENSHOTS_1.0.6_68`. Replacement
 fails closed on any byte mismatch. Without that input the client performs no
 screenshot upload or deletion requests.
 
@@ -237,12 +242,12 @@ authenticated ICANN WebPKI. Protected upload run `30456522039` then passed its
 complete unsigned gate, signed and uploaded build `57`, and retained artifact
 `8726372341`. The verified IPA is 47,930,601 bytes with SHA-256
 `efea01f912035d0e2cde880a59cbe9e5b2e3f546e781fa5d9606942629225345`;
-its bundle ID, version/build, iPhone-only family, App Store profile, disabled
+its bundle ID, version/build, historical iPhone-only family, App Store profile, disabled
 debug entitlement, icon, and encryption declaration all match the release.
 Public GitHub Release `v0.5.5` publishes that exact IPA as asset `494101433`
 beside the verified code 46 APK.
 
-Build `67` is the configured candidate. Historical HNWR application-source CI,
+Build `68` is the configured candidate. Historical HNWR application-source CI,
 CodeQL, lockfile/notices, and the complete Apple app/simulator gate remain
 retained historical evidence. The earlier HNWR-v2 code-bearing source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed its own complete platform
@@ -252,7 +257,7 @@ dispatched Rust, Android, Apple, and Required CI matrix in run `31835813994`;
 CodeQL runs `31833858421` and `31833858650` also passed. This is exact-source
 build, test, and static-analysis evidence only, not a signed product, screenshot
 set, store declaration/readback, upload/submission, or physical-iPhone result.
-Build `67` must not be uploaded until a fresh
+Build `68` must not be uploaded until a fresh
 screenshot manifest names the exact release checkout selected for signing and
 carries provenance schema 3 with `settings.destination.wallet` visible;
 the protected workflow must then rerun its complete exact-checkout gate before
@@ -283,7 +288,7 @@ reconciled version metadata, selected build `65`, preserved the existing
 screenshots, and submitted the update after build `64` was withdrawn. The
 readback at that time reported `WAITING_FOR_REVIEW`, `releaseType=MANUAL`, and
 `reviewType=APP_STORE`; that is historical evidence and does not describe the
-current `1.0.6` / build `67` candidate.
+current `1.0.6` / build `68` candidate.
 
 The `0.5.5` version-managed metadata, current iPhone screenshots, App Review
 details, content-rights declaration, and build `57` were reconciled through

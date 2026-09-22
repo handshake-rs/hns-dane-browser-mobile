@@ -13,6 +13,7 @@ from scripts.ios_screenshot_tools import (
     ScreenshotToolError,
     collect_attachments,
     jpeg_dimensions,
+    select_device_profile,
     select_device_type,
     select_runtime,
     validate_live_provenance,
@@ -122,6 +123,38 @@ class SimulatorSelectionTests(unittest.TestCase):
         with self.assertRaisesRegex(ScreenshotToolError, "1284 x 2778"):
             select_device_type(
                 {"devicetypes": [{"name": "iPhone 17", "identifier": "seventeen"}]}
+            )
+
+    def test_selects_approved_ipad_profile_and_dimensions(self) -> None:
+        self.assertEqual(
+            select_device_profile(
+                {
+                    "devicetypes": [
+                        {
+                            "name": "iPad Pro (12.9-inch) (6th generation)",
+                            "identifier": "ipad-sixth",
+                        }
+                    ]
+                },
+                "ipad",
+            ),
+            (
+                "ipad-sixth",
+                "iPad Pro (12.9-inch) (6th generation)",
+                2048,
+                2732,
+            ),
+        )
+
+    def test_rejects_non_13_inch_ipad_profile(self) -> None:
+        with self.assertRaisesRegex(ScreenshotToolError, "13-inch iPad"):
+            select_device_profile(
+                {
+                    "devicetypes": [
+                        {"name": "iPad mini (A17 Pro)", "identifier": "mini"}
+                    ]
+                },
+                "ipad",
             )
 
 
@@ -283,6 +316,29 @@ class ScreenshotManifestTests(unittest.TestCase):
                     document,
                     expected_commit=OTHER_COMMIT,
                 )
+
+    def test_verifies_13_inch_ipad_release_set(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            for _, basename in SCREENSHOTS:
+                (directory / f"{basename}.jpg").write_bytes(
+                    minimal_jpeg(2048, 2732)
+                )
+            manifest_path = write_manifest(
+                directory,
+                2048,
+                2732,
+                COMMIT,
+                "Xcode 26.5",
+                "26.5",
+                "iPad Pro (12.9-inch) (6th generation)",
+                runtime_provenance=live_provenance(),
+                device_family="ipad",
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+            self.assertEqual(manifest["capture"]["deviceFamily"], "ipad")
+            self.assertEqual(len(verify_live_set(directory, manifest)), 4)
 
     def test_rejects_wrong_dimensions(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

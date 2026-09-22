@@ -30,7 +30,11 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 API_ORIGIN = "https://api.appstoreconnect.apple.com"
 BUNDLE_ID = "com.denuoweb.hnsdane.ios"
 LOCALE = "en-US"
-SCREENSHOT_DISPLAY_TYPE = "APP_IPHONE_65"
+SCREENSHOT_DISPLAY_TYPES = {
+    "iphone": "APP_IPHONE_65",
+    "ipad": "APP_IPAD_PRO_3GEN_129",
+}
+SCREENSHOT_DISPLAY_TYPE = SCREENSHOT_DISPLAY_TYPES["iphone"]
 MAX_SCREENSHOTS_PER_SET = 10
 EXACT_COMMIT = re.compile(r"^[0-9a-f]{40}$")
 MD5_CHECKSUM = re.compile(r"^[0-9a-fA-F]{32}$")
@@ -92,6 +96,18 @@ APP_INFO_LOCALIZATION_FIELDS = (
     "subtitle",
     "privacyPolicyUrl",
 )
+ACCESSIBILITY_DEVICE_FAMILIES = ("IPHONE", "IPAD")
+ACCESSIBILITY_FEATURES = {
+    "supportsAudioDescriptions": False,
+    "supportsCaptions": False,
+    "supportsDarkInterface": True,
+    "supportsDifferentiateWithoutColorAlone": True,
+    "supportsLargerText": True,
+    "supportsReducedMotion": True,
+    "supportsSufficientContrast": True,
+    "supportsVoiceControl": True,
+    "supportsVoiceover": True,
+}
 REQUIRED_REVIEW_CONTACT_FIELDS = (
     "contactFirstName",
     "contactLastName",
@@ -619,6 +635,7 @@ class ReleaseManager:
         *,
         review_contact_source_version: str,
         screenshot_paths: list[Path] | None = None,
+        screenshot_sets: dict[str, list[Path]] | None = None,
         allow_screenshot_replacement: bool = False,
         asset_timeout_seconds: int = 300,
     ):
@@ -626,6 +643,7 @@ class ReleaseManager:
         self.release = release
         self.review_contact_source_version = review_contact_source_version
         self.screenshot_paths = screenshot_paths
+        self.screenshot_sets = screenshot_sets
         self.allow_screenshot_replacement = allow_screenshot_replacement
         self.asset_timeout_seconds = asset_timeout_seconds
 
@@ -714,12 +732,18 @@ class ReleaseManager:
             raise
         return _data_resource(document, "appStoreReviewDetails")
 
-    def screenshot_set(self, localization_id: str) -> dict[str, Any] | None:
+    def screenshot_set(
+        self,
+        localization_id: str,
+        display_type: str = SCREENSHOT_DISPLAY_TYPE,
+    ) -> dict[str, Any] | None:
+        if display_type not in SCREENSHOT_DISPLAY_TYPES.values():
+            raise ReleaseError("refusing an unsupported screenshot display type")
         values = self.api.list(
             f"/v1/appStoreVersionLocalizations/{localization_id}/appScreenshotSets",
-            params={"filter[screenshotDisplayType]": SCREENSHOT_DISPLAY_TYPE, "limit": 2},
+            params={"filter[screenshotDisplayType]": display_type, "limit": 2},
         )
-        return _only(values, f"{SCREENSHOT_DISPLAY_TYPE} screenshot set", allow_zero=True)
+        return _only(values, f"{display_type} screenshot set", allow_zero=True)
 
     def screenshots(self, screenshot_set_id: str) -> list[dict[str, Any]]:
         return self.api.list(
@@ -764,6 +788,141 @@ class ReleaseManager:
             if _resource_attributes(value).get("state") in ACTIVE_REVIEW_STATES
         ]
 
+    def accessibility_declarations(self, app_id: str) -> list[dict[str, Any]]:
+        return self.api.list(
+            f"/v1/apps/{app_id}/accessibilityDeclarations",
+            params={
+                "fields[accessibilityDeclarations]": (
+                    "deviceFamily,state," + ",".join(ACCESSIBILITY_FEATURES)
+                ),
+                "limit": 200,
+            },
+        )
+
+    @staticmethod
+    def accessibility_readback(
+        resources: list[dict[str, Any]],
+    ) -> dict[str, dict[str, Any]]:
+        current: dict[str, dict[str, Any]] = {}
+        for resource in resources:
+            _resource_id(resource, "accessibilityDeclarations")
+            attributes = _resource_attributes(resource)
+            family = attributes.get("deviceFamily")
+            state = attributes.get("state")
+            if family not in ACCESSIBILITY_DEVICE_FAMILIES or state == "REPLACED":
+                continue
+            if family in current:
+                raise ReleaseError(
+                    f"App Store Connect returned multiple current {family} accessibility declarations"
+                )
+            current[family] = {
+                "state": state,
+                **{
+                    feature: attributes.get(feature)
+                    for feature in ACCESSIBILITY_FEATURES
+                },
+            }
+        return current
+
+    def _ensure_accessibility_declarations(self, app_id: str) -> None:
+        resources = self.accessibility_declarations(app_id)
+        self.accessibility_readback(resources)
+        current_by_family = {
+            _resource_attributes(resource).get("deviceFamily"): resource
+            for resource in resources
+            if _resource_attributes(resource).get("state") != "REPLACED"
+            and _resource_attributes(resource).get("deviceFamily")
+            in ACCESSIBILITY_DEVICE_FAMILIES
+        }
+        for family in ACCESSIBILITY_DEVICE_FAMILIES:
+            current = current_by_family.get(family)
+            if current is None:
+                document = self.api.request(
+                    "POST",
+                    "/v1/accessibilityDeclarations",
+                    body={
+                        "data": {
+                            "type": "accessibilityDeclarations",
+                            "attributes": {
+                                "deviceFamily": family,
+                                **ACCESSIBILITY_FEATURES,
+                            },
+                            "relationships": {
+                                "app": {"data": {"type": "apps", "id": app_id}}
+                            },
+                        }
+                    },
+                    expected=(201,),
+                )
+                current = _data_resource(document, "accessibilityDeclarations")
+            attributes = _resource_attributes(current)
+            state = attributes.get("state")
+            mismatches = [
+                feature
+                for feature, expected in ACCESSIBILITY_FEATURES.items()
+                if attributes.get(feature) is not expected
+            ]
+            if state == "PUBLISHED":
+                if mismatches:
+                    raise ReleaseError(
+                        f"published {family} accessibility declaration differs for "
+                        + ", ".join(mismatches)
+                    )
+                continue
+            if state != "DRAFT":
+                raise ReleaseError(
+                    f"the current {family} accessibility declaration has unexpected state {state}"
+                )
+            declaration_id = _resource_id(current, "accessibilityDeclarations")
+            if mismatches:
+                document = self.api.request(
+                    "PATCH",
+                    f"/v1/accessibilityDeclarations/{declaration_id}",
+                    body={
+                        "data": {
+                            "type": "accessibilityDeclarations",
+                            "id": declaration_id,
+                            "attributes": ACCESSIBILITY_FEATURES,
+                        }
+                    },
+                )
+                current = _data_resource(document, "accessibilityDeclarations")
+                if _resource_attributes(current).get("state") != "DRAFT":
+                    raise ReleaseError(
+                        f"the updated {family} accessibility declaration is no longer a draft"
+                    )
+            self.api.request(
+                "PATCH",
+                f"/v1/accessibilityDeclarations/{declaration_id}",
+                body={
+                    "data": {
+                        "type": "accessibilityDeclarations",
+                        "id": declaration_id,
+                        "attributes": {"publish": True},
+                    }
+                },
+            )
+        self._verify_accessibility_declarations(app_id)
+
+    def _verify_accessibility_declarations(self, app_id: str) -> None:
+        readback = self.accessibility_readback(
+            self.accessibility_declarations(app_id)
+        )
+        if set(readback) != set(ACCESSIBILITY_DEVICE_FAMILIES):
+            raise ReleaseError(
+                "App Store accessibility declarations do not cover exactly iPhone and iPad"
+            )
+        for family, attributes in readback.items():
+            if attributes.get("state") != "PUBLISHED":
+                raise ReleaseError(
+                    f"the {family} accessibility declaration is not published"
+                )
+            for feature, expected in ACCESSIBILITY_FEATURES.items():
+                if attributes.get(feature) is not expected:
+                    raise ReleaseError(
+                        f"the {family} accessibility readback differs for {feature}"
+                    )
+
     def submission_items(self, submission_id: str) -> list[dict[str, Any]]:
         return self.api.list(
             f"/v1/reviewSubmissions/{submission_id}/items",
@@ -777,6 +936,9 @@ class ReleaseManager:
         build = self.find_build(app_id)
         result: dict[str, Any] = {
             "appFound": True,
+            "accessibility": self.accessibility_readback(
+                self.accessibility_declarations(app_id)
+            ),
             "build": None,
             "version": None,
             "activeReviewSubmissions": [],
@@ -797,11 +959,17 @@ class ReleaseManager:
             screenshot_summary = None
             if localization is not None:
                 localization_id = _resource_id(localization, "appStoreVersionLocalizations")
-                screenshot_set = self.screenshot_set(localization_id)
-                if screenshot_set is not None:
-                    screenshots = self.screenshots(_resource_id(screenshot_set, "appScreenshotSets"))
+                screenshot_summary = {}
+                for family, display_type in SCREENSHOT_DISPLAY_TYPES.items():
+                    screenshot_set = self.screenshot_set(localization_id, display_type)
+                    if screenshot_set is None:
+                        screenshot_summary[family] = None
+                        continue
+                    screenshots = self.screenshots(
+                        _resource_id(screenshot_set, "appScreenshotSets")
+                    )
                     screenshot_readback = self.screenshot_readback(screenshots)
-                    screenshot_summary = {
+                    screenshot_summary[family] = {
                         "count": len(screenshots),
                         "states": [item["state"] for item in screenshot_readback],
                         "resources": screenshot_readback,
@@ -904,19 +1072,41 @@ class ReleaseManager:
         localization_id = _resource_id(localization, "appStoreVersionLocalizations")
         self._upsert_app_info_localization(app_id)
         self._upsert_review_detail(app_id, version_id)
-        screenshot_set = None
-        if self.screenshot_paths:
-            screenshot_set = self._ensure_screenshots(localization_id)
-        self._verify_readback(app_id, version_id, build_id, localization_id, screenshot_set)
+        self._ensure_accessibility_declarations(app_id)
+        screenshot_set_readbacks: list[tuple[str, list[Path]]] = []
+        requested_sets = self.screenshot_sets
+        if requested_sets is None and self.screenshot_paths:
+            requested_sets = {"iphone": self.screenshot_paths}
+        if requested_sets:
+            if set(requested_sets) != set(SCREENSHOT_DISPLAY_TYPES):
+                raise ReleaseError(
+                    "a universal iOS release requires exact iPhone and iPad screenshot sets"
+                )
+            for family, display_type in SCREENSHOT_DISPLAY_TYPES.items():
+                paths = requested_sets[family]
+                self.screenshot_paths = paths
+                screenshot_set_id = self._ensure_screenshots(
+                    localization_id, display_type
+                )
+                screenshot_set_readbacks.append((screenshot_set_id, paths))
+        self._verify_readback(
+            app_id,
+            version_id,
+            build_id,
+            localization_id,
+            screenshot_set_readbacks,
+        )
         result = {
             "version": self.release.version,
             "build": self.release.build,
             "metadataReadback": "verified",
-            "screenshots": "replaced-and-verified" if self.screenshot_paths else "unchanged",
+            "accessibility": "published-and-verified-for-iphone-and-ipad",
+            "screenshots": "replaced-and-verified" if requested_sets else "unchanged",
             "releaseType": "MANUAL",
         }
-        if self.screenshot_paths:
-            result["screenshotCount"] = len(self.screenshot_paths)
+        if requested_sets:
+            result["screenshotCount"] = sum(len(paths) for paths in requested_sets.values())
+            result["screenshotFamilies"] = sorted(requested_sets)
         return result
 
     def _assert_version_editable(self, version: dict[str, Any]) -> None:
@@ -1090,8 +1280,12 @@ class ReleaseManager:
                         "App Review requires a demo account but its credentials are incomplete"
                     )
 
-    def _ensure_screenshots(self, localization_id: str) -> str:
-        screenshot_set = self.screenshot_set(localization_id)
+    def _ensure_screenshots(
+        self,
+        localization_id: str,
+        display_type: str = SCREENSHOT_DISPLAY_TYPE,
+    ) -> str:
+        screenshot_set = self.screenshot_set(localization_id, display_type)
         if screenshot_set is None:
             document = self.api.request(
                 "POST",
@@ -1099,7 +1293,7 @@ class ReleaseManager:
                 body={
                     "data": {
                         "type": "appScreenshotSets",
-                        "attributes": {"screenshotDisplayType": SCREENSHOT_DISPLAY_TYPE},
+                        "attributes": {"screenshotDisplayType": display_type},
                         "relationships": {
                             "appStoreVersionLocalization": {
                                 "data": {
@@ -1113,7 +1307,7 @@ class ReleaseManager:
                 expected=(201,),
             )
             screenshot_set = _data_resource(document, "appScreenshotSets")
-        screenshot_set_id = self._validated_screenshot_set_id(screenshot_set)
+        screenshot_set_id = self._validated_screenshot_set_id(screenshot_set, display_type)
         existing = self.screenshots(screenshot_set_id)
         if existing:
             try:
@@ -1130,14 +1324,17 @@ class ReleaseManager:
         return screenshot_set_id
 
     @staticmethod
-    def _validated_screenshot_set_id(screenshot_set: dict[str, Any]) -> str:
+    def _validated_screenshot_set_id(
+        screenshot_set: dict[str, Any],
+        display_type: str = SCREENSHOT_DISPLAY_TYPE,
+    ) -> str:
         screenshot_set_id = _resource_id(screenshot_set, "appScreenshotSets")
         if not SAFE_RESOURCE_ID.fullmatch(screenshot_set_id):
             raise ReleaseError("the App Store screenshot set has an unsafe resource ID")
         attributes = _resource_attributes(screenshot_set)
-        if attributes.get("screenshotDisplayType") != SCREENSHOT_DISPLAY_TYPE:
+        if attributes.get("screenshotDisplayType") != display_type:
             raise ReleaseError(
-                f"refusing to mutate a screenshot set other than {SCREENSHOT_DISPLAY_TYPE}"
+                f"refusing to mutate a screenshot set other than {display_type}"
             )
         return screenshot_set_id
 
@@ -1436,7 +1633,7 @@ class ReleaseManager:
         version_id: str,
         build_id: str,
         localization_id: str,
-        screenshot_set_id: str | None,
+        screenshot_sets: list[tuple[str, list[Path]]],
     ) -> None:
         version_document = self.api.request("GET", f"/v1/appStoreVersions/{version_id}")
         version = _data_resource(version_document, "appStoreVersions")
@@ -1461,7 +1658,8 @@ class ReleaseManager:
         for field in VERSION_LOCALIZATION_FIELDS:
             if localization_attributes.get(field) != self.release.metadata[field]:
                 raise ReleaseError(f"App Store version localization readback differs for {field}")
-        if screenshot_set_id is not None:
+        for screenshot_set_id, paths in screenshot_sets:
+            self.screenshot_paths = paths
             self._verify_screenshot_resources(self.screenshots(screenshot_set_id))
         detail = self.review_detail(version_id)
         if detail is None or _resource_attributes(detail).get("notes") != self.release.metadata["reviewNotes"]:
@@ -1711,6 +1909,30 @@ def verified_screenshot_paths(root: Path, directory: Path, expected_commit: str)
         raise ReleaseError(f"exact-commit App Store screenshots failed validation: {error}") from error
 
 
+def verified_screenshot_sets(
+    root: Path, directory: Path, expected_commit: str
+) -> dict[str, list[Path]]:
+    sets: dict[str, list[Path]] = {}
+    for family in SCREENSHOT_DISPLAY_TYPES:
+        family_directory = directory / family
+        paths = verified_screenshot_paths(root, family_directory, expected_commit)
+        try:
+            manifest = json.loads(
+                (family_directory / "manifest.json").read_text(encoding="utf-8")
+            )
+        except (OSError, json.JSONDecodeError) as error:
+            raise ReleaseError(
+                f"exact-commit {family} screenshot manifest is unreadable"
+            ) from error
+        capture = manifest.get("capture") if isinstance(manifest, dict) else None
+        if not isinstance(capture, dict) or capture.get("deviceFamily") != family:
+            raise ReleaseError(
+                f"exact-commit screenshot directory {family} has the wrong device family"
+            )
+        sets[family] = paths
+    return sets
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -1773,10 +1995,11 @@ def main() -> int:
             raise ReleaseError("HNS_ASC_API_KEY_PATH is required for authenticated modes")
         api = AppStoreConnectApi(JwtProvider(key_id, issuer_id, Path(key_path_value)))
         screenshot_paths = None
+        screenshot_sets = None
         if args.mode in {"cancel-submission", "apply-metadata", "submit"}:
             verify_exact_current_main(release)
         if args.screenshots_dir:
-            screenshot_paths = verified_screenshot_paths(
+            screenshot_sets = verified_screenshot_sets(
                 root, (root / args.screenshots_dir).resolve(), release.artifact_commit
             )
         manager = ReleaseManager(
@@ -1784,6 +2007,7 @@ def main() -> int:
             release,
             review_contact_source_version=args.review_contact_source_version,
             screenshot_paths=screenshot_paths,
+            screenshot_sets=screenshot_sets,
             allow_screenshot_replacement=(
                 args.confirm_screenshot_replacement
                 == release.screenshot_replacement_confirmation

@@ -23,6 +23,7 @@
 		B1000000000000000000002B /* BrowserTabs.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000002D /* BrowserTabs.swift */; };
 		B1000000000000000000002C /* BrowserTabsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000002E /* BrowserTabsViewController.swift */; };
 		B1000000000000000000002D /* BrowserTabsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000002F /* BrowserTabsTests.swift */; };
+		B50000000000000000000001 /* AppAccessibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50000000000000000000001 /* AppAccessibility.swift */; };
 		B10000000000000000000017 /* BrowserRuntimePolicyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000027 /* BrowserRuntimePolicyStore.swift */; };
 		B10000000000000000000016 /* BrowserNavigationParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000025 /* BrowserNavigationParser.swift */; };
 		B1000000000000000000000D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000E /* PrivacyInfo.xcprivacy */; };
@@ -45,6 +46,7 @@
 		B10000000000000000000026 /* BrowserRuntimeControlTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000028 /* BrowserRuntimeControlTests.swift */; };
 		B10000000000000000000028 /* AppStoreScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000002B /* AppStoreScreenshotTests.swift */; };
 		B10000000000000000000029 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F10000000000000000000024 /* XCTest.framework */; };
+		B50000000000000000000002 /* AccessibilityAuditTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50000000000000000000002 /* AccessibilityAuditTests.swift */; };
 		B20000000000000000000001 /* WalletKeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000001 /* WalletKeychainStore.swift */; };
 		B20000000000000000000002 /* WalletProviderProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000002 /* WalletProviderProtocol.swift */; };
 		B20000000000000000000003 /* WalletUIState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000003 /* WalletUIState.swift */; };
@@ -120,6 +122,8 @@
 		F1000000000000000000002D /* BrowserTabs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserTabs.swift; sourceTree = "<group>"; };
 		F1000000000000000000002E /* BrowserTabsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserTabsViewController.swift; sourceTree = "<group>"; };
 		F1000000000000000000002F /* BrowserTabsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserTabsTests.swift; sourceTree = "<group>"; };
+		F50000000000000000000001 /* AppAccessibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAccessibility.swift; sourceTree = "<group>"; };
+		F50000000000000000000002 /* AccessibilityAuditTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityAuditTests.swift; sourceTree = "<group>"; };
 		F20000000000000000000001 /* WalletKeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletKeychainStore.swift; sourceTree = "<group>"; };
 		F20000000000000000000002 /* WalletProviderProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletProviderProtocol.swift; sourceTree = "<group>"; };
 		F20000000000000000000003 /* WalletUIState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletUIState.swift; sourceTree = "<group>"; };
@@ -223,6 +227,7 @@
 		G10000000000000000000005 /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				F50000000000000000000001 /* AppAccessibility.swift */,
 				F1000000000000000000002C /* BrowserSettingsViewController.swift */,
 				F1000000000000000000002E /* BrowserTabsViewController.swift */,
 				F1000000000000000000000C /* BrowserViewController.swift */,
@@ -279,6 +284,7 @@
 		G1000000000000000000000B /* HnsDaneBrowserScreenshotTests */ = {
 			isa = PBXGroup;
 			children = (
+				F50000000000000000000002 /* AccessibilityAuditTests.swift */,
 				F1000000000000000000002B /* AppStoreScreenshotTests.swift */,
 			);
 			path = HnsDaneBrowserScreenshotTests;
@@ -462,6 +468,7 @@
 				B1000000000000000000000A /* PersistentWebKitProfile.swift in Sources */,
 				B1000000000000000000000B /* RustBrowserRuntime.swift in Sources */,
 				B1000000000000000000000C /* BrowserViewController.swift in Sources */,
+				B50000000000000000000001 /* AppAccessibility.swift in Sources */,
 				B1000000000000000000002A /* BrowserSettingsViewController.swift in Sources */,
 				B1000000000000000000002B /* BrowserTabs.swift in Sources */,
 				B1000000000000000000002C /* BrowserTabsViewController.swift in Sources */,
@@ -501,6 +508,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B50000000000000000000002 /* AccessibilityAuditTests.swift in Sources */,
 				B10000000000000000000028 /* AppStoreScreenshotTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -639,7 +647,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 67;
+				CURRENT_PROJECT_VERSION = 68;
 				DEVELOPMENT_TEAM = 45NQQK3G3S;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -663,11 +671,12 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "HnsDaneBrowser/Support/HnsDaneBrowser-Bridging-Header.h";
 				SWIFT_STRICT_CONCURRENCY = minimal;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
 		};
@@ -677,7 +686,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 67;
+				CURRENT_PROJECT_VERSION = 68;
 				DEVELOPMENT_TEAM = 45NQQK3G3S;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -701,11 +710,12 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "HnsDaneBrowser/Support/HnsDaneBrowser-Bridging-Header.h";
 				SWIFT_STRICT_CONCURRENCY = minimal;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
@@ -714,7 +724,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 67;
+				CURRENT_PROJECT_VERSION = 68;
 				DEVELOPMENT_TEAM = 45NQQK3G3S;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -733,7 +743,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 67;
+				CURRENT_PROJECT_VERSION = 68;
 				DEVELOPMENT_TEAM = 45NQQK3G3S;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -751,7 +761,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 67;
+				CURRENT_PROJECT_VERSION = 68;
 				DEVELOPMENT_TEAM = 45NQQK3G3S;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -765,7 +775,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_STRICT_CONCURRENCY = minimal;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = HnsDaneBrowser;
 			};
 			name = Debug;
@@ -774,7 +784,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 67;
+				CURRENT_PROJECT_VERSION = 68;
 				DEVELOPMENT_TEAM = 45NQQK3G3S;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -788,7 +798,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_STRICT_CONCURRENCY = minimal;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = HnsDaneBrowser;
 			};
 			name = Release;

@@ -15,12 +15,18 @@ from urllib.parse import urlsplit
 
 STORE_ROOT = Path(__file__).resolve().parent
 METADATA_ROOT = STORE_ROOT / "metadata" / "en-US"
-SCREENSHOT_ROOT = STORE_ROOT / "screenshots" / "en-US"
-SCREENSHOT_MANIFEST = STORE_ROOT / "screenshots" / "manifest.json"
+SCREENSHOT_ROOTS = {
+    family: STORE_ROOT / "screenshots" / family / "en-US"
+    for family in ("iphone", "ipad")
+}
+SCREENSHOT_MANIFESTS = {
+    family: STORE_ROOT / "screenshots" / family / "manifest.json"
+    for family in SCREENSHOT_ROOTS
+}
 REPOSITORY_ROOT = STORE_ROOT.parent.parent
 
 EXPECTED_VERSION = "1.0.6"
-EXPECTED_BUILD = "67"
+EXPECTED_BUILD = "68"
 
 APP_ICON_SET = (
     REPOSITORY_ROOT
@@ -89,6 +95,14 @@ IPHONE_SCREENSHOT_SIZES = {
     (1320, 2868): "6.9-inch",
     (1242, 2688): "6.5-inch",
     (1284, 2778): "6.5-inch",
+}
+IPAD_SCREENSHOT_SIZES = {
+    (2064, 2752): "13-inch",
+    (2048, 2732): "13-inch",
+}
+SCREENSHOT_SIZES = {
+    "iphone": IPHONE_SCREENSHOT_SIZES,
+    "ipad": IPAD_SCREENSHOT_SIZES,
 }
 
 SCREENSHOT_NAME = re.compile(r"^[0-9]{2}-[a-z0-9][a-z0-9-]*\.(?:png|jpe?g)$")
@@ -525,15 +539,17 @@ def expected_screenshot_commit(validation, requested_commit):
     return commit
 
 
-def validate_live_screenshot_provenance(validation, expected_commit):
-    if not SCREENSHOT_MANIFEST.is_file():
+def validate_live_screenshot_provenance(
+    validation, expected_commit, family, screenshot_root, screenshot_manifest
+):
+    if not screenshot_manifest.is_file():
         validation.error(
             "{}: verified live Release provenance is required; the existing "
-            "screenshots are not submission-ready".format(SCREENSHOT_MANIFEST)
+            "screenshots are not submission-ready".format(screenshot_manifest)
         )
         return
     try:
-        document = json.loads(SCREENSHOT_MANIFEST.read_text(encoding="utf-8"))
+        document = json.loads(screenshot_manifest.read_text(encoding="utf-8"))
         repository = str(REPOSITORY_ROOT)
         if repository not in sys.path:
             sys.path.insert(0, repository)
@@ -542,30 +558,41 @@ def validate_live_screenshot_provenance(validation, expected_commit):
         )
 
         verify_live_set(
-            SCREENSHOT_ROOT,
+            screenshot_root,
             document,
             expected_commit=expected_commit,
         )
+        capture = document.get("capture")
+        if not isinstance(capture, dict) or capture.get("deviceFamily") != family:
+            validation.error(
+                "{}: manifest device family must be {}".format(
+                    screenshot_manifest, family
+                )
+            )
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
-        validation.error("{}: cannot verify: {}".format(SCREENSHOT_MANIFEST, error))
+        validation.error("{}: cannot verify: {}".format(screenshot_manifest, error))
 
 
-def validate_screenshots(validation, expected_commit):
-    validate_live_screenshot_provenance(validation, expected_commit)
-    if not SCREENSHOT_ROOT.is_dir():
+def validate_screenshot_family(validation, expected_commit, family):
+    screenshot_root = SCREENSHOT_ROOTS[family]
+    screenshot_manifest = SCREENSHOT_MANIFESTS[family]
+    validate_live_screenshot_provenance(
+        validation, expected_commit, family, screenshot_root, screenshot_manifest
+    )
+    if not screenshot_root.is_dir():
         validation.error(
             "{}: screenshot directory is missing; add the final en-US screenshots".format(
-                SCREENSHOT_ROOT
+                screenshot_root
             )
         )
         return
 
-    entries = sorted(path for path in SCREENSHOT_ROOT.iterdir() if not path.name.startswith("."))
+    entries = sorted(path for path in screenshot_root.iterdir() if not path.name.startswith("."))
     non_files = [path.name for path in entries if not path.is_file()]
     if non_files:
         validation.error(
             "{}: unexpected directories: {}".format(
-                SCREENSHOT_ROOT, ", ".join(non_files)
+                screenshot_root, ", ".join(non_files)
             )
         )
     screenshots = [
@@ -577,20 +604,20 @@ def validate_screenshots(validation, expected_commit):
     if unsupported:
         validation.error(
             "{}: unsupported files: {}".format(
-                SCREENSHOT_ROOT, ", ".join(unsupported)
+                screenshot_root, ", ".join(unsupported)
             )
         )
     if not screenshots:
-        validation.error("{}: at least one screenshot is required".format(SCREENSHOT_ROOT))
+        validation.error("{}: at least one screenshot is required".format(screenshot_root))
         return
     if len(screenshots) > 10:
-        validation.error("{}: at most ten screenshots are allowed".format(SCREENSHOT_ROOT))
+        validation.error("{}: at most ten screenshots are allowed".format(screenshot_root))
 
     sequence = [int(path.name[:2]) for path in screenshots if SCREENSHOT_NAME.fullmatch(path.name)]
     if sequence != list(range(1, len(screenshots) + 1)):
         validation.error(
             "{}: screenshot numbering must be contiguous from 01 in display order".format(
-                SCREENSHOT_ROOT
+                screenshot_root
             )
         )
 
@@ -607,15 +634,16 @@ def validate_screenshots(validation, expected_commit):
             validation.error("{}: {}".format(path, error))
             continue
         physical_size = tuple(sorted((width, height)))
-        display_class = IPHONE_SCREENSHOT_SIZES.get(physical_size)
+        sizes = SCREENSHOT_SIZES[family]
+        display_class = sizes.get(physical_size)
         if display_class is None:
             allowed = ", ".join(
                 "{}x{}".format(width, height)
-                for width, height in sorted(IPHONE_SCREENSHOT_SIZES)
+                for width, height in sorted(sizes)
             )
             validation.error(
-                "{}: {}x{} is not an approved 6.9-inch or 6.5-inch size ({})".format(
-                    path, width, height, allowed
+                "{}: {}x{} is not an approved {} screenshot size ({})".format(
+                    path, width, height, family, allowed
                 )
             )
         else:
@@ -627,15 +655,20 @@ def validate_screenshots(validation, expected_commit):
     if len(physical_sizes) > 1:
         validation.error(
             "{}: use one exact physical resolution throughout the screenshot set".format(
-                SCREENSHOT_ROOT
+                screenshot_root
             )
         )
     if len(display_classes) > 1:
         validation.error(
-            "{}: do not mix 6.9-inch and 6.5-inch screenshot classes".format(
-                SCREENSHOT_ROOT
+            "{}: do not mix screenshot display classes".format(
+                screenshot_root
             )
         )
+
+
+def validate_screenshots(validation, expected_commit):
+    for family in SCREENSHOT_ROOTS:
+        validate_screenshot_family(validation, expected_commit, family)
 
 
 def main(argv=None):

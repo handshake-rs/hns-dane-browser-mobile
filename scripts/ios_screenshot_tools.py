@@ -68,11 +68,25 @@ LIVE_TARGETS = {
     "webPKINavigation": "https://shakescape.com/",
 }
 
-DEVICE_PRIORITY = (
+IPHONE_DEVICE_PRIORITY = (
     "iPhone 14 Plus",
     "iPhone 13 Pro Max",
     "iPhone 12 Pro Max",
 )
+IPAD_DEVICE_PRIORITY = (
+    ("iPad Pro 13-inch (M5)", 2064, 2752),
+    ("iPad Pro 13-inch (M4)", 2064, 2752),
+    ("iPad Air 13-inch (M3)", 2048, 2732),
+    ("iPad Air 13-inch (M2)", 2048, 2732),
+    ("iPad Pro (12.9-inch) (6th generation)", 2048, 2732),
+    ("iPad Pro (12.9-inch) (5th generation)", 2048, 2732),
+    ("iPad Pro (12.9-inch) (4th generation)", 2048, 2732),
+    ("iPad Pro (12.9-inch) (3rd generation)", 2048, 2732),
+)
+SCREENSHOT_DIMENSIONS = {
+    "iphone": {(1284, 2778)},
+    "ipad": {(2064, 2752), (2048, 2732)},
+}
 
 XCRESULT_ATTACHMENT_SUFFIX = re.compile(
     r"_\d+_[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-"
@@ -122,12 +136,36 @@ def select_device_type(document: Any) -> tuple[str, str]:
         identifier = device.get("identifier")
         if isinstance(name, str) and isinstance(identifier, str):
             by_name[name] = identifier
-    for name in DEVICE_PRIORITY:
+    for name in IPHONE_DEVICE_PRIORITY:
         if name in by_name:
             return by_name[name], name
-    expected = ", ".join(DEVICE_PRIORITY)
+    expected = ", ".join(IPHONE_DEVICE_PRIORITY)
     raise ScreenshotToolError(
         f"no 1284 x 2778 iPhone device type was found; expected one of: {expected}"
+    )
+
+
+def select_device_profile(document: Any, family: str) -> tuple[str, str, int, int]:
+    if family == "iphone":
+        identifier, name = select_device_type(document)
+        return identifier, name, 1284, 2778
+    if family != "ipad":
+        raise ScreenshotToolError("screenshot device family must be iphone or ipad")
+    if not isinstance(document, dict) or not isinstance(document.get("devicetypes"), list):
+        raise ScreenshotToolError("simctl document must contain a devicetypes array")
+    by_name = {
+        device.get("name"): device.get("identifier")
+        for device in document["devicetypes"]
+        if isinstance(device, dict)
+        and isinstance(device.get("name"), str)
+        and isinstance(device.get("identifier"), str)
+    }
+    for name, width, height in IPAD_DEVICE_PRIORITY:
+        if name in by_name:
+            return by_name[name], name, width, height
+    expected = ", ".join(name for name, _, _ in IPAD_DEVICE_PRIORITY)
+    raise ScreenshotToolError(
+        f"no approved 13-inch iPad device type was found; expected one of: {expected}"
     )
 
 
@@ -419,6 +457,7 @@ def write_manifest(
     screenshot_specs: tuple[tuple[str, str], ...] = SCREENSHOTS,
     configuration: str = "Release",
     runtime_provenance: dict[str, Any] | None = None,
+    device_family: str = "iphone",
 ) -> Path:
     if not EXACT_COMMIT.fullmatch(commit):
         raise ScreenshotToolError(
@@ -455,6 +494,7 @@ def write_manifest(
             "configuration": configuration,
             "commit": commit,
             "device": device,
+            "deviceFamily": device_family,
             "fixtureEnvironmentInjected": False,
             "iosSdk": sdk,
             "mode": LIVE_CAPTURE_MODE,
@@ -486,6 +526,9 @@ def verify_live_set(
         raise ScreenshotToolError("only Release screenshots can be staged")
     if capture.get("fixtureEnvironmentInjected") is not False:
         raise ScreenshotToolError("fixture-injected screenshots cannot be staged")
+    device_family = capture.get("deviceFamily", "iphone")
+    if device_family not in SCREENSHOT_DIMENSIONS:
+        raise ScreenshotToolError("live screenshot manifest has an invalid device family")
     for field in ("commit", "device", "iosSdk", "xcode"):
         value = capture.get(field)
         if not isinstance(value, str) or not value.strip():
@@ -530,9 +573,13 @@ def verify_live_set(
         if not isinstance(record, dict):
             raise ScreenshotToolError(f"manifest has no record for {filename}")
         dimensions = jpeg_dimensions(path)
-        if dimensions != (1284, 2778):
+        if dimensions not in SCREENSHOT_DIMENSIONS[device_family]:
+            expected = " or ".join(
+                f"{width} x {height}"
+                for width, height in sorted(SCREENSHOT_DIMENSIONS[device_family])
+            )
             raise ScreenshotToolError(
-                f"{filename} is {dimensions[0]} x {dimensions[1]}; expected 1284 x 2778"
+                f"{filename} is {dimensions[0]} x {dimensions[1]}; expected {expected}"
             )
         if dimensions != (record.get("width"), record.get("height")):
             raise ScreenshotToolError(f"manifest dimensions do not match {filename}")
@@ -554,6 +601,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     device = subparsers.add_parser("select-device-type")
     device.add_argument("--input", default="-")
+    device.add_argument("--family", choices=("iphone", "ipad"), default="iphone")
 
     collect = subparsers.add_parser("collect")
     collect.add_argument("--manifest", required=True)
@@ -572,6 +620,7 @@ def build_parser() -> argparse.ArgumentParser:
     manifest.add_argument("--xcode", required=True)
     manifest.add_argument("--sdk", required=True)
     manifest.add_argument("--device", required=True)
+    manifest.add_argument("--device-family", choices=("iphone", "ipad"), default="iphone")
     manifest.add_argument("--configuration", default="Release")
     manifest.add_argument("--runtime-provenance", required=True)
 
@@ -588,8 +637,10 @@ def main() -> int:
         if args.command == "select-runtime":
             print(select_runtime(load_json(args.input), args.runtime))
         elif args.command == "select-device-type":
-            identifier, name = select_device_type(load_json(args.input))
-            print(f"{identifier}\t{name}")
+            identifier, name, width, height = select_device_profile(
+                load_json(args.input), args.family
+            )
+            print(f"{identifier}\t{name}\t{width}\t{height}")
         elif args.command == "collect":
             if args.profile == "live" and not args.provenance_output:
                 raise ScreenshotToolError(
@@ -618,6 +669,7 @@ def main() -> int:
                     args.device,
                     configuration=args.configuration,
                     runtime_provenance=load_json(args.runtime_provenance),
+                    device_family=args.device_family,
                 )
             )
         elif args.command == "verify-live":
