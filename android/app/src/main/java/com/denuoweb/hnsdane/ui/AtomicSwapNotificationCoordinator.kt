@@ -158,7 +158,8 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
         state == "failed" -> applicationContext.getString(
             R.string.wallet_swap_notification_failed,
         )
-        stage.contains("ready for approval", ignoreCase = true) ||
+        state == "refund_eligible" ||
+            stage.contains("ready for approval", ignoreCase = true) ||
             stage.contains("redeem", ignoreCase = true) ||
             stage.contains("refund is eligible", ignoreCase = true) ->
             applicationContext.getString(R.string.wallet_swap_notification_action_required)

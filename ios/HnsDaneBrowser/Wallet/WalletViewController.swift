@@ -44,7 +44,7 @@ private final class AtomicSwapNotificationCoordinator {
     private let initializedKey = "atomic-swap-notifications.initialized.v1"
     private let fingerprintsKey = "atomic-swap-notifications.fingerprints.v1"
     private let terminalStates: Set<String> = ["completed", "refunded", "failed"]
-    private var authorizationRequestInFlight = false
+    private var pendingFingerprints: [String: String] = [:]
 
     func reconcile(
         _ status: NativeShakescapeExecutionStatus,
@@ -67,6 +67,7 @@ private final class AtomicSwapNotificationCoordinator {
             case "completed": title = "Atomic swap completed"
             case "refunded": title = "Atomic swap refunded"
             case "failed": title = "Atomic swap needs attention"
+            case "refund_eligible": title = "Atomic swap action required"
             case _ where stage.localizedCaseInsensitiveContains("ready") ||
                 stage.localizedCaseInsensitiveContains("redeem"):
                 title = "Atomic swap action required"
@@ -88,40 +89,27 @@ private final class AtomicSwapNotificationCoordinator {
             }
             persist(fingerprints)
             defaults.set(true, forKey: initializedKey)
-            if records.values.contains(where: { !$0.historicalTerminal }) {
-                requestAuthorizationIfNeeded()
-            }
             return
         }
 
         for record in records.values {
             let previous = fingerprints[record.sessionId]
             guard previous != record.fingerprint else { continue }
-            fingerprints[record.sessionId] = record.fingerprint
-            if previous == nil && record.historicalTerminal { continue }
+            // Serialize delivery per session. If the native stage advances
+            // while UserNotifications is completing an add, the next poll
+            // publishes the newer stage after this request is acknowledged.
+            guard pendingFingerprints[record.sessionId] == nil else { continue }
+            if previous == nil && record.historicalTerminal {
+                fingerprints[record.sessionId] = record.fingerprint
+                continue
+            }
             post(record)
         }
         persist(fingerprints)
     }
 
-    private func requestAuthorizationIfNeeded() {
-        guard !authorizationRequestInFlight else { return }
-        authorizationRequestInFlight = true
-        center.getNotificationSettings { [weak self] settings in
-            DispatchQueue.main.async {
-                guard let self else { return }
-                guard settings.authorizationStatus == .notDetermined else {
-                    self.authorizationRequestInFlight = false
-                    return
-                }
-                self.center.requestAuthorization(options: [.alert, .sound]) { [weak self] _, _ in
-                    DispatchQueue.main.async { self?.authorizationRequestInFlight = false }
-                }
-            }
-        }
-    }
-
     private func post(_ record: Record) {
+        pendingFingerprints[record.sessionId] = record.fingerprint
         center.getNotificationSettings { [weak self] settings in
             DispatchQueue.main.async {
                 guard let self else { return }
@@ -131,13 +119,19 @@ private final class AtomicSwapNotificationCoordinator {
                 case .notDetermined:
                     self.center.requestAuthorization(options: [.alert, .sound]) {
                         [weak self] granted, _ in
-                        guard granted else { return }
-                        DispatchQueue.main.async { self?.add(record) }
+                        DispatchQueue.main.async {
+                            guard let self else { return }
+                            if granted {
+                                self.add(record)
+                            } else {
+                                self.clearPending(record)
+                            }
+                        }
                     }
                 case .denied:
-                    break
+                    self.clearPending(record)
                 @unknown default:
-                    break
+                    self.clearPending(record)
                 }
             }
         }
@@ -149,13 +143,30 @@ private final class AtomicSwapNotificationCoordinator {
         content.body = record.body
         content.sound = .default
         content.categoryIdentifier = "ATOMIC_SWAP_STATUS"
-        UNUserNotificationCenter.current().add(
+        center.add(
             UNNotificationRequest(
                 identifier: "atomic-swap:\(record.sessionId)",
                 content: content,
                 trigger: nil
             )
-        )
+        ) { [weak self] error in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                guard self.clearPending(record) else { return }
+                guard error == nil else { return }
+                var fingerprints = self.defaults.dictionary(forKey: self.fingerprintsKey)
+                    as? [String: String] ?? [:]
+                fingerprints[record.sessionId] = record.fingerprint
+                self.persist(fingerprints)
+            }
+        }
+    }
+
+    @discardableResult
+    private func clearPending(_ record: Record) -> Bool {
+        guard pendingFingerprints[record.sessionId] == record.fingerprint else { return false }
+        pendingFingerprints.removeValue(forKey: record.sessionId)
+        return true
     }
 
     private func persist(_ fingerprints: [String: String]) {
@@ -3926,7 +3937,7 @@ final class WalletViewController: UIViewController {
                     self.shakescapeExecutionStatusSnapshot = executions
                     self.atomicSwapNotifications.reconcile(
                         executions,
-                        stageText: self.shakescapeExecutionStage
+                        stageText: self.shakescapeExecutionNotificationStage
                     )
                     if previous != executions {
                         self.publishShakescapeExecutionStatus(executions)
@@ -4061,14 +4072,15 @@ final class WalletViewController: UIViewController {
     }
 
     private func shakescapeExecutionStage(
-        _ execution: NativeShakescapeExecutionSummary
+        _ execution: NativeShakescapeExecutionSummary,
+        includeBitcoinSync: Bool = true
     ) -> String {
         let first = execution.firstChain.capitalized
         let second = execution.secondChain.capitalized
         let now = UInt64(Date().timeIntervalSince1970)
         let fundingWasSubmitted = ["broadcast", "seen", "confirmed"]
             .contains(execution.localFundingState ?? "")
-        if bitcoinSyncInProgress {
+        if includeBitcoinSync && bitcoinSyncInProgress {
             return "Synchronizing Bitcoin compact filters and watched transactions"
         }
         switch execution.state {
@@ -4129,6 +4141,12 @@ final class WalletViewController: UIViewController {
         default:
             return execution.state.replacingOccurrences(of: "_", with: " ")
         }
+    }
+
+    private func shakescapeExecutionNotificationStage(
+        _ execution: NativeShakescapeExecutionSummary
+    ) -> String {
+        shakescapeExecutionStage(execution, includeBitcoinSync: false)
     }
 
     private func rememberDirectShakescapePeer(_ endpoint: String) {

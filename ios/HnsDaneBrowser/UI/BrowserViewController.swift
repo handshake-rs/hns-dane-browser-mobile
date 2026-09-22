@@ -198,6 +198,36 @@ final class BrowserViewController: UIViewController {
         present(navigation, animated: true)
     }
 
+    func presentWalletFromAtomicSwapNotification() {
+        guard !isDestroyed else { return }
+        if let navigation = presentedViewController as? UINavigationController {
+            if navigation.viewControllers.contains(where: { $0 is WalletViewController }) {
+                return
+            }
+            navigation.pushViewController(
+                WalletViewController(
+                    network: process.currentNetwork,
+                    browserProcess: process
+                ),
+                animated: true
+            )
+            return
+        }
+        guard presentedViewController == nil else {
+            dismiss(animated: false) { [weak self] in
+                self?.presentWalletFromAtomicSwapNotification()
+            }
+            return
+        }
+        let wallet = WalletViewController(
+            network: process.currentNetwork,
+            browserProcess: process
+        )
+        let navigation = UINavigationController(rootViewController: wallet)
+        navigation.modalPresentationStyle = .formSheet
+        present(navigation, animated: true)
+    }
+
     private func configureUI() {
         view.backgroundColor = .systemBackground
 

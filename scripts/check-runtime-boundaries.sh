@@ -152,6 +152,7 @@ android_wallet_ffi="$ROOT_DIR/rust/crates/android-ffi/src/lib.rs"
 android_classifier="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/core/BrowserUrlClassifier.kt"
 android_host_policy="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/core/HnsHostPolicy.kt"
 ios_runtime="$ROOT_DIR/ios/HnsDaneBrowser/Core/RustBrowserRuntime.swift"
+ios_app_delegate="$ROOT_DIR/ios/HnsDaneBrowser/App/AppDelegate.swift"
 ios_bridging_header="$ROOT_DIR/ios/HnsDaneBrowser/Support/HnsDaneBrowser-Bridging-Header.h"
 ios_native_wallet="$ROOT_DIR/ios/HnsDaneBrowser/Wallet/RustNativeWallet.swift"
 ios_hrm_hnsa_consumer="$ROOT_DIR/ios/HnsDaneBrowser/Wallet/HrmHnsaWalletConsumer.swift"
@@ -384,6 +385,18 @@ require_source_contains "$ios_ffi_dir/src/lib.rs" \
 require_source_contains "$ios_ffi_dir/src/lib.rs" \
   'service_connected_shakescape_peer(' \
   "iOS must prioritize already-authenticated board traffic before ordinary maintenance."
+require_source_contains "$ios_wallet_controller" \
+  'stageText: self.shakescapeExecutionNotificationStage' \
+  "iOS notifications must fingerprint the durable swap stage, not transient Bitcoin-sync presentation."
+require_source_contains "$ios_wallet_controller" \
+  'guard self.clearPending(record) else { return }' \
+  "iOS must not mark a swap stage notified until notification delivery is accepted."
+require_source_contains "$ios_app_delegate" \
+  'return [.banner, .list, .sound]' \
+  "iOS must visibly present authenticated swap transitions while the app is foregrounded."
+require_source_contains "$ios_app_delegate" \
+  'delegate.presentWalletFromAtomicSwapNotification()' \
+  "Tapping an iOS atomic-swap notification must return to the wallet."
 require_source_contains "$ios_ffi_dir/src/lib.rs" \
   'NativeWalletController::HnsReads(controller) =>' \
   "iOS native name import must be unavailable outside the synchronized HNS read controller."

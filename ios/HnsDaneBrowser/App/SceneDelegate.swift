@@ -29,6 +29,10 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         self.window = window
         browserViewController = browser
 
+        DispatchQueue.main.async {
+            appDelegate.routePendingAtomicSwapNotification()
+        }
+
         if let incomingURL = connectionOptions.urlContexts.first?.url {
             browser.openExternalURL(incomingURL)
         }
@@ -53,5 +57,12 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     func sceneDidDisconnect(_ scene: UIScene) {
         browserViewController?.destroyBrowsing()
         browserViewController = nil
+    }
+
+    @discardableResult
+    func presentWalletFromAtomicSwapNotification() -> Bool {
+        guard let browserViewController else { return false }
+        browserViewController.presentWalletFromAtomicSwapNotification()
+        return true
     }
 }
