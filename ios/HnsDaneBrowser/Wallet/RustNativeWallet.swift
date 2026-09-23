@@ -646,15 +646,15 @@ struct NativeShakescapeExecutionSummary: Decodable, Equatable, Sendable {
             "second_redeemed", "completed", "refund_eligible", "refund_broadcast",
             "refunded", "failed",
         ]
+        let validLocalFundingState = localFundingState.map {
+            ["broadcast", "seen", "confirmed", "reorged"].contains($0)
+        } ?? true
         guard NativeBitcoinHtlcFundingReceipt.validHash(sessionId), revision > 0,
               validStates.contains(state), ["bitcoin", "handshake"].contains(firstChain),
               ["bitcoin", "handshake"].contains(secondChain), firstChain != secondChain,
               ["btc", "hns"].contains(offeredAsset), ["btc", "hns"].contains(receivedAsset),
               offeredAsset != receivedAsset, ["maker", "taker"].contains(localRole),
-              offeredAmount > 0, receivedAmount > 0,
-              localFundingState.map {
-                  ["broadcast", "seen", "confirmed", "reorged"].contains($0)
-              } ?? true,
+              offeredAmount > 0, receivedAmount > 0, validLocalFundingState,
               fundingDeadlineUnix > 0, fundingDeadlineUnix < secondRefundAtUnix,
               firstRefundAtUnix > secondRefundAtUnix, lastVerifiedAtUnix > 0,
               failureReason.map { !$0.isEmpty && $0.count <= 256 } ?? true else {
