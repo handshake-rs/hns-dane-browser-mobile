@@ -13,12 +13,12 @@ into the app.
 | Android app | `1.0.6` / code `58` | `android/app/build.gradle.kts` |
 | Embedded Rust workspace | `1.0.2` (`publish = false`) | `rust/Cargo.toml` |
 | iOS app | `1.0.6` / build `68` | `ios/project.yml` |
-| Native wallet controller | adjacent prepared `0.2.3` cohort | `rust/Cargo.toml`, `rust/Cargo.lock` |
-| Wallet protocol closure | published `hns-rs 0.4.1` | `rust/Cargo.lock` |
+| Native wallet controller | published `0.2.4` cohort | `rust/Cargo.toml`, `rust/Cargo.lock` |
+| Wallet protocol closure | published `hns-rs 0.4.2` | `rust/Cargo.lock` |
 | Rust toolchain | `1.98.1` | `rust/rust-toolchain.toml` |
 | Android file locking | Rust standard-library `File` locks | `rust/crates/hns-mobile-platform-runtime/src/lib.rs` |
-| Public engine contracts | published exact engine crates, with the light-client cohort and `hns-namespace-resolution` at `0.2.3` | Cargo manifests and checksum-bearing locks |
-| Browser engine adapters | exact releases plus adjacent publication-ready `hns-browser-chain`, `hns-browser-p2p`, and `hns-browser-resolver 0.2.3` | Cargo manifests and locks |
+| Public engine contracts | published exact engine crates, with the light-client cohort at `0.2.5` and `hns-namespace-resolution` at `0.2.3` | Cargo manifests and checksum-bearing locks |
+| Browser engine adapters | exact releases, including `hns-browser-chain`, `hns-browser-p2p`, and `hns-browser-resolver 0.2.5` | Cargo manifests and checksum-bearing locks |
 | Standalone engine facade | Not in the mobile graph; upstream mobile-safe dependency boundary required | Cargo manifests and target-filtered metadata |
 | Android SDK | compile/target `37`, minimum `30` | `android/app/build.gradle.kts` |
 | Android NDK | `28.2.13676358`, application platform `30` | `scripts/build-rust-android.sh` |
@@ -112,9 +112,9 @@ Notes:
   application profile. No requester, transport adapter, endpoint/profile
   validator, provider role, FFI, UI, or native control is instantiated by this
   candidate, and its dedicated release gate remains false.
-- The mobile dependency sequence uses the adjacent prepared wallet `0.2.3`
-  cohort, reviewed HNS `0.4.1`, exact engine releases, and adjacent
-  publication-ready SQLite-backed browser adapters. The complete source and checksum
+- The mobile dependency sequence uses the published wallet `0.2.4` cohort,
+  reviewed HNS `0.4.2`, and exact published engine releases including the
+  SQLite-backed browser adapters at `0.2.5`. The complete source and checksum
   policy is documented in [released-dependency-cohort.md](released-dependency-cohort.md).
   Earlier run `31807520618` qualified only HNWR-v2 source
   `986accb7d86d220af63187031e629a9ce69d71e5`. Exact current application source

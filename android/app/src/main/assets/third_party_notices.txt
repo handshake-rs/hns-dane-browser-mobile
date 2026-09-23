@@ -23,12 +23,12 @@ does not imply endorsement by the component authors.
 
 Generator schema: 3
 Generated input SHA-256:
-  scripts/generate-third-party-notices.py = 23b0830f3efcf16a9e820b5c8ca60e98b56db57bb839d0d3bd3207974b377c19
+  scripts/generate-third-party-notices.py = 03d3d398afd6a1aeca0eaebbb5851cad751aea653cec864f36c0ec33f27f3d72
   scripts/mit-0-license.txt = 0ffe1339d2b91556bf0c380453d8504e972f066adcfda678bd9ddd2986a57c58
   android/app/src/main/assets/fonts/Orbitron-VariableFont_wght.ttf = f42db2dd16e642258e35782916eceb1dcdbea06fb958d77ad71dc5963587e8fd
   android/app/src/main/assets/fonts/OFL-Orbitron.txt = dd6fdb6716fd179d1fe891759efb3f9200753fdf6abf513b55b712c4ae16e512
-  rust/Cargo.toml = ae56f9cba581f2cbc679be7fac8bbde37fc5535e466442465a251d2b33509602
-  rust/Cargo.lock = 5a25c0319ddfa1cd8b7aed5e6a20a382cf3abb02da6f4986ef1df4462c50fcf7
+  rust/Cargo.toml = e821dd133d3c60facee9c5386d3c5ab3d5c682fcf0b1cc7a368b19ed15ea29a8
+  rust/Cargo.lock = 60081e871ac9850b8d0dcd4b75e94c81d7f0bde704f6fb33e91dcf1c4f242d06
   android/gradle/libs.versions.toml = 6e6aa686c60e39364e82418f57bb4e2cb0b1cdc420db5dc20dcb48b9f9e58214
   android/app/gradle.lockfile = af2b566239607d09657d3a5930a2d60e9a765d3a1cae7bbf212080b592766ab3
   android/gradle/verification-metadata.xml = 904a6b05ddaea646070bd1a7d077a5bcaf415cb3c71605e5549042e60651df52
@@ -101,10 +101,8 @@ RUST COMPONENTS (389)
   base64ct 1.8.3 | Apache-2.0 OR MIT
   bdk_chain 0.23.3 | MIT OR Apache-2.0
   bdk_core 0.6.3 | MIT OR Apache-2.0
-  bdk_kyoto 0.17.1 | MIT OR Apache-2.0
   bdk_wallet 3.1.0 | MIT OR Apache-2.0
   bech32 0.11.1 | MIT
-  bip157 0.6.3 | MIT OR Apache-2.0
   bip324 0.7.0 | declared license file LICENSE
   bip39 2.2.2 | CC0-1.0
   bit-vec 0.9.1 | Apache-2.0 OR MIT
@@ -121,7 +119,7 @@ RUST COMPONENTS (389)
   bitcoin_hashes 0.14.101 | CC0-1.0
   bitcoin_hashes 0.15.0 | CC0-1.0
   bitcoin_hashes 0.20.0 | CC0-1.0
-  bitflags 2.13.1 | MIT OR Apache-2.0
+  bitflags 2.13.2 | MIT OR Apache-2.0
   blake2 0.10.6 | MIT OR Apache-2.0
   block-buffer 0.10.4 | MIT OR Apache-2.0
   block2 0.6.2 | MIT
@@ -129,9 +127,9 @@ RUST COMPONENTS (389)
   bytecheck 0.8.3 | MIT
   bytecheck_derive 0.8.3 | MIT
   bytes 1.12.1 | MIT
-  cc 1.4.5 | MIT OR Apache-2.0
+  cc 1.4.7 | MIT OR Apache-2.0
   cesu8 1.1.0 | Apache-2.0/MIT
-  cfg-if 1.0.4 | MIT OR Apache-2.0
+  cfg-if 1.0.5 | MIT OR Apache-2.0
   cfg_aliases 0.2.2 | MIT
   chacha20 0.10.2 | MIT OR Apache-2.0
   chacha20 0.9.1 | Apache-2.0 OR MIT
@@ -169,7 +167,7 @@ RUST COMPONENTS (389)
   fallible-streaming-iterator 0.1.9 | MIT/Apache-2.0
   fastrand 2.5.0 | Apache-2.0 OR MIT
   ff 0.13.1 | MIT/Apache-2.0
-  find-msvc-tools 0.1.12 | MIT OR Apache-2.0
+  find-msvc-tools 0.1.13 | MIT OR Apache-2.0
   fnv 1.0.7 | Apache-2.0 / MIT
   foldhash 0.2.0 | Zlib
   form_urlencoded 1.2.2 | MIT OR Apache-2.0
@@ -206,52 +204,54 @@ RUST COMPONENTS (389)
   hex_lit 0.1.1 | MITNFA
   hkdf 0.12.4 | MIT OR Apache-2.0
   hmac 0.12.1 | MIT OR Apache-2.0
-  hns-browser-chain 0.2.3 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-chain 0.2.5 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-browser-dane 0.2.2 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-browser-dnssec 0.2.2 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-browser-gateway 0.2.3 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-browser-loopback-proxy 0.2.3 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-browser-observability 0.3.0 | MIT OR Apache-2.0
-  hns-browser-p2p 0.2.3 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-p2p 0.2.5 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-browser-primitives 0.2.2 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
-  hns-browser-resolver 0.2.3 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-resolver 0.2.5 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-browser-runtime 0.2.2 | MIT OR Apache-2.0
   hns-browser-sync 0.2.2 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-browser-transport 0.2.2 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-browser-urkel 0.2.2 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-cache 0.2.2 | MIT OR Apache-2.0
-  hns-covenants 0.4.1 | MIT OR Apache-2.0
+  hns-covenants 0.4.2 | MIT OR Apache-2.0
   hns-dns-wire 0.2.2 | MIT OR Apache-2.0
-  hns-encoding 0.4.1 | MIT OR Apache-2.0
-  hns-header-consensus 0.4.1 | MIT OR Apache-2.0
+  hns-encoding 0.4.2 | MIT OR Apache-2.0
+  hns-header-consensus 0.4.2 | MIT OR Apache-2.0
   hns-icann-dane 0.2.2 | MIT OR Apache-2.0
-  hns-light-chain 0.2.3 | MIT OR Apache-2.0
-  hns-light-p2p 0.2.3 | MIT OR Apache-2.0
-  hns-light-sync 0.2.3 | MIT OR Apache-2.0
-  hns-light-wallet 0.2.3 | MIT OR Apache-2.0
-  hns-marketplace-protocol 0.4.1 | MIT OR Apache-2.0
-  hns-mining 0.4.1 | MIT OR Apache-2.0
+  hns-light-chain 0.2.5 | MIT OR Apache-2.0
+  hns-light-p2p 0.2.5 | MIT OR Apache-2.0
+  hns-light-sync 0.2.5 | MIT OR Apache-2.0
+  hns-light-wallet 0.2.5 | MIT OR Apache-2.0
+  hns-marketplace-protocol 0.4.2 | MIT OR Apache-2.0
+  hns-mining 0.4.2 | MIT OR Apache-2.0
   hns-namespace-resolution 0.2.3 | MIT OR Apache-2.0
-  hns-p2p-experimental 0.4.1 | MIT OR Apache-2.0
-  hns-p2p-wire 0.4.1 | MIT OR Apache-2.0
-  hns-primitives 0.4.1 | MIT OR Apache-2.0
+  hns-p2p-experimental 0.4.2 | MIT OR Apache-2.0
+  hns-p2p-wire 0.4.2 | MIT OR Apache-2.0
+  hns-primitives 0.4.2 | MIT OR Apache-2.0
   hns-resolution-policy 0.3.0 | MIT OR Apache-2.0
-  hns-script 0.4.1 | MIT OR Apache-2.0
-  hns-swap 0.4.1 | MIT OR Apache-2.0
-  hns-transaction 0.4.1 | MIT OR Apache-2.0
-  hns-urkel-proof 0.4.1 | MIT OR Apache-2.0
-  hns-wallet-bitcoin-kyoto 0.2.3 | MIT OR Apache-2.0
-  hns-wallet-chain-api 0.2.3 | MIT OR Apache-2.0
-  hns-wallet-ffi 0.2.3 | MIT OR Apache-2.0
-  hns-wallet-hns 0.2.3 | MIT OR Apache-2.0
-  hns-wallet-host 0.2.3 | MIT OR Apache-2.0
-  hns-wallet-market 0.2.3 | MIT OR Apache-2.0
-  hns-wallet-mobile 0.2.3 | MIT OR Apache-2.0
-  hns-wallet-provider 0.2.3 | MIT OR Apache-2.0
-  hns-wallet-service 0.2.3 | MIT OR Apache-2.0
-  hns-wallet-shakedex 0.2.3 | MIT OR Apache-2.0
-  hns-wallet-store 0.2.3 | MIT OR Apache-2.0
-  hns-wallet-types 0.2.3 | MIT OR Apache-2.0
+  hns-script 0.4.2 | MIT OR Apache-2.0
+  hns-swap 0.4.2 | MIT OR Apache-2.0
+  hns-transaction 0.4.2 | MIT OR Apache-2.0
+  hns-urkel-proof 0.4.2 | MIT OR Apache-2.0
+  hns-wallet-bdk-kyoto 0.2.4 | MIT OR Apache-2.0
+  hns-wallet-bip157 0.2.4 | MIT OR Apache-2.0
+  hns-wallet-bitcoin-kyoto 0.2.4 | MIT OR Apache-2.0
+  hns-wallet-chain-api 0.2.4 | MIT OR Apache-2.0
+  hns-wallet-ffi 0.2.4 | MIT OR Apache-2.0
+  hns-wallet-hns 0.2.4 | MIT OR Apache-2.0
+  hns-wallet-host 0.2.4 | MIT OR Apache-2.0
+  hns-wallet-market 0.2.4 | MIT OR Apache-2.0
+  hns-wallet-mobile 0.2.4 | MIT OR Apache-2.0
+  hns-wallet-provider 0.2.4 | MIT OR Apache-2.0
+  hns-wallet-service 0.2.4 | MIT OR Apache-2.0
+  hns-wallet-shakedex 0.2.4 | MIT OR Apache-2.0
+  hns-wallet-store 0.2.4 | MIT OR Apache-2.0
+  hns-wallet-types 0.2.4 | MIT OR Apache-2.0
   http 1.5.0 | MIT OR Apache-2.0
   http-body 1.1.0 | MIT
   http-body-util 0.1.5 | MIT
@@ -289,7 +289,7 @@ RUST COMPONENTS (389)
   linux-raw-sys 0.12.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
   litemap 0.8.3 | Unicode-3.0
   log 0.4.34 | MIT OR Apache-2.0
-  lru-slab 0.1.2 | MIT OR Apache-2.0 OR Zlib
+  lru-slab 0.1.3 | MIT OR Apache-2.0 OR Zlib
   mac-addr 0.3.0 | MIT
   memchr 2.8.3 | Unlicense OR MIT
   minimal-lexical 0.2.1 | MIT/Apache-2.0
@@ -302,7 +302,7 @@ RUST COMPONENTS (389)
   n0-future 0.3.2 | MIT OR Apache-2.0
   n0-watcher 1.0.0 | MIT OR Apache-2.0
   ndk-context 0.1.1 | MIT OR Apache-2.0
-  netdev 0.46.2 | MIT
+  netdev 0.46.3 | MIT
   netlink-packet-core 0.8.2 | MIT
   netlink-packet-core 0.9.0 | MIT
   netlink-packet-route 0.31.0 | MIT
@@ -312,7 +312,7 @@ RUST COMPONENTS (389)
   netlink-sys 0.9.0 | MIT
   netwatch 0.19.3 | MIT OR Apache-2.0
   nom 7.1.3 | MIT
-  noq-udp 1.2.0 | MIT OR Apache-2.0
+  noq-udp 1.3.0 | MIT OR Apache-2.0
   num-bigint 0.4.8 | MIT OR Apache-2.0
   num-conv 0.2.2 | MIT OR Apache-2.0
   num-integer 0.1.47 | MIT OR Apache-2.0
@@ -350,12 +350,12 @@ RUST COMPONENTS (389)
   ptr_meta 0.3.2 | MIT
   ptr_meta_derive 0.3.2 | MIT
   quick-xml 0.42.0 | MIT
-  quinn 0.11.11 | MIT OR Apache-2.0
-  quinn-proto 0.11.17 | MIT OR Apache-2.0
+  quinn 0.11.12 | MIT OR Apache-2.0
+  quinn-proto 0.11.18 | MIT OR Apache-2.0
   quinn-udp 0.5.15 | MIT OR Apache-2.0
   quote 1.0.47 | MIT OR Apache-2.0
   rancor 0.1.3 | MIT
-  rand 0.10.2 | MIT OR Apache-2.0
+  rand 0.10.3 | MIT OR Apache-2.0
   rand 0.8.8 | MIT OR Apache-2.0
   rand_chacha 0.3.1 | MIT OR Apache-2.0
   rand_core 0.10.1 | MIT OR Apache-2.0
@@ -372,7 +372,7 @@ RUST COMPONENTS (389)
   rustc-hash 2.1.3 | Apache-2.0 OR MIT
   rustc_version 0.4.1 | MIT OR Apache-2.0
   rusticata-macros 4.1.0 | MIT/Apache-2.0
-  rustix 1.1.4 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
+  rustix 1.1.5 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
   rustls 0.23.45 | Apache-2.0 OR ISC OR MIT
   rustls-pki-types 1.15.1 | MIT OR Apache-2.0
   rustls-webpki 0.103.15 | ISC
@@ -396,7 +396,7 @@ RUST COMPONENTS (389)
   signature 2.2.0 | Apache-2.0 OR MIT
   simdutf8 0.1.5 | MIT OR Apache-2.0
   slab 0.4.12 | MIT
-  smallvec 1.16.0 | MIT OR Apache-2.0
+  smallvec 1.16.1 | MIT OR Apache-2.0
   smallvec-wrapper 0.4.1 | MIT OR Apache-2.0
   smol_str 0.3.6 | MIT OR Apache-2.0
   socket2 0.6.5 | MIT OR Apache-2.0
@@ -406,8 +406,9 @@ RUST COMPONENTS (389)
   stable_deref_trait 1.2.1 | MIT OR Apache-2.0
   subtle 2.6.1 | BSD-3-Clause
   syn 2.0.119 | MIT OR Apache-2.0
-  syn 3.0.5 | MIT OR Apache-2.0
+  syn 3.0.6 | MIT OR Apache-2.0
   synstructure 0.13.2 | MIT
+  synstructure 0.14.0 | MIT
   thiserror 1.0.69 | MIT OR Apache-2.0
   thiserror 2.0.20 | MIT OR Apache-2.0
   thiserror-impl 1.0.69 | MIT OR Apache-2.0
@@ -416,8 +417,7 @@ RUST COMPONENTS (389)
   time-core 0.1.9 | MIT OR Apache-2.0
   time-macros 0.2.32 | MIT OR Apache-2.0
   tinystr 0.8.4 | Unicode-3.0
-  tinyvec 1.13.2 | Zlib OR Apache-2.0 OR MIT
-  tinyvec_macros 0.1.1 | MIT OR Apache-2.0 OR Zlib
+  tinyvec 1.13.3 | Zlib OR Apache-2.0 OR MIT
   tokio 1.53.1 | MIT
   tokio-macros 2.7.2 | MIT
   tokio-rustls 0.26.5 | MIT OR Apache-2.0
@@ -426,7 +426,7 @@ RUST COMPONENTS (389)
   toml_datetime 0.6.11 | MIT OR Apache-2.0
   toml_datetime 1.1.1+spec-1.1.0 | MIT OR Apache-2.0
   toml_edit 0.22.27 | MIT OR Apache-2.0
-  toml_edit 0.25.13+spec-1.1.0 | MIT OR Apache-2.0
+  toml_edit 0.25.15+spec-1.1.0 | MIT OR Apache-2.0
   toml_parser 1.1.3+spec-1.1.0 | MIT OR Apache-2.0
   toml_write 0.1.2 | MIT OR Apache-2.0
   tower-layer 0.3.3 | MIT
@@ -437,7 +437,7 @@ RUST COMPONENTS (389)
   triomphe 0.1.16 | MIT OR Apache-2.0
   try-lock 0.2.5 | MIT
   typenum 1.20.1 | MIT OR Apache-2.0
-  unicode-ident 1.0.24 | (MIT OR Apache-2.0) AND Unicode-3.0
+  unicode-ident 1.0.26 | (MIT OR Apache-2.0) AND Unicode-3.0
   unicode-normalization 0.1.25 | MIT OR Apache-2.0
   unicode-segmentation 1.13.3 | MIT OR Apache-2.0
   unicode-xid 0.2.6 | MIT OR Apache-2.0
@@ -445,7 +445,7 @@ RUST COMPONENTS (389)
   untrusted 0.9.0 | ISC
   url 2.5.8 | MIT OR Apache-2.0
   utf8_iter 1.0.4 | Apache-2.0 OR MIT
-  uuid 1.26.0 | Apache-2.0 OR MIT
+  uuid 1.26.1 | Apache-2.0 OR MIT
   vcpkg 0.2.15 | MIT/Apache-2.0
   version_check 0.9.5 | MIT/Apache-2.0
   walkdir 2.5.0 | Unlicense/MIT
@@ -459,11 +459,11 @@ RUST COMPONENTS (389)
   xmltree 0.10.3 | MIT
   yasna 0.6.0 | MIT OR Apache-2.0
   yoke 0.8.3 | Unicode-3.0
-  yoke-derive 0.8.2 | Unicode-3.0
-  zerocopy 0.8.56 | BSD-2-Clause OR Apache-2.0 OR MIT
-  zerocopy-derive 0.8.56 | BSD-2-Clause OR Apache-2.0 OR MIT
+  yoke-derive 0.8.3 | Unicode-3.0
+  zerocopy 0.8.57 | BSD-2-Clause OR Apache-2.0 OR MIT
+  zerocopy-derive 0.8.57 | BSD-2-Clause OR Apache-2.0 OR MIT
   zerofrom 0.1.8 | Unicode-3.0
-  zerofrom-derive 0.1.7 | Unicode-3.0
+  zerofrom-derive 0.1.8 | Unicode-3.0
   zeroize 1.9.0 | Apache-2.0 OR MIT
   zeroize_derive 1.5.0 | Apache-2.0 OR MIT
   zerotrie 0.2.5 | Unicode-3.0
@@ -713,11 +713,11 @@ Applies to:
   - Rust crate ndk-context 0.1.1
   - Rust crate netwatch 0.19.3
   - Rust crate portmapper 0.19.3
-  - Rust crate quinn 0.11.11
-  - Rust crate quinn-proto 0.11.17
+  - Rust crate quinn 0.11.12
+  - Rust crate quinn-proto 0.11.18
   - Rust crate quinn-udp 0.5.15
 Source file names:
-  - canonical MIT OR Apache-2.0 text from quinn 0.11.11/LICENSE-MIT
+  - canonical MIT OR Apache-2.0 text from quinn 0.11.12/LICENSE-MIT
   - LICENSE-MIT
 --------------------------------------------------------------------------------
 Copyright (c) 2018 The quinn Developers
@@ -814,14 +814,14 @@ DEALINGS IN THE SOFTWARE.
 ================================================================================
 Notice SHA-256: 0895f3760ba77d5c6212ff44f5d3f6b78be786fdc6d8058e6e169073e6cb7ab6
 Applies to:
-  - Rust crate hns-browser-chain 0.2.3
+  - Rust crate hns-browser-chain 0.2.5
   - Rust crate hns-browser-dane 0.2.2
   - Rust crate hns-browser-dnssec 0.2.2
   - Rust crate hns-browser-gateway 0.2.3
   - Rust crate hns-browser-loopback-proxy 0.2.3
-  - Rust crate hns-browser-p2p 0.2.3
+  - Rust crate hns-browser-p2p 0.2.5
   - Rust crate hns-browser-primitives 0.2.2
-  - Rust crate hns-browser-resolver 0.2.3
+  - Rust crate hns-browser-resolver 0.2.5
   - Rust crate hns-browser-sync 0.2.2
   - Rust crate hns-browser-transport 0.2.2
   - Rust crate hns-browser-urkel 0.2.2
@@ -1066,7 +1066,7 @@ DEALINGS IN THE SOFTWARE.
 ================================================================================
 Notice SHA-256: 11cd7e6caed4b2377bdc3a08deb5a565efb76f0d747cfb2e26c7f7c1f6302e54
 Applies to:
-  - Rust crate uuid 1.26.0
+  - Rust crate uuid 1.26.1
 Source file names:
   - LICENSE-MIT
 --------------------------------------------------------------------------------
@@ -1164,7 +1164,7 @@ DEALINGS IN THE SOFTWARE.
 ================================================================================
 Notice SHA-256: 14435fbcd271e2783f721b57b7bf4f6502c1379249a4300e0e5bb774686c2d90
 Applies to:
-  - Rust crate bitflags 2.13.1
+  - Rust crate bitflags 2.13.2
   - Rust crate log 0.4.34
   - Rust crate num-bigint 0.4.8
   - Rust crate num-integer 0.1.47
@@ -1822,7 +1822,7 @@ according to those terms.
 ================================================================================
 Notice SHA-256: 2411d70acb18e15ac32f7aace439a5c2725b8d0074510caf651d4c270d7c05aa
 Applies to:
-  - Rust crate rand 0.10.2
+  - Rust crate rand 0.10.3
   - Rust crate rand 0.8.8
   - Rust crate rand_chacha 0.3.1
   - Rust crate rand_core 0.6.4
@@ -1846,10 +1846,10 @@ published under these same licenses.
 ================================================================================
 Notice SHA-256: 24a6afa3f58e051cbb0ae28d7f456ec7dbe257a9ddc9bfab9da30a86d84e3019
 Applies to:
-  - Rust crate bdk_kyoto 0.17.1
-  - Rust crate bip157 0.6.3
   - Rust crate bip324 0.7.0
   - Rust crate bitcoin-address-book 0.1.1
+  - Rust crate hns-wallet-bdk-kyoto 0.2.4
+  - Rust crate hns-wallet-bip157 0.2.4
 Source file names:
   - LICENSE
 --------------------------------------------------------------------------------
@@ -1897,33 +1897,6 @@ PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
 LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
 NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-================================================================================
-Notice SHA-256: 26d1e12fda78c82891263c8f1251bc22e629ef732c6ca4346fbfddc3594a0dd9
-Applies to:
-  - Rust crate tinyvec_macros 0.1.1
-Source file names:
-  - LICENSE-ZLIB.md
---------------------------------------------------------------------------------
-zlib License
-
-(C) 2020 Tomasz "Soveu" Marx
-
-This software is provided 'as-is', without any express or implied
-warranty.  In no event will the authors be held liable for any damages
-arising from the use of this software.
-
-Permission is granted to anyone to use this software for any purpose,
-including commercial applications, and to alter it and redistribute it
-freely, subject to the following restrictions:
-
-1. The origin of this software must not be misrepresented; you must not
-   claim that you wrote the original software. If you use this software
-   in a product, an acknowledgment in the product documentation would be
-   appreciated but is not required.
-2. Altered source versions must be plainly marked as such, and must not be
-   misrepresented as being the original software.
-3. This notice may not be removed or altered from any source distribution.
 
 ================================================================================
 Notice SHA-256: 27480f391bd92f66f0261466abd9456bcd58a7d8552955af6d2acc051acec5af
@@ -2181,26 +2154,24 @@ Notice SHA-256: 283ea6cc2997a1a70da0049e09adf9317bb60ca1b51279b65196b83a69e1996b
 Applies to:
   - Rust crate bdk_chain 0.23.3
   - Rust crate bdk_core 0.6.3
-  - Rust crate bdk_kyoto 0.17.1
   - Rust crate bdk_wallet 3.1.0
-  - Rust crate bip157 0.6.3
   - Rust crate bip324 0.7.0
   - Rust crate bitcoin-address-book 0.1.1
   - Rust crate dispatch2 0.3.1
-  - Rust crate hns-covenants 0.4.1
-  - Rust crate hns-encoding 0.4.1
-  - Rust crate hns-header-consensus 0.4.1
-  - Rust crate hns-marketplace-protocol 0.4.1
-  - Rust crate hns-mining 0.4.1
-  - Rust crate hns-p2p-experimental 0.4.1
-  - Rust crate hns-p2p-wire 0.4.1
-  - Rust crate hns-primitives 0.4.1
-  - Rust crate hns-script 0.4.1
-  - Rust crate hns-swap 0.4.1
-  - Rust crate hns-transaction 0.4.1
-  - Rust crate hns-urkel-proof 0.4.1
+  - Rust crate hns-covenants 0.4.2
+  - Rust crate hns-encoding 0.4.2
+  - Rust crate hns-header-consensus 0.4.2
+  - Rust crate hns-marketplace-protocol 0.4.2
+  - Rust crate hns-mining 0.4.2
+  - Rust crate hns-p2p-experimental 0.4.2
+  - Rust crate hns-p2p-wire 0.4.2
+  - Rust crate hns-primitives 0.4.2
+  - Rust crate hns-script 0.4.2
+  - Rust crate hns-swap 0.4.2
+  - Rust crate hns-transaction 0.4.2
+  - Rust crate hns-urkel-proof 0.4.2
   - Rust crate iroh-metrics-derive 1.0.1
-  - Rust crate lru-slab 0.1.2
+  - Rust crate lru-slab 0.1.3
   - Rust crate n0-error-macros 1.0.1
   - Rust crate ndk-context 0.1.1
   - Rust crate netwatch 0.19.3
@@ -2208,16 +2179,16 @@ Applies to:
   - Rust crate objc2-security 0.3.2
   - Rust crate objc2-system-configuration 0.3.2
   - Rust crate portmapper 0.19.3
-  - Rust crate quinn 0.11.11
-  - Rust crate quinn-proto 0.11.17
+  - Rust crate quinn 0.11.12
+  - Rust crate quinn-proto 0.11.18
   - Rust crate quinn-udp 0.5.15
-  - Rust crate tinyvec 1.13.2
+  - Rust crate tinyvec 1.13.3
   - Rust crate utf8_iter 1.0.4
   - Rust crate zeroize 1.9.0
   - Rust crate zeroize_derive 1.5.0
 Source file names:
-  - canonical MIT OR Apache-2.0 text from quinn 0.11.11/LICENSE-APACHE
-  - canonical Zlib OR Apache-2.0 OR MIT text from tinyvec 1.13.2/LICENSE-APACHE.md
+  - canonical MIT OR Apache-2.0 text from quinn 0.11.12/LICENSE-APACHE
+  - canonical Zlib OR Apache-2.0 OR MIT text from tinyvec 1.13.3/LICENSE-APACHE.md
   - LICENSE-APACHE
   - LICENSE-APACHE.md
 --------------------------------------------------------------------------------
@@ -2496,7 +2467,7 @@ DEALINGS IN THE SOFTWARE.
 Notice SHA-256: 2f213ec6b1355dc841dc489c9e7ce1dddd07611df474efcf61b8a960797398e9
 Applies to:
   - Rust crate linux-raw-sys 0.12.1
-  - Rust crate rustix 1.1.4
+  - Rust crate rustix 1.1.5
 Source file names:
   - LICENSE-Apache-2.0_WITH_LLVM-exception
 --------------------------------------------------------------------------------
@@ -2830,7 +2801,7 @@ Applies to:
   - Rust crate quote 1.0.47
   - Rust crate rkyv_derive 0.8.18
   - Rust crate rustc-hash 2.1.3
-  - Rust crate rustix 1.1.4
+  - Rust crate rustix 1.1.5
   - Rust crate rustversion 1.0.23
   - Rust crate semver 1.0.28
   - Rust crate serde 1.0.229
@@ -2839,12 +2810,12 @@ Applies to:
   - Rust crate serde_json 1.0.151
   - Rust crate smol_str 0.3.6
   - Rust crate syn 2.0.119
-  - Rust crate syn 3.0.5
+  - Rust crate syn 3.0.6
   - Rust crate thiserror 1.0.69
   - Rust crate thiserror 2.0.20
   - Rust crate thiserror-impl 1.0.69
   - Rust crate thiserror-impl 2.0.20
-  - Rust crate unicode-ident 1.0.24
+  - Rust crate unicode-ident 1.0.26
   - Rust crate zmij 1.0.23
 Source file names:
   - LICENSE-MIT
@@ -2910,7 +2881,7 @@ DEALINGS IN THE SOFTWARE.
 ================================================================================
 Notice SHA-256: 361d7912957842f2ce61c774b14afba41ae91df84882982e6f7e749e01c07c91
 Applies to:
-  - Rust crate unicode-ident 1.0.24
+  - Rust crate unicode-ident 1.0.26
 Source file names:
   - LICENSE-UNICODE
 --------------------------------------------------------------------------------
@@ -2986,6 +2957,7 @@ THE SOFTWARE.
 Notice SHA-256: 3a036676ec8c0dba1c24b96f83595456280b7a754ddee64585dd8048ed2b087f
 Applies to:
   - Rust crate synstructure 0.13.2
+  - Rust crate synstructure 0.14.0
 Source file names:
   - LICENSE
 --------------------------------------------------------------------------------
@@ -3057,30 +3029,32 @@ third-party/chromium/LICENSE.
 ================================================================================
 Notice SHA-256: 3bda2576a860967a471de21180a3a32f2bf2fdd645ea1d0a965a59e54032deb9
 Applies to:
-  - Rust crate hns-covenants 0.4.1
-  - Rust crate hns-encoding 0.4.1
-  - Rust crate hns-header-consensus 0.4.1
-  - Rust crate hns-marketplace-protocol 0.4.1
-  - Rust crate hns-mining 0.4.1
-  - Rust crate hns-p2p-experimental 0.4.1
-  - Rust crate hns-p2p-wire 0.4.1
-  - Rust crate hns-primitives 0.4.1
-  - Rust crate hns-script 0.4.1
-  - Rust crate hns-swap 0.4.1
-  - Rust crate hns-transaction 0.4.1
-  - Rust crate hns-urkel-proof 0.4.1
-  - Rust crate hns-wallet-bitcoin-kyoto 0.2.3
-  - Rust crate hns-wallet-chain-api 0.2.3
-  - Rust crate hns-wallet-ffi 0.2.3
-  - Rust crate hns-wallet-hns 0.2.3
-  - Rust crate hns-wallet-host 0.2.3
-  - Rust crate hns-wallet-market 0.2.3
-  - Rust crate hns-wallet-mobile 0.2.3
-  - Rust crate hns-wallet-provider 0.2.3
-  - Rust crate hns-wallet-service 0.2.3
-  - Rust crate hns-wallet-shakedex 0.2.3
-  - Rust crate hns-wallet-store 0.2.3
-  - Rust crate hns-wallet-types 0.2.3
+  - Rust crate hns-covenants 0.4.2
+  - Rust crate hns-encoding 0.4.2
+  - Rust crate hns-header-consensus 0.4.2
+  - Rust crate hns-marketplace-protocol 0.4.2
+  - Rust crate hns-mining 0.4.2
+  - Rust crate hns-p2p-experimental 0.4.2
+  - Rust crate hns-p2p-wire 0.4.2
+  - Rust crate hns-primitives 0.4.2
+  - Rust crate hns-script 0.4.2
+  - Rust crate hns-swap 0.4.2
+  - Rust crate hns-transaction 0.4.2
+  - Rust crate hns-urkel-proof 0.4.2
+  - Rust crate hns-wallet-bdk-kyoto 0.2.4
+  - Rust crate hns-wallet-bip157 0.2.4
+  - Rust crate hns-wallet-bitcoin-kyoto 0.2.4
+  - Rust crate hns-wallet-chain-api 0.2.4
+  - Rust crate hns-wallet-ffi 0.2.4
+  - Rust crate hns-wallet-hns 0.2.4
+  - Rust crate hns-wallet-host 0.2.4
+  - Rust crate hns-wallet-market 0.2.4
+  - Rust crate hns-wallet-mobile 0.2.4
+  - Rust crate hns-wallet-provider 0.2.4
+  - Rust crate hns-wallet-service 0.2.4
+  - Rust crate hns-wallet-shakedex 0.2.4
+  - Rust crate hns-wallet-store 0.2.4
+  - Rust crate hns-wallet-types 0.2.4
 Source file names:
   - LICENSE-MIT
 --------------------------------------------------------------------------------
@@ -3454,7 +3428,7 @@ Applies to:
   - Rust crate toml_datetime 0.6.11
   - Rust crate toml_datetime 1.1.1+spec-1.1.0
   - Rust crate toml_edit 0.22.27
-  - Rust crate toml_edit 0.25.13+spec-1.1.0
+  - Rust crate toml_edit 0.25.15+spec-1.1.0
   - Rust crate toml_parser 1.1.3+spec-1.1.0
   - Rust crate toml_write 0.1.2
 Source file names:
@@ -3483,8 +3457,8 @@ SOFTWARE.
 ================================================================================
 Notice SHA-256: 47248d1ec833e0771ddacb65f2cf9978785f4a9976b5b0b69d1e33c60a50be55
 Applies to:
-  - Rust crate zerocopy 0.8.56
-  - Rust crate zerocopy-derive 0.8.56
+  - Rust crate zerocopy 0.8.57
+  - Rust crate zerocopy-derive 0.8.57
 Source file names:
   - LICENSE-BSD
 --------------------------------------------------------------------------------
@@ -4457,10 +4431,10 @@ Applies to:
   - Rust crate hns-cache 0.2.2
   - Rust crate hns-dns-wire 0.2.2
   - Rust crate hns-icann-dane 0.2.2
-  - Rust crate hns-light-chain 0.2.3
-  - Rust crate hns-light-p2p 0.2.3
-  - Rust crate hns-light-sync 0.2.3
-  - Rust crate hns-light-wallet 0.2.3
+  - Rust crate hns-light-chain 0.2.5
+  - Rust crate hns-light-p2p 0.2.5
+  - Rust crate hns-light-sync 0.2.5
+  - Rust crate hns-light-wallet 0.2.5
   - Rust crate hns-namespace-resolution 0.2.3
   - Rust crate hns-resolution-policy 0.3.0
   - Rust crate num-conv 0.2.2
@@ -6226,7 +6200,7 @@ Applies to:
   - Rust crate toml_datetime 0.6.11
   - Rust crate toml_datetime 1.1.1+spec-1.1.0
   - Rust crate toml_edit 0.22.27
-  - Rust crate toml_edit 0.25.13+spec-1.1.0
+  - Rust crate toml_edit 0.25.15+spec-1.1.0
   - Rust crate toml_parser 1.1.3+spec-1.1.0
   - Rust crate toml_write 0.1.2
 Source file names:
@@ -6884,7 +6858,7 @@ DEALINGS IN THE SOFTWARE.
 ================================================================================
 Notice SHA-256: 794a707adfe70fdcc7f74d4d99f52df2553b55a8436f591ce4b9776261f1711b
 Applies to:
-  - Rust crate noq-udp 1.2.0
+  - Rust crate noq-udp 1.3.0
 Source file names:
   - LICENSE-APACHE
 --------------------------------------------------------------------------------
@@ -7575,18 +7549,20 @@ limitations under the License.
 ================================================================================
 Notice SHA-256: 7ee1222d909b6a4479b5845d6ae89574a8dde1a3832ea04b6952b075a491ec71
 Applies to:
-  - Rust crate hns-wallet-bitcoin-kyoto 0.2.3
-  - Rust crate hns-wallet-chain-api 0.2.3
-  - Rust crate hns-wallet-ffi 0.2.3
-  - Rust crate hns-wallet-hns 0.2.3
-  - Rust crate hns-wallet-host 0.2.3
-  - Rust crate hns-wallet-market 0.2.3
-  - Rust crate hns-wallet-mobile 0.2.3
-  - Rust crate hns-wallet-provider 0.2.3
-  - Rust crate hns-wallet-service 0.2.3
-  - Rust crate hns-wallet-shakedex 0.2.3
-  - Rust crate hns-wallet-store 0.2.3
-  - Rust crate hns-wallet-types 0.2.3
+  - Rust crate hns-wallet-bdk-kyoto 0.2.4
+  - Rust crate hns-wallet-bip157 0.2.4
+  - Rust crate hns-wallet-bitcoin-kyoto 0.2.4
+  - Rust crate hns-wallet-chain-api 0.2.4
+  - Rust crate hns-wallet-ffi 0.2.4
+  - Rust crate hns-wallet-hns 0.2.4
+  - Rust crate hns-wallet-host 0.2.4
+  - Rust crate hns-wallet-market 0.2.4
+  - Rust crate hns-wallet-mobile 0.2.4
+  - Rust crate hns-wallet-provider 0.2.4
+  - Rust crate hns-wallet-service 0.2.4
+  - Rust crate hns-wallet-shakedex 0.2.4
+  - Rust crate hns-wallet-store 0.2.4
+  - Rust crate hns-wallet-types 0.2.4
 Source file names:
   - LICENSE-APACHE
 --------------------------------------------------------------------------------
@@ -7611,7 +7587,7 @@ Apache License
 ================================================================================
 Notice SHA-256: 7f194ae45c2525a57443f7edabd392e8218109ee81a4bce70d385104c87c1a71
 Applies to:
-  - Rust crate smallvec 1.16.0
+  - Rust crate smallvec 1.16.1
 Source file names:
   - LICENSE-MIT
 --------------------------------------------------------------------------------
@@ -7739,10 +7715,10 @@ DEALINGS IN THE SOFTWARE.
 ================================================================================
 Notice SHA-256: 84e1bbfebd74e4196cfa0ea5cf58e677aa24b47c6661adbb19fb07920d089d1d
 Applies to:
-  - Rust crate cc 1.4.5
-  - Rust crate cfg-if 1.0.4
+  - Rust crate cc 1.4.7
+  - Rust crate cfg-if 1.0.5
   - Rust crate cmake 0.1.58
-  - Rust crate find-msvc-tools 0.1.12
+  - Rust crate find-msvc-tools 0.1.13
   - Rust crate jobserver 0.1.35
   - Rust crate pkg-config 0.3.34
   - Rust crate socket2 0.6.5
@@ -7821,12 +7797,12 @@ Applies to:
   - Rust crate serde_derive 1.0.229
   - Rust crate serde_json 1.0.151
   - Rust crate syn 2.0.119
-  - Rust crate syn 3.0.5
+  - Rust crate syn 3.0.6
   - Rust crate thiserror 1.0.69
   - Rust crate thiserror 2.0.20
   - Rust crate thiserror-impl 1.0.69
   - Rust crate thiserror-impl 2.0.20
-  - Rust crate unicode-ident 1.0.24
+  - Rust crate unicode-ident 1.0.26
 Source file names:
   - LICENSE-APACHE
 --------------------------------------------------------------------------------
@@ -8587,7 +8563,7 @@ DEALINGS IN THE SOFTWARE.
 ================================================================================
 Notice SHA-256: 8b7b91a5abe48e11ff680d8d6ff71a4a5361d2f63ace6d4ce890fd7f6ab7ace1
 Applies to:
-  - Rust crate netdev 0.46.2
+  - Rust crate netdev 0.46.3
 Source file names:
   - LICENSE
 --------------------------------------------------------------------------------
@@ -8790,9 +8766,9 @@ Applies to:
   - Rust crate objc2-core-foundation 0.3.2
   - Rust crate objc2-security 0.3.2
   - Rust crate objc2-system-configuration 0.3.2
-  - Rust crate tinyvec 1.13.2
+  - Rust crate tinyvec 1.13.3
 Source file names:
-  - canonical Zlib OR Apache-2.0 OR MIT text from tinyvec 1.13.2/LICENSE-ZLIB.md
+  - canonical Zlib OR Apache-2.0 OR MIT text from tinyvec 1.13.3/LICENSE-ZLIB.md
   - LICENSE-ZLIB.md
 --------------------------------------------------------------------------------
 Copyright (c) 2019 Daniel "Lokathor" Gee.
@@ -8854,9 +8830,9 @@ Applies to:
   - Rust crate base64 0.21.7
   - Rust crate base64 0.22.1
   - Rust crate base64 0.23.1
-  - Rust crate bitflags 2.13.1
-  - Rust crate cc 1.4.5
-  - Rust crate cfg-if 1.0.4
+  - Rust crate bitflags 2.13.2
+  - Rust crate cc 1.4.7
+  - Rust crate cfg-if 1.0.5
   - Rust crate cmake 0.1.58
   - Rust crate der-parser 10.0.0
   - Rust crate displaydoc 0.2.7
@@ -8865,7 +8841,7 @@ Applies to:
   - Rust crate errno 0.3.14
   - Rust crate fastrand 2.5.0
   - Rust crate ff 0.13.1
-  - Rust crate find-msvc-tools 0.1.12
+  - Rust crate find-msvc-tools 0.1.13
   - Rust crate fnv 1.0.7
   - Rust crate form_urlencoded 1.2.2
   - Rust crate futures-lite 2.6.1
@@ -8897,10 +8873,10 @@ Applies to:
   - Rust crate ring 0.17.14
   - Rust crate rustc_version 0.4.1
   - Rust crate rusticata-macros 4.1.0
-  - Rust crate rustix 1.1.4
+  - Rust crate rustix 1.1.5
   - Rust crate rustls 0.23.45
   - Rust crate signal-hook-registry 1.4.8
-  - Rust crate smallvec 1.16.0
+  - Rust crate smallvec 1.16.1
   - Rust crate smallvec-wrapper 0.4.1
   - Rust crate smol_str 0.3.6
   - Rust crate socket2 0.6.5
@@ -8909,7 +8885,7 @@ Applies to:
   - Rust crate unicode-segmentation 1.13.3
   - Rust crate unicode-xid 0.2.6
   - Rust crate url 2.5.8
-  - Rust crate uuid 1.26.0
+  - Rust crate uuid 1.26.1
   - Rust crate vcpkg 0.2.15
   - Rust crate version_check 0.9.5
   - Rust crate x509-parser 0.18.1
@@ -9554,8 +9530,8 @@ their own copyright notices and license terms:
 ================================================================================
 Notice SHA-256: 98ed0ad9db8a72957b9c45941fe2ed31933a3beacbd193e662df483d0643a13d
 Applies to:
-  - Rust crate zerocopy 0.8.56
-  - Rust crate zerocopy-derive 0.8.56
+  - Rust crate zerocopy 0.8.57
+  - Rust crate zerocopy-derive 0.8.57
 Source file names:
   - LICENSE-APACHE
 --------------------------------------------------------------------------------
@@ -10342,8 +10318,8 @@ DEALINGS IN THE SOFTWARE.
 ================================================================================
 Notice SHA-256: a03d4daa4f46496a592dbf6734f5ee16ed52f1eb7a56ae4648d609ebf0efd0b7
 Applies to:
-  - Rust crate zerocopy 0.8.56
-  - Rust crate zerocopy-derive 0.8.56
+  - Rust crate zerocopy 0.8.57
+  - Rust crate zerocopy-derive 0.8.57
 Source file names:
   - LICENSE-MIT
 --------------------------------------------------------------------------------
@@ -11607,7 +11583,7 @@ Apache License
 ================================================================================
 Notice SHA-256: b508bd23034d86277ad679bfea7aad4b73632d7719676dc199b637d5251f76e2
 Applies to:
-  - Rust crate noq-udp 1.2.0
+  - Rust crate noq-udp 1.3.0
 Source file names:
   - LICENSE-MIT
 --------------------------------------------------------------------------------
@@ -11762,9 +11738,9 @@ Applies to:
   - Rust crate objc2-core-foundation 0.3.2
   - Rust crate objc2-security 0.3.2
   - Rust crate objc2-system-configuration 0.3.2
-  - Rust crate tinyvec 1.13.2
+  - Rust crate tinyvec 1.13.3
 Source file names:
-  - canonical Zlib OR Apache-2.0 OR MIT text from tinyvec 1.13.2/LICENSE-MIT.md
+  - canonical Zlib OR Apache-2.0 OR MIT text from tinyvec 1.13.3/LICENSE-MIT.md
   - LICENSE-MIT.md
 --------------------------------------------------------------------------------
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
@@ -11776,9 +11752,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 ================================================================================
 Notice SHA-256: bf1e4b844f1ebd0c159df189fdbad0d9604e653257880cb2ef97bb3106f5fe9b
 Applies to:
-  - Rust crate bdk_kyoto 0.17.1
   - Rust crate bdk_wallet 3.1.0
-  - Rust crate bip157 0.6.3
   - Rust crate bip324 0.7.0
   - Rust crate bitcoin-address-book 0.1.1
 Source file names:
@@ -12350,7 +12324,7 @@ DEALINGS IN THE SOFTWARE.
 ================================================================================
 Notice SHA-256: c9cf4d18fd9d2ab3fb30d39facfe8cff8ff8354950e2de5c864707e6c80a2764
 Applies to:
-  - Rust crate lru-slab 0.1.2
+  - Rust crate lru-slab 0.1.3
 Source file names:
   - LICENSE-MIT
 --------------------------------------------------------------------------------
@@ -12365,7 +12339,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 ================================================================================
 Notice SHA-256: cc367a7134c2b07d995a2f8dea591094a1d100e49c68513f729fdf3eaf580a21
 Applies to:
-  - Rust crate rand 0.10.2
+  - Rust crate rand 0.10.3
   - Rust crate rand 0.8.8
   - Rust crate rand_chacha 0.3.1
   - Rust crate rand_core 0.6.4
@@ -12443,9 +12417,9 @@ Applies to:
   - Rust crate tinystr 0.8.4
   - Rust crate writeable 0.6.4
   - Rust crate yoke 0.8.3
-  - Rust crate yoke-derive 0.8.2
+  - Rust crate yoke-derive 0.8.3
   - Rust crate zerofrom 0.1.8
-  - Rust crate zerofrom-derive 0.1.7
+  - Rust crate zerofrom-derive 0.1.8
   - Rust crate zerotrie 0.2.5
   - Rust crate zerovec 0.11.8
   - Rust crate zerovec-derive 0.11.6
@@ -12502,7 +12476,7 @@ ICU 1.8.1 to ICU 57.1 © 1995-2016 International Business Machines Corporation a
 ================================================================================
 Notice SHA-256: cebce11166dcba4336442c8d748df16c004b436c49b40b30721e59f221bae058
 Applies to:
-  - Rust crate lru-slab 0.1.2
+  - Rust crate lru-slab 0.1.3
 Source file names:
   - LICENSE-ZLIB
 --------------------------------------------------------------------------------
@@ -12743,35 +12717,6 @@ furnished to do so, subject to the following conditions:
 
 The above copyright notice and this permission notice shall be included in
 all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-================================================================================
-Notice SHA-256: d9ec1d89801f4ea76d05dbde2c3a09697c1b10001feeded1a2ae721321ff5aa6
-Applies to:
-  - Rust crate tinyvec_macros 0.1.1
-Source file names:
-  - LICENSE-MIT.md
---------------------------------------------------------------------------------
-MIT License
-
-Copyright (c) 2020 Soveu
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -14368,10 +14313,10 @@ Applies to:
   - Rust crate hns-cache 0.2.2
   - Rust crate hns-dns-wire 0.2.2
   - Rust crate hns-icann-dane 0.2.2
-  - Rust crate hns-light-chain 0.2.3
-  - Rust crate hns-light-p2p 0.2.3
-  - Rust crate hns-light-sync 0.2.3
-  - Rust crate hns-light-wallet 0.2.3
+  - Rust crate hns-light-chain 0.2.5
+  - Rust crate hns-light-p2p 0.2.5
+  - Rust crate hns-light-sync 0.2.5
+  - Rust crate hns-light-wallet 0.2.5
   - Rust crate hns-namespace-resolution 0.2.3
   - Rust crate hns-resolution-policy 0.3.0
 Source file names:
@@ -14491,7 +14436,7 @@ DEALINGS IN THE SOFTWARE.
 ================================================================================
 Notice SHA-256: fde2a68c47d279384c0113efbc29bb43e263dd4cb33137c87365b0218a11d6aa
 Applies to:
-  - Rust crate rustix 1.1.4
+  - Rust crate rustix 1.1.5
 Source file names:
   - COPYRIGHT
 --------------------------------------------------------------------------------
@@ -14526,218 +14471,9 @@ is licensed under:
 at your option.
 
 ================================================================================
-Notice SHA-256: fe1c9e29858fe97afdc7c88c8c59c232d30a3309e284e1765e28f240537c72c6
-Applies to:
-  - Rust crate tinyvec_macros 0.1.1
-Source file names:
-  - LICENSE-APACHE.md
---------------------------------------------------------------------------------
-Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
-
-   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
-
-   1. Definitions.
-
-      "License" shall mean the terms and conditions for use, reproduction,
-      and distribution as defined by Sections 1 through 9 of this document.
-
-      "Licensor" shall mean the copyright owner or entity authorized by
-      the copyright owner that is granting the License.
-
-      "Legal Entity" shall mean the union of the acting entity and all
-      other entities that control, are controlled by, or are under common
-      control with that entity. For the purposes of this definition,
-      "control" means (i) the power, direct or indirect, to cause the
-      direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-      outstanding shares, or (iii) beneficial ownership of such entity.
-
-      "You" (or "Your") shall mean an individual or Legal Entity
-      exercising permissions granted by this License.
-
-      "Source" form shall mean the preferred form for making modifications,
-      including but not limited to software source code, documentation
-      source, and configuration files.
-
-      "Object" form shall mean any form resulting from mechanical
-      transformation or translation of a Source form, including but
-      not limited to compiled object code, generated documentation,
-      and conversions to other media types.
-
-      "Work" shall mean the work of authorship, whether in Source or
-      Object form, made available under the License, as indicated by a
-      copyright notice that is included in or attached to the work
-      (an example is provided in the Appendix below).
-
-      "Derivative Works" shall mean any work, whether in Source or Object
-      form, that is based on (or derived from) the Work and for which the
-      editorial revisions, annotations, elaborations, or other modifications
-      represent, as a whole, an original work of authorship. For the purposes
-      of this License, Derivative Works shall not include works that remain
-      separable from, or merely link (or bind by name) to the interfaces of,
-      the Work and Derivative Works thereof.
-
-      "Contribution" shall mean any work of authorship, including
-      the original version of the Work and any modifications or additions
-      to that Work or Derivative Works thereof, that is intentionally
-      submitted to Licensor for inclusion in the Work by the copyright owner
-      or by an individual or Legal Entity authorized to submit on behalf of
-      the copyright owner. For the purposes of this definition, "submitted"
-      means any form of electronic, verbal, or written communication sent
-      to the Licensor or its representatives, including but not limited to
-      communication on electronic mailing lists, source code control systems,
-      and issue tracking systems that are managed by, or on behalf of, the
-      Licensor for the purpose of discussing and improving the Work, but
-      excluding communication that is conspicuously marked or otherwise
-      designated in writing by the copyright owner as "Not a Contribution."
-
-      "Contributor" shall mean Licensor and any individual or Legal Entity
-      on behalf of whom a Contribution has been received by Licensor and
-      subsequently incorporated within the Work.
-
-   2. Grant of Copyright License. Subject to the terms and conditions of
-      this License, each Contributor hereby grants to You a perpetual,
-      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
-      copyright license to reproduce, prepare Derivative Works of,
-      publicly display, publicly perform, sublicense, and distribute the
-      Work and such Derivative Works in Source or Object form.
-
-   3. Grant of Patent License. Subject to the terms and conditions of
-      this License, each Contributor hereby grants to You a perpetual,
-      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
-      (except as stated in this section) patent license to make, have made,
-      use, offer to sell, sell, import, and otherwise transfer the Work,
-      where such license applies only to those patent claims licensable
-      by such Contributor that are necessarily infringed by their
-      Contribution(s) alone or by combination of their Contribution(s)
-      with the Work to which such Contribution(s) was submitted. If You
-      institute patent litigation against any entity (including a
-      cross-claim or counterclaim in a lawsuit) alleging that the Work
-      or a Contribution incorporated within the Work constitutes direct
-      or contributory patent infringement, then any patent licenses
-      granted to You under this License for that Work shall terminate
-      as of the date such litigation is filed.
-
-   4. Redistribution. You may reproduce and distribute copies of the
-      Work or Derivative Works thereof in any medium, with or without
-      modifications, and in Source or Object form, provided that You
-      meet the following conditions:
-
-      (a) You must give any other recipients of the Work or
-          Derivative Works a copy of this License; and
-
-      (b) You must cause any modified files to carry prominent notices
-          stating that You changed the files; and
-
-      (c) You must retain, in the Source form of any Derivative Works
-          that You distribute, all copyright, patent, trademark, and
-          attribution notices from the Source form of the Work,
-          excluding those notices that do not pertain to any part of
-          the Derivative Works; and
-
-      (d) If the Work includes a "NOTICE" text file as part of its
-          distribution, then any Derivative Works that You distribute must
-          include a readable copy of the attribution notices contained
-          within such NOTICE file, excluding those notices that do not
-          pertain to any part of the Derivative Works, in at least one
-          of the following places: within a NOTICE text file distributed
-          as part of the Derivative Works; within the Source form or
-          documentation, if provided along with the Derivative Works; or,
-          within a display generated by the Derivative Works, if and
-          wherever such third-party notices normally appear. The contents
-          of the NOTICE file are for informational purposes only and
-          do not modify the License. You may add Your own attribution
-          notices within Derivative Works that You distribute, alongside
-          or as an addendum to the NOTICE text from the Work, provided
-          that such additional attribution notices cannot be construed
-          as modifying the License.
-
-      You may add Your own copyright statement to Your modifications and
-      may provide additional or different license terms and conditions
-      for use, reproduction, or distribution of Your modifications, or
-      for any such Derivative Works as a whole, provided Your use,
-      reproduction, and distribution of the Work otherwise complies with
-      the conditions stated in this License.
-
-   5. Submission of Contributions. Unless You explicitly state otherwise,
-      any Contribution intentionally submitted for inclusion in the Work
-      by You to the Licensor shall be under the terms and conditions of
-      this License, without any additional terms or conditions.
-      Notwithstanding the above, nothing herein shall supersede or modify
-      the terms of any separate license agreement you may have executed
-      with Licensor regarding such Contributions.
-
-   6. Trademarks. This License does not grant permission to use the trade
-      names, trademarks, service marks, or product names of the Licensor,
-      except as required for reasonable and customary use in describing the
-      origin of the Work and reproducing the content of the NOTICE file.
-
-   7. Disclaimer of Warranty. Unless required by applicable law or
-      agreed to in writing, Licensor provides the Work (and each
-      Contributor provides its Contributions) on an "AS IS" BASIS,
-      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
-      implied, including, without limitation, any warranties or conditions
-      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
-      PARTICULAR PURPOSE. You are solely responsible for determining the
-      appropriateness of using or redistributing the Work and assume any
-      risks associated with Your exercise of permissions under this License.
-
-   8. Limitation of Liability. In no event and under no legal theory,
-      whether in tort (including negligence), contract, or otherwise,
-      unless required by applicable law (such as deliberate and grossly
-      negligent acts) or agreed to in writing, shall any Contributor be
-      liable to You for damages, including any direct, indirect, special,
-      incidental, or consequential damages of any character arising as a
-      result of this License or out of the use or inability to use the
-      Work (including but not limited to damages for loss of goodwill,
-      work stoppage, computer failure or malfunction, or any and all
-      other commercial damages or losses), even if such Contributor
-      has been advised of the possibility of such damages.
-
-   9. Accepting Warranty or Additional Liability. While redistributing
-      the Work or Derivative Works thereof, You may choose to offer,
-      and charge a fee for, acceptance of support, warranty, indemnity,
-      or other liability obligations and/or rights consistent with this
-      License. However, in accepting such obligations, You may act only
-      on Your own behalf and on Your sole responsibility, not on behalf
-      of any other Contributor, and only if You agree to indemnify,
-      defend, and hold each Contributor harmless for any liability
-      incurred by, or claims asserted against, such Contributor by reason
-      of your accepting any such warranty or additional liability.
-
-   END OF TERMS AND CONDITIONS
-
-   APPENDIX: How to apply the Apache License to your work.
-
-      To apply the Apache License to your work, attach the following
-      boilerplate notice, with the fields enclosed by brackets "[]"
-      replaced with your own identifying information. (Don't include
-      the brackets!)  The text should be enclosed in the appropriate
-      comment syntax for the file format. We also recommend that a
-      file or class name and description of purpose be included on the
-      same "printed page" as the copyright notice for easier
-      identification within third-party archives.
-
-   Copyright 2020 Tomasz "Soveu" Marx
-
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
-
-================================================================================
 Notice SHA-256: fee4d7ce394c9161daabd2797e22d8d5ed80ea3c0f4524b242ab22582d2cc412
 Applies to:
-  - Rust crate rand 0.10.2
+  - Rust crate rand 0.10.3
   - Rust crate rand 0.8.8
 Source file names:
   - LICENSE-APACHE

@@ -22,10 +22,10 @@ crab_nat = "0.8.1"
 hex = "0.4"
 getrandom = "0.3"
 getifs = "0.6.0"
-hns-header-consensus = "=0.4.1"
-hns-light-sync = "=0.2.3"
+hns-header-consensus = "=0.4.2"
+hns-light-sync = "=0.2.5"
 hns-cache = "=0.2.2"
-hns-chain = { package = "hns-browser-chain", version = "=0.2.3" }
+hns-chain = { package = "hns-browser-chain", version = "=0.2.5" }
 hns-core = { package = "hns-browser-primitives", version = "=0.2.2" }
 hns-dane = { package = "hns-browser-dane", version = "=0.2.2" }
 hns-dnssec = { package = "hns-browser-dnssec", version = "=0.2.2" }
@@ -34,20 +34,19 @@ hns-browser-observability = "=0.3.0"
 hns-browser-runtime = "=0.2.2"
 hns-icann-dane = "=0.2.2"
 hns-loopback-proxy = { package = "hns-browser-loopback-proxy", version = "=0.2.3", default-features = false, features = ["mobile"] }
-# Keep the product on the adjacent, single-source wallet cohort while mobile
-# discovery is integrated. The path manifests retain the exact 0.2.3 package
-# version and pull the rest of that cohort from the same workspace.
-hns-wallet-ffi = { version = "=0.2.3", path = "../../hns-wallet-rs/crates/hns-wallet-ffi" }
-hns-wallet-mobile = { version = "=0.2.3", path = "../../hns-wallet-rs/crates/hns-wallet-mobile" }
-hns-wallet-types = { version = "=0.2.3", path = "../../hns-wallet-rs/crates/hns-wallet-types" }
+# The coordinated wallet cohort is published and checksum-bearing. Keep all
+# three application entry points exact so Cargo cannot mix release cohorts.
+hns-wallet-ffi = "=0.2.4"
+hns-wallet-mobile = "=0.2.4"
+hns-wallet-types = "=0.2.4"
 hns-mobile-platform-runtime = { path = "crates/hns-mobile-platform-runtime" }
 hns-namespace-resolution = "=0.2.3"
 hns-resolution-policy = "=0.3.0"
 h2 = "0.4"
 h3 = "0.0.8"
 h3-quinn = "0.0.10"
-hns-p2p = { package = "hns-browser-p2p", version = "=0.2.3" }
-hns-resolver = { package = "hns-browser-resolver", version = "=0.2.3" }
+hns-p2p = { package = "hns-browser-p2p", version = "=0.2.5" }
+hns-resolver = { package = "hns-browser-resolver", version = "=0.2.5" }
 hns-sync = { package = "hns-browser-sync", version = "=0.2.2" }
 hns-transport = { package = "hns-browser-transport", version = "=0.2.2", default-features = false, features = ["mobile"] }
 hns-urkel = { package = "hns-browser-urkel", version = "=0.2.2" }
@@ -88,43 +87,3 @@ panic = "abort"
 [profile.ios-release]
 inherits = "release"
 panic = "unwind"
-
-[patch.crates-io]
-# The wallet's reviewed Kyoto transport announces and flushes each approved
-# transaction to every active BIP339 peer and retains both payload indexes.
-bip157 = { path = "../../hns-wallet-rs/vendor/bip157" }
-# Keep the mobile product on the adjacent serving-capable light peer session
-# used by the wallet workspace. This remains hns-light-p2p 0.2.3 and changes
-# only how already-decoded inbound standard requests reach the service owner.
-hns-light-p2p = { path = "../../hns-dane-engine/crates/hns-light-p2p" }
-# The browser SQLite adapters are the coordinated unpublished 0.2.3 cohort.
-# Keep mobile on their adjacent release source until those crates are published.
-# Patch the complete type-sharing sync cohort: mixing a registry copy of sync or
-# Urkel with local chain/P2P gives Cargo two nominally distinct Hash, Height,
-# BlockHeader, and Network types even though their package versions are equal.
-hns-browser-chain = { path = "../../hns-dane-engine/crates/hns-browser-chain" }
-hns-browser-dane = { path = "../../hns-dane-engine/crates/hns-browser-dane" }
-hns-browser-dnssec = { path = "../../hns-dane-engine/crates/hns-browser-dnssec" }
-hns-browser-gateway = { path = "../../hns-dane-engine/crates/hns-browser-gateway" }
-hns-browser-loopback-proxy = { path = "../../hns-dane-engine/crates/hns-browser-loopback-proxy" }
-hns-browser-observability = { path = "../../hns-dane-engine/crates/hns-browser-observability" }
-hns-browser-p2p = { path = "../../hns-dane-engine/crates/hns-browser-p2p" }
-hns-browser-primitives = { path = "../../hns-dane-engine/crates/hns-browser-primitives" }
-hns-browser-resolver = { path = "../../hns-dane-engine/crates/hns-browser-resolver" }
-hns-browser-runtime = { path = "../../hns-dane-engine/crates/hns-browser-runtime" }
-hns-browser-sync = { path = "../../hns-dane-engine/crates/hns-browser-sync" }
-hns-browser-transport = { path = "../../hns-dane-engine/crates/hns-browser-transport" }
-hns-browser-urkel = { path = "../../hns-dane-engine/crates/hns-browser-urkel" }
-hns-cache = { path = "../../hns-dane-engine/crates/hns-cache" }
-hns-dns-wire = { path = "../../hns-dane-engine/crates/hns-dns-wire" }
-hns-icann-dane = { path = "../../hns-dane-engine/crates/hns-icann-dane" }
-hns-namespace-resolution = { path = "../../hns-dane-engine/crates/hns-namespace-resolution" }
-hns-resolution-policy = { path = "../../hns-dane-engine/crates/hns-resolution-policy" }
-# Ship the adjacent HSD-compatible FINALIZE constructor that treats the
-# NameState expiration bit as historical resource-retention metadata. Keep its
-# foundational HNS types on the same source to preserve one Cargo type identity
-# throughout the mobile dependency graph.
-hns-covenants = { path = "../../hns-rs/crates/hns-covenants" }
-hns-encoding = { path = "../../hns-rs/crates/hns-encoding" }
-hns-primitives = { path = "../../hns-rs/crates/hns-primitives" }
-hns-transaction = { path = "../../hns-rs/crates/hns-transaction" }

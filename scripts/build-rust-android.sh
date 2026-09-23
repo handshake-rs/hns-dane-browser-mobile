@@ -2,7 +2,6 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-"$ROOT_DIR/scripts/prepare-source-cohort.sh"
 OUT_DIR="${1:-$ROOT_DIR/android/app/build/generated/rustJniLibs}"
 PROFILE="${HNS_RUST_ANDROID_PROFILE:-release}"
 EXPECTED_NDK_VERSION="${HNS_ANDROID_NDK_VERSION:-28.2.13676358}"

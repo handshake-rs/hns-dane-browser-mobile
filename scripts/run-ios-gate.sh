@@ -53,11 +53,6 @@ for command in git python3 rustup xcode-select xcodebuild xcrun; do
   command -v "$command" >/dev/null 2>&1 || fail "required command is unavailable: $command"
 done
 
-# Cargo metadata and ABI checks resolve sibling path dependencies before the
-# lower-level build scripts run, so a clean hosted checkout must materialize
-# the immutable source cohort at the gate boundary.
-"$ROOT_DIR/scripts/prepare-source-cohort.sh"
-
 export CARGO_INCREMENTAL=0
 
 if [[ -n "${HNS_XCODE_DEVELOPER_DIR:-}" ]]; then

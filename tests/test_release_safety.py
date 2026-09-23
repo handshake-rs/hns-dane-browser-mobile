@@ -12,7 +12,6 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE_COHORT = ROOT / "scripts" / "prepare-source-cohort.sh"
 PLAY_UPLOAD = ROOT / "scripts" / "play-upload-closed-testing.sh"
 IOS_UPLOAD = ROOT / "scripts" / "upload-ios-app-store.sh"
 BUILD_IOS = ROOT / "scripts" / "build-ios.sh"
@@ -31,19 +30,7 @@ APP_STORE_VALIDATOR = ROOT / "store-assets" / "app-store" / "validate.py"
 
 
 class ReleaseCandidateMetadataTests(unittest.TestCase):
-    def test_clean_builds_materialize_one_immutable_source_cohort(self) -> None:
-        cohort = SOURCE_COHORT.read_text(encoding="utf-8")
-        for repository, commit in (
-            ("hns-wallet-rs", "9e01e646a59c54d205c519e1494b148256707ea1"),
-            ("hns-dane-engine", "bf6855aba037dcb3720e0624c04eb7ee1e09cb5b"),
-            ("hns-rs", "f43f8dd325c221766787810fdd1fa3b3657689ca"),
-        ):
-            self.assertIn(repository, cohort)
-            self.assertIn(commit, cohort)
-        self.assertIn('actual_commit="$(git -C "$destination" rev-parse HEAD)"', cohort)
-        self.assertIn('if [[ "$actual_commit" != "$expected_commit" ]]', cohort)
-        self.assertIn('diff --cached --quiet', cohort)
-
+    def test_clean_builds_use_checksum_bearing_registry_cohorts(self) -> None:
         for relative in (
             "scripts/verify-supply-chain.sh",
             "scripts/build-rust-android.sh",
@@ -52,7 +39,15 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
             "scripts/run-ios-gate.sh",
         ):
             source = (ROOT / relative).read_text(encoding="utf-8")
-            self.assertIn('scripts/prepare-source-cohort.sh', source)
+            self.assertNotIn("prepare-source-cohort", source)
+
+        self.assertFalse((ROOT / "scripts/prepare-source-cohort.sh").exists())
+
+        manifest_source = (ROOT / "rust/Cargo.toml").read_text(encoding="utf-8")
+        self.assertNotIn("[patch.crates-io]", manifest_source)
+        self.assertNotIn("../../hns-wallet-rs", manifest_source)
+        self.assertNotIn("../../hns-dane-engine", manifest_source)
+        self.assertNotIn("../../hns-rs", manifest_source)
 
         for workflow in (ROOT / ".github/workflows").glob("*.yml"):
             self.assertNotIn("1.92.0", workflow.read_text(encoding="utf-8"))
@@ -60,16 +55,9 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         notices_generator = (
             ROOT / "scripts/generate-third-party-notices.py"
         ).read_text(encoding="utf-8")
-        self.assertIn("REVIEWED_LOCAL_SOURCE_ROOTS", notices_generator)
-        for repository, commit in (
-            ("hns-wallet-rs", "9e01e646a59c54d205c519e1494b148256707ea1"),
-            ("hns-dane-engine", "bf6855aba037dcb3720e0624c04eb7ee1e09cb5b"),
-            ("hns-rs", "f43f8dd325c221766787810fdd1fa3b3657689ca"),
-        ):
-            self.assertIn(repository, notices_generator)
-            self.assertIn(commit, notices_generator)
+        self.assertNotIn("REVIEWED_LOCAL_SOURCE_ROOTS", notices_generator)
 
-    def test_platform_identity_and_reviewed_wallet_source_pin(self) -> None:
+    def test_platform_identity_and_reviewed_registry_cohort(self) -> None:
         gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
         self.assertRegex(gradle, r"(?m)^\s*versionName = \"1\.0\.6\"$")
         self.assertRegex(gradle, r"(?m)^\s*versionCode = 58$")
@@ -158,19 +146,22 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertEqual(manifest["workspace"]["package"]["version"], "1.0.2")
         self.assertFalse(manifest["workspace"]["package"]["publish"])
         wallet = manifest["workspace"]["dependencies"]["hns-wallet-mobile"]
-        self.assertEqual(wallet["version"], "=0.2.3")
-        self.assertEqual(wallet["path"], "../../hns-wallet-rs/crates/hns-wallet-mobile")
+        self.assertEqual(wallet, "=0.2.4")
 
         with (ROOT / "rust/Cargo.lock").open("rb") as source:
             locked_packages = tomllib.load(source)["package"]
         locked_by_name = {package["name"]: package for package in locked_packages}
         self.assertEqual(locked_by_name["rustls"]["version"], "0.23.45")
-        self.assertEqual(locked_by_name["hns-wallet-mobile"]["version"], "0.2.3")
-        self.assertNotIn("source", locked_by_name["hns-wallet-mobile"])
+        self.assertEqual(locked_by_name["hns-wallet-mobile"]["version"], "0.2.4")
+        self.assertEqual(
+            locked_by_name["hns-wallet-mobile"]["source"],
+            "registry+https://github.com/rust-lang/crates.io-index",
+        )
+        self.assertIn("checksum", locked_by_name["hns-wallet-mobile"])
 
         lockfile = (ROOT / "rust/Cargo.lock").read_text(encoding="utf-8")
         self.assertIn(
-            'name = "hns-header-consensus"\nversion = "0.4.1"\nsource = "registry+https://github.com/rust-lang/crates.io-index"',
+            'name = "hns-header-consensus"\nversion = "0.4.2"\nsource = "registry+https://github.com/rust-lang/crates.io-index"',
             lockfile,
         )
         for package in (
@@ -179,7 +170,7 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
             "hns-light-wallet",
         ):
             self.assertIn(
-                f'name = "{package}"\nversion = "0.2.3"\nsource = "registry+https://github.com/rust-lang/crates.io-index"',
+                f'name = "{package}"\nversion = "0.2.5"\nsource = "registry+https://github.com/rust-lang/crates.io-index"',
                 lockfile,
             )
         for package in (
@@ -188,8 +179,12 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
             "hns-browser-resolver",
             "hns-light-p2p",
         ):
-            self.assertEqual(locked_by_name[package]["version"], "0.2.3")
-            self.assertNotIn("source", locked_by_name[package])
+            self.assertEqual(locked_by_name[package]["version"], "0.2.5")
+            self.assertEqual(
+                locked_by_name[package]["source"],
+                "registry+https://github.com/rust-lang/crates.io-index",
+            )
+            self.assertIn("checksum", locked_by_name[package])
         self.assertNotIn("f83d42363305de04bfa955f864cb1e9136c4d648", lockfile)
         self.assertNotIn("abf11ff3b16920c08f3c0b6d32d2e1af7cbe37b2", lockfile)
         self.assertNotIn("2229be849557d58a8eb723bcc03349f0f2df9796", lockfile)

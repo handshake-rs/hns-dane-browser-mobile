@@ -44,11 +44,6 @@ INPUT_PATHS = LOCKED_INPUT_PATHS + RUST_MANIFEST_INPUTS
 APPLICATION_MANIFESTS = {
     path.resolve() for path in (ROOT / "rust/crates").glob("*/Cargo.toml")
 }
-REVIEWED_LOCAL_SOURCE_ROOTS = {
-    (ROOT.parent / "hns-wallet-rs").resolve(): "9e01e646a59c54d205c519e1494b148256707ea1",
-    (ROOT.parent / "hns-dane-engine").resolve(): "bf6855aba037dcb3720e0624c04eb7ee1e09cb5b",
-    (ROOT.parent / "hns-rs").resolve(): "f43f8dd325c221766787810fdd1fa3b3657689ca",
-}
 LICENSE_FILE_PREFIXES = ("LICENSE", "LICENCE", "COPYING", "NOTICE", "COPYRIGHT")
 MAX_NOTICE_FILE_SIZE = 512 * 1024
 RUST_SHIPPING_TARGETS = (
@@ -74,8 +69,8 @@ RUST_LICENSE_FILE_FALLBACKS = {
 DECLARED_LICENSE_FILE_FALLBACKS = {
     "CC0-1.0": ("bip39", "2.2.2"),
     "MIT": ("rusqlite", "0.40.2"),
-    "MIT OR Apache-2.0": ("quinn", "0.11.11"),
-    "Zlib OR Apache-2.0 OR MIT": ("tinyvec", "1.13.2"),
+    "MIT OR Apache-2.0": ("quinn", "0.11.12"),
+    "Zlib OR Apache-2.0 OR MIT": ("tinyvec", "1.13.3"),
 }
 
 # hex_lit 0.1.1 declares MITNFA but its registry archive and declared upstream
@@ -442,21 +437,6 @@ def rust_package_license_files(package: dict) -> list[tuple[str, str]]:
     package_dir = Path(package["manifest_path"]).resolve().parent
     if isinstance(source, str) and source:
         return package_license_files(package, package_dir)
-    for source_root, expected_commit in REVIEWED_LOCAL_SOURCE_ROOTS.items():
-        try:
-            package_dir.relative_to(source_root)
-        except ValueError:
-            continue
-        actual_commit = subprocess.check_output(
-            ["git", "-C", str(source_root), "rev-parse", "HEAD"],
-            text=True,
-        ).strip()
-        if actual_commit != expected_commit:
-            raise RuntimeError(
-                f"Reviewed local source {source_root.name} is at {actual_commit}, "
-                f"expected {expected_commit}."
-            )
-        return package_license_files(package, source_root)
     raise RuntimeError(
         f"Unreviewed local Cargo source for third-party package {package['name']} "
         f"{package['version']}: {package_dir}"
