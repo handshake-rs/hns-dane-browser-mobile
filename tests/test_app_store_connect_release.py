@@ -144,8 +144,9 @@ class ScreenshotApi:
 
 
 class AccessibilityApi:
-    def __init__(self, declarations=None):
+    def __init__(self, declarations=None, *, defer_first_ipad_publish=False):
         self.declarations = list(declarations or [])
+        self.defer_first_ipad_publish = defer_first_ipad_publish
         self.requests = []
 
     def list(self, path, *, params=None):
@@ -173,6 +174,17 @@ class AccessibilityApi:
             )
             attributes = body["data"]["attributes"]
             if attributes.get("publish") is True:
+                if (
+                    self.defer_first_ipad_publish
+                    and declaration["attributes"]["deviceFamily"] == "IPAD"
+                ):
+                    raise release_client.ApiError(
+                        409,
+                        method,
+                        path,
+                        release_client.IPAD_ACCESSIBILITY_FIRST_RELEASE_ERROR
+                        + "/The request cannot be fulfilled because of the state of another resource.",
+                    )
                 declaration["attributes"]["state"] = "PUBLISHED"
             else:
                 declaration["attributes"].update(attributes)
@@ -669,6 +681,37 @@ class SubmissionSafetyTests(unittest.TestCase):
         self.assertFalse(
             any(request[0] in {"POST", "PATCH"} for request in api.requests)
         )
+
+    def test_first_universal_release_retains_exact_ipad_draft(self):
+        api = AccessibilityApi(defer_first_ipad_publish=True)
+        manager = self.make_manager(api)
+
+        readback = manager._ensure_accessibility_declarations("app")
+
+        self.assertEqual(readback["IPHONE"]["state"], "PUBLISHED")
+        self.assertEqual(readback["IPAD"]["state"], "DRAFT")
+        for attributes in readback.values():
+            for feature, expected in release_client.ACCESSIBILITY_FEATURES.items():
+                self.assertIs(attributes[feature], expected)
+
+    def test_unrelated_ipad_publish_conflict_still_fails_closed(self):
+        class ConflictingAccessibilityApi(AccessibilityApi):
+            def request(
+                self, method, path, *, params=None, body=None, expected=(200,)
+            ):
+                if (
+                    method == "PATCH"
+                    and body["data"]["attributes"].get("publish") is True
+                    and path.endswith("declaration-ipad")
+                ):
+                    raise release_client.ApiError(409, method, path, "unrelated conflict")
+                return super().request(
+                    method, path, params=params, body=body, expected=expected
+                )
+
+        manager = self.make_manager(ConflictingAccessibilityApi())
+        with self.assertRaisesRegex(release_client.ApiError, "unrelated conflict"):
+            manager._ensure_accessibility_declarations("app")
 
     def test_duplicate_current_accessibility_declarations_fail_closed(self):
         declarations = [

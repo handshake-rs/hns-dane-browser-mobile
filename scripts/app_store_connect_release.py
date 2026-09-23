@@ -97,6 +97,9 @@ APP_INFO_LOCALIZATION_FIELDS = (
     "privacyPolicyUrl",
 )
 ACCESSIBILITY_DEVICE_FAMILIES = ("IPHONE", "IPAD")
+IPAD_ACCESSIBILITY_FIRST_RELEASE_ERROR = (
+    "STATE_ERROR.CANNOT_PUBLISH_APP_MUST_BE_AVAILABLE_ON_APP_STORE_WITH_IPAD_DEVICE_FAMILY"
+)
 ACCESSIBILITY_FEATURES = {
     "supportsAudioDescriptions": False,
     "supportsCaptions": False,
@@ -138,6 +141,7 @@ class ApiError(ReleaseError):
         self.status = status
         self.method = method
         self.path = path
+        self.summary = summary
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -824,9 +828,12 @@ class ReleaseManager:
             }
         return current
 
-    def _ensure_accessibility_declarations(self, app_id: str) -> None:
+    def _ensure_accessibility_declarations(
+        self, app_id: str
+    ) -> dict[str, dict[str, Any]]:
         resources = self.accessibility_declarations(app_id)
         self.accessibility_readback(resources)
+        deferred_draft_families: set[str] = set()
         current_by_family = {
             _resource_attributes(resource).get("deviceFamily"): resource
             for resource in resources
@@ -891,20 +898,41 @@ class ReleaseManager:
                     raise ReleaseError(
                         f"the updated {family} accessibility declaration is no longer a draft"
                     )
-            self.api.request(
-                "PATCH",
-                f"/v1/accessibilityDeclarations/{declaration_id}",
-                body={
-                    "data": {
-                        "type": "accessibilityDeclarations",
-                        "id": declaration_id,
-                        "attributes": {"publish": True},
-                    }
-                },
-            )
-        self._verify_accessibility_declarations(app_id)
+            try:
+                self.api.request(
+                    "PATCH",
+                    f"/v1/accessibilityDeclarations/{declaration_id}",
+                    body={
+                        "data": {
+                            "type": "accessibilityDeclarations",
+                            "id": declaration_id,
+                            "attributes": {"publish": True},
+                        }
+                    },
+                )
+            except ApiError as error:
+                # App Store Connect cannot publish an iPad declaration until
+                # the first universal version is actually available on the
+                # store. Preserve and verify the exact draft during that one
+                # unavoidable transition; every later run retries publication.
+                if (
+                    family == "IPAD"
+                    and error.status == 409
+                    and IPAD_ACCESSIBILITY_FIRST_RELEASE_ERROR in error.summary
+                ):
+                    deferred_draft_families.add(family)
+                    continue
+                raise
+        return self._verify_accessibility_declarations(
+            app_id, allowed_draft_families=frozenset(deferred_draft_families)
+        )
 
-    def _verify_accessibility_declarations(self, app_id: str) -> None:
+    def _verify_accessibility_declarations(
+        self,
+        app_id: str,
+        *,
+        allowed_draft_families: frozenset[str] = frozenset(),
+    ) -> dict[str, dict[str, Any]]:
         readback = self.accessibility_readback(
             self.accessibility_declarations(app_id)
         )
@@ -913,7 +941,10 @@ class ReleaseManager:
                 "App Store accessibility declarations do not cover exactly iPhone and iPad"
             )
         for family, attributes in readback.items():
-            if attributes.get("state") != "PUBLISHED":
+            state = attributes.get("state")
+            if state != "PUBLISHED" and not (
+                family in allowed_draft_families and state == "DRAFT"
+            ):
                 raise ReleaseError(
                     f"the {family} accessibility declaration is not published"
                 )
@@ -922,6 +953,7 @@ class ReleaseManager:
                     raise ReleaseError(
                         f"the {family} accessibility readback differs for {feature}"
                     )
+        return readback
 
     def submission_items(self, submission_id: str) -> list[dict[str, Any]]:
         return self.api.list(
@@ -1072,7 +1104,7 @@ class ReleaseManager:
         localization_id = _resource_id(localization, "appStoreVersionLocalizations")
         self._upsert_app_info_localization(app_id)
         self._upsert_review_detail(app_id, version_id)
-        self._ensure_accessibility_declarations(app_id)
+        accessibility_readback = self._ensure_accessibility_declarations(app_id)
         screenshot_set_readbacks: list[tuple[str, list[Path]]] = []
         requested_sets = self.screenshot_sets
         if requested_sets is None and self.screenshot_paths:
@@ -1100,7 +1132,10 @@ class ReleaseManager:
             "version": self.release.version,
             "build": self.release.build,
             "metadataReadback": "verified",
-            "accessibility": "published-and-verified-for-iphone-and-ipad",
+            "accessibility": {
+                family: attributes["state"]
+                for family, attributes in sorted(accessibility_readback.items())
+            },
             "screenshots": "replaced-and-verified" if requested_sets else "unchanged",
             "releaseType": "MANUAL",
         }
