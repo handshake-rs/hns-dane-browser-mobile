@@ -245,12 +245,14 @@ HnsBrowserResult hns_browser_wallet_create(
     HnsBrowserNetwork network,
     uint64_t birthday_height,
     HnsBrowserWalletHandle *out_wallet);
+/* legacy_derivation: 0 = hsd/Bob BIP-44, 1 = pre-BIP-44 Shakescape HKDF. */
 HnsBrowserResult hns_browser_wallet_restore(
     HnsBrowserSlice database_path,
     HnsBrowserSlice database_key,
     HnsBrowserNetwork network,
     uint64_t birthday_height,
     HnsBrowserSlice recovery_phrase,
+    uint8_t legacy_derivation,
     HnsBrowserWalletHandle *out_wallet);
 HnsBrowserResult hns_browser_wallet_open(
     HnsBrowserSlice database_path,

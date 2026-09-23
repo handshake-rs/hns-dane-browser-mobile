@@ -31,6 +31,7 @@
 		B1000000000000000000000F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000010 /* LaunchScreen.storyboard */; };
 		B10000000000000000000010 /* hns_headers_300000.snapshot.gzip in Resources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000012 /* hns_headers_300000.snapshot.gzip */; };
 		B10000000000000000000027 /* third_party_notices.txt in Resources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000029 /* third_party_notices.txt */; };
+		B60000000000000000000001 /* bip39-english.txt in Resources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000001 /* bip39-english.txt */; };
 		B10000000000000000000011 /* HnsBrowserRuntime.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = F10000000000000000000013 /* HnsBrowserRuntime.xcframework */; };
 		B10000000000000000000012 /* libz.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = F10000000000000000000014 /* libz.tbd */; };
 		B10000000000000000000013 /* Network.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F10000000000000000000015 /* Network.framework */; };
@@ -116,6 +117,7 @@
 		F10000000000000000000027 /* BrowserRuntimePolicyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserRuntimePolicyStore.swift; sourceTree = "<group>"; };
 		F10000000000000000000028 /* BrowserRuntimeControlTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserRuntimeControlTests.swift; sourceTree = "<group>"; };
 		F10000000000000000000029 /* third_party_notices.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = third_party_notices.txt; path = ../android/app/src/main/assets/third_party_notices.txt; sourceTree = SOURCE_ROOT; };
+		F60000000000000000000001 /* bip39-english.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = "bip39-english.txt"; path = "../android/app/src/main/assets/bip39-english.txt"; sourceTree = SOURCE_ROOT; };
 		F1000000000000000000002A /* HnsDaneBrowserScreenshotTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HnsDaneBrowserScreenshotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F1000000000000000000002B /* AppStoreScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreScreenshotTests.swift; sourceTree = "<group>"; };
 		F1000000000000000000002C /* BrowserSettingsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserSettingsViewController.swift; sourceTree = "<group>"; };
@@ -293,6 +295,7 @@
 		G10000000000000000000008 /* Shared Resources */ = {
 			isa = PBXGroup;
 			children = (
+				F60000000000000000000001 /* bip39-english.txt */,
 				F10000000000000000000012 /* hns_headers_300000.snapshot.gzip */,
 				F10000000000000000000029 /* third_party_notices.txt */,
 			);
@@ -427,6 +430,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B60000000000000000000001 /* bip39-english.txt in Resources */,
 				B1000000000000000000000D /* PrivacyInfo.xcprivacy in Resources */,
 				B1000000000000000000000E /* Assets.xcassets in Resources */,
 				B1000000000000000000000F /* LaunchScreen.storyboard in Resources */,

@@ -4574,6 +4574,7 @@ pub unsafe extern "C" fn hns_browser_wallet_restore(
     network: u32,
     birthday_height: u64,
     recovery_phrase: HnsBrowserSlice,
+    legacy_derivation: u8,
     out_wallet: *mut HnsBrowserWalletHandle,
 ) -> HnsBrowserResult {
     ffi_call(|| {
@@ -4590,9 +4591,15 @@ pub unsafe extern "C" fn hns_browser_wallet_restore(
         let bitcoin_data_dir = ios_wallet_bitcoin_data_dir(&path);
         let policy = HnsBootstrapPolicy::new(wallet_network(network)?, birthday_height);
         let reservation = reserve_wallet_start()?;
-        let controller =
+        if legacy_derivation > 1 {
+            return Err(FfiFailure::invalid("invalid wallet derivation selection"));
+        }
+        let controller = if legacy_derivation == 1 {
+            MobileWalletController::restore_legacy(&path, &key, MobilePlatform::Ios, policy, phrase)
+        } else {
             MobileWalletController::restore(&path, &key, MobilePlatform::Ios, policy, phrase)
-                .map_err(|_| wallet_runtime_failure("unable to restore native wallet"))?;
+        }
+        .map_err(|_| wallet_runtime_failure("unable to restore native wallet"))?;
         let handle = insert_wallet(
             WalletEntry {
                 controller: NativeWalletController::Lifecycle(controller),

@@ -19,6 +19,17 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+- Remove the generated recovery phrase from both the visible view hierarchy
+  and accessibility traversal while the 24-question verification quiz is
+  active. Android and iOS now draw distractors from the complete canonical
+  2,048-word English BIP-39 list instead of reusing words from the phrase.
+- Create new HNS wallets on the hsd/Bob-compatible BIP-44 payment branch and
+  offer a clearly labeled legacy restore action for pre-BIP-44 Shakescape
+  phrases. Existing on-device wallets retain their stored derivation scheme.
+- Explain the distinct payment and name-transfer receive purposes in both
+  wallet shells. Ordinary HNS accidentally sent to the name-transfer address
+  is now recoverable and spendable after synchronization.
+
 ## 1.0.7 - 2026-09-23
 
 Android `1.0.7` / code `59` and iOS `1.0.7` / build `69` are the coordinated

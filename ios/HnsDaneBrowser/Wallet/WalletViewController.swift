@@ -4658,7 +4658,7 @@ final class WalletViewController: UIViewController {
     @objc private func restoreWallet() {
         let alert = UIAlertController(
             title: "Restore wallet",
-            message: "Enter the 24-word phrase and an honest earliest block height (0 scans from genesis).",
+            message: "Enter the 24-word phrase and an honest earliest block height (0 scans from genesis). Use Legacy only for a Shakescape wallet created before BIP-44 compatibility.",
             preferredStyle: .alert
         )
         alert.addTextField { [weak self] field in
@@ -4686,7 +4686,7 @@ final class WalletViewController: UIViewController {
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
             self?.clearRestoreInput()
         })
-        alert.addAction(UIAlertAction(title: "Restore", style: .default) { [weak self, weak alert] _ in
+        let submit: (Bool) -> Void = { [weak self, weak alert] legacyDerivation in
             guard let self, let alert else { return }
             var phrase = Array((alert.textFields?.first?.text ?? "").utf8)
             self.clearRestoreInput()
@@ -4705,16 +4705,22 @@ final class WalletViewController: UIViewController {
             ) { [weak self] in
                 self?.restoreWalletAfterAuthentication(
                     recoveryBytes: recoveryBytes,
-                    birthdayHeight: birthdayHeight
+                    birthdayHeight: birthdayHeight,
+                    legacyDerivation: legacyDerivation
                 )
             }
+        }
+        alert.addAction(UIAlertAction(title: "Restore", style: .default) { _ in submit(false) })
+        alert.addAction(UIAlertAction(title: "Restore legacy Shakescape", style: .default) { _ in
+            submit(true)
         })
         walletPresentationHost.present(alert, animated: true)
     }
 
     private func restoreWalletAfterAuthentication(
         recoveryBytes: [UInt8],
-        birthdayHeight: UInt64
+        birthdayHeight: UInt64,
+        legacyDerivation: Bool
     ) {
         var phrase = recoveryBytes
         performWalletOperation {
@@ -4730,7 +4736,8 @@ final class WalletViewController: UIViewController {
                         databaseKey: databaseKey,
                         network: self.network,
                         birthdayHeight: birthdayHeight,
-                        recoveryPhrase: recoveryPhrase
+                        recoveryPhrase: recoveryPhrase,
+                        legacyDerivation: legacyDerivation
                     )
                 }
             }
@@ -4821,16 +4828,39 @@ final class WalletViewController: UIViewController {
             showErrorMessage("The generated recovery phrase did not contain exactly 24 words.")
             return
         }
-        showRecoveryConfirmationQuestion(words: words, index: 0, hadIncorrectChoice: false)
+        guard let wordList = try? walletBip39EnglishWords(),
+              words.allSatisfy(wordList.contains) else {
+            showErrorMessage("The BIP-39 verification word list is unavailable.")
+            return
+        }
+        setRecoveryPhraseObscured(true)
+        showRecoveryConfirmationQuestion(
+            words: words,
+            wordList: wordList,
+            index: 0,
+            hadIncorrectChoice: false
+        )
+    }
+
+    /// Covering a secret with an alert does not remove it from the pixels
+    /// around the alert or from the accessibility hierarchy. The phrase stays
+    /// unavailable on both surfaces until the quiz is cancelled or fails.
+    private func setRecoveryPhraseObscured(_ obscured: Bool) {
+        recoveryTextView.isHidden = obscured
+        recoveryTextView.accessibilityElementsHidden = obscured
+        recoveryTitle.isHidden = obscured
+        recoveryTitle.accessibilityElementsHidden = obscured
     }
 
     private func showRecoveryConfirmationQuestion(
         words: [String],
+        wordList: [String],
         index: Int,
         hadIncorrectChoice: Bool
     ) {
         guard index < words.count else {
             if hadIncorrectChoice {
+                setRecoveryPhraseObscured(false)
                 showErrorMessage(
                     "Recovery phrase verification failed. Review the phrase and retry all 24 words."
                 )
@@ -4844,24 +4874,37 @@ final class WalletViewController: UIViewController {
             message: "Tap the word in position \(index + 1). Incorrect choices are reported only after the final word.",
             preferredStyle: .alert
         )
-        for choice in walletRecoveryWordChoices(words: words, correctIndex: index) {
+        for choice in walletRecoveryWordChoices(
+            words: words,
+            correctIndex: index,
+            bip39Words: wordList
+        ) {
             alert.addAction(UIAlertAction(title: choice, style: .default) { [weak self] _ in
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
                     self?.showRecoveryConfirmationQuestion(
                         words: words,
+                        wordList: wordList,
                         index: index + 1,
                         hadIncorrectChoice: hadIncorrectChoice || choice != words[index]
                     )
                 }
             })
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
+            self?.setRecoveryPhraseObscured(false)
+        })
         walletPresentationHost.present(alert, animated: true)
     }
 
     private func persistConfirmedWallet() {
-        guard !isOperating else { return }
-        guard var key = unconfirmedDatabaseKey else { return }
+        guard !isOperating else {
+            setRecoveryPhraseObscured(false)
+            return
+        }
+        guard var key = unconfirmedDatabaseKey else {
+            setRecoveryPhraseObscured(false)
+            return
+        }
         unconfirmedDatabaseKey = nil
         performWalletOperation {
             defer { WalletSecretBytes.wipe(&key) }
@@ -6436,7 +6479,7 @@ final class WalletViewController: UIViewController {
                 if hasHnsValue {
                     let receive = try wallet.localHnsReceiveTarget()
                     receiveTargets = WalletReceiveTargets(localPaymentAddress: receive.display)
-                    paymentReceiveLabel.text = "Payment receive\n\(receive.display)\nDerivation index \(receive.derivationIndex)"
+                    paymentReceiveLabel.text = "Payment receive\n\(receive.display)\nDerivation index \(receive.derivationIndex)\nUse for ordinary HNS payments. A name transferred here remains controlled by this wallet."
                 }
                 if hasBitcoinValue, !bitcoinSyncInProgress,
                    let snapshot = try? wallet.bitcoinSnapshot() {
@@ -7497,13 +7540,37 @@ private final class WalletFormViewController: UIViewController {
     }
 }
 
-func walletRecoveryWordChoices(words: [String], correctIndex: Int) -> [String] {
+private enum WalletBip39WordListError: Error {
+    case unavailable
+    case invalid
+}
+
+private let walletBip39EnglishWordCount = 2_048
+
+func walletBip39EnglishWords(bundle: Bundle = .main) throws -> [String] {
+    guard let url = bundle.url(forResource: "bip39-english", withExtension: "txt"),
+          let text = try? String(contentsOf: url, encoding: .utf8) else {
+        throw WalletBip39WordListError.unavailable
+    }
+    let words = text.split(whereSeparator: \.isWhitespace).map(String.init)
+    guard words.count == walletBip39EnglishWordCount,
+          Set(words).count == walletBip39EnglishWordCount else {
+        throw WalletBip39WordListError.invalid
+    }
+    return words
+}
+
+func walletRecoveryWordChoices(
+    words: [String],
+    correctIndex: Int,
+    bip39Words: [String]
+) -> [String] {
     precondition(words.indices.contains(correctIndex))
     let correct = words[correctIndex]
-    var pool = Array(Set(
-        (words + ["abandon", "ability", "able", "about", "above", "absent"])
-            .filter { $0 != correct }
-    ))
+    precondition(bip39Words.count == walletBip39EnglishWordCount)
+    precondition(Set(bip39Words).count == walletBip39EnglishWordCount)
+    precondition(bip39Words.contains(correct))
+    var pool = bip39Words.filter { $0 != correct }
     var choices = [correct]
     while choices.count < 4, !pool.isEmpty {
         choices.append(pool.remove(at: Int.random(in: pool.indices)))
@@ -7647,9 +7714,9 @@ enum WalletReadPresenter {
         return WalletReadPresentation(
             status: "Synced and ready at height \(snapshot.moduleStatus.validatedHeight). Pending outgoing transactions are reflected in the available balance.",
             balance: balanceText,
-            paymentReceive: "Payment receive\n\(snapshot.receiveTarget.display)\nDerivation index \(snapshot.receiveTarget.derivationIndex)",
+            paymentReceive: "Payment receive\n\(snapshot.receiveTarget.display)\nDerivation index \(snapshot.receiveTarget.derivationIndex)\nUse for ordinary HNS payments. A name transferred here remains controlled by this wallet.",
             nameReceive: snapshot.nameReceiveTarget.map {
-                "Name transfer receive\n\($0.display)\nName derivation index \($0.derivationIndex)"
+                "Name transfer receive\n\($0.display)\nName derivation index \($0.derivationIndex)\nUse for Handshake name TRANSFER. Ordinary HNS sent here remains recoverable and spendable."
             } ?? "Name transfer receive: unavailable for HNWR-v1.",
             history: history,
             names: trackedNames

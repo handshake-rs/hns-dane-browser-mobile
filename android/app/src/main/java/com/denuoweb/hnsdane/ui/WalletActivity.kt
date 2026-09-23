@@ -1399,12 +1399,17 @@ class WalletActivity : ComponentActivity() {
     private fun showRestoreWalletDialog() {
         val phraseInput = sensitiveRestoreInput()
         val birthdayInput = restoreBirthdayInput()
+        val legacyDerivationInput = android.widget.CheckBox(this).apply {
+            text = getString(R.string.wallet_restore_legacy_derivation)
+            contentDescription = text
+        }
         restoreInput = phraseInput
         val form = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(uiDp(20), uiDp(4), uiDp(20), 0)
             addView(phraseInput)
             addView(birthdayInput)
+            addView(legacyDerivationInput)
             addView(TextView(this@WalletActivity).apply {
                 text = getString(R.string.wallet_restore_birthday_explanation)
                 textSize = 13f
@@ -1428,15 +1433,16 @@ class WalletActivity : ComponentActivity() {
                 }
                 birthdayInput.error = null
                 val phrase = takeRestoreInput(phraseInput)
+                val legacyDerivation = legacyDerivationInput.isChecked
                 if (restoreInput === phraseInput) restoreInput = null
                 dialog.dismiss()
                 if (phrase == null) {
-                    restoreWallet(null, birthday)
+                    restoreWallet(null, birthday, legacyDerivation)
                 } else {
                     requireWalletAuthentication(
                         getString(R.string.wallet_auth_restore_title),
                         getString(R.string.wallet_auth_restore_message),
-                        action = { restoreWallet(phrase, birthday) },
+                        action = { restoreWallet(phrase, birthday, legacyDerivation) },
                         cancelled = { phrase.fill('\u0000') },
                     )
                 }
@@ -2947,7 +2953,11 @@ class WalletActivity : ComponentActivity() {
         }
     }
 
-    private fun restoreWallet(phrase: CharArray?, birthdayHeight: Long) {
+    private fun restoreWallet(
+        phrase: CharArray?,
+        birthdayHeight: Long,
+        legacyDerivation: Boolean,
+    ) {
         if (phrase == null) {
             Toast.makeText(this, R.string.wallet_restore_phrase_required, Toast.LENGTH_SHORT).show()
             return
@@ -2980,6 +2990,7 @@ class WalletActivity : ComponentActivity() {
                 network,
                 birthdayHeight,
                 phrase,
+                legacyDerivation,
             )
             runOnUiThread {
                 busy = false
@@ -3057,8 +3068,26 @@ class WalletActivity : ComponentActivity() {
     private fun confirmRecoverySaved() {
         if (unconfirmedDatabaseKey == null) return
         val phrase = recoveryView.copySecret() ?: return
-        showRecoveryConfirmationQuiz(phrase) { confirmedPhrase ->
-            persistConfirmedRecovery(confirmedPhrase)
+        setRecoveryPhraseObscured(true)
+        showRecoveryConfirmationQuiz(
+            phrase = phrase,
+            onConfirmed = { confirmedPhrase -> persistConfirmedRecovery(confirmedPhrase) },
+            onAborted = { setRecoveryPhraseObscured(false) },
+        )
+    }
+
+    /**
+     * A modal is not a secrecy boundary: large screens can render most of the
+     * phrase around it and accessibility services can still traverse the
+     * covered view. Remove the phrase from both surfaces for the entire quiz,
+     * restoring it only when verification is cancelled or fails.
+     */
+    private fun setRecoveryPhraseObscured(obscured: Boolean) {
+        recoveryView.visibility = if (obscured) View.INVISIBLE else View.VISIBLE
+        recoveryView.importantForAccessibility = if (obscured) {
+            View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+        } else {
+            View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
         }
     }
 
@@ -3066,6 +3095,7 @@ class WalletActivity : ComponentActivity() {
         val databaseKey = unconfirmedDatabaseKey
         if (databaseKey == null) {
             confirmedPhrase.fill('\u0000')
+            setRecoveryPhraseObscured(false)
             return
         }
         val lease = currentStorageLease()
@@ -3122,15 +3152,32 @@ class WalletActivity : ComponentActivity() {
     private fun showRecoveryConfirmationQuiz(
         phrase: CharArray,
         onConfirmed: (CharArray) -> Unit,
+        onAborted: () -> Unit,
     ) {
         val words = String(phrase).trim().split(Regex("\\s+")).filter(String::isNotBlank)
         if (words.size != RECOVERY_WORD_COUNT) {
             phrase.fill('\u0000')
+            onAborted()
+            Toast.makeText(this, R.string.wallet_recovery_quiz_invalid, Toast.LENGTH_LONG).show()
+            return
+        }
+        val wordList = runCatching {
+            assets.open(BIP39_ENGLISH_ASSET).bufferedReader(Charsets.UTF_8).useLines { lines ->
+                lines.map(String::trim).filter(String::isNotBlank).toList()
+            }.also { loaded ->
+                require(loaded.size == BIP39_ENGLISH_WORD_COUNT)
+                require(loaded.distinct().size == BIP39_ENGLISH_WORD_COUNT)
+                require(words.all(loaded::contains))
+            }
+        }.getOrElse {
+            phrase.fill('\u0000')
+            onAborted()
             Toast.makeText(this, R.string.wallet_recovery_quiz_invalid, Toast.LENGTH_LONG).show()
             return
         }
         var index = 0
         var incorrectChoice = false
+        var confirmed = false
         val random = SecureRandom()
         val prompt = TextView(this).apply {
             textSize = 16f
@@ -3159,7 +3206,7 @@ class WalletActivity : ComponentActivity() {
             .create()
         fun renderQuestion() {
             prompt.text = getString(R.string.wallet_recovery_quiz_word, index + 1, words.size)
-            val choices = recoveryWordChoices(words, index, random)
+            val choices = recoveryWordChoices(words, index, wordList, random)
             buttons.forEachIndexed { choiceIndex, button ->
                 button.text = choices[choiceIndex]
                 button.setOnClickListener {
@@ -3168,10 +3215,11 @@ class WalletActivity : ComponentActivity() {
                     if (index < words.size) {
                         renderQuestion()
                     } else {
-                        dialog.setOnDismissListener(null)
+                        confirmed = !incorrectChoice
                         dialog.dismiss()
                         if (incorrectChoice) {
                             phrase.fill('\u0000')
+                            onAborted()
                             walletAlertDialogBuilder()
                                 .setTitle(R.string.wallet_recovery_quiz_failed_title)
                                 .setMessage(R.string.wallet_recovery_quiz_failed_message)
@@ -3184,7 +3232,12 @@ class WalletActivity : ComponentActivity() {
                 }
             }
         }
-        dialog.setOnDismissListener { phrase.fill('\u0000') }
+        dialog.setOnDismissListener {
+            if (!confirmed && index < words.size) {
+                phrase.fill('\u0000')
+                onAborted()
+            }
+        }
         dialog.setOnShowListener { renderQuestion() }
         dialog.show()
     }
@@ -9819,14 +9872,15 @@ internal fun directHnsCatchupRetryDelayMillis(
 internal fun recoveryWordChoices(
     words: List<String>,
     correctIndex: Int,
+    bip39Words: List<String>,
     random: SecureRandom,
 ): List<String> {
     require(correctIndex in words.indices)
     val correct = words[correctIndex]
-    val pool = (words + listOf("abandon", "ability", "able", "about", "above", "absent"))
-        .filter { it != correct }
-        .distinct()
-        .toMutableList()
+    require(bip39Words.size == BIP39_ENGLISH_WORD_COUNT)
+    require(bip39Words.distinct().size == BIP39_ENGLISH_WORD_COUNT)
+    require(correct in bip39Words)
+    val pool = bip39Words.filterTo(mutableListOf()) { it != correct }
     val choices = mutableListOf(correct)
     while (choices.size < 4 && pool.isNotEmpty()) {
         choices += pool.removeAt(random.nextInt(pool.size))
@@ -9835,6 +9889,9 @@ internal fun recoveryWordChoices(
     java.util.Collections.shuffle(choices, random)
     return choices
 }
+
+private const val BIP39_ENGLISH_ASSET = "bip39-english.txt"
+internal const val BIP39_ENGLISH_WORD_COUNT = 2_048
 
 /**
  * Long enough for an ordinary app switch without retaining unlocked wallet

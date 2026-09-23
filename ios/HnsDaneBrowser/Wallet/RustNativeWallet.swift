@@ -3330,7 +3330,8 @@ final class RustNativeWallet: @unchecked Sendable {
         databaseKey: UnsafeRawBufferPointer,
         network: BrowserHandshakeNetwork,
         birthdayHeight: UInt64,
-        recoveryPhrase: UnsafeRawBufferPointer
+        recoveryPhrase: UnsafeRawBufferPointer,
+        legacyDerivation: Bool = false
     ) throws -> RustNativeWallet {
         var handle: HnsBrowserWalletHandle = 0
         let result = NativeWalletBridge.withUTF8Slice(databasePath) { path in
@@ -3340,6 +3341,7 @@ final class RustNativeWallet: @unchecked Sendable {
                 network.walletNativeValue,
                 birthdayHeight,
                 NativeWalletBridge.slice(recoveryPhrase),
+                legacyDerivation ? 1 : 0,
                 &handle
             )
         }

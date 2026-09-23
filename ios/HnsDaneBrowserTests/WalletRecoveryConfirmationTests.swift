@@ -3,9 +3,14 @@ import XCTest
 
 final class WalletRecoveryConfirmationTests: XCTestCase {
     func testChoicesContainCorrectWordAndFourDistinctOptions() {
-        let words = (1...24).map { "word\($0)" }
+        let wordList = (1...2_048).map { "word\($0)" }
+        let words = Array(wordList.prefix(24))
         for index in words.indices {
-            let choices = walletRecoveryWordChoices(words: words, correctIndex: index)
+            let choices = walletRecoveryWordChoices(
+                words: words,
+                correctIndex: index,
+                bip39Words: wordList
+            )
             XCTAssertEqual(choices.count, 4)
             XCTAssertEqual(Set(choices).count, 4)
             XCTAssertEqual(choices.filter { $0 == words[index] }.count, 1)
@@ -13,9 +18,12 @@ final class WalletRecoveryConfirmationTests: XCTestCase {
     }
 
     func testRepeatedPhraseWordsStillProduceFourChoices() {
+        var wordList = (1...2_048).map { "word\($0)" }
+        wordList[0] = "same"
         let choices = walletRecoveryWordChoices(
             words: Array(repeating: "same", count: 24),
-            correctIndex: 0
+            correctIndex: 0,
+            bip39Words: wordList
         )
         XCTAssertEqual(Set(choices).count, 4)
         XCTAssertTrue(choices.contains("same"))

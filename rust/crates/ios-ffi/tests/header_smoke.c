@@ -32,7 +32,7 @@ static void typecheck_api(void) {
         hns_browser_wallet_create;
     HnsBrowserResult (*wallet_restore)(HnsBrowserSlice, HnsBrowserSlice,
                                        HnsBrowserNetwork, uint64_t,
-                                       HnsBrowserSlice,
+                                       HnsBrowserSlice, uint8_t,
                                        HnsBrowserWalletHandle *) =
         hns_browser_wallet_restore;
     HnsBrowserResult (*wallet_open)(HnsBrowserSlice, HnsBrowserSlice,

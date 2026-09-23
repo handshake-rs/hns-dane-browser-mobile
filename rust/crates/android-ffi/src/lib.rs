@@ -6799,6 +6799,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
     network: jint,
     birthday_height: jlong,
     recovery_phrase: JCharArray<'_>,
+    legacy_derivation: jboolean,
 ) -> jlong {
     let Some(reservation) = WalletHandleReservation::new() else {
         android_log_error("wallet restore failed: native wallet handle limit reached");
@@ -6827,13 +6828,24 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             return 0;
         };
         let bitcoin_data_dir = android_wallet_bitcoin_data_dir(&path);
-        let controller = match MobileWalletController::restore(
-            &path,
-            &key,
-            MobilePlatform::Android,
-            HnsBootstrapPolicy::new(network, birthday_height),
-            recovery_phrase,
-        ) {
+        let policy = HnsBootstrapPolicy::new(network, birthday_height);
+        let controller = match if legacy_derivation != 0 {
+            MobileWalletController::restore_legacy(
+                &path,
+                &key,
+                MobilePlatform::Android,
+                policy,
+                recovery_phrase,
+            )
+        } else {
+            MobileWalletController::restore(
+                &path,
+                &key,
+                MobilePlatform::Android,
+                policy,
+                recovery_phrase,
+            )
+        } {
             Ok(controller) => controller,
             Err(error) => {
                 android_log_error(&format!("wallet restore failed: {error}"));
