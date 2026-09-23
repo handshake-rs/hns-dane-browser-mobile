@@ -285,7 +285,7 @@ final class BrowserViewController: UIViewController {
         addressField.autocapitalizationType = .none
         addressField.autocorrectionType = .no
         addressField.spellCheckingType = .no
-        addressField.placeholder = "Enter a web or Handshake address"
+        addressField.placeholder = "Address"
         addressField.font = .preferredFont(forTextStyle: .body)
         addressField.adjustsFontForContentSizeCategory = true
         addressField.accessibilityLabel = "Address"
@@ -300,7 +300,7 @@ final class BrowserViewController: UIViewController {
         securityLabel.text = "Security pending"
         securityLabel.accessibilityIdentifier = "app-store-screenshot.security"
 
-        syncLabel.font = .preferredFont(forTextStyle: .caption2)
+        syncLabel.font = .preferredFont(forTextStyle: .body)
         syncLabel.adjustsFontForContentSizeCategory = true
         syncLabel.textColor = .tertiaryLabel
         syncLabel.numberOfLines = 0
@@ -314,6 +314,7 @@ final class BrowserViewController: UIViewController {
 
         placeholderLabel.translatesAutoresizingMaskIntoConstraints = false
         placeholderLabel.font = .preferredFont(forTextStyle: .title3)
+        placeholderLabel.adjustsFontForContentSizeCategory = true
         placeholderLabel.textColor = .secondaryLabel
         placeholderLabel.textAlignment = .center
         placeholderLabel.numberOfLines = 0
