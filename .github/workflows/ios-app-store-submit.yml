@@ -32,19 +32,19 @@ on:
         default: 1.0.5
         type: string
       confirm_metadata:
-        description: For mutation, enter APPLY_METADATA_1.0.6_68
+        description: For mutation, enter APPLY_METADATA_1.0.7_69
         required: false
         type: string
       confirm_screenshot_replacement:
-        description: To replace the iPhone and iPad sets, enter REPLACE_SCREENSHOTS_1.0.6_68
+        description: To replace the iPhone and iPad sets, enter REPLACE_SCREENSHOTS_1.0.7_69
         required: false
         type: string
       confirm_submit:
-        description: For submission, enter SUBMIT_FOR_REVIEW_1.0.6_68; to cancel it enter CANCEL_SUBMISSION_1.0.6_68
+        description: For submission, enter SUBMIT_FOR_REVIEW_1.0.7_69; to cancel it enter CANCEL_SUBMISSION_1.0.7_69
         required: false
         type: string
       confirm_auto_release:
-        description: To release automatically after approval, enter SET_AUTO_RELEASE_1.0.6_68
+        description: To release automatically after approval, enter SET_AUTO_RELEASE_1.0.7_69
         required: false
         type: string
       confirm_account_readiness:
@@ -108,7 +108,7 @@ jobs:
               echo "screenshot replacement is only valid for a mutating mode" >&2
               exit 2
             }
-            [[ "$SCREENSHOT_REPLACEMENT" == REPLACE_SCREENSHOTS_1.0.6_68 ]] || {
+            [[ "$SCREENSHOT_REPLACEMENT" == REPLACE_SCREENSHOTS_1.0.7_69 ]] || {
               echo "invalid release-specific screenshot replacement confirmation" >&2
               exit 2
             }
@@ -117,20 +117,20 @@ jobs:
             discover)
               ;;
             cancel-submission)
-              [[ "$CONFIRM_SUBMIT" == CANCEL_SUBMISSION_1.0.6_68 ]]
+              [[ "$CONFIRM_SUBMIT" == CANCEL_SUBMISSION_1.0.7_69 ]]
               ;;
             auto-release)
               [[ "$EXPECTED_UPLOAD_RUN_ID" =~ ^[1-9][0-9]*$ ]]
-              [[ "$CONFIRM_AUTO_RELEASE" == SET_AUTO_RELEASE_1.0.6_68 ]]
+              [[ "$CONFIRM_AUTO_RELEASE" == SET_AUTO_RELEASE_1.0.7_69 ]]
               ;;
             apply-metadata)
               [[ "$EXPECTED_UPLOAD_RUN_ID" =~ ^[1-9][0-9]*$ ]]
-              [[ "$CONFIRM_METADATA" == APPLY_METADATA_1.0.6_68 ]]
+              [[ "$CONFIRM_METADATA" == APPLY_METADATA_1.0.7_69 ]]
               ;;
             submit)
               [[ "$EXPECTED_UPLOAD_RUN_ID" =~ ^[1-9][0-9]*$ ]]
-              [[ "$CONFIRM_METADATA" == APPLY_METADATA_1.0.6_68 ]]
-              [[ "$CONFIRM_SUBMIT" == SUBMIT_FOR_REVIEW_1.0.6_68 ]]
+              [[ "$CONFIRM_METADATA" == APPLY_METADATA_1.0.7_69 ]]
+              [[ "$CONFIRM_SUBMIT" == SUBMIT_FOR_REVIEW_1.0.7_69 ]]
               [[ "$ACCOUNT_READY" == true ]]
               ;;
             *)
@@ -192,8 +192,8 @@ jobs:
             --mode plan \
             --expected-commit "$EXPECTED_COMMIT" \
             --expected-artifact-commit "$EXPECTED_ARTIFACT_COMMIT" \
-            --expected-version 1.0.6 \
-            --expected-build 68 >/dev/null
+            --expected-version 1.0.7 \
+            --expected-build 69 >/dev/null
 
       - name: Validate the successful exact-commit upload run
         if: ${{ inputs.mode == 'auto-release' || inputs.mode == 'apply-metadata' || inputs.mode == 'submit' }}
@@ -318,8 +318,8 @@ jobs:
             --mode "$MODE"
             --expected-commit "$EXPECTED_COMMIT"
             --expected-artifact-commit "$EXPECTED_ARTIFACT_COMMIT"
-            --expected-version 1.0.6
-            --expected-build 68
+            --expected-version 1.0.7
+            --expected-build 69
             --review-contact-source-version "$REVIEW_CONTACT_SOURCE_VERSION"
           )
           if [[ "$MODE" == apply-metadata || "$MODE" == submit ]]; then

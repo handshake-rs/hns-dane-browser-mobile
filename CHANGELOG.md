@@ -19,6 +19,28 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.0.7 - 2026-09-23
+
+Android `1.0.7` / code `59` and iOS `1.0.7` / build `69` are the coordinated
+store candidates. They retain embedded Rust workspace `1.0.2` and replace all
+sibling source overrides with exact, checksum-bearing registry releases:
+`hns-rs 0.4.2`, the seven-crate engine `0.2.5` mobile/wallet cohort, and all
+16 `hns-wallet-rs 0.2.4` crates.
+
+- Publish the wallet and peer-discovery implementation tested after `1.0.6`,
+  including current direct ShakeScape board replication, swap recovery,
+  bidirectional BTC/HNS offer handling, automatic name FINALIZE tracking, and
+  matched Android/iOS status notifications.
+- Make clean mobile builds independent of adjacent ecosystem checkouts. Cargo
+  now verifies each ecosystem archive against crates.io checksums, and release
+  tests reject sibling paths, Git dependencies, and crates.io patch overrides.
+- Regenerate the complete third-party notice inventory from the registry-only
+  lock and retain the exact HNS, engine, wallet, SQLite, and Rust toolchain
+  release boundaries in the public audit documents.
+- Keep the iOS `http`/`https` browser registration, iPhone/iPad and compatible
+  Mac support, accessibility declarations, and automatic post-approval App
+  Store release flow introduced for the prior submission.
+
 ## 1.0.6 - 2026-09-22
 
 Android `1.0.6` / code `58` and iOS `1.0.6` / build `68` are the coordinated

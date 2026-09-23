@@ -2,7 +2,7 @@
 
 Last audited: 2026-09-05
 
-Current pending Android candidate source is `1.0.6` (`versionCode 58`) and
+Current pending Android candidate source is `1.0.7` (`versionCode 59`) and
 supports Android 9 / API 28 or later. It has not yet been built, signed,
 uploaded, or qualified. The preceding code `56` was committed to the Google Play
 production track with status `completed` through Android Publisher edit

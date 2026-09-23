@@ -1,12 +1,12 @@
 # App Store submission checklist
 
-Candidate: iOS `1.0.6`, build `68`, `com.denuoweb.hnsdane.ios`, iPhone/iPad,
+Candidate: iOS `1.0.7`, build `69`, `com.denuoweb.hnsdane.ios`, iPhone/iPad,
 compatible Apple-silicon Macs, Free,
-manual release.
+automatic release after approval.
 
 ## Source and artifact
 
-- [x] Increment every iOS candidate, metadata, test, and workflow version surface to `1.0.6` / build `68` while retaining the independently versioned Android and Rust releases.
+- [x] Increment every iOS candidate, metadata, test, and workflow version surface to `1.0.7` / build `69` while retaining the independently versioned Android and Rust releases.
 - [x] Keep the rejected/unapproved `com.apple.developer.web-browser` capability out of this candidate while registering `http`/`https` and directly handling incoming targets for the renewed request.
 - [x] Keep `com.apple.developer.browser.app-installation` absent until Apple approves it; exact `marketplace-kit` navigation now remains in WebKit for MarketplaceKit validation.
 - [ ] Push the exact candidate and require all repository, Rust, Android, Apple, Required CI, and CodeQL gates to pass.
@@ -33,5 +33,5 @@ manual release.
 - [ ] Paste the reviewed metadata and review notes and provide a real review contact.
 - [ ] Read back metadata, questionnaire answers, screenshots, review details, version, and build relationship.
 - [ ] Confirm **Make this app available on Mac** remains enabled in App Store Connect.
-- [ ] Attach everything to the same versioned commit and choose manual release.
+- [ ] Attach everything to the same versioned commit and verify automatic release after approval.
 - [ ] Intentionally submit only after all gates above pass and archive the final readback.

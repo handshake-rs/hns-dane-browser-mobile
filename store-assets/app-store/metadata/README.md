@@ -1,17 +1,17 @@
 # App Store metadata
 
-This directory contains the reviewed listing source for iOS `1.0.6` / build
-`68`, bundle ID `com.denuoweb.hnsdane.ios`. The preceding iOS release and its
+This directory contains the reviewed listing source for iOS `1.0.7` / build
+`69`, bundle ID `com.denuoweb.hnsdane.ios`. The preceding iOS release and its
 screenshots predate this candidate and are not evidence for it.
 
-- Version: `1.0.6`
-- Build: `68`
+- Version: `1.0.7`
+- Build: `69`
 
 This update brings the current native wallet synchronization, recovery, name
 tracking, Unicode-name, record, transfer/finalization, and diagnostic work to
 iOS. Apple rejected the preceding managed `com.apple.developer.web-browser`
 request because the submitted binary did not register `http` and `https` URL
-schemes. Build 68 registers both schemes, routes incoming URLs directly, and
+schemes. Build 69 registers both schemes, routes incoming URLs directly, and
 keeps exact `marketplace-kit` navigation in WebKit. Neither entitlement is
 requested in this candidate; after Apple approves the renewed capability
 request, a later signed build will add `com.apple.developer.web-browser` and
