@@ -2286,8 +2286,10 @@ final class WalletViewController: UIViewController {
             })
         }
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        let host = walletPresentationHost
         if let popover = alert.popoverPresentationController {
-            let sourceView = walletPresentationHost.view
+            host.loadViewIfNeeded()
+            guard let sourceView = host.view else { return }
             popover.sourceView = sourceView
             popover.sourceRect = CGRect(
                 x: sourceView.bounds.midX,
@@ -2297,7 +2299,7 @@ final class WalletViewController: UIViewController {
             )
             popover.permittedArrowDirections = []
         }
-        walletPresentationHost.present(alert, animated: true)
+        host.present(alert, animated: true)
     }
 
     private func showSwapSettlementFee(
