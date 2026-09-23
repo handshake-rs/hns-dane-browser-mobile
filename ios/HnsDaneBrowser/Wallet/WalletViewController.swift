@@ -6826,11 +6826,8 @@ final class WalletViewController: UIViewController {
         )
         let walletRoot = applicationSupport.appendingPathComponent("NativeWallet", isDirectory: true)
         let directory = walletRoot.appendingPathComponent(network.rawValue, isDirectory: true)
-        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
-        try fileManager.setAttributes(
-            [.protectionKey: FileProtectionType.complete],
-            ofItemAtPath: directory.path
-        )
+        try secureWalletStorageDirectory(walletRoot, fileManager: fileManager)
+        try secureWalletStorageDirectory(directory, fileManager: fileManager)
         var values = URLResourceValues()
         values.isExcludedFromBackup = true
         var mutableDirectory = directory
@@ -7024,6 +7021,32 @@ final class WalletViewController: UIViewController {
         )
         alert.addAction(UIAlertAction(title: "OK", style: .default))
         walletPresentationHost.present(alert, animated: true)
+    }
+}
+
+/// The native wallet store rejects a final database directory unless it is
+/// owned by this process and has exactly owner-only `0700` permissions. iOS
+/// file protection and POSIX permissions are independent attributes, so both
+/// must be applied and verified before Rust opens or creates SQLite state.
+func secureWalletStorageDirectory(
+    _ directory: URL,
+    fileManager: FileManager = .default
+) throws {
+    try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+    try fileManager.setAttributes(
+        [
+            .protectionKey: FileProtectionType.complete,
+            .posixPermissions: NSNumber(value: 0o700),
+        ],
+        ofItemAtPath: directory.path
+    )
+    let attributes = try fileManager.attributesOfItem(atPath: directory.path)
+    guard let permissions = attributes[.posixPermissions] as? NSNumber,
+          permissions.uint16Value & 0o777 == 0o700 else {
+        throw WalletProviderError(
+            code: "walletStoragePermissions",
+            message: "The private wallet directory could not be protected for this app."
+        )
     }
 }
 

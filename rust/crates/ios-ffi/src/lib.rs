@@ -466,19 +466,26 @@ const fn size_u32<T>() -> u32 {
 
 struct FfiFailure {
     code: HnsBrowserResult,
-    message: &'static str,
+    message: String,
 }
 
 impl FfiFailure {
-    const fn new(code: HnsBrowserResult, message: &'static str) -> Self {
+    fn new(code: HnsBrowserResult, message: &'static str) -> Self {
+        Self {
+            code,
+            message: message.to_owned(),
+        }
+    }
+
+    fn owned(code: HnsBrowserResult, message: String) -> Self {
         Self { code, message }
     }
 
-    const fn invalid(message: &'static str) -> Self {
+    fn invalid(message: &'static str) -> Self {
         Self::new(HNS_BROWSER_RESULT_INVALID_ARGUMENT, message)
     }
 
-    const fn internal() -> Self {
+    fn internal() -> Self {
         Self::new(
             HNS_BROWSER_RESULT_RUNTIME_ERROR,
             "internal runtime state is unavailable",
@@ -527,7 +534,7 @@ fn ffi_call(operation: impl FnOnce() -> Result<(), FfiFailure>) -> HnsBrowserRes
     })) {
         Ok(Ok(())) => HNS_BROWSER_RESULT_OK,
         Ok(Err(failure)) => {
-            contained_set_last_error(failure.message);
+            contained_set_last_error(&failure.message);
             failure.code
         }
         Err(_) => {
@@ -543,7 +550,7 @@ fn ffi_call_preserving_error(
     match catch_unwind(AssertUnwindSafe(operation)) {
         Ok(Ok(())) => HNS_BROWSER_RESULT_OK,
         Ok(Err(failure)) => {
-            contained_set_last_error(failure.message);
+            contained_set_last_error(&failure.message);
             failure.code
         }
         Err(_) => {
@@ -3157,6 +3164,13 @@ fn wallet_runtime_failure(message: &'static str) -> FfiFailure {
     FfiFailure::new(HNS_BROWSER_RESULT_RUNTIME_ERROR, message)
 }
 
+fn wallet_runtime_error(operation: &'static str, error: &impl std::fmt::Display) -> FfiFailure {
+    FfiFailure::owned(
+        HNS_BROWSER_RESULT_RUNTIME_ERROR,
+        format!("{operation}: {error}"),
+    )
+}
+
 fn direct_hns_not_ready(message: &'static str) -> FfiFailure {
     FfiFailure::new(HNS_BROWSER_RESULT_NOT_READY, message)
 }
@@ -4540,7 +4554,7 @@ pub unsafe extern "C" fn hns_browser_wallet_create(
         let policy = HnsBootstrapPolicy::new(wallet_network(network)?, birthday_height);
         let reservation = reserve_wallet_start()?;
         let creation = MobileWalletController::create(&path, &key, MobilePlatform::Ios, policy)
-            .map_err(|_| wallet_runtime_failure("unable to create native wallet"))?;
+            .map_err(|error| wallet_runtime_error("unable to create native wallet", &error))?;
         let (controller, recovery_phrase) = creation.into_parts();
         let recovery_phrase =
             SensitiveBytes(recovery_phrase.expose_for_dedicated_display().into_bytes());
@@ -4599,7 +4613,7 @@ pub unsafe extern "C" fn hns_browser_wallet_restore(
         } else {
             MobileWalletController::restore(&path, &key, MobilePlatform::Ios, policy, phrase)
         }
-        .map_err(|_| wallet_runtime_failure("unable to restore native wallet"))?;
+        .map_err(|error| wallet_runtime_error("unable to restore native wallet", &error))?;
         let handle = insert_wallet(
             WalletEntry {
                 controller: NativeWalletController::Lifecycle(controller),
@@ -4640,7 +4654,7 @@ pub unsafe extern "C" fn hns_browser_wallet_open(
         let bitcoin_data_dir = ios_wallet_bitcoin_data_dir(&path);
         let reservation = reserve_wallet_start()?;
         let controller = MobileWalletController::open(&path, &key, MobilePlatform::Ios)
-            .map_err(|_| wallet_runtime_failure("unable to open native wallet"))?;
+            .map_err(|error| wallet_runtime_error("unable to open native wallet", &error))?;
         let handle = insert_wallet(
             WalletEntry {
                 controller: NativeWalletController::Lifecycle(controller),
@@ -8578,6 +8592,16 @@ mod tests {
         assert!(bounded.len() <= MAX_ERROR_BYTES);
         assert!(std::str::from_utf8(bounded.as_bytes()).is_ok());
         assert_eq!(
+            ffi_call(|| {
+                Err(FfiFailure::owned(
+                    HNS_BROWSER_RESULT_RUNTIME_ERROR,
+                    "native wallet detail retained".to_owned(),
+                ))
+            }),
+            HNS_BROWSER_RESULT_RUNTIME_ERROR
+        );
+        assert_eq!(last_error_snapshot(), "native wallet detail retained");
+        assert_eq!(
             ffi_call(|| -> Result<(), FfiFailure> { panic!("contained test panic") }),
             HNS_BROWSER_RESULT_PANIC
         );
@@ -8815,6 +8839,68 @@ mod tests {
         assert_eq!(hns_browser_runtime_destroy(second), HNS_BROWSER_RESULT_OK);
         cleanup_dir(&first_dir);
         cleanup_dir(&second_dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn wallet_create_reports_and_recovers_from_unsafe_directory_permissions() {
+        let _guard = test_guard();
+        let id = NEXT_TEST_DIR.fetch_add(1, Ordering::Relaxed);
+        let data_dir = std::path::Path::new("/tmp")
+            .join(format!(
+                "hns-browser-ios-ffi-wallet-directory-permissions-{}-{id}",
+                std::process::id()
+            ))
+            .to_string_lossy()
+            .into_owned();
+        fs::create_dir_all(&data_dir).expect("wallet test directory");
+        fs::set_permissions(&data_dir, fs::Permissions::from_mode(0o755))
+            .expect("unsafe wallet test directory fixture");
+        let database_path = std::path::Path::new(&data_dir).join("wallet.sqlite3");
+        let database_path = database_path.to_string_lossy().into_owned();
+        let database_key = [0x53_u8; MOBILE_DATABASE_KEY_BYTES];
+        let mut wallet = 0;
+
+        // SAFETY: All borrowed slices and the output handle remain valid for this call.
+        assert_eq!(
+            unsafe {
+                hns_browser_wallet_create(
+                    ffi_slice(database_path.as_bytes()),
+                    ffi_slice(&database_key),
+                    HNS_BROWSER_NETWORK_REGTEST,
+                    0,
+                    &mut wallet,
+                )
+            },
+            HNS_BROWSER_RESULT_RUNTIME_ERROR
+        );
+        assert_eq!(wallet, 0);
+        assert_eq!(
+            last_error_snapshot(),
+            "unable to create native wallet: wallet database or parent ownership/mode is unsafe"
+        );
+
+        fs::set_permissions(&data_dir, fs::Permissions::from_mode(0o700))
+            .expect("owner-only wallet test directory");
+        // SAFETY: All borrowed slices and the output handle remain valid for this call.
+        let repaired_result = unsafe {
+            hns_browser_wallet_create(
+                ffi_slice(database_path.as_bytes()),
+                ffi_slice(&database_key),
+                HNS_BROWSER_NETWORK_REGTEST,
+                0,
+                &mut wallet,
+            )
+        };
+        assert_eq!(
+            repaired_result,
+            HNS_BROWSER_RESULT_OK,
+            "{}",
+            last_error_snapshot()
+        );
+        assert_ne!(wallet, 0);
+        assert_eq!(hns_browser_wallet_destroy(wallet), HNS_BROWSER_RESULT_OK);
+        cleanup_dir(&data_dir);
     }
 
     #[cfg(unix)]

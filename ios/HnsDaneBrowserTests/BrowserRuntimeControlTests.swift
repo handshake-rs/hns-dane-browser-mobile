@@ -2073,6 +2073,22 @@ final class BrowserRuntimeControlTests: XCTestCase {
         ))
     }
 
+    func testWalletStorageDirectoryIsOwnerOnlyBeforeNativeOpen() throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory.appendingPathComponent(
+            "wallet-storage-permissions-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        defer { try? fileManager.removeItem(at: root) }
+        let directory = root.appendingPathComponent("NativeWallet/mainnet", isDirectory: true)
+
+        try secureWalletStorageDirectory(directory, fileManager: fileManager)
+
+        let attributes = try fileManager.attributesOfItem(atPath: directory.path)
+        let permissions = try XCTUnwrap(attributes[.posixPermissions] as? NSNumber)
+        XCTAssertEqual(permissions.uint16Value & 0o777, 0o700)
+    }
+
     @MainActor
     func testWalletHnsPresentationRejectsLateProgressAndFencesReplacementOwnership() throws {
         let networkID = "cache-test-\(UUID().uuidString)"

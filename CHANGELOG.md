@@ -19,6 +19,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+- Enforce owner-only `0700` permissions as well as complete iOS data
+  protection on every native-wallet directory before create, restore, open,
+  or crash-state reconciliation. Native lifecycle failures now retain a
+  bounded underlying reason instead of collapsing every failure into code 5
+  with no actionable detail.
 - Remove the generated recovery phrase from both the visible view hierarchy
   and accessibility traversal while the 24-question verification quiz is
   active. Android and iOS now draw distractors from the complete canonical
