@@ -23,6 +23,7 @@ on:
         options:
           - discover
           - cancel-submission
+          - auto-release
           - apply-metadata
           - submit
       review_contact_source_version:
@@ -40,6 +41,10 @@ on:
         type: string
       confirm_submit:
         description: For submission, enter SUBMIT_FOR_REVIEW_1.0.6_68; to cancel it enter CANCEL_SUBMISSION_1.0.6_68
+        required: false
+        type: string
+      confirm_auto_release:
+        description: To release automatically after approval, enter SET_AUTO_RELEASE_1.0.6_68
         required: false
         type: string
       confirm_account_readiness:
@@ -71,6 +76,7 @@ jobs:
         env:
           ACCOUNT_READY: ${{ inputs.confirm_account_readiness }}
           CONFIRM_METADATA: ${{ inputs.confirm_metadata }}
+          CONFIRM_AUTO_RELEASE: ${{ inputs.confirm_auto_release }}
           CONFIRM_SUBMIT: ${{ inputs.confirm_submit }}
           DISPATCH_COMMIT: ${{ github.sha }}
           DISPATCH_REF: ${{ github.ref }}
@@ -112,6 +118,10 @@ jobs:
               ;;
             cancel-submission)
               [[ "$CONFIRM_SUBMIT" == CANCEL_SUBMISSION_1.0.6_68 ]]
+              ;;
+            auto-release)
+              [[ "$EXPECTED_UPLOAD_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+              [[ "$CONFIRM_AUTO_RELEASE" == SET_AUTO_RELEASE_1.0.6_68 ]]
               ;;
             apply-metadata)
               [[ "$EXPECTED_UPLOAD_RUN_ID" =~ ^[1-9][0-9]*$ ]]
@@ -186,7 +196,7 @@ jobs:
             --expected-build 68 >/dev/null
 
       - name: Validate the successful exact-commit upload run
-        if: ${{ inputs.mode == 'apply-metadata' || inputs.mode == 'submit' }}
+        if: ${{ inputs.mode == 'auto-release' || inputs.mode == 'apply-metadata' || inputs.mode == 'submit' }}
         env:
           EXPECTED_ARTIFACT_COMMIT: ${{ inputs.expected_artifact_commit }}
           GH_TOKEN: ${{ github.token }}
@@ -293,6 +303,7 @@ jobs:
         env:
           ACCOUNT_READY: ${{ inputs.confirm_account_readiness }}
           CONFIRM_METADATA: ${{ inputs.confirm_metadata }}
+          CONFIRM_AUTO_RELEASE: ${{ inputs.confirm_auto_release }}
           CONFIRM_SCREENSHOT_REPLACEMENT: ${{ inputs.confirm_screenshot_replacement }}
           CONFIRM_SUBMIT: ${{ inputs.confirm_submit }}
           EXPECTED_COMMIT: ${{ inputs.expected_commit }}
@@ -311,7 +322,7 @@ jobs:
             --expected-build 68
             --review-contact-source-version "$REVIEW_CONTACT_SOURCE_VERSION"
           )
-          if [[ "$MODE" != discover ]]; then
+          if [[ "$MODE" == apply-metadata || "$MODE" == submit ]]; then
             arguments+=(
               --confirm-metadata "$CONFIRM_METADATA"
             )
@@ -332,6 +343,9 @@ jobs:
               --cancel-build 64
               --confirm-cancel "$CONFIRM_SUBMIT"
             )
+          fi
+          if [[ "$MODE" == auto-release ]]; then
+            arguments+=(--confirm-auto-release "$CONFIRM_AUTO_RELEASE")
           fi
           python3 scripts/app_store_connect_release.py "${arguments[@]}"
 

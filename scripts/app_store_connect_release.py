@@ -30,6 +30,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 API_ORIGIN = "https://api.appstoreconnect.apple.com"
 BUNDLE_ID = "com.denuoweb.hnsdane.ios"
 LOCALE = "en-US"
+RELEASE_TYPE = "AFTER_APPROVAL"
 SCREENSHOT_DISPLAY_TYPES = {
     "iphone": "APP_IPHONE_65",
     "ipad": "APP_IPAD_PRO_3GEN_129",
@@ -165,6 +166,10 @@ class LocalRelease:
     @property
     def submit_confirmation(self) -> str:
         return f"SUBMIT_FOR_REVIEW_{self.version}_{self.build}"
+
+    @property
+    def auto_release_confirmation(self) -> str:
+        return f"SET_AUTO_RELEASE_{self.version}_{self.build}"
 
     @property
     def screenshot_replacement_confirmation(self) -> str:
@@ -544,6 +549,7 @@ def validate_confirmations(
     screenshot_replacement_confirmation: str | None = None,
     cancel_build: str | None = None,
     cancel_confirmation: str | None = None,
+    auto_release_confirmation: str | None = None,
 ) -> None:
     if screenshot_replacement_confirmation:
         if mode not in {"apply-metadata", "submit"}:
@@ -576,6 +582,12 @@ def validate_confirmations(
         if cancel_confirmation != required:
             raise ReleaseError(
                 f"review cancellation requires --confirm-cancel {required}"
+            )
+    if mode == "auto-release":
+        if auto_release_confirmation != release.auto_release_confirmation:
+            raise ReleaseError(
+                "automatic release requires --confirm-auto-release "
+                f"{release.auto_release_confirmation}"
             )
 
 
@@ -1014,6 +1026,7 @@ class ReleaseManager:
                 "hasReviewDetail": review_detail is not None,
                 "screenshots": screenshot_summary,
                 "usesIdfa": attrs.get("usesIdfa"),
+                "releaseType": attrs.get("releaseType"),
                 "versionString": attrs.get("versionString"),
             }
         for submission in self.active_review_submissions(app_id):
@@ -1039,7 +1052,7 @@ class ReleaseManager:
                         "attributes": {
                             "copyright": self.release.metadata["copyright"],
                             "platform": "IOS",
-                            "releaseType": "MANUAL",
+                            "releaseType": RELEASE_TYPE,
                             "reviewType": "APP_STORE",
                             "usesIdfa": False,
                             "versionString": self.release.version,
@@ -1064,7 +1077,7 @@ class ReleaseManager:
                         "id": version_id,
                         "attributes": {
                             "copyright": self.release.metadata["copyright"],
-                            "releaseType": "MANUAL",
+                            "releaseType": RELEASE_TYPE,
                             "reviewType": "APP_STORE",
                             "usesIdfa": False,
                         },
@@ -1137,7 +1150,7 @@ class ReleaseManager:
                 for family, attributes in sorted(accessibility_readback.items())
             },
             "screenshots": "replaced-and-verified" if requested_sets else "unchanged",
-            "releaseType": "MANUAL",
+            "releaseType": RELEASE_TYPE,
         }
         if requested_sets:
             result["screenshotCount"] = sum(len(paths) for paths in requested_sets.values())
@@ -1675,8 +1688,10 @@ class ReleaseManager:
         attributes = _resource_attributes(version)
         if attributes.get("versionString") != self.release.version:
             raise ReleaseError("App Store version readback differs from the exact release")
-        if attributes.get("releaseType") != "MANUAL":
-            raise ReleaseError("App Store release type readback is not MANUAL")
+        if attributes.get("releaseType") != RELEASE_TYPE:
+            raise ReleaseError(
+                f"App Store release type readback is not {RELEASE_TYPE}"
+            )
         if attributes.get("reviewType") != "APP_STORE":
             raise ReleaseError("App Store review type readback is not APP_STORE")
         if not is_no_idfa_readback(attributes):
@@ -1856,6 +1871,104 @@ class ReleaseManager:
             "version": self.release.version,
         }
 
+    def set_auto_release(self) -> dict[str, Any]:
+        """Set one exact submitted version to automatic release after approval."""
+        app = self.find_app()
+        app_id = _resource_id(app, "apps")
+        version = self.find_version(app_id, self.release.version)
+        if version is None:
+            raise ReleaseError("the exact App Store version does not exist")
+        version_id = _resource_id(version, "appStoreVersions")
+        build = self.find_build(app_id)
+        if build is None:
+            raise ReleaseError("the exact App Store build does not exist")
+        build_id = _resource_id(build, "builds")
+        if self.attached_build_id(version_id) != build_id:
+            raise ReleaseError(
+                "automatic release refused a version attached to another build"
+            )
+
+        active = self.active_review_submissions(app_id)
+        if len(active) != 1:
+            raise ReleaseError(
+                "automatic release requires exactly one active review submission"
+            )
+        submission = active[0]
+        submission_id = _resource_id(submission, "reviewSubmissions")
+        review_state = _resource_attributes(submission).get("state")
+        if review_state not in SUBMITTED_REVIEW_STATES:
+            raise ReleaseError(
+                "automatic release requires an already submitted App Review version"
+            )
+        items = self.submission_items(submission_id)
+        if len(items) != 1 or _relationship_id(
+            items[0], "appStoreVersion", "appStoreVersions"
+        ) != version_id:
+            raise ReleaseError(
+                "automatic release refused an unrelated or multi-item submission"
+            )
+
+        document = self.api.request("GET", f"/v1/appStoreVersions/{version_id}")
+        current = _data_resource(document, "appStoreVersions")
+        attributes = _resource_attributes(current)
+        if attributes.get("versionString") != self.release.version:
+            raise ReleaseError("automatic release version readback differs")
+        current_release_type = attributes.get("releaseType")
+        if current_release_type == RELEASE_TYPE:
+            return {
+                "alreadyConfigured": True,
+                "build": self.release.build,
+                "releaseType": RELEASE_TYPE,
+                "reviewState": review_state,
+                "version": self.release.version,
+            }
+        if current_release_type != "MANUAL":
+            raise ReleaseError(
+                f"refusing to replace unexpected release type {current_release_type}"
+            )
+
+        verify_exact_current_main(self.release)
+        self.api.request(
+            "PATCH",
+            f"/v1/appStoreVersions/{version_id}",
+            body={
+                "data": {
+                    "type": "appStoreVersions",
+                    "id": version_id,
+                    "attributes": {"releaseType": RELEASE_TYPE},
+                }
+            },
+        )
+        document = self.api.request("GET", f"/v1/appStoreVersions/{version_id}")
+        updated = _data_resource(document, "appStoreVersions")
+        updated_attributes = _resource_attributes(updated)
+        if (
+            updated_attributes.get("versionString") != self.release.version
+            or updated_attributes.get("releaseType") != RELEASE_TYPE
+        ):
+            raise ReleaseError("automatic release readback did not converge")
+
+        active_after = self.active_review_submissions(app_id)
+        if len(active_after) != 1 or _resource_id(
+            active_after[0], "reviewSubmissions"
+        ) != submission_id:
+            raise ReleaseError("the active review submission changed during release update")
+        state_after = _resource_attributes(active_after[0]).get("state")
+        if state_after not in SUBMITTED_REVIEW_STATES:
+            raise ReleaseError("the review submission left its submitted state")
+        items_after = self.submission_items(submission_id)
+        if len(items_after) != 1 or _relationship_id(
+            items_after[0], "appStoreVersion", "appStoreVersions"
+        ) != version_id:
+            raise ReleaseError("the submitted review item changed during release update")
+        return {
+            "alreadyConfigured": False,
+            "build": self.release.build,
+            "releaseType": RELEASE_TYPE,
+            "reviewState": state_after,
+            "version": self.release.version,
+        }
+
     def existing_submission_status(self) -> dict[str, Any] | None:
         """Return a read-only exact-version submission result, if one exists."""
         app = self.find_app()
@@ -1905,6 +2018,7 @@ def local_plan(release: LocalRelease) -> dict[str, Any]:
             release.screenshot_replacement_confirmation
         ),
         "requiredSubmitConfirmation": release.submit_confirmation,
+        "requiredAutoReleaseConfirmation": release.auto_release_confirmation,
     }
 
 
@@ -1924,6 +2038,8 @@ def execute_authenticated_mode(
         if cancel_build is None:
             raise ReleaseError("review cancellation requires one exact build")
         return {"cancellation": manager.cancel_submission(cancel_build)}
+    if mode == "auto-release":
+        return {"automaticRelease": manager.set_auto_release()}
     result = {"metadata": manager.apply_metadata()}
     if mode == "submit":
         result["submission"] = manager.submit()
@@ -1972,7 +2088,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--mode",
-        choices=("plan", "discover", "cancel-submission", "apply-metadata", "submit"),
+        choices=(
+            "plan",
+            "discover",
+            "cancel-submission",
+            "auto-release",
+            "apply-metadata",
+            "submit",
+        ),
         default="plan",
     )
     parser.add_argument("--expected-commit", required=True)
@@ -1987,6 +2110,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--confirm-submit")
     parser.add_argument("--cancel-build")
     parser.add_argument("--confirm-cancel")
+    parser.add_argument("--confirm-auto-release")
     parser.add_argument("--confirm-account-readiness", action="store_true")
     return parser
 
@@ -2011,6 +2135,7 @@ def main() -> int:
             args.confirm_screenshot_replacement,
             args.cancel_build,
             args.confirm_cancel,
+            args.confirm_auto_release,
         )
         if args.screenshots_dir and not args.confirm_screenshot_replacement:
             raise ReleaseError(
@@ -2031,7 +2156,12 @@ def main() -> int:
         api = AppStoreConnectApi(JwtProvider(key_id, issuer_id, Path(key_path_value)))
         screenshot_paths = None
         screenshot_sets = None
-        if args.mode in {"cancel-submission", "apply-metadata", "submit"}:
+        if args.mode in {
+            "cancel-submission",
+            "auto-release",
+            "apply-metadata",
+            "submit",
+        }:
             verify_exact_current_main(release)
         if args.screenshots_dir:
             screenshot_sets = verified_screenshot_sets(

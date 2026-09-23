@@ -35,6 +35,7 @@ class FakeApi:
     def __init__(self, active_state: str | None = None):
         self.active_state = active_state
         self.item_created = active_state is not None
+        self.release_type = "MANUAL"
         self.requests: list[tuple[str, str, object, object]] = []
 
     def list(self, path, *, params=None):
@@ -55,6 +56,7 @@ class FakeApi:
                     "version",
                     versionString="1.0.5",
                     appStoreState="PREPARE_FOR_SUBMISSION",
+                    releaseType=self.release_type,
                 )
             ]
         if path == "/v1/builds":
@@ -80,6 +82,25 @@ class FakeApi:
         self.requests.append((method, path, params, body))
         if method == "GET" and path == "/v1/appStoreVersions/version/relationships/build":
             return {"data": {"type": "builds", "id": "build-66"}}
+        if method == "GET" and path == "/v1/appStoreVersions/version":
+            return {
+                "data": resource(
+                    "appStoreVersions",
+                    "version",
+                    versionString="1.0.5",
+                    releaseType=self.release_type,
+                )
+            }
+        if method == "PATCH" and path == "/v1/appStoreVersions/version":
+            self.release_type = body["data"]["attributes"]["releaseType"]
+            return {
+                "data": resource(
+                    "appStoreVersions",
+                    "version",
+                    versionString="1.0.5",
+                    releaseType=self.release_type,
+                )
+            }
         if method == "POST" and path == "/v1/reviewSubmissions":
             self.active_state = "READY_FOR_REVIEW"
             return {"data": resource("reviewSubmissions", "submission", state="READY_FOR_REVIEW")}
@@ -318,6 +339,24 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             False,
             cancel_build="68",
             cancel_confirmation="CANCEL_SUBMISSION_1.0.6_68",
+        )
+        with self.assertRaisesRegex(
+            release_client.ReleaseError, "confirm-auto-release"
+        ):
+            release_client.validate_confirmations(
+                self.release,
+                "auto-release",
+                None,
+                None,
+                False,
+            )
+        release_client.validate_confirmations(
+            self.release,
+            "auto-release",
+            None,
+            None,
+            False,
+            auto_release_confirmation="SET_AUTO_RELEASE_1.0.6_68",
         )
 
     def test_screenshot_replacement_confirmation_is_exact_and_mutation_only(self):
@@ -613,6 +652,44 @@ class SubmissionSafetyTests(unittest.TestCase):
         ]
         self.assertEqual(len(cancel), 1)
         self.assertIs(cancel[0][3]["data"]["attributes"]["canceled"], True)
+
+    def test_auto_release_preserves_exact_active_submission(self):
+        api = FakeApi(active_state="WAITING_FOR_REVIEW")
+        manager = self.make_manager(api)
+        with mock.patch.object(release_client, "verify_exact_current_main") as verify:
+            result = manager.set_auto_release()
+        self.assertEqual(
+            result,
+            {
+                "alreadyConfigured": False,
+                "build": "66",
+                "releaseType": "AFTER_APPROVAL",
+                "reviewState": "WAITING_FOR_REVIEW",
+                "version": "1.0.5",
+            },
+        )
+        verify.assert_called_once_with(manager.release)
+        mutations = [
+            request
+            for request in api.requests
+            if request[0] == "PATCH"
+        ]
+        self.assertEqual(len(mutations), 1)
+        self.assertEqual(mutations[0][1], "/v1/appStoreVersions/version")
+        self.assertEqual(
+            mutations[0][3]["data"]["attributes"],
+            {"releaseType": "AFTER_APPROVAL"},
+        )
+        self.assertEqual(api.active_state, "WAITING_FOR_REVIEW")
+
+        with mock.patch.object(release_client, "verify_exact_current_main") as verify:
+            second = manager.set_auto_release()
+        self.assertTrue(second["alreadyConfigured"])
+        verify.assert_not_called()
+        self.assertEqual(
+            len([request for request in api.requests if request[0] == "PATCH"]),
+            1,
+        )
 
     def test_developer_rejected_version_remains_editable_for_replacement(self):
         manager = self.make_manager(FakeApi())
