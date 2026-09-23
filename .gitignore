@@ -10,6 +10,7 @@ android/build/
 android/app/build/
 rust/target/
 rust/fuzz/target/
+diagnostics/
 
 # OS/editor
 .DS_Store
