@@ -1,12 +1,14 @@
 # App Store submission checklist
 
-Candidate: iOS `1.0.7`, build `69`, `com.denuoweb.hnsdane.ios`, iPhone/iPad,
+Candidate: iOS `1.0.7`, build `70`, `com.denuoweb.hnsdane.ios`, iPhone/iPad,
 compatible Apple-silicon Macs, Free,
 automatic release after approval.
 
 ## Source and artifact
 
-- [x] Increment every iOS candidate, metadata, test, and workflow version surface to `1.0.7` / build `69` while retaining the independently versioned Android and Rust releases.
+- [x] Increment every iOS candidate, metadata, test, and workflow version surface to `1.0.7` / build `70` while retaining the independently versioned Android and Rust releases.
+- [x] Read back App Store Connect before replacement; no active review
+  submission or attached `1.0.7` build required withdrawal.
 - [x] Keep the rejected/unapproved `com.apple.developer.web-browser` capability out of this candidate while registering `http`/`https` and directly handling incoming targets for the renewed request.
 - [x] Keep `com.apple.developer.browser.app-installation` absent until Apple approves it; exact `marketplace-kit` navigation now remains in WebKit for MarketplaceKit validation.
 - [ ] Push the exact candidate and require all repository, Rust, Android, Apple, Required CI, and CodeQL gates to pass.

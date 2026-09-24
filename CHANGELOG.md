@@ -19,6 +19,16 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.0.7 - 2026-09-23
+
+Android `1.0.7` / code `59` and iOS `1.0.7` / build `70` are the coordinated
+store candidates. iOS build `70` replaces build `69` so newly created and
+restored wallets always receive the owner-only directory permissions required
+by the native wallet boundary. They retain embedded Rust workspace `1.0.2` and
+replace all sibling source overrides with exact, checksum-bearing registry
+releases: `hns-rs 0.4.2`, the seven-crate engine `0.2.5` mobile/wallet cohort,
+and all 16 `hns-wallet-rs 0.2.5` crates.
+
 - Enforce owner-only `0700` permissions as well as complete iOS data
   protection on every native-wallet directory before create, restore, open,
   or crash-state reconciliation. Native lifecycle failures now retain a
@@ -34,14 +44,6 @@ All notable changes to this project will be documented in this file.
 - Explain the distinct payment and name-transfer receive purposes in both
   wallet shells. Ordinary HNS accidentally sent to the name-transfer address
   is now recoverable and spendable after synchronization.
-
-## 1.0.7 - 2026-09-23
-
-Android `1.0.7` / code `59` and iOS `1.0.7` / build `69` are the coordinated
-store candidates. They retain embedded Rust workspace `1.0.2` and replace all
-sibling source overrides with exact, checksum-bearing registry releases:
-`hns-rs 0.4.2`, the seven-crate engine `0.2.5` mobile/wallet cohort, and all
-16 `hns-wallet-rs 0.2.4` crates.
 
 - Publish the wallet and peer-discovery implementation tested after `1.0.6`,
   including current direct ShakeScape board replication, swap recovery,

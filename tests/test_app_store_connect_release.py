@@ -231,7 +231,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             "a" * 40,
             "a" * 40,
             "1.0.7",
-            "69",
+            "70",
             {},
         )
 
@@ -241,14 +241,14 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             "a" * 40,
             "a" * 40,
             "1.0.7",
-            "69",
+            "70",
         )
         plan = release_client.local_plan(release)
         self.assertEqual(plan["mode"], "plan")
         self.assertEqual(plan["networkRequests"], 0)
         self.assertEqual(plan["mutations"], 0)
         self.assertEqual(plan["version"], "1.0.7")
-        self.assertEqual(plan["build"], "69")
+        self.assertEqual(plan["build"], "70")
         serialized = json.dumps(plan)
         self.assertNotIn(release.metadata["reviewNotes"], serialized)
 
@@ -269,7 +269,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             "--expected-version",
             "1.0.7",
             "--expected-build",
-            "69",
+            "70",
         ]
         with (
             mock.patch.object(sys, "argv", arguments),
@@ -286,7 +286,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             "a" * 40,
             "a" * 40,
             "1.0.7",
-            "69",
+            "70",
         )
 
     def test_mutations_require_release_specific_confirmation_strings(self):
@@ -356,7 +356,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             None,
             None,
             False,
-            auto_release_confirmation="SET_AUTO_RELEASE_1.0.7_69",
+            auto_release_confirmation="SET_AUTO_RELEASE_1.0.7_70",
         )
 
     def test_screenshot_replacement_confirmation_is_exact_and_mutation_only(self):
@@ -400,7 +400,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             "--expected-version",
             "1.0.7",
             "--expected-build",
-            "69",
+            "70",
         ]
         self.assertIsNone(parser.parse_args(base).screenshots_dir)
 
@@ -1081,10 +1081,11 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn('[[ "$DISPATCH_COMMIT" == "$EXPECTED_COMMIT" ]]', workflow)
         self.assertIn("git ls-remote --exit-code origin refs/heads/main", workflow)
         self.assertIn("group: global-ios-app-store-upload-lease", workflow)
-        self.assertIn("APPLY_METADATA_1.0.7_69", workflow)
-        self.assertIn("REPLACE_SCREENSHOTS_1.0.7_69", workflow)
-        self.assertIn("SUBMIT_FOR_REVIEW_1.0.7_69", workflow)
+        self.assertIn("APPLY_METADATA_1.0.7_70", workflow)
+        self.assertIn("REPLACE_SCREENSHOTS_1.0.7_70", workflow)
+        self.assertIn("SUBMIT_FOR_REVIEW_1.0.7_70", workflow)
         self.assertIn("CANCEL_SUBMISSION_1.0.7_69", workflow)
+        self.assertIn("--cancel-build 69", workflow)
         self.assertIn('[[ "$ACCOUNT_READY" == true ]]', workflow)
         self.assertIn('.path == ".github/workflows/ios-app-store-upload.yml"', workflow)
         self.assertIn("expected_artifact_commit:", workflow)

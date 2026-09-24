@@ -12,8 +12,8 @@ into the app.
 | --- | --- | --- |
 | Android app | `1.0.7` / code `59` | `android/app/build.gradle.kts` |
 | Embedded Rust workspace | `1.0.2` (`publish = false`) | `rust/Cargo.toml` |
-| iOS app | `1.0.7` / build `69` | `ios/project.yml` |
-| Native wallet controller | published `0.2.4` cohort | `rust/Cargo.toml`, `rust/Cargo.lock` |
+| iOS app | `1.0.7` / build `70` | `ios/project.yml` |
+| Native wallet controller | published `0.2.5` cohort | `rust/Cargo.toml`, `rust/Cargo.lock` |
 | Wallet protocol closure | published `hns-rs 0.4.2` | `rust/Cargo.lock` |
 | Rust toolchain | `1.98.1` | `rust/rust-toolchain.toml` |
 | Android file locking | Rust standard-library `File` locks | `rust/crates/hns-mobile-platform-runtime/src/lib.rs` |
@@ -112,7 +112,7 @@ Notes:
   application profile. No requester, transport adapter, endpoint/profile
   validator, provider role, FFI, UI, or native control is instantiated by this
   candidate, and its dedicated release gate remains false.
-- The mobile dependency sequence uses the published wallet `0.2.4` cohort,
+- The mobile dependency sequence uses the published wallet `0.2.5` cohort,
   reviewed HNS `0.4.2`, and exact published engine releases including the
   SQLite-backed browser adapters at `0.2.5`. The complete source and checksum
   policy is documented in [released-dependency-cohort.md](released-dependency-cohort.md).

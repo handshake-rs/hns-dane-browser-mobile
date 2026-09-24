@@ -1,21 +1,27 @@
 # App Store metadata
 
 This directory contains the reviewed listing source for iOS `1.0.7` / build
-`69`, bundle ID `com.denuoweb.hnsdane.ios`. The preceding iOS release and its
+`70`, bundle ID `com.denuoweb.hnsdane.ios`. The preceding iOS release and its
 screenshots predate this candidate and are not evidence for it.
 
 - Version: `1.0.7`
-- Build: `69`
+- Build: `70`
 
 This update brings the current native wallet synchronization, recovery, name
 tracking, Unicode-name, record, transfer/finalization, and diagnostic work to
 iOS. Apple rejected the preceding managed `com.apple.developer.web-browser`
 request because the submitted binary did not register `http` and `https` URL
-schemes. Build 69 registers both schemes, routes incoming URLs directly, and
+schemes. Build 70 registers both schemes, routes incoming URLs directly, and
 keeps exact `marketplace-kit` navigation in WebKit. Neither entitlement is
 requested in this candidate; after Apple approves the renewed capability
 request, a later signed build will add `com.apple.developer.web-browser` and
 `com.apple.developer.browser.app-installation`.
+
+Build 70 also replaces build 69's failed fresh-wallet path: before invoking the
+native wallet, iOS now applies and verifies owner-only `0700` permissions on
+the protected wallet directories. Native lifecycle failures preserve a bounded
+underlying reason for diagnostics instead of reducing every cause to the same
+generic code-5 message.
 
 The listing describes the shipping surface: dual-root browsing and one native,
 noncustodial HNS wallet with direct peer synchronization, receive/QR, guarded

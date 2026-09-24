@@ -3,10 +3,10 @@
 Last audited: 2026-09-07
 
 Current release source coordinates Android `1.0.7` / code `59`, the embedded
-non-publishable Rust workspace `1.0.2`, and iOS `1.0.7` / build `69`. It uses
+non-publishable Rust workspace `1.0.2`, and iOS `1.0.7` / build `70`. It uses
 the reviewed `hns-rs 0.4.2` graph, exact public engine releases (including the
 coherent light-client and SQLite adapter `0.2.5` cohort), and the published
-`hns-wallet-rs 0.2.4` closure. Registry dependencies retain checksums
+`hns-wallet-rs 0.2.5` closure. Registry dependencies retain checksums
 throughout the lockfile, as
 documented in [released-dependency-cohort.md](released-dependency-cohort.md).
 
@@ -190,7 +190,7 @@ with manual release after build `64` was withdrawn.
   not the Play AAB or unchanged iOS build.
 - Current source consumes reviewed `0.4.2` HNS, exact engine releases
   (including the light-client and SQLite-backed adapter crates at `0.2.5`),
-  and the complete published wallet `0.2.4` cohort. Registry packages retain
+  and the complete published wallet `0.2.5` cohort. Registry packages retain
   Cargo checksums; no sibling path patch or Git dependency is admitted. The
   standalone facade is not a mobile input.
   [released-dependency-cohort.md](released-dependency-cohort.md) records the

@@ -196,7 +196,7 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
 
         project = (ROOT / "ios/project.yml").read_text(encoding="utf-8")
         self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 1\.0\.7$")
-        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 69$")
+        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 70$")
         self.assertIn('TARGETED_DEVICE_FAMILY: "1,2"', project)
         self.assertIn("SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: YES", project)
         self.assertIn("- sdk: SystemConfiguration.framework", project)
