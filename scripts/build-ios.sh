@@ -42,6 +42,18 @@ xcodebuild_args=(
   -destination "$DESTINATION"
 )
 
+# XCTest's parallel simulator clones can fail to launch the host application
+# independently of the test being assigned to that clone. A release gate must
+# report application assertions, not clone provisioning races, so run the
+# complete simulator suite against the one concrete, booted destination chosen
+# by run-ios-gate.sh.
+if [[ "$ACTION" == "test" ]]; then
+  xcodebuild_args+=(
+    -parallel-testing-enabled NO
+    -maximum-parallel-testing-workers 1
+  )
+fi
+
 if [[ -n "$RESULT_BUNDLE_INPUT" ]]; then
   command -v python3 >/dev/null 2>&1 || {
     echo "ERROR: python3 is required to validate HNS_IOS_RESULT_BUNDLE_PATH." >&2

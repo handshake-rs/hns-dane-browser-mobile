@@ -117,6 +117,9 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertNotIn(r"\(true\|false\)", runtime_boundaries)
         ios_gate = RUN_IOS_GATE.read_text(encoding="utf-8")
         self.assertIn("--component llvm-tools-preview", ios_gate)
+        ios_builder = BUILD_IOS.read_text(encoding="utf-8")
+        self.assertIn('-parallel-testing-enabled NO', ios_builder)
+        self.assertIn('-maximum-parallel-testing-workers 1', ios_builder)
         for relative in (
             "scripts/check-ios-abi.sh",
             "scripts/build-rust-ios.sh",
