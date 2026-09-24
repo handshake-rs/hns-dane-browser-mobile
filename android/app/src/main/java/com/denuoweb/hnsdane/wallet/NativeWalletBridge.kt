@@ -57,7 +57,6 @@ internal object NativeWalletBridge {
         network: Int,
         birthdayHeight: Long,
         recoveryPhrase: CharArray,
-        legacyDerivation: Boolean = false,
     ): Long = try {
         consumeDatabaseKey(databaseKey) { key ->
             if (
@@ -73,7 +72,6 @@ internal object NativeWalletBridge {
                         network,
                         birthdayHeight,
                         recoveryPhrase,
-                        legacyDerivation,
                     )
                 }.getOrDefault(INVALID_HANDLE)
             }
@@ -1282,7 +1280,6 @@ internal object NativeWalletBridge {
         network: Int,
         birthdayHeight: Long,
         recoveryPhrase: CharArray,
-        legacyDerivation: Boolean,
     ): Long
 
     @JvmStatic

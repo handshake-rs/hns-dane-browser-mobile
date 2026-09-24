@@ -314,7 +314,6 @@
     <string name="row_wallet_create_summary" translatable="false">Create one native HNS account, verify its recovery phrase, and save it offline.</string>
     <string name="row_wallet_restore" translatable="false">Restore wallet</string>
     <string name="row_wallet_restore_summary" translatable="false">Restore exactly 24 English words with an optional HNS birthday block.</string>
-    <string name="wallet_restore_legacy_derivation" translatable="false">Legacy Shakescape wallet (created before BIP-44 compatibility)</string>
     <string name="row_wallet_recovery_confirm" translatable="false">Confirm offline backup</string>
     <string name="row_wallet_recovery_confirm_summary" translatable="false">The wallet is not retained until you correctly verify all 24 recovery words.</string>
     <string name="row_wallet_unlock" translatable="false">Unlock</string>
@@ -329,7 +328,6 @@
     <string name="row_wallet_read_module" translatable="false">Module status</string>
     <string name="row_wallet_read_balance" translatable="false">Confirmed spendable balance</string>
     <string name="row_wallet_read_receive" translatable="false">Payment receive address</string>
-    <string name="row_wallet_read_name_receive" translatable="false">Name transfer receive address</string>
     <string name="row_wallet_read_history" translatable="false">Transaction history</string>
     <string name="row_wallet_read_names" translatable="false">Tracked names</string>
     <string name="row_wallet_name_import" translatable="false">Import exact Handshake name</string>
@@ -459,9 +457,6 @@
     <string name="wallet_reads_receive_unavailable" translatable="false">A payment receive address is not available yet.</string>
     <string name="wallet_reads_receive" translatable="false">%1$s\nDerivation index %2$d\nUse for ordinary HNS payments. A name transferred here remains controlled by this wallet.</string>
     <string name="wallet_reads_receive_local" translatable="false">%1$s\nDerivation index %2$d\nUse for ordinary HNS payments. A name transferred here remains controlled by this wallet. Synchronize before trusting balance/history or sending.</string>
-    <string name="wallet_reads_name_receive_unavailable" translatable="false">A name transfer receive address is not available yet.</string>
-    <string name="wallet_reads_name_receive_legacy_unavailable" translatable="false">Unavailable in this legacy HNWR-v1 wallet snapshot.</string>
-    <string name="wallet_reads_name_receive" translatable="false">%1$s\nName derivation index %2$d\nUse for Handshake name TRANSFER. Ordinary HNS sent here remains recoverable and spendable.</string>
     <string name="wallet_reads_history_unavailable" translatable="false">Transaction history is not available until synchronization completes.</string>
     <string name="wallet_reads_history_empty" translatable="false">No wallet transactions were found in the synchronized snapshot.</string>
     <string name="wallet_reads_transaction" translatable="false">%1$s · %2$s\n%3$s\n%4$s</string>
@@ -764,7 +759,6 @@
     <string name="wallet_dashboard_copy_activity" translatable="false">Copy activity</string>
     <string name="wallet_dashboard_no_synced_activity" translatable="false">No synchronized transaction history</string>
     <string name="wallet_dashboard_receive_message" translatable="false">%1$s</string>
-    <string name="wallet_dashboard_name_transfer" translatable="false">Name transfer</string>
     <string name="wallet_dashboard_copy_address" translatable="false">Copy address</string>
     <string name="wallet_dashboard_address_unavailable" translatable="false">A receive address is not available yet</string>
     <string name="wallet_receive_qr_description" translatable="false">QR code containing this Handshake payment address</string>

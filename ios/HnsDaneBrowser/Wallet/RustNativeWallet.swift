@@ -1514,9 +1514,10 @@ struct NativeHnsReadSnapshot: Equatable, Sendable {
         }
         if let nameReceiveTarget {
             guard receiveTarget.account == nameReceiveTarget.account,
-                  receiveTarget.display != nameReceiveTarget.display else {
+                  receiveTarget.display == nameReceiveTarget.display,
+                  receiveTarget.derivationIndex == nameReceiveTarget.derivationIndex else {
                 throw NativeWalletBridgeError.invalidOutput(
-                    "HNS payment and name receive targets are not distinct"
+                    "HNS receive target aliases disagree"
                 )
             }
         }
@@ -3330,8 +3331,7 @@ final class RustNativeWallet: @unchecked Sendable {
         databaseKey: UnsafeRawBufferPointer,
         network: BrowserHandshakeNetwork,
         birthdayHeight: UInt64,
-        recoveryPhrase: UnsafeRawBufferPointer,
-        legacyDerivation: Bool = false
+        recoveryPhrase: UnsafeRawBufferPointer
     ) throws -> RustNativeWallet {
         var handle: HnsBrowserWalletHandle = 0
         let result = NativeWalletBridge.withUTF8Slice(databasePath) { path in
@@ -3341,7 +3341,6 @@ final class RustNativeWallet: @unchecked Sendable {
                 network.walletNativeValue,
                 birthdayHeight,
                 NativeWalletBridge.slice(recoveryPhrase),
-                legacyDerivation ? 1 : 0,
                 &handle
             )
         }

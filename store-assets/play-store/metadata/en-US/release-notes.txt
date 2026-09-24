@@ -1,1 +1,1 @@
-1.0.7 publishes the coordinated wallet, peer-discovery, swap-recovery, and mobile browser fixes from exact audited Rust crates.
+1.0.8 uses one hsd/Bob-compatible account-zero receive chain for ordinary HNS and Handshake name ownership.

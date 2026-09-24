@@ -126,7 +126,6 @@ import com.denuoweb.hnsdane.wallet.exactWalletNameUtf8
 import com.denuoweb.hnsdane.wallet.displayAmount
 import com.denuoweb.hnsdane.wallet.formatHnsBaseUnits
 import com.denuoweb.hnsdane.wallet.hnsBalanceProjection
-import com.denuoweb.hnsdane.wallet.hnsReceiveTargets
 import com.denuoweb.hnsdane.wallet.parsePositiveHnsToBaseUnits
 import com.denuoweb.hnsdane.wallet.parseWalletRestoreBirthday
 import com.denuoweb.hnsdane.wallet.walletDeleteConfirmationMatches
@@ -215,7 +214,6 @@ class WalletActivity : ComponentActivity() {
     private lateinit var readStatusView: TextView
     private lateinit var balanceView: TextView
     private lateinit var paymentReceiveView: TextView
-    private lateinit var nameReceiveView: TextView
     private lateinit var historyView: TextView
     private lateinit var trackedNamesView: TextView
     @Volatile
@@ -496,7 +494,6 @@ class WalletActivity : ComponentActivity() {
         paymentReceiveView = walletReadSummary(R.string.wallet_reads_receive_unavailable).apply {
             setTextIsSelectable(true)
         }
-        nameReceiveView = walletReadSummary(R.string.wallet_reads_name_receive_unavailable)
         historyView = walletReadSummary(R.string.wallet_reads_history_unavailable)
         trackedNamesView = walletReadSummary(R.string.wallet_reads_names_unavailable)
         nameImportStatusView = walletReadSummary(R.string.wallet_name_import_unavailable)
@@ -1399,17 +1396,12 @@ class WalletActivity : ComponentActivity() {
     private fun showRestoreWalletDialog() {
         val phraseInput = sensitiveRestoreInput()
         val birthdayInput = restoreBirthdayInput()
-        val legacyDerivationInput = android.widget.CheckBox(this).apply {
-            text = getString(R.string.wallet_restore_legacy_derivation)
-            contentDescription = text
-        }
         restoreInput = phraseInput
         val form = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(uiDp(20), uiDp(4), uiDp(20), 0)
             addView(phraseInput)
             addView(birthdayInput)
-            addView(legacyDerivationInput)
             addView(TextView(this@WalletActivity).apply {
                 text = getString(R.string.wallet_restore_birthday_explanation)
                 textSize = 13f
@@ -1433,16 +1425,15 @@ class WalletActivity : ComponentActivity() {
                 }
                 birthdayInput.error = null
                 val phrase = takeRestoreInput(phraseInput)
-                val legacyDerivation = legacyDerivationInput.isChecked
                 if (restoreInput === phraseInput) restoreInput = null
                 dialog.dismiss()
                 if (phrase == null) {
-                    restoreWallet(null, birthday, legacyDerivation)
+                    restoreWallet(null, birthday)
                 } else {
                     requireWalletAuthentication(
                         getString(R.string.wallet_auth_restore_title),
                         getString(R.string.wallet_auth_restore_message),
-                        action = { restoreWallet(phrase, birthday, legacyDerivation) },
+                        action = { restoreWallet(phrase, birthday) },
                         cancelled = { phrase.fill('\u0000') },
                     )
                 }
@@ -1459,7 +1450,7 @@ class WalletActivity : ComponentActivity() {
             Toast.makeText(this, R.string.wallet_pending_outgoing_actions_disabled, Toast.LENGTH_LONG).show()
             return
         }
-        val payment = latestReadSnapshot?.hnsReceiveTargets()?.paymentAddress
+        val payment = latestReadSnapshot?.paymentReceiveTarget?.display
             ?: localPaymentReceiveTarget?.display
             ?: ""
         if (payment.isBlank()) {
@@ -1488,9 +1479,6 @@ class WalletActivity : ComponentActivity() {
                 pendingQrBitmap = walletQrBitmap(paymentUri)
                 saveQrCode.launch("shakescape-hns-receive.png")
             })
-            addView(dashboardActionButton(getString(R.string.wallet_dashboard_name_transfer), secondary = true) {
-                showNameReceiveDialog()
-            })
         }
         val dialog = walletAlertDialogBuilder()
             .setTitle(R.string.wallet_dashboard_receive)
@@ -1510,18 +1498,6 @@ class WalletActivity : ComponentActivity() {
         return Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888).apply {
             setPixels(pixels, 0, size, 0, 0, size, size)
         }
-    }
-
-    private fun showNameReceiveDialog() {
-        val address = latestReadSnapshot?.hnsReceiveTargets()?.nameTransferAddress.orEmpty()
-        walletAlertDialogBuilder()
-            .setTitle(R.string.wallet_dashboard_name_transfer)
-            .setView(walletAddressDialogText(address))
-            .setNegativeButton(R.string.action_cancel, null)
-            .setPositiveButton(R.string.wallet_dashboard_copy_address) { _, _ ->
-                copyWalletAddress(address, R.string.wallet_dashboard_name_transfer)
-            }
-            .show()
     }
 
     private fun walletAddressDialogText(address: String): TextView = TextView(this).apply {
@@ -1546,8 +1522,6 @@ class WalletActivity : ComponentActivity() {
     private fun copyWalletAddress(address: String, label: Int) {
         val unavailableAddresses = setOf(
             getString(R.string.wallet_reads_receive_unavailable),
-            getString(R.string.wallet_reads_name_receive_unavailable),
-            getString(R.string.wallet_reads_name_receive_legacy_unavailable),
         )
         if (address.isBlank() || address in unavailableAddresses) {
             Toast.makeText(this, R.string.wallet_dashboard_address_unavailable, Toast.LENGTH_SHORT).show()
@@ -2956,7 +2930,6 @@ class WalletActivity : ComponentActivity() {
     private fun restoreWallet(
         phrase: CharArray?,
         birthdayHeight: Long,
-        legacyDerivation: Boolean,
     ) {
         if (phrase == null) {
             Toast.makeText(this, R.string.wallet_restore_phrase_required, Toast.LENGTH_SHORT).show()
@@ -2990,7 +2963,6 @@ class WalletActivity : ComponentActivity() {
                 network,
                 birthdayHeight,
                 phrase,
-                legacyDerivation,
             )
             runOnUiThread {
                 busy = false
@@ -8778,7 +8750,6 @@ class WalletActivity : ComponentActivity() {
         paymentReceiveView.text = localPaymentReceiveTarget?.let { target ->
             localPaymentReceiveText(target)
         } ?: getString(R.string.wallet_reads_receive_unavailable)
-        nameReceiveView.text = getString(R.string.wallet_reads_name_receive_unavailable)
         historyView.text = getString(R.string.wallet_reads_history_unavailable)
         trackedNamesView.text = getString(R.string.wallet_reads_names_unavailable)
         if (pendingOutgoingSnapshotHeight != null) {
@@ -9182,13 +9153,6 @@ class WalletActivity : ComponentActivity() {
             snapshot.paymentReceiveTarget.display,
             snapshot.paymentReceiveTarget.derivationIndex,
         )
-        nameReceiveView.text = snapshot.nameReceiveTarget?.let { target ->
-            getString(
-                R.string.wallet_reads_name_receive,
-                target.display,
-                target.derivationIndex,
-            )
-        } ?: getString(R.string.wallet_reads_name_receive_legacy_unavailable)
         val visibleTransactions = snapshot.transactions.take(MAX_VISIBLE_READ_ITEMS)
         historyView.text = if (visibleTransactions.isEmpty()) {
             getString(R.string.wallet_reads_history_empty)

@@ -433,7 +433,8 @@ private object NativeWalletReadSnapshotParser {
             val (target, account) =
                 parseNameReceiveTarget(value.getJSONObject("nameReceiveTarget"))
             require(account.contentEquals(paymentAccount))
-            require(target.display != paymentReceiveTarget.display)
+            require(target.display == paymentReceiveTarget.display)
+            require(target.derivationIndex == paymentReceiveTarget.derivationIndex)
             target
         } else {
             null

@@ -112,30 +112,17 @@ class WalletReadPresentationTest {
     }
 
     @Test
-    fun receiveCopyTargetsRemainRawAndSeparateFromPresentationText() {
+    fun receiveCopyTargetRemainsRawAndSeparateFromPresentationText() {
         val snapshot = walletSnapshot(
             balanceBaseUnits = "0",
             transactions = emptyList(),
-            nameReceiveTarget = NativeWalletNameReceiveTarget(
-                accountId = "02".padEnd(32, '0'),
-                display = "hs1qnameowner",
-                derivationIndex = 9,
-            ),
         )
-
-        assertEquals(
-            WalletHnsReceiveTargets(
-                paymentAddress = "hs1qpayment",
-                nameTransferAddress = "hs1qnameowner",
-            ),
-            snapshot.hnsReceiveTargets(),
-        )
+        assertEquals("hs1qpayment", snapshot.paymentReceiveTarget.display)
     }
 
     private fun walletSnapshot(
         balanceBaseUnits: String,
         transactions: List<NativeWalletTransaction>,
-        nameReceiveTarget: NativeWalletNameReceiveTarget? = null,
     ) = NativeWalletReadSnapshot(
         balanceBaseUnits = balanceBaseUnits,
         paymentReceiveTarget = NativeWalletPaymentReceiveTarget(
@@ -143,7 +130,7 @@ class WalletReadPresentationTest {
             display = "hs1qpayment",
             derivationIndex = 0,
         ),
-        nameReceiveTarget = nameReceiveTarget,
+        nameReceiveTarget = null,
         height = 1,
         transactions = transactions,
         trackedNames = emptyList(),

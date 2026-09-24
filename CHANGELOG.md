@@ -19,6 +19,19 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.0.8 - 2026-09-24
+
+Android `1.0.8` / code `60` and iOS `1.0.8` / build `71` use the coordinated
+`hns-wallet-rs 0.2.6` cohort.
+
+- Use one hsd/Bob-compatible account-zero receive chain for ordinary HNS and
+  Handshake name ownership.
+- Remove alternate restore selection and the separate name-transfer address
+  controls from Android, iOS, JNI, and the Apple C/Swift binding.
+- Drive payment and name-transfer projections from one native-validated
+  receive target while retaining protocol-specific ShakeDex and atomic-swap
+  keys.
+
 ## 1.0.7 - 2026-09-23
 
 Android `1.0.7` / code `59` and iOS `1.0.7` / build `70` are the coordinated

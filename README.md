@@ -7,13 +7,13 @@ wallet, and direct peer-to-peer ShakeDex name and HNS/BTC swap workflows.
 
 - [Google Play](https://play.google.com/store/apps/details?id=com.denuoweb.hnsdane)
 - [Apple App Store](https://apps.apple.com/us/app/hns-dane-browser/id6791914326)
-- [GitHub release v1.0.6](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v1.0.6)
-- [Signed Android APK](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/download/v1.0.6/shakescape-v1.0.6-android-release.apk)
-- [Signed iOS App Store IPA](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/download/v1.0.6/shakescape-v1.0.6-ios-app-store.ipa)
-- [SHA-256 checksums](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/download/v1.0.6/SHA256SUMS-v1.0.6.txt)
+- [GitHub release v1.0.7](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v1.0.7)
+- [Signed Android APK](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/download/v1.0.7/shakescape-v1.0.7-android-release.apk)
+- [Signed iOS App Store IPA](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/download/v1.0.7/shakescape-v1.0.7-ios-app-store.ipa)
+- [SHA-256 checksums](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/download/v1.0.7/SHA256SUMS-v1.0.7.txt)
 
-The current distributed release is Android `1.0.6` / code `58` and iOS
-`1.0.6` / build `68`. The repository’s embedded Rust workspace is private to
+The current distributed release is Android `1.0.7` / code `59` and iOS
+`1.0.7` / build `70`. The repository’s embedded Rust workspace is private to
 the application and is not published as a crate.
 
 ## What is implemented
@@ -133,7 +133,7 @@ from [`hns-dane-engine`](https://github.com/handshake-rs/hns-dane-engine), and
 wallet code from
 [`hns-wallet-rs`](https://github.com/handshake-rs/hns-wallet-rs). Development
 source currently targets the coherent `hns-rs 0.4.2`, engine mobile-wallet
-`0.2.5`, and wallet `0.2.4` cohorts. Adjacent path patches keep a single Rust
+`0.2.5`, and wallet `0.2.6` cohorts. Adjacent path patches keep a single Rust
 type identity while those coordinated crates move through their crates.io
 release gates; shipping dependency provenance is recorded in
 [`docs/released-dependency-cohort.md`](docs/released-dependency-cohort.md).

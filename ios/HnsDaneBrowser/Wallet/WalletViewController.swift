@@ -327,7 +327,6 @@ final class WalletViewController: UIViewController {
     private let readStatusLabel = UILabel()
     private let balanceLabel = UILabel()
     private let paymentReceiveLabel = UILabel()
-    private let nameReceiveLabel = UILabel()
     private let historyLabel = UILabel()
     private let namesLabel = UILabel()
     private let nameImportStatusLabel = UILabel()
@@ -553,7 +552,6 @@ final class WalletViewController: UIViewController {
         configureSummaryLabel(readStatusLabel, identifier: "wallet.read-status")
         configureSummaryLabel(balanceLabel, identifier: "wallet.balance")
         configureSummaryLabel(paymentReceiveLabel, identifier: "wallet.receive")
-        configureSummaryLabel(nameReceiveLabel, identifier: "wallet.name-receive")
         configureSummaryLabel(historyLabel, identifier: "wallet.history")
         configureSummaryLabel(namesLabel, identifier: "wallet.names")
         configureSummaryLabel(nameImportStatusLabel, identifier: "wallet.name-import-status")
@@ -1005,30 +1003,7 @@ final class WalletViewController: UIViewController {
         }
         guard let paymentReceiveAddress = receiveTargets?.paymentAddress else { return }
         let viewer = HandshakeReceiveQrViewController(address: paymentReceiveAddress)
-        viewer.onShowNameAddress = { [weak self, weak viewer] in
-            viewer?.dismiss(animated: true) {
-                self?.showNameReceiveAddress()
-            }
-        }
         walletPresentationHost.present(viewer, animated: true)
-    }
-
-    private func showNameReceiveAddress() {
-        guard let address = receiveTargets?.nameTransferAddress else { return }
-        let alert = UIAlertController(
-            title: "Receive HNS name",
-            message: "Name-transfer address",
-            preferredStyle: .alert
-        )
-        addFittingAddress(address, label: "HNS name-transfer address", to: alert)
-        alert.addAction(UIAlertAction(title: "Copy address", style: .default) { _ in
-            UIPasteboard.general.setItems(
-                [[UTType.plainText.identifier: address]],
-                options: [.localOnly: true]
-            )
-        })
-        alert.addAction(UIAlertAction(title: "Done", style: .cancel))
-        walletPresentationHost.present(alert, animated: true)
     }
 
     private func showBitcoinDashboard() {
@@ -4658,7 +4633,7 @@ final class WalletViewController: UIViewController {
     @objc private func restoreWallet() {
         let alert = UIAlertController(
             title: "Restore wallet",
-            message: "Enter the 24-word phrase and an honest earliest block height (0 scans from genesis). Use Legacy only for a Shakescape wallet created before BIP-44 compatibility.",
+            message: "Enter the 24-word phrase and an honest earliest block height (0 scans from genesis).",
             preferredStyle: .alert
         )
         alert.addTextField { [weak self] field in
@@ -4686,7 +4661,7 @@ final class WalletViewController: UIViewController {
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
             self?.clearRestoreInput()
         })
-        let submit: (Bool) -> Void = { [weak self, weak alert] legacyDerivation in
+        let submit: () -> Void = { [weak self, weak alert] in
             guard let self, let alert else { return }
             var phrase = Array((alert.textFields?.first?.text ?? "").utf8)
             self.clearRestoreInput()
@@ -4705,22 +4680,17 @@ final class WalletViewController: UIViewController {
             ) { [weak self] in
                 self?.restoreWalletAfterAuthentication(
                     recoveryBytes: recoveryBytes,
-                    birthdayHeight: birthdayHeight,
-                    legacyDerivation: legacyDerivation
+                    birthdayHeight: birthdayHeight
                 )
             }
         }
-        alert.addAction(UIAlertAction(title: "Restore", style: .default) { _ in submit(false) })
-        alert.addAction(UIAlertAction(title: "Restore legacy Shakescape", style: .default) { _ in
-            submit(true)
-        })
+        alert.addAction(UIAlertAction(title: "Restore", style: .default) { _ in submit() })
         walletPresentationHost.present(alert, animated: true)
     }
 
     private func restoreWalletAfterAuthentication(
         recoveryBytes: [UInt8],
-        birthdayHeight: UInt64,
-        legacyDerivation: Bool
+        birthdayHeight: UInt64
     ) {
         var phrase = recoveryBytes
         performWalletOperation {
@@ -4736,8 +4706,7 @@ final class WalletViewController: UIViewController {
                         databaseKey: databaseKey,
                         network: self.network,
                         birthdayHeight: birthdayHeight,
-                        recoveryPhrase: recoveryPhrase,
-                        legacyDerivation: legacyDerivation
+                        recoveryPhrase: recoveryPhrase
                     )
                 }
             }
@@ -5905,7 +5874,6 @@ final class WalletViewController: UIViewController {
             balanceLabel.text = presentation.balance
         }
         paymentReceiveLabel.text = presentation.paymentReceive
-        nameReceiveLabel.text = presentation.nameReceive
         historyLabel.text = presentation.history
         namesLabel.text = presentation.names
         namesGalleryViewController?.update(
@@ -6079,7 +6047,6 @@ final class WalletViewController: UIViewController {
         recentActivityPageOffset = 0
         balanceLabel.text = "Confirmed spendable balance: unavailable."
         paymentReceiveLabel.text = "Payment receive address: unavailable."
-        nameReceiveLabel.text = "Name transfer receive address: unavailable."
         historyLabel.text = "Transaction history: unavailable."
         namesLabel.text = "Tracked names: unavailable."
         if pendingOutgoingSnapshotHeight != nil {
@@ -7607,7 +7574,6 @@ struct WalletReadPresentation: Equatable, Sendable {
     let status: String
     let balance: String
     let paymentReceive: String
-    let nameReceive: String
     let history: String
     let names: String
 }
@@ -7625,22 +7591,13 @@ struct WalletTransactionPagePresentation: Equatable, Sendable {
 /// strings are formatted for people and must never be treated as addresses.
 struct WalletReceiveTargets: Equatable, Sendable {
     let paymentAddress: String
-    let nameTransferAddress: String?
-
-    init(paymentAddress: String, nameTransferAddress: String?) {
-        self.paymentAddress = paymentAddress
-        self.nameTransferAddress = nameTransferAddress
-    }
 
     init(localPaymentAddress: String) {
-        self.init(paymentAddress: localPaymentAddress, nameTransferAddress: nil)
+        paymentAddress = localPaymentAddress
     }
 
     init(snapshot: NativeHnsReadSnapshot) {
-        self.init(
-            paymentAddress: snapshot.receiveTarget.display,
-            nameTransferAddress: snapshot.nameReceiveTarget?.display
-        )
+        paymentAddress = snapshot.receiveTarget.display
     }
 }
 
@@ -7738,9 +7695,6 @@ enum WalletReadPresenter {
             status: "Synced and ready at height \(snapshot.moduleStatus.validatedHeight). Pending outgoing transactions are reflected in the available balance.",
             balance: balanceText,
             paymentReceive: "Payment receive\n\(snapshot.receiveTarget.display)\nDerivation index \(snapshot.receiveTarget.derivationIndex)\nUse for ordinary HNS payments. A name transferred here remains controlled by this wallet.",
-            nameReceive: snapshot.nameReceiveTarget.map {
-                "Name transfer receive\n\($0.display)\nName derivation index \($0.derivationIndex)\nUse for Handshake name TRANSFER. Ordinary HNS sent here remains recoverable and spendable."
-            } ?? "Name transfer receive: unavailable for HNWR-v1.",
             history: history,
             names: trackedNames
         )
@@ -8922,7 +8876,6 @@ private final class WalletMultipleNameImportReviewViewController: UIViewControll
 
 @MainActor
 final class HandshakeReceiveQrViewController: UIViewController {
-    var onShowNameAddress: (() -> Void)?
     private let address: String
     private var image: UIImage?
 
@@ -8956,9 +8909,8 @@ final class HandshakeReceiveQrViewController: UIViewController {
         addressLabel.textAlignment = .center
         let copy = button("Copy address", #selector(copyAddress))
         let share = button("Save or share QR code", #selector(shareQr))
-        let name = button("Name-transfer address", #selector(showNameAddress))
         let done = button("Done", #selector(done))
-        let stack = UIStackView(arrangedSubviews: [imageView, addressLabel, copy, share, name, done])
+        let stack = UIStackView(arrangedSubviews: [imageView, addressLabel, copy, share, done])
         stack.axis = .vertical
         stack.spacing = 12
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -8990,7 +8942,6 @@ final class HandshakeReceiveQrViewController: UIViewController {
         activity.popoverPresentationController?.sourceView = sender
         present(activity, animated: true)
     }
-    @objc private func showNameAddress() { onShowNameAddress?() }
     @objc private func done() { dismiss(animated: true) }
 
     private static func qrImage(_ value: String) -> UIImage? {

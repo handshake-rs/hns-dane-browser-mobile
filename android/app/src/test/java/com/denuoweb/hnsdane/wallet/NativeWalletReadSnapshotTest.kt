@@ -5,7 +5,6 @@ import java.nio.ByteOrder
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -66,16 +65,16 @@ class NativeWalletReadSnapshotTest {
     }
 
     @Test
-    fun exactV2TipBoundHnsProjectionParsesDistinctReceiveTargets() {
+    fun exactV2TipBoundHnsProjectionParsesCanonicalReceiveAliases() {
         val parsed = NativeWalletReadSnapshot.parse(bundle(snapshot(), version = 2))
         assertEquals("1234567", parsed?.balanceBaseUnits)
         assertEquals("22".repeat(16), parsed?.paymentReceiveTarget?.accountId)
         assertEquals("hs1qreadtarget", parsed?.paymentReceiveTarget?.display)
         assertEquals(3L, parsed?.paymentReceiveTarget?.derivationIndex)
         assertEquals("22".repeat(16), parsed?.nameReceiveTarget?.accountId)
-        assertEquals("hs1qnametarget", parsed?.nameReceiveTarget?.display)
-        assertEquals(4L, parsed?.nameReceiveTarget?.derivationIndex)
-        assertNotEquals(
+        assertEquals("hs1qreadtarget", parsed?.nameReceiveTarget?.display)
+        assertEquals(3L, parsed?.nameReceiveTarget?.derivationIndex)
+        assertEquals(
             parsed?.paymentReceiveTarget?.display,
             parsed?.nameReceiveTarget?.display,
         )
@@ -154,7 +153,7 @@ class NativeWalletReadSnapshotTest {
     }
 
     @Test
-    fun receiveDisplaysAreBoundedVisibleAsciiAndNeverConflated() {
+    fun receiveDisplaysAreBoundedVisibleAsciiAndCanonicalAliases() {
         rejectV2 { it.getJSONObject("receiveTarget").put("display", "") }
         rejectV2 { it.getJSONObject("nameReceiveTarget").put("display", "") }
         rejectV2 { it.getJSONObject("receiveTarget").put("display", "hs1qé") }
@@ -163,17 +162,14 @@ class NativeWalletReadSnapshotTest {
         rejectV2 { it.getJSONObject("nameReceiveTarget").put("display", "hs1q address") }
         rejectV2 { it.getJSONObject("receiveTarget").put("display", "p".repeat(513)) }
         rejectV2 { it.getJSONObject("nameReceiveTarget").put("display", "n".repeat(513)) }
-        rejectV2 {
-            val payment = it.getJSONObject("receiveTarget").getString("display")
-            it.getJSONObject("nameReceiveTarget").put("display", payment)
-        }
+        rejectV2 { it.getJSONObject("nameReceiveTarget").put("display", "hs1qother") }
 
         val boundary = snapshot().apply {
             getJSONObject("receiveTarget")
                 .put("display", "p".repeat(512))
                 .put("derivation_index", UINT32_MAX)
             getJSONObject("nameReceiveTarget")
-                .put("display", "n".repeat(512))
+                .put("display", "p".repeat(512))
                 .put("derivation_index", UINT32_MAX)
         }
         val parsed = NativeWalletReadSnapshot.parse(bundle(boundary, version = 2))
@@ -351,8 +347,8 @@ class NativeWalletReadSnapshotTest {
                 JSONObject()
                     .put("module", "handshake")
                     .put("account", bytes(16, 0x22))
-                    .put("display", "hs1qnametarget")
-                    .put("derivation_index", 4),
+                    .put("display", "hs1qreadtarget")
+                    .put("derivation_index", 3),
             )
         }
         return value
