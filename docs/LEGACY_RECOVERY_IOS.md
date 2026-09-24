@@ -26,6 +26,11 @@ sign this second bundle ID. The Apple team must register the explicit recovery
 App ID and provide a matching distribution profile. For direct installation
 outside the App Store, an Ad Hoc profile must include the intended device IDs;
 an App Store-signed IPA attached to GitHub is not a universal sideload package.
+With the profile, intended iPhone UDID, and the existing Apple Distribution
+certificate available on a Mac, `scripts/export-ios-legacy-recovery-adhoc.sh`
+validates those inputs, archives the recovery app, and exports a device-scoped
+IPA under `build/ios-legacy-recovery/`. It does not upload to the App Store or
+publish an unsigned package.
 Alternatively, a separate App Store Connect app record and TestFlight build
 could distribute this variant through Apple. No recovery IPA should be labeled
 ready until it is signed for its own bundle ID and installed on a test iPhone.
