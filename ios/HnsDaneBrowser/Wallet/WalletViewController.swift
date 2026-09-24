@@ -184,6 +184,10 @@ private final class AtomicSwapNotificationCoordinator {
 /// only requests a local native action and displays its exact review result.
 @MainActor
 final class WalletViewController: UIViewController {
+    private var isLegacyRecoveryBuild: Bool {
+        Bundle.main.bundleIdentifier == "com.denuoweb.hnsdane.ios.legacyrecovery"
+    }
+
     /// Debug builds stay capturable for UI diagnostics and release-candidate
     /// documentation. Distribution builds still suspend protected wallet
     /// authority while the system is recording or mirroring the screen.
@@ -753,14 +757,16 @@ final class WalletViewController: UIViewController {
     }
 
     private func renderNoWalletDashboard() {
+        let walletStartActions: [UIView] = isLegacyRecoveryBuild
+            ? [restoreButton] : [createButton, restoreButton]
         dashboardStack.addArrangedSubview(dashboardCard(
             title: isOperating ? "● WORKING · \(network.title)" : "NO WALLET · \(network.title)",
             body: walletStatusBody([statusLabel, accountLabel]),
             accent: .systemPink
         ))
         dashboardStack.addArrangedSubview(dashboardCard(
-            title: "Get started",
-            body: [createButton, restoreButton]
+            title: isLegacyRecoveryBuild ? "Restore an old-format wallet" : "Get started",
+            body: walletStartActions
         ))
     }
 
@@ -4608,6 +4614,7 @@ final class WalletViewController: UIViewController {
     }
 
     @objc private func createWallet() {
+        guard !isLegacyRecoveryBuild else { return }
         authenticateWalletAction(
             reason: "Authenticate before generating and protecting a new Handshake wallet"
         ) { [weak self] in
@@ -4616,6 +4623,7 @@ final class WalletViewController: UIViewController {
     }
 
     private func createWalletAfterAuthentication() {
+        guard !isLegacyRecoveryBuild else { return }
         performWalletOperation {
             guard try self.canStartNewWallet() else { return }
             let path = try self.walletDatabasePath()
@@ -4658,7 +4666,9 @@ final class WalletViewController: UIViewController {
     @objc private func restoreWallet() {
         let alert = UIAlertController(
             title: "Restore wallet",
-            message: "Enter the 24-word phrase and an honest earliest block height (0 scans from genesis).",
+            message: isLegacyRecoveryBuild
+                ? "Restore a pre-BIP-44 Shakescape wallet. Enter its 24 words and earliest HNS block height (0 scans from genesis)."
+                : "Enter the 24-word phrase and an honest earliest block height (0 scans from genesis).",
             preferredStyle: .alert
         )
         alert.addTextField { [weak self] field in
@@ -6472,7 +6482,7 @@ final class WalletViewController: UIViewController {
         let ownsStorage = storageLease != nil
         let hasWallet = wallet != nil
         let hasIncompleteWallet = unconfirmedDatabaseKey != nil
-        createButton.isEnabled = ownsStorage && protectedStorageIsAvailable && !hasWallet && !persistentWalletExists && !isOperating
+        createButton.isEnabled = !isLegacyRecoveryBuild && ownsStorage && protectedStorageIsAvailable && !hasWallet && !persistentWalletExists && !isOperating
         restoreButton.isEnabled = ownsStorage && protectedStorageIsAvailable && !hasWallet && !persistentWalletExists && !isOperating
         openButton.isEnabled = ownsStorage && protectedStorageIsAvailable && !hasIncompleteWallet && (hasWallet || persistentWalletExists) && !isOperating
         lockButton.isEnabled = ownsStorage && protectedStorageIsAvailable && hasWallet &&

@@ -114,6 +114,7 @@ rustup target add --toolchain "$RUST_TOOLCHAIN" "${APPLE_TARGETS[@]}"
 
 cd "$ROOT_DIR"
 ./scripts/check-version-consistency.sh
+python3 -m unittest -v tests/test_prepare_ios_legacy_recovery_plist.py
 python3 ./store-assets/app-store/validate.py --metadata-only
 ./scripts/check-runtime-boundaries.sh
 python3 ./scripts/test_select_ios_simulator.py
@@ -163,5 +164,8 @@ HNS_IOS_REUSE_XCFRAMEWORK=1 \
   HNS_IOS_DESTINATION="generic/platform=iOS" \
   ./scripts/build-ios.sh
 
+record_ios_gate_phase legacy-recovery-device-link
+HNS_IOS_REUSE_XCFRAMEWORK=1 ./scripts/build-ios-legacy-recovery.sh
+
 record_ios_gate_phase complete
-echo "iOS gate passed: ABI, XCFramework, simulator tests, and unsigned arm64 device link."
+echo "iOS gate passed: ABI, XCFramework, simulator tests, and both unsigned arm64 app links."
