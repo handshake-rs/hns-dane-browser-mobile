@@ -764,11 +764,17 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertEqual(presentation.balance, "12.345678 HNS spendable now")
         XCTAssertEqual(
             presentation.paymentReceive,
-            "Payment receive\nrs1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq8euwz\nDerivation index 7"
+            "Payment receive\n" +
+                "rs1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq8euwz\n" +
+                "Derivation index 7\n" +
+                "Use for ordinary HNS payments. A name transferred here remains controlled by this wallet."
         )
         XCTAssertEqual(
             presentation.nameReceive,
-            "Name transfer receive\nrs1qnameowner0000000000000000000000000000000\nName derivation index 11"
+            "Name transfer receive\n" +
+                "rs1qnameowner0000000000000000000000000000000\n" +
+                "Name derivation index 11\n" +
+                "Use for Handshake name TRANSFER. Ordinary HNS sent here remains recoverable and spendable."
         )
         XCTAssertNotEqual(presentation.paymentReceive, presentation.nameReceive)
         XCTAssertEqual(
