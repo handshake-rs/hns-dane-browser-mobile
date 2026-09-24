@@ -1,0 +1,139 @@
+name: iOS Legacy Recovery Archive
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_source_commit:
+        description: Exact recovery-source commit tagged v1.0.7-legacy-recovery.2
+        required: true
+        type: string
+      confirm_archive:
+        description: Provision the separate recovery App ID and sign an archival IPA; do not upload to Apple
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  archive:
+    if: ${{ github.ref == 'refs/heads/main' && inputs.confirm_archive }}
+    runs-on: macos-26
+    timeout-minutes: 180
+    environment: app-store
+    steps:
+      - name: Check out the exact recovery source tag
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: v1.0.7-legacy-recovery.2
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate source and recovery-only behavior before credentials
+        env:
+          EXPECTED_SOURCE_COMMIT: ${{ inputs.expected_source_commit }}
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$EXPECTED_SOURCE_COMMIT" | grep -Eq '^[0-9a-f]{40}$'
+          test "$EXPECTED_SOURCE_COMMIT" = d1949941019863c2e101db81a36fc29b87c7b70c
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE_COMMIT"
+          test "$(git rev-parse v1.0.7-legacy-recovery.2^{commit})" = "$EXPECTED_SOURCE_COMMIT"
+          python3 -m unittest discover -s tests -p 'test_*ios_legacy_recovery*.py' -v
+          bash -n scripts/export-ios-legacy-recovery-appstore.sh
+          test -x scripts/export-ios-legacy-recovery-appstore.sh
+          test -x scripts/provision-ios-legacy-recovery-appstore.py
+          rustup toolchain install 1.98.1 --profile minimal --component llvm-tools-preview
+          rustup target add --toolchain 1.98.1 aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
+          ./scripts/build-ios-legacy-recovery.sh
+
+      - name: Materialize existing Apple credentials only after validation
+        env:
+          API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          API_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}
+          DISTRIBUTION_P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_P12_BASE64 }}
+          DISTRIBUTION_P12_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_P12_PASSWORD }}
+        run: |
+          set -euo pipefail
+          [[ "$API_KEY_ID" =~ ^[A-Z0-9]{10}$ ]]
+          [[ "$API_KEY_ISSUER_ID" =~ ^[0-9a-fA-F-]{36}$ ]]
+          [[ -n "$API_PRIVATE_KEY" && -n "$DISTRIBUTION_P12_BASE64" && -n "$DISTRIBUTION_P12_PASSWORD" ]]
+          umask 077
+          key_path="$RUNNER_TEMP/AuthKey_${API_KEY_ID}.p8"
+          p12_path="$RUNNER_TEMP/recovery-distribution.p12"
+          cert_path="$RUNNER_TEMP/recovery-distribution.der"
+          profile_path="$RUNNER_TEMP/recovery-app-store.mobileprovision"
+          printf '%s' "$API_PRIVATE_KEY" >"$key_path"
+          printf '%s' "$DISTRIBUTION_P12_BASE64" | base64 -D >"$p12_path"
+          openssl pkcs12 -in "$p12_path" -passin env:DISTRIBUTION_P12_PASSWORD -clcerts -nokeys 2>/dev/null |
+            openssl x509 -outform DER -out "$cert_path"
+          [[ -s "$key_path" && -s "$p12_path" && -s "$cert_path" ]]
+          printf 'HNS_ASC_API_KEY_PATH=%s\n' "$key_path" >>"$GITHUB_ENV"
+          printf 'HNS_IOS_DISTRIBUTION_P12_PATH=%s\n' "$p12_path" >>"$GITHUB_ENV"
+          printf 'HNS_IOS_LEGACY_APP_STORE_PROFILE_PATH=%s\n' "$profile_path" >>"$GITHUB_ENV"
+          printf 'HNS_RECOVERY_CERT_DER_PATH=%s\n' "$cert_path" >>"$GITHUB_ENV"
+
+      - name: Register or reuse isolated recovery profile and export archive
+        env:
+          HNS_ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          HNS_ASC_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          HNS_IOS_DISTRIBUTION_P12_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_P12_PASSWORD }}
+          HNS_IOS_REUSE_XCFRAMEWORK: '1'
+          HNS_IOS_TEAM_ID: 45NQQK3G3S
+        run: |
+          set -euo pipefail
+          ./scripts/provision-ios-legacy-recovery-appstore.py \
+            --certificate-der "$HNS_RECOVERY_CERT_DER_PATH" \
+            --output "$HNS_IOS_LEGACY_APP_STORE_PROFILE_PATH" \
+            --team-id "$HNS_IOS_TEAM_ID"
+          ./scripts/export-ios-legacy-recovery-appstore.sh
+
+      - name: Record exact source and checksum
+        env:
+          EXPECTED_SOURCE_COMMIT: ${{ inputs.expected_source_commit }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE_COMMIT"
+          python3 - "$EXPECTED_SOURCE_COMMIT" <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          import sys
+
+          ipa = Path('build/ios-legacy-recovery/Shakescape-1.0.7-legacy-recovery.ipa')
+          if not ipa.is_file() or ipa.stat().st_size == 0:
+              raise SystemExit('signed archival recovery IPA is missing')
+          provenance = {
+              'artifact': ipa.name,
+              'sourceCommit': sys.argv[1],
+              'sha256': hashlib.sha256(ipa.read_bytes()).hexdigest(),
+              'size': ipa.stat().st_size,
+              'distribution': 'App Store archival; requires user re-sign/build to install',
+          }
+          ipa.with_suffix('.provenance.json').write_text(json.dumps(provenance, indent=2) + '\n')
+          PY
+
+      - name: Retain signed archival IPA for GitHub release attachment
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ios-legacy-recovery-archive-${{ inputs.expected_source_commit }}
+          path: |
+            build/ios-legacy-recovery/Shakescape-1.0.7-legacy-recovery.ipa
+            build/ios-legacy-recovery/Shakescape-1.0.7-legacy-recovery.provenance.json
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      - name: Remove temporary credentials
+        if: ${{ always() }}
+        run: |
+          for credential_path in \
+            "${HNS_ASC_API_KEY_PATH:-}" \
+            "${HNS_IOS_DISTRIBUTION_P12_PATH:-}" \
+            "${HNS_IOS_LEGACY_APP_STORE_PROFILE_PATH:-}" \
+            "${HNS_RECOVERY_CERT_DER_PATH:-}"; do
+            if [[ -n "$credential_path" ]]; then
+              rm -f -- "$credential_path"
+            fi
+          done
