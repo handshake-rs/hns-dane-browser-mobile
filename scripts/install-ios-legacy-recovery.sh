@@ -22,8 +22,6 @@ fail() { echo "ERROR: $*" >&2; exit 2; }
 for command in codesign python3 rustup xcodebuild xcrun; do
   command -v "$command" >/dev/null 2>&1 || fail "missing tool: $command"
 done
-[[ ! -e "$app_path" ]] || fail "refusing to overwrite an existing self-signed recovery app; move the previous output first."
-
 if [[ "${HNS_IOS_REUSE_XCFRAMEWORK:-0}" == 1 ]]; then
   [[ -s "$root_dir/build/apple/HnsBrowserRuntime.xcframework/Info.plist" ]] ||
     fail "the previously built Rust XCFramework is unavailable."
