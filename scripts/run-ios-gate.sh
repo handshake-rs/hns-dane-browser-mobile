@@ -115,6 +115,8 @@ rustup target add --toolchain "$RUST_TOOLCHAIN" "${APPLE_TARGETS[@]}"
 cd "$ROOT_DIR"
 ./scripts/check-version-consistency.sh
 python3 -m unittest -v tests/test_prepare_ios_legacy_recovery_plist.py
+python3 -m unittest -v tests/test_provision_ios_legacy_recovery_appstore.py
+bash -n scripts/install-ios-legacy-recovery.sh
 python3 ./store-assets/app-store/validate.py --metadata-only
 ./scripts/check-runtime-boundaries.sh
 python3 ./scripts/test_select_ios_simulator.py
