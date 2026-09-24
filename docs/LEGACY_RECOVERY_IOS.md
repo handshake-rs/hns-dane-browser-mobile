@@ -22,18 +22,19 @@ download.
 ## Distribution prerequisite
 
 The existing `com.denuoweb.hnsdane.ios` App Store provisioning profile cannot
-sign this second bundle ID. The Apple team must register the explicit recovery
-App ID and provide a matching distribution profile. For direct installation
-outside the App Store, an Ad Hoc profile must include the intended device IDs;
-an App Store-signed IPA attached to GitHub is not a universal sideload package.
-With the profile, intended iPhone UDID, and the existing Apple Distribution
-certificate available on a Mac, `scripts/export-ios-legacy-recovery-adhoc.sh`
-validates those inputs, archives the recovery app, and exports a device-scoped
-IPA under `build/ios-legacy-recovery/`. It does not upload to the App Store or
-publish an unsigned package.
-Alternatively, a separate App Store Connect app record and TestFlight build
-could distribute this variant through Apple. No recovery IPA should be labeled
-ready until it is signed for its own bundle ID and installed on a test iPhone.
+sign this second bundle ID. `scripts/provision-ios-legacy-recovery-appstore.py`
+registers or reuses the explicit recovery App ID and an App Store distribution
+profile for the existing Apple Distribution certificate. It does **not** create
+an App Store app record, upload a build, or register users' devices.
+`scripts/export-ios-legacy-recovery-appstore.sh` validates that profile,
+archives the isolated recovery app, and exports an archival IPA under
+`build/ios-legacy-recovery/` without uploading it to Apple.
+
+An App Store-signed IPA attached to a GitHub release is **not directly
+installable from GitHub**. Users who need to run the recovery variant without
+an App Store listing must build/re-sign it for their own device with their own
+Apple account and Xcode tooling. The release should link this source and state
+that limitation plainly; it should not ask for email addresses or UDIDs.
 
 Keep the current app and its data intact while verifying the recovery app's old
 addresses and assets. The two apps use separate private containers and default

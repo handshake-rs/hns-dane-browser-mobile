@@ -4,8 +4,7 @@ set -euo pipefail
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 bundle_id="com.denuoweb.hnsdane.ios.legacyrecovery"
 team_id="${HNS_IOS_TEAM_ID:-45NQQK3G3S}"
-profile_path="${HNS_IOS_LEGACY_ADHOC_PROFILE_PATH:-}"
-expected_udid="${HNS_IOS_LEGACY_EXPECTED_UDID:-}"
+profile_path="${HNS_IOS_LEGACY_APP_STORE_PROFILE_PATH:-}"
 p12_path="${HNS_IOS_DISTRIBUTION_P12_PATH:-}"
 p12_password="${HNS_IOS_DISTRIBUTION_P12_PASSWORD:-}"
 output_dir="$root_dir/build/ios-legacy-recovery"
@@ -13,10 +12,9 @@ output_ipa="$output_dir/Shakescape-1.0.7-legacy-recovery.ipa"
 
 fail() { echo "ERROR: $*" >&2; exit 1; }
 
-[[ "$(uname -s)" == Darwin ]] || fail "Ad Hoc export requires macOS and Xcode."
+[[ "$(uname -s)" == Darwin ]] || fail "App Store archival export requires macOS and Xcode."
 [[ "$team_id" =~ ^[A-Z0-9]{10}$ ]] || fail "invalid Apple Team ID."
-[[ -n "$expected_udid" ]] || fail "HNS_IOS_LEGACY_EXPECTED_UDID is required."
-[[ -s "$profile_path" ]] || fail "a matching Ad Hoc provisioning profile is required."
+[[ -s "$profile_path" ]] || fail "a matching App Store provisioning profile is required."
 [[ -s "$p12_path" && -n "$p12_password" ]] ||
   fail "the Apple Distribution .p12 and password are required."
 [[ ! -e "$output_ipa" ]] || fail "refusing to replace an existing recovery IPA."
@@ -52,7 +50,7 @@ openssl pkcs12 -in "$p12_path" -passin env:HNS_IOS_DISTRIBUTION_P12_PASSWORD \
   fail "unable to read the Apple Distribution certificate from the .p12."
 
 profile_uuid="$(python3 - "$scratch_dir/profile.plist" \
-  "$scratch_dir/distribution-cert.der" "$team_id" "$bundle_id" "$expected_udid" <<'PY'
+  "$scratch_dir/distribution-cert.der" "$team_id" "$bundle_id" <<'PY'
 from datetime import datetime, timezone
 from pathlib import Path
 import plistlib
@@ -61,34 +59,35 @@ import uuid
 
 profile = plistlib.loads(Path(sys.argv[1]).read_bytes())
 certificate = Path(sys.argv[2]).read_bytes()
-team_id, bundle_id, expected_udid = sys.argv[3:]
+team_id, bundle_id = sys.argv[3:]
 entitlements = profile.get("Entitlements", {})
 expiry = profile.get("ExpirationDate")
 if profile.get("TeamIdentifier") != [team_id]:
-    raise SystemExit("Ad Hoc profile belongs to another Apple team")
+    raise SystemExit("App Store profile belongs to another Apple team")
 if entitlements.get("application-identifier") != f"{team_id}.{bundle_id}":
-    raise SystemExit("Ad Hoc profile does not match the recovery bundle ID")
+    raise SystemExit("App Store profile does not match the recovery bundle ID")
 if entitlements.get("get-task-allow") is not False:
-    raise SystemExit("Ad Hoc profile permits debugging")
+    raise SystemExit("App Store profile permits debugging")
 if profile.get("ProvisionsAllDevices") is True:
-    raise SystemExit("enterprise profile is not an Ad Hoc profile")
-devices = profile.get("ProvisionedDevices")
-if not isinstance(devices, list) or expected_udid not in devices:
-    raise SystemExit("intended iPhone is not included in the Ad Hoc profile")
+    raise SystemExit("enterprise profile is not an App Store profile")
+if profile.get("ProvisionedDevices") is not None:
+    raise SystemExit("device-scoped profile is not an App Store profile")
+if entitlements.get("beta-reports-active") is not True:
+    raise SystemExit("profile is not enabled for App Store beta distribution")
 if certificate not in profile.get("DeveloperCertificates", []):
-    raise SystemExit("distribution certificate is absent from the Ad Hoc profile")
+    raise SystemExit("distribution certificate is absent from the App Store profile")
 if not isinstance(expiry, datetime):
-    raise SystemExit("Ad Hoc profile has no expiration date")
+    raise SystemExit("App Store profile has no expiration date")
 if expiry.replace(tzinfo=expiry.tzinfo or timezone.utc) <= datetime.now(timezone.utc):
-    raise SystemExit("Ad Hoc profile has expired")
+    raise SystemExit("App Store profile has expired")
 profile_uuid = profile.get("UUID", "")
 try:
     uuid.UUID(profile_uuid)
 except (ValueError, TypeError):
-    raise SystemExit("Ad Hoc profile has an invalid UUID")
+    raise SystemExit("App Store profile has an invalid UUID")
 print(profile_uuid)
 PY
-)" || fail "Ad Hoc profile validation failed."
+)" || fail "App Store profile validation failed."
 
 profile_install_dir="${HOME}/Library/Developer/Xcode/UserData/Provisioning Profiles"
 mkdir -p "$profile_install_dir"
@@ -116,7 +115,12 @@ security find-identity -v -p codesigning "$keychain_path" |
   grep -Fq "Apple Distribution:" || fail "distribution signing identity is unavailable."
 unset p12_password keychain_password
 
-"$root_dir/scripts/build-rust-ios.sh"
+if [[ "${HNS_IOS_REUSE_XCFRAMEWORK:-0}" == 1 ]]; then
+  [[ -s "$root_dir/build/apple/HnsBrowserRuntime.xcframework/Info.plist" ]] ||
+    fail "the previously built Rust XCFramework is unavailable."
+else
+  "$root_dir/scripts/build-rust-ios.sh"
+fi
 prepared_plist="$scratch_dir/LegacyRecovery-Info.plist"
 python3 "$root_dir/scripts/prepare-ios-legacy-recovery-plist.py" \
   "$root_dir/ios/HnsDaneBrowser/Support/Info.plist" "$prepared_plist"
@@ -144,7 +148,7 @@ import sys
 options = {
     "destination": "export",
     "manageAppVersionAndBuildNumber": False,
-    "method": "release-testing",
+    "method": "app-store-connect",
     "provisioningProfiles": {sys.argv[2]: sys.argv[3]},
     "signingCertificate": "Apple Distribution",
     "signingStyle": "manual",
@@ -185,4 +189,4 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
 PY
 cp "${exported_ipas[0]}" "$output_ipa"
 shasum -a 256 "$output_ipa"
-echo "Signed, device-scoped recovery IPA: $output_ipa"
+echo "Signed archival recovery IPA (not directly sideloadable): $output_ipa"
