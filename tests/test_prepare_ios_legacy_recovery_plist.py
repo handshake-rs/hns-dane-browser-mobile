@@ -20,6 +20,17 @@ SPEC.loader.exec_module(MODULE)
 
 
 class LegacyRecoveryPlistTests(unittest.TestCase):
+    def test_recovery_ui_does_not_depend_on_maintainer_bundle_id(self) -> None:
+        wallet_source = (ROOT / "ios/HnsDaneBrowser/Wallet/WalletViewController.swift").read_text()
+        self.assertIn(
+            '(Bundle.main.object(forInfoDictionaryKey: "HNSLegacyRecoveryBuild") as? Bool) == true',
+            wallet_source,
+        )
+        self.assertNotIn(
+            'Bundle.main.bundleIdentifier == "com.denuoweb.hnsdane.ios.legacyrecovery"',
+            wallet_source,
+        )
+
     def test_recovery_plist_has_isolated_identity_without_browser_handlers(self) -> None:
         source = ROOT / "ios/HnsDaneBrowser/Support/Info.plist"
         with tempfile.TemporaryDirectory() as directory:

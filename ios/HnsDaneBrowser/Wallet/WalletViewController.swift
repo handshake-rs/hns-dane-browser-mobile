@@ -185,7 +185,7 @@ private final class AtomicSwapNotificationCoordinator {
 @MainActor
 final class WalletViewController: UIViewController {
     private var isLegacyRecoveryBuild: Bool {
-        Bundle.main.bundleIdentifier == "com.denuoweb.hnsdane.ios.legacyrecovery"
+        (Bundle.main.object(forInfoDictionaryKey: "HNSLegacyRecoveryBuild") as? Bool) == true
     }
 
     /// Debug builds stay capturable for UI diagnostics and release-candidate
