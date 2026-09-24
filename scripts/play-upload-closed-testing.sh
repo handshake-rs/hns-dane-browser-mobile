@@ -16,7 +16,7 @@ release_status="${PLAY_RELEASE_STATUS:-draft}"
 quota_project="${PLAY_QUOTA_PROJECT:-}"
 aab_path="${1:-dist/play-store/hns-dane-browser-v1.0.8-play-upload-signed.aab}"
 release_name="${PLAY_RELEASE_NAME:-Shakescape 1.0.8}"
-release_notes="${PLAY_RELEASE_NOTES:-1.0.8 uses one hsd/Bob-compatible account-zero receive chain for ordinary HNS and Handshake name ownership.}"
+release_notes="${PLAY_RELEASE_NOTES:-1.0.8 uses one hsd/Bob-compatible account-zero wallet receive chain for ordinary HNS and Handshake name ownership.}"
 update_listing="${PLAY_UPDATE_LISTING:-false}"
 listing_language="${PLAY_LISTING_LANGUAGE:-en-US}"
 

@@ -1,6 +1,6 @@
 # Version Audit
 
-Audit date: 2026-09-07.
+Audit date: 2026-09-24.
 
 This table records the independently versioned current release candidates.
 It is not evidence that signed artifacts were built or published. Android
@@ -10,17 +10,17 @@ into the app.
 
 | Component | Pinned | Audit source |
 | --- | --- | --- |
-| Android app | `1.0.7` / code `59` | `android/app/build.gradle.kts` |
+| Android app | `1.0.8` / code `60` | `android/app/build.gradle.kts` |
 | Embedded Rust workspace | `1.0.2` (`publish = false`) | `rust/Cargo.toml` |
-| iOS app | `1.0.7` / build `70` | `ios/project.yml` |
-| Native wallet controller | published `0.2.5` cohort | `rust/Cargo.toml`, `rust/Cargo.lock` |
+| iOS app | `1.0.8` / build `71` | `ios/project.yml` |
+| Native wallet controller | published `0.2.6` cohort | `rust/Cargo.toml`, `rust/Cargo.lock` |
 | Wallet protocol closure | published `hns-rs 0.4.2` | `rust/Cargo.lock` |
 | Rust toolchain | `1.98.1` | `rust/rust-toolchain.toml` |
 | Android file locking | Rust standard-library `File` locks | `rust/crates/hns-mobile-platform-runtime/src/lib.rs` |
 | Public engine contracts | published exact engine crates, with the light-client cohort at `0.2.5` and `hns-namespace-resolution` at `0.2.3` | Cargo manifests and checksum-bearing locks |
 | Browser engine adapters | exact releases, including `hns-browser-chain`, `hns-browser-p2p`, and `hns-browser-resolver 0.2.5` | Cargo manifests and checksum-bearing locks |
 | Standalone engine facade | Not in the mobile graph; upstream mobile-safe dependency boundary required | Cargo manifests and target-filtered metadata |
-| Android SDK | compile/target `37`, minimum `30` | `android/app/build.gradle.kts` |
+| Android SDK | compile/target `37`, minimum `28` | `android/app/build.gradle.kts` |
 | Android NDK | `28.2.13676358`, application platform `30` | `scripts/build-rust-android.sh` |
 | iOS deployment floor | `17.0` | `ios/project.yml` |
 | Android Gradle Plugin | `9.4.0` | https://developer.android.com/build/releases/gradle-plugin |
@@ -112,7 +112,7 @@ Notes:
   application profile. No requester, transport adapter, endpoint/profile
   validator, provider role, FFI, UI, or native control is instantiated by this
   candidate, and its dedicated release gate remains false.
-- The mobile dependency sequence uses the published wallet `0.2.5` cohort,
+- The mobile dependency sequence uses the published wallet `0.2.6` cohort,
   reviewed HNS `0.4.2`, and exact published engine releases including the
   SQLite-backed browser adapters at `0.2.5`. The complete source and checksum
   policy is documented in [released-dependency-cohort.md](released-dependency-cohort.md).

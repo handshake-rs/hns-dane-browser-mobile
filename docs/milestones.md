@@ -132,7 +132,7 @@
   one-time-recovery, and single HNS account-identity controls.
 - Source-complete read projection: both shells strictly decode legacy HNWR-v1
   and current HNWR-v2 through separate exact schemas and expose balance,
-  ordinary-payment receive, name-transfer receive, history, tracked-name, and
+  one account-zero payment/name receive target, history, tracked-name, and
   module rows. The actual product provisions no scoped credential/indexed
   backend, so those rows remain fail-closed and unavailable. A pruned
   indexed/authenticated node can serve current-wallet retained evidence; the

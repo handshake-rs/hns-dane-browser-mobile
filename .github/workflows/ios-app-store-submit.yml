@@ -340,7 +340,8 @@ jobs:
           fi
           if [[ "$MODE" == cancel-submission ]]; then
             arguments+=(
-              --cancel-build 69
+              --cancel-version 1.0.7
+              --cancel-build 70
               --confirm-cancel "$CONFIRM_SUBMIT"
             )
           fi

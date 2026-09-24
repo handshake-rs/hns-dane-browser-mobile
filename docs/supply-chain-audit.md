@@ -191,7 +191,7 @@ with manual release after build `64` was withdrawn.
   not the Play AAB or unchanged iOS build.
 - Current source consumes reviewed `0.4.2` HNS, exact engine releases
   (including the light-client and SQLite-backed adapter crates at `0.2.5`),
-  and the complete published wallet `0.2.5` cohort. Registry packages retain
+  and the complete published wallet `0.2.6` cohort. Registry packages retain
   Cargo checksums; no sibling path patch or Git dependency is admitted. The
   standalone facade is not a mobile input.
   [released-dependency-cohort.md](released-dependency-cohort.md) records the

@@ -175,8 +175,9 @@ class LocalRelease:
     def screenshot_replacement_confirmation(self) -> str:
         return f"REPLACE_SCREENSHOTS_{self.version}_{self.build}"
 
-    def cancel_confirmation(self, build: str) -> str:
-        return f"CANCEL_SUBMISSION_{self.version}_{build}"
+    @staticmethod
+    def cancel_confirmation(version: str, build: str) -> str:
+        return f"CANCEL_SUBMISSION_{version}_{build}"
 
 
 def _json_bytes(value: Any) -> bytes:
@@ -547,6 +548,7 @@ def validate_confirmations(
     submit_confirmation: str | None,
     account_readiness: bool,
     screenshot_replacement_confirmation: str | None = None,
+    cancel_version: str | None = None,
     cancel_build: str | None = None,
     cancel_confirmation: str | None = None,
     auto_release_confirmation: str | None = None,
@@ -576,9 +578,11 @@ def validate_confirmations(
                 "review submission requires an explicit account-level readiness attestation"
             )
     if mode == "cancel-submission":
+        if cancel_version is None or not re.fullmatch(r"[1-9][0-9]*\.[0-9]+\.[0-9]+", cancel_version):
+            raise ReleaseError("review cancellation requires one exact --cancel-version")
         if cancel_build is None or not re.fullmatch(r"[1-9][0-9]*", cancel_build):
             raise ReleaseError("review cancellation requires one exact --cancel-build")
-        required = release.cancel_confirmation(cancel_build)
+        required = release.cancel_confirmation(cancel_version, cancel_build)
         if cancel_confirmation != required:
             raise ReleaseError(
                 f"review cancellation requires --confirm-cancel {required}"
@@ -1816,11 +1820,11 @@ class ReleaseManager:
             )
         return {"reviewState": state, "alreadySubmitted": False}
 
-    def cancel_submission(self, build: str) -> dict[str, Any]:
+    def cancel_submission(self, version_string: str, build: str) -> dict[str, Any]:
         """Cancel one exact-version, exact-build active review submission."""
         app = self.find_app()
         app_id = _resource_id(app, "apps")
-        version = self.find_version(app_id, self.release.version)
+        version = self.find_version(app_id, version_string)
         if version is None:
             raise ReleaseError("the exact App Store version does not exist")
         version_id = _resource_id(version, "appStoreVersions")
@@ -1830,7 +1834,7 @@ class ReleaseManager:
         build_id = _resource_id(build_resource, "builds")
         if self.attached_build_id(version_id) != build_id:
             raise ReleaseError(
-                f"App Store version {self.release.version} is not attached to build {build}"
+                f"App Store version {version_string} is not attached to build {build}"
             )
         active = self.active_review_submissions(app_id)
         if len(active) != 1:
@@ -1868,7 +1872,7 @@ class ReleaseManager:
         return {
             "build": build,
             "reviewState": canceled_state,
-            "version": self.release.version,
+            "version": version_string,
         }
 
     def set_auto_release(self) -> dict[str, Any]:
@@ -2023,7 +2027,10 @@ def local_plan(release: LocalRelease) -> dict[str, Any]:
 
 
 def execute_authenticated_mode(
-    manager: ReleaseManager, mode: str, cancel_build: str | None = None
+    manager: ReleaseManager,
+    mode: str,
+    cancel_version: str | None = None,
+    cancel_build: str | None = None,
 ) -> dict[str, Any]:
     if mode == "discover":
         return manager.discover()
@@ -2035,9 +2042,11 @@ def execute_authenticated_mode(
                 "submission": existing,
             }
     if mode == "cancel-submission":
-        if cancel_build is None:
-            raise ReleaseError("review cancellation requires one exact build")
-        return {"cancellation": manager.cancel_submission(cancel_build)}
+        if cancel_version is None or cancel_build is None:
+            raise ReleaseError("review cancellation requires one exact version and build")
+        return {
+            "cancellation": manager.cancel_submission(cancel_version, cancel_build)
+        }
     if mode == "auto-release":
         return {"automaticRelease": manager.set_auto_release()}
     result = {"metadata": manager.apply_metadata()}
@@ -2108,6 +2117,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--confirm-metadata")
     parser.add_argument("--confirm-screenshot-replacement")
     parser.add_argument("--confirm-submit")
+    parser.add_argument("--cancel-version")
     parser.add_argument("--cancel-build")
     parser.add_argument("--confirm-cancel")
     parser.add_argument("--confirm-auto-release")
@@ -2133,9 +2143,10 @@ def main() -> int:
             args.confirm_submit,
             args.confirm_account_readiness,
             args.confirm_screenshot_replacement,
-            args.cancel_build,
-            args.confirm_cancel,
-            args.confirm_auto_release,
+            cancel_version=args.cancel_version,
+            cancel_build=args.cancel_build,
+            cancel_confirmation=args.confirm_cancel,
+            auto_release_confirmation=args.confirm_auto_release,
         )
         if args.screenshots_dir and not args.confirm_screenshot_replacement:
             raise ReleaseError(
@@ -2179,7 +2190,9 @@ def main() -> int:
             ),
             asset_timeout_seconds=args.asset_timeout_seconds,
         )
-        result = execute_authenticated_mode(manager, args.mode, args.cancel_build)
+        result = execute_authenticated_mode(
+            manager, args.mode, args.cancel_version, args.cancel_build
+        )
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
     except (ReleaseError, subprocess.CalledProcessError) as error:

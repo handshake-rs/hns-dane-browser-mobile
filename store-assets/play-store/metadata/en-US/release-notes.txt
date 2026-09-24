@@ -1,1 +1,1 @@
-1.0.8 uses one hsd/Bob-compatible account-zero receive chain for ordinary HNS and Handshake name ownership.
+1.0.8 uses one hsd/Bob-compatible account-zero wallet receive chain for ordinary HNS and Handshake name ownership.

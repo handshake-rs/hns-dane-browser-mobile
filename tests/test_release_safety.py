@@ -59,8 +59,8 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
 
     def test_platform_identity_and_reviewed_registry_cohort(self) -> None:
         gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
-        self.assertRegex(gradle, r"(?m)^\s*versionName = \"1\.0\.7\"$")
-        self.assertRegex(gradle, r"(?m)^\s*versionCode = 59$")
+        self.assertRegex(gradle, r"(?m)^\s*versionName = \"1\.0\.8\"$")
+        self.assertRegex(gradle, r"(?m)^\s*versionCode = 60$")
         self.assertIn(
             '?: listOf("armeabi-v7a", "arm64-v8a")',
             gradle,
@@ -149,13 +149,13 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertEqual(manifest["workspace"]["package"]["version"], "1.0.2")
         self.assertFalse(manifest["workspace"]["package"]["publish"])
         wallet = manifest["workspace"]["dependencies"]["hns-wallet-mobile"]
-        self.assertEqual(wallet, "=0.2.5")
+        self.assertEqual(wallet, "=0.2.6")
 
         with (ROOT / "rust/Cargo.lock").open("rb") as source:
             locked_packages = tomllib.load(source)["package"]
         locked_by_name = {package["name"]: package for package in locked_packages}
         self.assertEqual(locked_by_name["rustls"]["version"], "0.23.45")
-        self.assertEqual(locked_by_name["hns-wallet-mobile"]["version"], "0.2.5")
+        self.assertEqual(locked_by_name["hns-wallet-mobile"]["version"], "0.2.6")
         self.assertEqual(
             locked_by_name["hns-wallet-mobile"]["source"],
             "registry+https://github.com/rust-lang/crates.io-index",
@@ -198,8 +198,8 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertEqual(deny["advisories"]["ignore"], ["RUSTSEC-2024-0436"])
 
         project = (ROOT / "ios/project.yml").read_text(encoding="utf-8")
-        self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 1\.0\.7$")
-        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 70$")
+        self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 1\.0\.8$")
+        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 71$")
         self.assertIn('TARGETED_DEVICE_FAMILY: "1,2"', project)
         self.assertIn("SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: YES", project)
         self.assertIn("- sdk: SystemConfiguration.framework", project)

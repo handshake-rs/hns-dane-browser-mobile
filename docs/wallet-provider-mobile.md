@@ -3,7 +3,7 @@
 This checkout contains two deliberately separate surfaces:
 
 - Android and iOS app-native wallet controls backed by the published,
-  checksum-bearing `hns-wallet-mobile 0.2.5` release; and
+  checksum-bearing `hns-wallet-mobile 0.2.6` release; and
 - a website-facing wallet-provider projection that remains dormant and cannot
   mutate WebView or WKWebView.
 
@@ -13,8 +13,8 @@ notices bind the complete protocol → wallet chain;
 [released-dependency-cohort.md](released-dependency-cohort.md) records the
 published registry checksums.
 
-The configured Android `1.0.7` candidate is code `59`, with embedded Rust `1.0.2`,
-and the configured iOS `1.0.7` candidate is build `70`. Historical `0.5.8` application source
+The configured Android `1.0.8` candidate is code `60`, with embedded Rust `1.0.2`,
+and the configured iOS `1.0.8` candidate is build `71`. Historical `0.5.8` application source
 `f21bee1c3afccd06604dc99fccb51528e2441055` passed exact Required CI run
 `31402758394`, including Android build/unit/native instrumentation,
 Rust/supply-chain, and the complete Apple
@@ -67,7 +67,7 @@ Both platform shells now link a narrow native controller for:
 - open, status, unlock, lock, and controller destruction;
 - exactly one local Handshake account identity;
 - a strict native projection and UI for synchronized HNS balance,
-  distinct payment and name-transfer receive targets, transaction history,
+  one account-zero payment/name receive target, transaction history,
   tracked names, and module status;
 - a wallet-owned direct HNS peer path for synchronization, local receive
   derivation, exact send review/reject/approval/broadcast, and rollback-floor
@@ -202,8 +202,8 @@ The Rust JNI and Apple C ABI compose
 is reopened. Configuration accepts one nonzero IPv4 loopback port plus a bounded
 mutable authorization value; remote host, URL, and proxy inputs do not exist.
 The authorization buffer is consumed and wiped. A successful synchronization
-returns one bounded read envelope carrying strict JSON for balance, distinct
-ordinary-payment and name-transfer receive targets, transaction history, known
+returns one bounded read envelope carrying strict JSON for balance, one
+account-zero ordinary-payment/name receive target, transaction history, known
 names, and coherent tip-bound module status. Android HNWR-v3 carries only the
 first authenticated name page plus `knownNameCount` and
 `knownNamesComplete`; subsequent HNWP-v1 pages contain at most 64 names and are
