@@ -1,6 +1,7 @@
 package com.denuoweb.hnsdane.wallet
 
 import android.util.Log
+import com.denuoweb.hnsdane.BuildConfig
 import com.denuoweb.hnsdane.net.NativeBridge
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -43,7 +44,10 @@ internal object NativeWalletBridge {
         network: Int,
         birthdayHeight: Long,
     ): Long = consumeDatabaseKey(databaseKey) { key ->
-        if (!isAvailable || !validNetwork(network) || birthdayHeight < 0L) {
+        if (
+            BuildConfig.HNS_LEGACY_RECOVERY_BUILD ||
+            !isAvailable || !validNetwork(network) || birthdayHeight < 0L
+        ) {
             INVALID_HANDLE
         } else {
             runCatching { nativeCreate(databasePath, key, network, birthdayHeight) }

@@ -946,10 +946,12 @@ class WalletActivity : ComponentActivity() {
             inProgress = busy,
         ))
         dashboardContent.addView(settingsGroup(getString(R.string.wallet_dashboard_get_started)) {
-            addSettingsRow(actionRow(
-                title = getString(R.string.row_wallet_create),
-                summary = getString(R.string.wallet_dashboard_create_summary),
-            ) { createWallet() }.disabledWhenWalletHandoff(busy))
+            if (!BuildConfig.HNS_LEGACY_RECOVERY_BUILD) {
+                addSettingsRow(actionRow(
+                    title = getString(R.string.row_wallet_create),
+                    summary = getString(R.string.wallet_dashboard_create_summary),
+                ) { createWallet() }.disabledWhenWalletHandoff(busy))
+            }
             addSettingsRow(navRow(
                 title = getString(R.string.row_wallet_restore),
                 summary = getString(R.string.wallet_dashboard_restore_summary),
@@ -2884,6 +2886,7 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun createWallet() {
+        if (BuildConfig.HNS_LEGACY_RECOVERY_BUILD) return
         requireWalletAuthentication(
             getString(R.string.wallet_auth_create_title),
             getString(R.string.wallet_auth_create_message),

@@ -653,6 +653,7 @@ android {
         buildConfigField("boolean", "HNS_DEFAULT_STRICT_MODE", "true")
         buildConfigField("boolean", "HNS_DEFAULT_EXPERIMENTAL_P2P_DNS_RELAY", "false")
         buildConfigField("boolean", "HNS_DEFAULT_LEGACY_HNS_DOH_COMPATIBILITY", "false")
+        buildConfigField("boolean", "HNS_LEGACY_RECOVERY_BUILD", "false")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
@@ -697,6 +698,15 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+        }
+        create("legacyRecovery") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".legacyrecovery"
+            versionNameSuffix = "-legacy-recovery"
+            isDebuggable = false
+            signingConfig = null
+            matchingFallbacks += listOf("release")
+            buildConfigField("boolean", "HNS_LEGACY_RECOVERY_BUILD", "true")
         }
     }
 

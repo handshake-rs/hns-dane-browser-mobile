@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">Shakescape Legacy Recovery</string>
+    <string name="wallet_dashboard_get_started" translatable="false">Restore an old-format wallet</string>
+    <string name="wallet_dashboard_restore_summary" translatable="false">Restore a Shakescape wallet created before the BIP-44 address change.</string>
+    <string name="wallet_dashboard_restore_dialog_summary" translatable="false">Enter the original 24-word phrase. This recovery app uses the old Shakescape derivation; verify the recovered addresses before transferring funds or names. Enter the earliest relevant HNS block as the birthday, or 0 if uncertain.</string>
+</resources>
