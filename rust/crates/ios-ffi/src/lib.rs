@@ -3276,8 +3276,11 @@ fn synchronize_wallet_owned_direct_hns(
             .map_err(|_| direct_hns_not_ready("direct HNS peers are unavailable"))?;
         ensure_wallet_hns_sync_not_cancelled(sync_control)?;
         publish_direct_hns_public_progress(sync_control, WALLET_HNS_SYNC_HEADERS, coordinator);
+        let header_now_unix = HnsReadSystemClock
+            .now_unix()
+            .map_err(|_| wallet_runtime_failure("direct HNS clock is unavailable"))?;
         match coordinator
-            .synchronize_headers_once(now_unix)
+            .synchronize_headers_once(header_now_unix)
             .map_err(|_| direct_hns_not_ready("direct HNS header agreement is unavailable"))?
         {
             hns_wallet_mobile::HnsHeaderRoundProgress::Committed(round) => {
@@ -3302,21 +3305,33 @@ fn synchronize_wallet_owned_direct_hns(
             "direct HNS headers are still catching up",
         ));
     }
-    let now_unix = HnsReadSystemClock
+    // Install the full restoration frontier before inspecting activity blocks,
+    // so a new receive or name watch does not need another historical scan.
+    let watch_now_unix = HnsReadSystemClock
         .now_unix()
         .map_err(|_| wallet_runtime_failure("direct HNS clock is unavailable"))?;
+    coordinator
+        .extend_wallet_restore_watch_set(watch_now_unix)
+        .map_err(|_| direct_hns_not_ready("direct HNS wallet watch set is unavailable"))?;
     for _ in 0..DIRECT_HNS_MAX_SCAN_CHUNKS_PER_SYNC {
         ensure_wallet_hns_sync_not_cancelled(sync_control)?;
         publish_direct_hns_public_progress(sync_control, WALLET_HNS_SYNC_SCANNING, coordinator);
         let progress_coordinator = coordinator.clone();
+        let scan_now_unix = HnsReadSystemClock
+            .now_unix()
+            .map_err(|_| wallet_runtime_failure("direct HNS clock is unavailable"))?;
         let progress = coordinator
-            .scan_wallet_blocks_with_progress(DIRECT_HNS_SCAN_BLOCKS_PER_CHUNK, now_unix, |_| {
-                publish_direct_hns_public_progress(
-                    sync_control,
-                    WALLET_HNS_SYNC_SCANNING,
-                    &progress_coordinator,
-                );
-            })
+            .scan_wallet_blocks_with_progress(
+                DIRECT_HNS_SCAN_BLOCKS_PER_CHUNK,
+                scan_now_unix,
+                |_| {
+                    publish_direct_hns_public_progress(
+                        sync_control,
+                        WALLET_HNS_SYNC_SCANNING,
+                        &progress_coordinator,
+                    );
+                },
+            )
             .map_err(|_| direct_hns_not_ready("direct HNS wallet scan is unavailable"))?;
         ensure_wallet_hns_sync_not_cancelled(sync_control)?;
         publish_direct_hns_public_progress(sync_control, WALLET_HNS_SYNC_SCANNING, coordinator);
@@ -3335,12 +3350,18 @@ fn synchronize_wallet_owned_direct_hns(
     }
     ensure_wallet_hns_sync_not_cancelled(sync_control)?;
     publish_direct_hns_public_progress(sync_control, WALLET_HNS_SYNC_FINALIZING, coordinator);
+    let mempool_now_unix = HnsReadSystemClock
+        .now_unix()
+        .map_err(|_| wallet_runtime_failure("direct HNS clock is unavailable"))?;
     coordinator
-        .refresh_mempool(now_unix)
+        .refresh_mempool(mempool_now_unix)
         .map_err(|_| direct_hns_not_ready("direct HNS mempool refresh is unavailable"))?;
     ensure_wallet_hns_sync_not_cancelled(sync_control)?;
+    let name_proof_now_unix = HnsReadSystemClock
+        .now_unix()
+        .map_err(|_| wallet_runtime_failure("direct HNS clock is unavailable"))?;
     coordinator
-        .synchronize_wallet_name_proofs(now_unix)
+        .synchronize_wallet_name_proofs(name_proof_now_unix)
         .map_err(|_| direct_hns_not_ready("direct HNS name proof refresh is unavailable"))?;
     ensure_wallet_hns_sync_not_cancelled(sync_control)?;
     let mut snapshot = controller
