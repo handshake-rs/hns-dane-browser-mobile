@@ -1,23 +1,21 @@
 # App Store metadata
 
-This directory contains the reviewed listing source for iOS `1.0.8` / build
-`71`, bundle ID `com.denuoweb.hnsdane.ios`. The preceding iOS release and its
+This directory contains the reviewed listing source for iOS `1.0.9` / build
+`72`, bundle ID `com.denuoweb.hnsdane.ios`. The preceding iOS release and its
 screenshots predate this candidate and are not evidence for it.
 
-- Version: `1.0.8`
-- Build: `71`
+- Version: `1.0.9`
+- Build: `72`
 
-This update brings the current native wallet synchronization, recovery, name
-tracking, Unicode-name, record, transfer/finalization, and diagnostic work to
-iOS. Apple rejected the preceding managed `com.apple.developer.web-browser`
-request because the submitted binary did not register `http` and `https` URL
-schemes. Build 71 registers both schemes, routes incoming URLs directly, and
-keeps exact `marketplace-kit` navigation in WebKit. Neither entitlement is
-requested in this candidate; after Apple approves the renewed capability
-request, a later signed build will add `com.apple.developer.web-browser` and
-`com.apple.developer.browser.app-installation`.
+This update refreshes name-proof timing after peer discovery, refreshes iOS
+direct HNS synchronization timing at each stage, and adds protected signing
+support for explicitly selected archival wallet recovery. The app registers
+`http` and `https` URL schemes, routes incoming URLs directly, and keeps exact
+`marketplace-kit` navigation in WebKit. The managed default-browser and
+MarketplaceKit app-installation entitlements remain absent pending Apple
+approval.
 
-Build 71 retains the protected, owner-only native-wallet storage boundary and
+Build 72 retains the protected, owner-only native-wallet storage boundary and
 uses one hsd/Bob-compatible account-zero receive chain for ordinary HNS and
 Handshake name ownership. The iOS shell, Apple C ABI, and native wallet all use
 that single receive contract.

@@ -59,8 +59,8 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
 
     def test_platform_identity_and_reviewed_registry_cohort(self) -> None:
         gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
-        self.assertRegex(gradle, r"(?m)^\s*versionName = \"1\.0\.8\"$")
-        self.assertRegex(gradle, r"(?m)^\s*versionCode = 60$")
+        self.assertRegex(gradle, r"(?m)^\s*versionName = \"1\.0\.9\"$")
+        self.assertRegex(gradle, r"(?m)^\s*versionCode = 61$")
         self.assertIn(
             '?: listOf("armeabi-v7a", "arm64-v8a")',
             gradle,
@@ -198,8 +198,8 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertEqual(deny["advisories"]["ignore"], ["RUSTSEC-2024-0436"])
 
         project = (ROOT / "ios/project.yml").read_text(encoding="utf-8")
-        self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 1\.0\.8$")
-        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 71$")
+        self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 1\.0\.9$")
+        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 72$")
         self.assertIn('TARGETED_DEVICE_FAMILY: "1,2"', project)
         self.assertIn("SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: YES", project)
         self.assertIn("- sdk: SystemConfiguration.framework", project)

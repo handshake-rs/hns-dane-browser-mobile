@@ -19,6 +19,18 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.0.9 - 2026-09-25
+
+Android `1.0.9` / code `61` and iOS `1.0.9` / build `72` retain the
+`hns-wallet-rs 0.2.6` release cohort.
+
+- Refresh the native name proof deadline after peer discovery so a name import
+  does not fail because its earlier discovery phase consumed the proof window.
+- Refresh the iOS direct HNS synchronization deadline at each stage, matching
+  the Android timing behavior.
+- Add protected, explicitly selected signing support for archival iOS wallet
+  recovery without changing the current wallet format.
+
 ## 1.0.8 - 2026-09-24
 
 Android `1.0.8` / code `60` and iOS `1.0.8` / build `71` use the coordinated

@@ -8,13 +8,13 @@ The committed application identity is:
 - Bundle ID: `com.denuoweb.hnsdane.ios`
 - Display name: `Shakescape`
 - Deployment floor: iOS 17.0
-- Previous candidate: `1.0.7` (`70`), retained as the signed asset-transfer
-  recovery build and no longer the current candidate
-- Current candidate: `1.0.8` (`71`), automatic release after approval
+- Previous submission: `1.0.8` (`71`), submitted with automatic release
+  after approval on 2026-09-24
+- Current candidate: `1.0.9` (`72`), automatic release after approval
 - Device families: iPhone and iPad; compatible iOS-on-Apple-silicon-Mac use is
   permitted by the target
 
-Candidate build `71` includes the current native-only wallet screen for
+Candidate build `72` includes the current native-only wallet screen for
 create/restore/open/status/unlock/lock, one HNS account identity, and strict
 HNWR-v2 read-only fields for balance, one account-zero payment/name receive
 target, history, tracked names, and module status. The decoder retains
@@ -161,7 +161,7 @@ The workflow then:
 
 ## Apply metadata and submit through the API
 
-After the upload run succeeds and build `71` finishes processing, use the
+After the upload run succeeds and build `72` finishes processing, use the
 separate protected workflow. Its default `discover` mode performs authenticated
 GET requests only. Pin both the exact current `main` automation commit and the
 signed-artifact commit from the successful upload run. They may differ only by
@@ -204,8 +204,8 @@ gh workflow run ios-app-store-submit.yml \
   -f expected_upload_run_id="$upload_run_id" \
   -f mode=submit \
   -f review_contact_source_version=1.0.4 \
-  -f confirm_metadata=APPLY_METADATA_1.0.8_71 \
-  -f confirm_submit=SUBMIT_FOR_REVIEW_1.0.8_71 \
+  -f confirm_metadata=APPLY_METADATA_1.0.9_72 \
+  -f confirm_submit=SUBMIT_FOR_REVIEW_1.0.9_72 \
   -f confirm_account_readiness=true
 ```
 
@@ -221,7 +221,7 @@ gh workflow run ios-app-store-submit.yml \
   -f expected_upload_run_id="$upload_run_id" \
   -f mode=auto-release \
   -f review_contact_source_version=1.0.4 \
-  -f confirm_auto_release=SET_AUTO_RELEASE_1.0.8_71 \
+  -f confirm_auto_release=SET_AUTO_RELEASE_1.0.9_72 \
   -f confirm_account_readiness=true
 ```
 
@@ -231,7 +231,7 @@ downloads nor validates a replacement artifact. To replace it, first run the
 upload workflow with `-f capture_screenshots=true`; after visually reviewing its
 retained exact-artifact images, a metadata or submission run may replace only
 that version's `APP_IPHONE_65` set by adding the exact confirmation
-`-f confirm_screenshot_replacement=REPLACE_SCREENSHOTS_1.0.8_71`. Replacement
+`-f confirm_screenshot_replacement=REPLACE_SCREENSHOTS_1.0.9_72`. Replacement
 fails closed on any byte mismatch. Without that input the client performs no
 screenshot upload or deletion requests.
 
@@ -263,7 +263,7 @@ debug entitlement, icon, and encryption declaration all match the release.
 Public GitHub Release `v0.5.5` publishes that exact IPA as asset `494101433`
 beside the verified code 46 APK.
 
-Build `71` is the configured candidate. Historical HNWR application-source CI,
+Build `72` is the configured candidate. Historical HNWR application-source CI,
 CodeQL, lockfile/notices, and the complete Apple app/simulator gate remain
 retained historical evidence. The earlier HNWR-v2 code-bearing source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed its own complete platform
@@ -273,7 +273,7 @@ dispatched Rust, Android, Apple, and Required CI matrix in run `31835813994`;
 CodeQL runs `31833858421` and `31833858650` also passed. This is exact-source
 build, test, and static-analysis evidence only, not a signed product, screenshot
 set, store declaration/readback, upload/submission, or physical-iPhone result.
-Build `71` must not be uploaded until the protected workflow reruns its complete
+Build `72` must not be uploaded until the protected workflow reruns its complete
 exact-checkout gate before credential materialization. Existing App Store
 screenshots are retained unless the separately confirmed replacement path is
 used. App Privacy/category answers also require live reconciliation. After
@@ -303,7 +303,7 @@ reconciled version metadata, selected build `65`, preserved the existing
 screenshots, and submitted the update after build `64` was withdrawn. The
 readback at that time reported `WAITING_FOR_REVIEW`, `releaseType=MANUAL`, and
 `reviewType=APP_STORE`; that is historical evidence and does not describe the
-current `1.0.8` / build `71` candidate.
+current `1.0.9` / build `72` candidate.
 
 The `0.5.5` version-managed metadata, current iPhone screenshots, App Review
 details, content-rights declaration, and build `57` were reconciled through
