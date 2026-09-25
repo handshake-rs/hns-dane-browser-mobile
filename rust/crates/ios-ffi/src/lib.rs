@@ -6381,8 +6381,11 @@ pub unsafe extern "C" fn hns_browser_wallet_import_hns_name_exact_text(
                 coordinator
                     .connect_available(now_unix)
                     .map_err(|_| direct_hns_not_ready("direct HNS peers are unavailable"))?;
+                let request_at_unix = HnsReadSystemClock
+                    .now_unix()
+                    .map_err(|_| wallet_runtime_failure("direct HNS clock is unavailable"))?;
                 coordinator
-                    .synchronize_name_proof_exact_text(text, now_unix)
+                    .synchronize_name_proof_exact_text(text, request_at_unix)
                     .map_err(|_| direct_hns_not_ready("direct HNS name proof is unavailable"))?;
                 match controller.import_name_exact_text(text) {
                     Ok(summary) if summary.name.as_bytes() == name.0.as_slice() => summary,
@@ -6473,8 +6476,11 @@ pub unsafe extern "C" fn hns_browser_wallet_import_hns_names_exact_text(
                     .connect_available(now_unix)
                     .map_err(|_| direct_hns_not_ready("direct HNS peers are unavailable"))?;
                 for name in &names {
+                    let request_at_unix = HnsReadSystemClock
+                        .now_unix()
+                        .map_err(|_| wallet_runtime_failure("direct HNS clock is unavailable"))?;
                     coordinator
-                        .synchronize_name_proof_exact_text(name, now_unix)
+                        .synchronize_name_proof_exact_text(name, request_at_unix)
                         .map_err(|_| {
                             direct_hns_not_ready("direct HNS name proof is unavailable")
                         })?;
