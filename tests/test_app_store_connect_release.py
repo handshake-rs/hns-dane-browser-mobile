@@ -482,6 +482,22 @@ class LocalReleaseSafetyTests(unittest.TestCase):
 
             (repository / "README.md").write_text("changed source\n", encoding="utf-8")
             git("add", "README.md")
+            git("commit", "-qm", "release download link update")
+            docs_commit = git("rev-parse", "HEAD")
+            docs_release = release_client.LocalRelease(
+                repository,
+                docs_commit,
+                artifact_commit,
+                "1.0.5",
+                "66",
+                {},
+            )
+            release_client.verify_release_automation_diff(docs_release)
+
+            source = repository / "android/app/build.gradle.kts"
+            source.parent.mkdir(parents=True)
+            source.write_text("changed binary source\n", encoding="utf-8")
+            git("add", str(source.relative_to(repository)))
             git("commit", "-qm", "unexpected source change")
             changed_commit = git("rev-parse", "HEAD")
             changed_release = release_client.LocalRelease(
@@ -494,7 +510,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(
                 release_client.ReleaseError,
-                "non-automation files: README.md",
+                "non-automation files: android/app/build.gradle.kts",
             ):
                 release_client.verify_release_automation_diff(changed_release)
 

@@ -155,7 +155,8 @@ The workflow then:
    authentication, rechecks exact source and current remote `main`, uploads the
    configured candidate build, and retains
    `ios-app-store-ipa-<commit>` with
-   `hns-dane-browser-ios-app-store.provenance.json` for release publication;
+   `hns-dane-browser-ios-app-store.provenance.json` as protected workflow
+   evidence. iOS installation is through the App Store;
 6. deletes the temporary keychain, installed profile, API key, `.p12`, and
    profile while GitHub discards the runner.
 

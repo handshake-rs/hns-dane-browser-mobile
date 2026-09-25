@@ -164,6 +164,7 @@ jobs:
           while IFS= read -r -d '' changed_path; do
             case "$changed_path" in
               .github/workflows/ios-app-store-submit.yml|\
+              README.md|\
               docs/ios-app-store-release.md|\
               scripts/app_store_connect_release.py|\
               tests/test_app_store_connect_release.py)

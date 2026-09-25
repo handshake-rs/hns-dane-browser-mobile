@@ -121,6 +121,7 @@ REQUIRED_REVIEW_CONTACT_FIELDS = (
 RELEASE_AUTOMATION_ALLOWLIST = frozenset(
     {
         ".github/workflows/ios-app-store-submit.yml",
+        "README.md",
         "docs/ios-app-store-release.md",
         "scripts/app_store_connect_release.py",
         "tests/test_app_store_connect_release.py",
