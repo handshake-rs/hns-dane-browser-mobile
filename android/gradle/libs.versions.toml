@@ -1,5 +1,5 @@
 [versions]
-agp = "9.4.0"
+agp = "9.4.1"
 androidx-webkit = "1.17.0"
 androidx-core = "1.19.0"
 androidx-activity = "1.13.0"
