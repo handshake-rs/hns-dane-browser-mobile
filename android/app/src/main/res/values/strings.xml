@@ -509,6 +509,7 @@
     <string name="wallet_bitcoin_syncing" translatable="false">Synchronizing through the wallet\'s direct Bitcoin peer set…</string>
     <string name="wallet_bitcoin_sync_connecting" translatable="false">Connecting to direct Bitcoin peers… %1$d/%2$d successful handshakes. Failed connections: %3$d; peer timeouts: %4$d; peers without compact filters: %5$d. The first peer may still be synchronizing headers before compact-filter quorum. Elapsed %6$s; ETA waits for filter scan progress.</string>
     <string name="wallet_bitcoin_sync_discovering" translatable="false">Bitcoin peer quorum is ready. Discovering and validating the chain/filter range… %1$d filters processed. Elapsed %2$s; ETA waits for scan progress.</string>
+    <string name="wallet_bitcoin_sync_discovering_with_headers" translatable="false">Bitcoin peer quorum is ready. Validated chain headers through height %1$d; preparing the compact-filter scan. %2$d filters processed. Elapsed %3$s; ETA waits for scan progress.</string>
     <string name="wallet_bitcoin_sync_progress" translatable="false">Bitcoin compact-filter scan %1$d.%2$d%% at validated chain height %3$s. Elapsed %4$s; ETA %5$s. %6$d filters processed; %7$d matched.</string>
     <string name="wallet_bitcoin_sync_fetching_blocks" translatable="false">Downloading matched Bitcoin blocks… %1$d downloaded for %2$d matched filters. Elapsed %3$s.</string>
     <string name="wallet_bitcoin_sync_applying_wallet" translatable="false">Applying verified Bitcoin blocks to the encrypted wallet… Elapsed %1$s.</string>

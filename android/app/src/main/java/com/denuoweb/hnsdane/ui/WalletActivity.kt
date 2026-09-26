@@ -4297,6 +4297,15 @@ class WalletActivity : ComponentActivity() {
             "failed" -> return getString(R.string.wallet_bitcoin_sync_failed)
         }
         if (progress.completionBasisPoints <= 0L) {
+            val chainHeight = progress.chainHeight
+            if (chainHeight != null) {
+                return getString(
+                    R.string.wallet_bitcoin_sync_discovering_with_headers,
+                    chainHeight,
+                    progress.processedFilterCount,
+                    elapsed,
+                )
+            }
             return getString(
                 R.string.wallet_bitcoin_sync_discovering,
                 progress.processedFilterCount,
@@ -5932,7 +5941,9 @@ class WalletActivity : ComponentActivity() {
                             releaseStorageLeaseAfterOperation(lease)
                         } else if (approval == null) {
                             busy = false
+                            refreshControllerState(resetReads = false)
                             bitcoinStatusView.text = getString(R.string.wallet_swap_hns_prepare_failed)
+                            statusView.text = bitcoinStatusView.text
                             releaseStorageLeaseAfterOperation(lease)
                         } else {
                             showHnsForBtcOfferApproval(approval, lease, epoch)
@@ -5954,8 +5965,15 @@ class WalletActivity : ComponentActivity() {
             if (settled) return
             settled = true
             thread(name = "hns-btc-offer-reject") {
-                NativeWalletBridge.rejectHnsForBtcOffer(walletHandle, approval.actionToken)
-                runOnUiThread { busy = false; releaseStorageLeaseAfterOperation(lease) }
+                NativeWalletBridge.rejectHnsForBtcOffer(handle, approval.actionToken)
+                runOnUiThread {
+                    if (operationIsCurrent(epoch, lease) && walletHandle == handle) {
+                        busy = false
+                        statusView.text = getString(R.string.wallet_status_unlocked)
+                        refreshControllerState(resetReads = false)
+                    }
+                    releaseStorageLeaseAfterOperation(lease)
+                }
             }
         }
         walletAlertDialogBuilder()
@@ -5971,18 +5989,21 @@ class WalletActivity : ComponentActivity() {
             .setPositiveButton(R.string.wallet_swap_publish) { _, _ ->
                 if (settled) return@setPositiveButton
                 settled = true
+                statusView.text = getString(R.string.wallet_swap_publishing)
                 thread(name = "hns-btc-offer-publish") {
                     val published = NativeWalletBridge.approveHnsForBtcOffer(
                         handle, approval.actionToken,
                     )
                     runOnUiThread {
-                        if (walletHandle == handle) {
+                        if (operationIsCurrent(epoch, lease) && walletHandle == handle) {
                             busy = false
+                            refreshControllerState(resetReads = false)
                             bitcoinStatusView.text = if (published == null) {
                                 getString(R.string.wallet_swap_publish_failed)
                             } else {
                                 getString(R.string.wallet_swap_hns_published, published.offerId.take(12))
                             }
+                            statusView.text = bitcoinStatusView.text
                         }
                         releaseStorageLeaseAfterOperation(lease)
                     }
@@ -6215,6 +6236,7 @@ class WalletActivity : ComponentActivity() {
                     busy = false
                     refreshControllerState(resetReads = false)
                     bitcoinStatusView.text = getString(R.string.wallet_swap_prepare_failed)
+                    statusView.text = bitcoinStatusView.text
                     releaseStorageLeaseAfterOperation(lease)
                 } else {
                     showBtcForHnsOfferApproval(exact, lease, epoch)
@@ -6239,9 +6261,13 @@ class WalletActivity : ComponentActivity() {
             if (settled) return
             settled = true
             thread(name = "bitcoin-hns-offer-reject") {
-                NativeWalletBridge.rejectBtcForHnsOffer(walletHandle, approval.actionToken)
+                NativeWalletBridge.rejectBtcForHnsOffer(handle, approval.actionToken)
                 runOnUiThread {
-                    busy = false
+                    if (operationIsCurrent(epoch, lease) && walletHandle == handle) {
+                        busy = false
+                        statusView.text = getString(R.string.wallet_status_unlocked)
+                        refreshControllerState(resetReads = false)
+                    }
                     releaseStorageLeaseAfterOperation(lease)
                 }
             }
@@ -6260,6 +6286,7 @@ class WalletActivity : ComponentActivity() {
             .setPositiveButton(R.string.wallet_swap_publish) { _, _ ->
                 if (settled) return@setPositiveButton
                 settled = true
+                statusView.text = getString(R.string.wallet_swap_publishing)
                 bitcoinStatusView.text = getString(R.string.wallet_swap_publishing)
                 thread(name = "bitcoin-hns-offer-publish") {
                     val published = NativeWalletBridge.approveBtcForHnsOffer(
@@ -6267,16 +6294,18 @@ class WalletActivity : ComponentActivity() {
                         approval.actionToken,
                     )
                     runOnUiThread {
-                        if (walletHandle != handle) {
+                        if (!operationIsCurrent(epoch, lease) || walletHandle != handle) {
                             releaseStorageLeaseAfterOperation(lease)
                             return@runOnUiThread
                         }
                         busy = false
+                        refreshControllerState(resetReads = false)
                         bitcoinStatusView.text = if (published == null) {
                             getString(R.string.wallet_swap_publish_failed)
                         } else {
                             getString(R.string.wallet_swap_published, published.offerId.take(12))
                         }
+                        statusView.text = bitcoinStatusView.text
                         releaseStorageLeaseAfterOperation(lease)
                     }
                 }
