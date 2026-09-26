@@ -7150,6 +7150,29 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
     .unwrap_or(std::ptr::null_mut())
 }
 
+/// The synchronization worker must distinguish a legacy controller from a
+/// direct controller whose mutex is temporarily held by peer maintenance.
+/// This entry point is called off the Android UI thread and waits for the
+/// active controller before reading the authenticated rollback floor.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeDirectHnsRollbackFloorForSync(
+    env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let record = wallet_from_handle(handle)?;
+        let controller = record.controller_if_active()?;
+        let mut floor = android_hns_light_floor_bundle(controller.direct_hns_rollback_floor()?);
+        let array = env.byte_array_from_slice(floor.as_slice()).ok();
+        floor.fill(0);
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
 /// Give the foreground Android wallet worker one opportunity to accept or
 /// service a wallet-owned direct Shakescape peer. The worker owns scheduling; the
 /// native controller owns the listener and drops it on every lock/destroy.

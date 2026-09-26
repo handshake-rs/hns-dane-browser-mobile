@@ -243,6 +243,15 @@ internal object NativeWalletBridge {
             null
         }
 
+    /** Worker-only floor read: waits for peer maintenance instead of confusing lock contention with a legacy wallet. */
+    fun directHnsRollbackFloorForSync(handle: Long): ByteArray? =
+        if (isValidHandle(handle) && isAvailable) {
+            runCatching { nativeDirectHnsRollbackFloorForSync(handle) }.getOrNull()
+                ?.takeIf { it.size == DIRECT_HNS_ROLLBACK_FLOOR_BYTES }
+        } else {
+            null
+        }
+
     /**
      * Services at most one message from the unlocked wallet's own direct
      * Shakescape listener. This never contacts a relay or changes chain authority.
@@ -1319,6 +1328,9 @@ internal object NativeWalletBridge {
 
     @JvmStatic
     private external fun nativeDirectHnsRollbackFloor(handle: Long): ByteArray?
+
+    @JvmStatic
+    private external fun nativeDirectHnsRollbackFloorForSync(handle: Long): ByteArray?
 
     @JvmStatic
     private external fun nativeServiceWalletOwnedDirectShakescape(handle: Long): Boolean

@@ -3836,16 +3836,20 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun synchronizeWalletReads() {
-        val lease = currentStorageLease() ?: return
+        val lease = currentStorageLease() ?: run {
+            Log.w(TAG, "Direct HNS synchronization requested without an active wallet lease")
+            Toast.makeText(this, R.string.wallet_reads_locked, Toast.LENGTH_SHORT).show()
+            return
+        }
         val handle = walletHandle
         if (handle == INVALID_HANDLE || unconfirmedDatabaseKey != null) {
             resetReadProjection(R.string.wallet_reads_waiting_for_wallet)
             return
         }
-        if (!NativeWalletBridge.hasHnsReads(handle)) {
-            resetReadProjection(R.string.wallet_reads_unavailable)
-            return
-        }
+        // The foreground peer worker may briefly own the native controller.
+        // hasHnsReads() uses try_lock and reports false on contention, so a
+        // UI-thread preflight here can silently discard an explicit Sync tap.
+        // The worker below waits for the controller and validates its state.
         WalletHnsLiveSyncPresentationCache.resumeAutomaticSync(walletNetwork.id)
         hnsCatchupRetry?.set(false)
         hnsCatchupRetry = null
@@ -3878,20 +3882,10 @@ class WalletActivity : ComponentActivity() {
         val authorityGeneration = walletAuthorityGeneration
         val poller = startLiveHnsSyncProgressPolling(handle, presentationLease)
         thread(name = "hns-wallet-read-sync") {
-            // Do every native controller inspection off the UI thread. A
-            // previous bounded sync may still own the controller lock; the
-            // operation gate above rejects that second tap immediately while
-            // this worker remains safe even if a lifecycle race occurs.
-            val status = NativeWalletBridge.status(handle)
-            val preflightFailure = when {
-                status == null || status.locked -> R.string.wallet_reads_locked
-                !NativeWalletBridge.hasHnsReads(handle) ->
-                    R.string.wallet_reads_unavailable
-                else -> null
-            }
-            val synchronization = if (
-                preflightFailure == null && !presentationLease.cancellationRequested.get()
-            ) {
+            // JNI acquires the controller lock and checks the active wallet.
+            // Nonblocking status/availability calls here would mistake peer
+            // maintenance contention for a locked or unconfigured wallet.
+            val synchronization = if (!presentationLease.cancellationRequested.get()) {
                 synchronizeHnsReadsWithRollbackFloor(handle)
             } else {
                 null
@@ -3945,11 +3939,6 @@ class WalletActivity : ComponentActivity() {
                 walletHnsSyncInProgress = false
                 if (liveHnsSyncPoller === poller) liveHnsSyncPoller = null
                 when {
-                    preflightFailure != null -> {
-                        refreshControllerState()
-                        Log.w(TAG, "Direct HNS synchronization preflight rejected the wallet state")
-                        resetReadProjection(preflightFailure)
-                    }
                     synchronization == null -> {
                         refreshControllerState(resetReads = false)
                         Log.w(TAG, "Direct HNS synchronization returned no authenticated result")
@@ -8176,13 +8165,13 @@ class WalletActivity : ComponentActivity() {
      * coordinator and retain their existing compatibility behavior.
      */
     private fun synchronizeHnsReadsWithRollbackFloor(handle: Long): NativeWalletHnsSynchronization? {
-        val openingFloor = NativeWalletBridge.directHnsRollbackFloor(handle)
+        val openingFloor = NativeWalletBridge.directHnsRollbackFloorForSync(handle)
             ?: return NativeWalletBridge.synchronizeHnsReads(handle)
         openingFloor.fill(0)
         val journalStart = beginDirectHnsSynchronizationWithRecovery(
             begin = keyStore::beginDirectHnsSynchronization,
             recoverInterrupted = {
-                val recoveredFloor = NativeWalletBridge.directHnsRollbackFloor(handle)
+                val recoveredFloor = NativeWalletBridge.directHnsRollbackFloorForSync(handle)
                     ?: throw IllegalStateException("Direct HNS rollback floor is unavailable")
                 try {
                     // The active coordinator was opened under the
@@ -8207,7 +8196,7 @@ class WalletActivity : ComponentActivity() {
             }
         }
         val synchronization = NativeWalletBridge.synchronizeHnsReads(handle)
-        val updatedFloor = NativeWalletBridge.directHnsRollbackFloor(handle)
+        val updatedFloor = NativeWalletBridge.directHnsRollbackFloorForSync(handle)
         val committed = updatedFloor?.let { floor ->
             runCatching {
                 keyStore.commitDirectHnsSynchronization(floor)
