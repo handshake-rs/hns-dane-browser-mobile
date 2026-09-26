@@ -28,7 +28,6 @@ final class BrowserViewController: UIViewController {
     private let backButton = UIButton(type: .system)
     private let forwardButton = UIButton(type: .system)
     private let reloadButton = UIButton(type: .system)
-    private let shareButton = UIButton(type: .system)
     private let tabsButton = UIButton(type: .system)
     private let controlsButton = UIButton(type: .system)
     private let addressField = UITextField()
@@ -266,16 +265,15 @@ final class BrowserViewController: UIViewController {
         configureButton(backButton, symbol: "chevron.backward", label: "Back", action: #selector(goBack))
         configureButton(forwardButton, symbol: "chevron.forward", label: "Forward", action: #selector(goForward))
         configureButton(reloadButton, symbol: "arrow.clockwise", label: "Reload", action: #selector(reloadOrStop))
-        configureButton(shareButton, symbol: "square.and.arrow.up", label: "Share", action: #selector(sharePage))
         configureTabsButton()
         controlsButton.setImage(UIImage(systemName: "gearshape"), for: .normal)
-        controlsButton.accessibilityLabel = "Settings"
-        controlsButton.accessibilityHint = "Opens browser, privacy, and Handshake settings"
+        controlsButton.accessibilityLabel = "Browser menu"
+        controlsButton.accessibilityHint = "Opens settings and page sharing actions"
         controlsButton.accessibilityIdentifier = "app-store-screenshot.controls"
-        controlsButton.addTarget(self, action: #selector(presentBrowserSettings), for: .touchUpInside)
+        controlsButton.showsMenuAsPrimaryAction = true
+        refreshControlsMenu()
         backButton.isEnabled = false
         forwardButton.isEnabled = false
-        shareButton.isEnabled = false
         controlsButton.isEnabled = true
 
         addressField.borderStyle = .roundedRect
@@ -320,36 +318,31 @@ final class BrowserViewController: UIViewController {
         placeholderLabel.numberOfLines = 0
         placeholderLabel.text = "Preparing secure browsing…"
 
-        let addressRow = UIStackView(
+        let toolbar = UIStackView(
             arrangedSubviews: [
                 backButton,
                 forwardButton,
                 addressField,
                 reloadButton,
+                tabsButton,
+                controlsButton,
             ]
         )
-        addressRow.axis = .horizontal
-        addressRow.alignment = .center
-        addressRow.spacing = 8
-        let utilityRow = UIStackView(arrangedSubviews: [tabsButton, shareButton, controlsButton])
-        utilityRow.axis = .horizontal
-        utilityRow.alignment = .fill
-        utilityRow.distribution = .fillEqually
-        utilityRow.spacing = 8
+        toolbar.axis = .horizontal
+        toolbar.alignment = .center
+        toolbar.spacing = 4
         for button in [
-            backButton, forwardButton, tabsButton, reloadButton, shareButton, controlsButton,
+            backButton, forwardButton, tabsButton, reloadButton, controlsButton,
         ] {
             button.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+            button.widthAnchor.constraint(equalToConstant: 44).isActive = true
         }
-        backButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
-        forwardButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
-        reloadButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
         addressField.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        addressField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         let chrome = UIStackView(
             arrangedSubviews: [
-                addressRow,
-                utilityRow,
+                toolbar,
                 securityLabel,
                 syncProgressView,
                 syncLabel,
@@ -359,7 +352,7 @@ final class BrowserViewController: UIViewController {
         chrome.axis = .vertical
         chrome.spacing = 6
         chrome.isLayoutMarginsRelativeArrangement = true
-        chrome.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 8, leading: 10, bottom: 6, trailing: 10)
+        chrome.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 8, leading: 8, bottom: 6, trailing: 8)
 
         webContainer.backgroundColor = .secondarySystemBackground
         webContainer.addSubview(placeholderLabel)
@@ -402,6 +395,23 @@ final class BrowserViewController: UIViewController {
         tabsButton.accessibilityHint = "Shows your open tabs"
     }
 
+    private func refreshControlsMenu() {
+        let share = UIAction(
+            title: "Share Page",
+            image: UIImage(systemName: "square.and.arrow.up"),
+            attributes: coordinator?.currentShareURL == nil ? [.disabled] : []
+        ) { [weak self] _ in
+            self?.sharePage()
+        }
+        let settings = UIAction(
+            title: "Settings",
+            image: UIImage(systemName: "gearshape")
+        ) { [weak self] _ in
+            self?.presentBrowserSettings()
+        }
+        controlsButton.menu = UIMenu(children: [share, settings])
+    }
+
     private func configureButton(
         _ button: UIButton,
         symbol: String,
@@ -439,7 +449,6 @@ final class BrowserViewController: UIViewController {
         backButton.isEnabled = false
         forwardButton.isEnabled = false
         reloadButton.isEnabled = true
-        shareButton.isEnabled = true
 
         if scene == .accessibilityChrome {
             addressField.isUserInteractionEnabled = true
@@ -732,7 +741,7 @@ final class BrowserViewController: UIViewController {
 
     @objc private func sharePage() {
         guard let url = coordinator?.currentShareURL else { return }
-        presentShareSheet(items: [url], sourceView: shareButton)
+        presentShareSheet(items: [url], sourceView: controlsButton)
     }
 
     @objc private func presentBrowserTabs() {
@@ -796,14 +805,15 @@ final class BrowserViewController: UIViewController {
         addressField.text = BrowserAddressPresentation.displayText(for: address)
         backButton.isEnabled = false
         forwardButton.isEnabled = false
-        shareButton.isEnabled = false
         guard let environment else {
             pendingExternalAddress = address
+            refreshControlsMenu()
             return
         }
 
         environment.revokeProxyCoordinator()
         coordinator = nil
+        refreshControlsMenu()
         isProxyAdmissionGranted = false
         progressObservation = nil
         titleObservation = nil
@@ -1915,7 +1925,7 @@ extension BrowserViewController: BrowserProxyCoordinatorDelegate {
     func proxyCoordinator(_ coordinator: BrowserProxyCoordinator, didUpdateAddress address: String) {
         updateCanonicalAddress(address)
         browserTabs.updateActiveAddress(address)
-        shareButton.isEnabled = true
+        refreshControlsMenu()
         BrowserHistoryStore.record(url: address)
         recordGatewayEvent(
             stage: "navigation",
@@ -1932,7 +1942,7 @@ extension BrowserViewController: BrowserProxyCoordinatorDelegate {
     ) {
         updateCanonicalAddress(address)
         browserTabs.updateActiveAddress(address)
-        shareButton.isEnabled = true
+        refreshControlsMenu()
         refreshSettingsIfPresented()
     }
 
@@ -2016,7 +2026,7 @@ extension BrowserViewController: BrowserProxyCoordinatorDelegate {
         )
         alert.addAction(UIAlertAction(title: "Share or Save to Files", style: .default) { [weak self] _ in
             guard let self else { return }
-            self.presentShareSheet(items: [url], sourceView: self.shareButton)
+            self.presentShareSheet(items: [url], sourceView: self.controlsButton)
         })
         alert.addAction(UIAlertAction(title: "Done", style: .cancel))
         present(alert, animated: true)

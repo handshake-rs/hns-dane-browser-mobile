@@ -394,8 +394,11 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
         timeout: TimeInterval
     ) -> [String: Any] {
         let controls = app.buttons["app-store-screenshot.controls"]
-        XCTAssertTrue(controls.waitForExistence(timeout: 10), "Settings control did not appear")
+        XCTAssertTrue(controls.waitForExistence(timeout: 10), "Browser menu did not appear")
         controls.tap()
+        let settingsAction = app.buttons["Settings"]
+        XCTAssertTrue(settingsAction.waitForExistence(timeout: 10), "Settings menu action did not appear")
+        settingsAction.tap()
 
         let table = app.tables["settings.table"]
         XCTAssertTrue(table.waitForExistence(timeout: 10), "Settings table did not appear")
