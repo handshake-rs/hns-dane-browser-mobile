@@ -59,6 +59,7 @@ final class BrowserViewController: UIViewController {
     private var syncStatusPollTimer: Timer?
     private var initialSyncStatusRefreshWorkItem: DispatchWorkItem?
     private var isForegroundSyncPreparing = false
+    private var toolbarUsesLargeTextLayout = false
 
 #if DEBUG && targetEnvironment(simulator)
     private var appStoreScreenshotScene: AppStoreScreenshotScene?
@@ -113,6 +114,13 @@ final class BrowserViewController: UIViewController {
         if configureAppStoreScreenshotFixtureIfRequested() { return }
 #endif
         prepareRuntime()
+    }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        if previousTraitCollection?.preferredContentSizeCategory != traitCollection.preferredContentSizeCategory {
+            updateToolbarForContentSizeCategory()
+        }
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -374,7 +382,25 @@ final class BrowserViewController: UIViewController {
             root.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             root.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
+        updateToolbarForContentSizeCategory()
         refreshSettingsIfPresented()
+    }
+
+    private func updateToolbarForContentSizeCategory() {
+        let category = traitCollection.preferredContentSizeCategory
+        let useLargeTextLayout = category == .extraLarge
+            || category == .extraExtraLarge
+            || category == .extraExtraExtraLarge
+            || category.isAccessibilityCategory
+        guard toolbarUsesLargeTextLayout != useLargeTextLayout else { return }
+        toolbarUsesLargeTextLayout = useLargeTextLayout
+        for button in [backButton, forwardButton, reloadButton, tabsButton] {
+            button.isHidden = useLargeTextLayout
+        }
+        controlsButton.accessibilityHint = useLargeTextLayout
+            ? "Opens navigation, tabs, page sharing, and settings"
+            : "Opens settings and page sharing actions"
+        refreshControlsMenu()
     }
 
     private func configureTabsButton() {
@@ -396,6 +422,36 @@ final class BrowserViewController: UIViewController {
     }
 
     private func refreshControlsMenu() {
+        var actions: [UIMenuElement] = []
+        if toolbarUsesLargeTextLayout {
+            let back = UIAction(
+                title: "Back",
+                image: UIImage(systemName: "chevron.backward"),
+                attributes: backButton.isEnabled ? [] : [.disabled]
+            ) { [weak self] _ in
+                self?.goBack()
+            }
+            let forward = UIAction(
+                title: "Forward",
+                image: UIImage(systemName: "chevron.forward"),
+                attributes: forwardButton.isEnabled ? [] : [.disabled]
+            ) { [weak self] _ in
+                self?.goForward()
+            }
+            let reload = UIAction(
+                title: isLoading ? "Stop" : "Reload",
+                image: UIImage(systemName: isLoading ? "xmark" : "arrow.clockwise")
+            ) { [weak self] _ in
+                self?.reloadOrStop()
+            }
+            let tabs = UIAction(
+                title: "Tabs",
+                image: UIImage(systemName: "square.on.square")
+            ) { [weak self] _ in
+                self?.presentBrowserTabs()
+            }
+            actions.append(UIMenu(options: .displayInline, children: [back, forward, reload, tabs]))
+        }
         let share = UIAction(
             title: "Share Page",
             image: UIImage(systemName: "square.and.arrow.up"),
@@ -409,7 +465,8 @@ final class BrowserViewController: UIViewController {
         ) { [weak self] _ in
             self?.presentBrowserSettings()
         }
-        controlsButton.menu = UIMenu(children: [share, settings])
+        actions.append(contentsOf: [share, settings])
+        controlsButton.menu = UIMenu(children: actions)
     }
 
     private func configureButton(
@@ -1958,6 +2015,7 @@ extension BrowserViewController: BrowserProxyCoordinatorDelegate {
         let symbol = isLoading ? "xmark" : "arrow.clockwise"
         reloadButton.setImage(UIImage(systemName: symbol), for: .normal)
         reloadButton.accessibilityLabel = isLoading ? "Stop" : "Reload"
+        refreshControlsMenu()
         if !isLoading { progressView.progress = 0 }
     }
 
