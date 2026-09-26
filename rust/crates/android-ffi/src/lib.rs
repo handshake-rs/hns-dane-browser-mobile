@@ -9376,6 +9376,17 @@ fn destroy_android_wallet(handle: jlong, retain_public_hns_sessions: bool) -> bo
     let Some(record) = wallet_registry().remove(handle) else {
         return false;
     };
+    retire_android_wallet_record(record, retain_public_hns_sessions)
+}
+
+fn retire_android_wallet_record(
+    record: Arc<AndroidWalletRecord>,
+    retain_public_hns_sessions: bool,
+) -> bool {
+    // The retiring controller may still be held by a direct HNS scan. Signal
+    // that scan before deactivation, while its cancellation gate is active,
+    // so retirement does not wait for every remaining peer/scan round.
+    record.request_hns_sync_cancellation_if_active();
     record.deactivate();
     record.request_bitcoin_shutdown();
     if let Ok(mut bitcoin) = record.bitcoin_controller.lock() {
@@ -9423,8 +9434,56 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeDiagnost
 mod tests {
     use super::*;
     use std::sync::Barrier;
+    use std::sync::mpsc;
     use std::thread;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn retiring_wallet_requests_hns_scan_cancellation_before_waiting_for_controller() {
+        let record = Arc::new(AndroidWalletRecord {
+            active: AtomicBool::new(true),
+            controller: Arc::new(Mutex::new(AndroidWalletController::Failed)),
+            database_path: PathBuf::from("/retiring-hns-scan-test/wallet.sqlite3"),
+            bitcoin_controller: Mutex::new(None),
+            pending_recovery: Mutex::new(None),
+            hns_live_sync_progress: Mutex::new(None),
+            hns_sync_activity: Mutex::new(AndroidHnsSyncActivityState {
+                active: true,
+                cancellation_requested: false,
+            }),
+            bitcoin_shutdown: Mutex::new(None),
+            bitcoin_sync_progress: Mutex::new(None),
+            bitcoin_sync_activity: Mutex::new(AndroidBitcoinSyncActivityState::default()),
+            hns_reads_installable: false,
+            bitcoin_data_dir: PathBuf::from("/retiring-hns-scan-test/bitcoin"),
+        });
+        let scanning = Arc::clone(&record);
+        let (held_sender, held_receiver) = mpsc::channel();
+        let scan = thread::spawn(move || {
+            let _controller = scanning
+                .controller
+                .lock()
+                .expect("hold scanning controller");
+            held_sender.send(()).expect("signal controller ownership");
+            let deadline = Instant::now() + Duration::from_secs(2);
+            while Instant::now() < deadline {
+                if scanning.hns_sync_cancellation_requested() {
+                    return true;
+                }
+                thread::sleep(Duration::from_millis(2));
+            }
+            false
+        });
+        held_receiver
+            .recv_timeout(Duration::from_secs(2))
+            .expect("scan acquired the controller");
+
+        assert!(retire_android_wallet_record(record, true));
+        assert!(
+            scan.join()
+                .expect("scan stopped before controller retirement")
+        );
+    }
 
     #[test]
     fn deactivated_wallet_gate_rejects_a_call_queued_on_its_state_mutex() {
