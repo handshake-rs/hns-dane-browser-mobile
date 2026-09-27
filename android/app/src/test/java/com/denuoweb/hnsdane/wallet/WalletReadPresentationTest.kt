@@ -112,6 +112,15 @@ class WalletReadPresentationTest {
     }
 
     @Test
+    fun ordinaryReceiveRefreshRunsOnceForEachNewAuthenticatedHeight() {
+        assertNull(walletAutomaticRefreshHeight(null, 101, null))
+        assertNull(walletAutomaticRefreshHeight(100, 100, null))
+        assertEquals(101L, walletAutomaticRefreshHeight(100, 101, null))
+        assertNull(walletAutomaticRefreshHeight(100, 101, 101))
+        assertEquals(102L, walletAutomaticRefreshHeight(100, 102, 101))
+    }
+
+    @Test
     fun receiveCopyTargetRemainsRawAndSeparateFromPresentationText() {
         val snapshot = walletSnapshot(
             balanceBaseUnits = "0",

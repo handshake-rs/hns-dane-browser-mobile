@@ -59,6 +59,18 @@ internal data class NativeWalletDirectShakescapeConnectResult(
     }
 }
 
+/**
+ * A successful explicit connection already proves the user's intent to view
+ * that counterparty's offers. Continue directly to the authenticated offer
+ * list; transport failures remain on the connection dashboard for recovery.
+ */
+internal fun directShakescapeConnectionShouldOpenOffers(
+    result: NativeWalletDirectShakescapeConnectResult?,
+): Boolean = result?.peerEndpoint != null && result.outcome in setOf(
+    NativeWalletDirectShakescapeConnectResult.Outcome.Connected,
+    NativeWalletDirectShakescapeConnectResult.Outcome.Replaced,
+)
+
 private object NativeWalletDirectShakescapeParser {
     private val statusMagic = byteArrayOf(
         'H'.code.toByte(),

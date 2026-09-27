@@ -859,6 +859,60 @@ final class BrowserRuntimeControlTests: XCTestCase {
             attemptedHeaderHeight: 101
         ), 102)
 
+        XCTAssertNil(walletAutomaticRefreshHeight(
+            snapshotHeight: nil,
+            observedHeaderHeight: 101,
+            attemptedHeaderHeight: nil
+        ))
+        XCTAssertNil(walletAutomaticRefreshHeight(
+            snapshotHeight: 100,
+            observedHeaderHeight: 100,
+            attemptedHeaderHeight: nil
+        ))
+        XCTAssertEqual(walletAutomaticRefreshHeight(
+            snapshotHeight: 100,
+            observedHeaderHeight: 101,
+            attemptedHeaderHeight: nil
+        ), 101)
+        XCTAssertNil(walletAutomaticRefreshHeight(
+            snapshotHeight: 100,
+            observedHeaderHeight: 101,
+            attemptedHeaderHeight: 101
+        ))
+
+        XCTAssertTrue(walletPendingCreationMayContinue(
+            requested: true,
+            viewIsVisible: true,
+            operationInFlight: false,
+            hasCurrentAuthenticatedHeight: true,
+            persistentWalletExists: false,
+            hasController: false,
+            hasUnconfirmedRecovery: false
+        ))
+        XCTAssertFalse(walletPendingCreationMayContinue(
+            requested: true,
+            viewIsVisible: false,
+            operationInFlight: false,
+            hasCurrentAuthenticatedHeight: true,
+            persistentWalletExists: false,
+            hasController: false,
+            hasUnconfirmedRecovery: false
+        ))
+        XCTAssertTrue(walletAutomaticHnsSyncMayStart(
+            viewIsVisible: true,
+            walletUnlocked: true,
+            readsAvailable: true,
+            operationInFlight: false,
+            bitcoinSyncInProgress: false
+        ))
+        XCTAssertFalse(walletAutomaticHnsSyncMayStart(
+            viewIsVisible: true,
+            walletUnlocked: true,
+            readsAvailable: true,
+            operationInFlight: true,
+            bitcoinSyncInProgress: false
+        ))
+
         let versionOne = try NativeHnsReadSnapshot.decode(bundle: hnsReadBundle(json: json))
         let versionOnePresentation = WalletReadPresenter.present(versionOne)
         let versionOneReceiveTargets = WalletReceiveTargets(snapshot: versionOne)
@@ -4036,6 +4090,32 @@ final class BrowserRuntimeControlTests: XCTestCase {
     }
 
     @MainActor
+    func testLateWalletObserverImmediatelyReceivesLatestSyncSummary() async {
+        let runtime = NetworkSwitchRuntimeStub(network: .testnet, rejectsPolicy: false)
+        let process = BrowserProcess(
+            runtimeFactory: { _, _ in runtime },
+            syncSchedulingPolicy: BrowserSyncSchedulingPolicy(caughtUpInterval: 3_600),
+            initialNetwork: .testnet,
+            persistNetwork: { _ in }
+        )
+        defer { process.close() }
+
+        let prepared = expectation(description: "runtime prepared")
+        process.prepare { _ in prepared.fulfill() }
+        await fulfillment(of: [prepared], timeout: 2)
+
+        let initialSync = expectation(description: "initial browser sync")
+        process.resumeForegroundSync(observer: { _ in initialSync.fulfill() })
+        await fulfillment(of: [initialSync], timeout: 2)
+
+        var replayed: BrowserSyncSummary?
+        let token = process.observeSync { replayed = $0 }
+        defer { process.removeSyncObserver(token) }
+        XCTAssertEqual(replayed?.network, BrowserHandshakeNetwork.testnet.rawValue)
+        XCTAssertEqual(replayed?.headline, "Testnet ready")
+    }
+
+    @MainActor
     func testSyncMaintenanceSafePointsWaitForSyncAndDrainOnceInOrder() async throws {
         let runtime = NetworkSwitchRuntimeStub(network: .testnet, rejectsPolicy: false)
         let syncStarted = expectation(description: "sync entered runtime")
@@ -4483,13 +4563,21 @@ final class BrowserRuntimeControlTests: XCTestCase {
 
         var connected = Array("HNDC".utf8) + [1, 1, 0, 0]
         connected += [UInt8(endpoint.count >> 8), UInt8(endpoint.count & 0xff), 0, 0] + endpoint
+        let connectedResult = try NativeDirectShakescapeBundle.connect(connected)
         XCTAssertEqual(
-            try NativeDirectShakescapeBundle.connect(connected),
+            connectedResult,
             NativeDirectShakescapeConnectResult(
                 outcome: .connected,
                 peerEndpoint: "198.51.100.7:12038"
             )
         )
+        XCTAssertTrue(directShakescapeConnectionShouldOpenOffers(connectedResult))
+        XCTAssertFalse(directShakescapeConnectionShouldOpenOffers(
+            NativeDirectShakescapeConnectResult(
+                outcome: .connectionFailed,
+                peerEndpoint: nil
+            )
+        ))
         var unknownVersion = status
         unknownVersion[4] = 4
         XCTAssertThrowsError(try NativeDirectShakescapeBundle.status(unknownVersion))

@@ -122,6 +122,7 @@ import com.denuoweb.hnsdane.wallet.beginDirectHnsSynchronizationWithRecovery
 import com.denuoweb.hnsdane.wallet.closeWalletControllerForDeletion
 import com.denuoweb.hnsdane.wallet.deleteConfirmedWalletStorage
 import com.denuoweb.hnsdane.wallet.deleteWalletDatabaseArtifacts
+import com.denuoweb.hnsdane.wallet.directShakescapeConnectionShouldOpenOffers
 import com.denuoweb.hnsdane.wallet.exactWalletNameUtf8
 import com.denuoweb.hnsdane.wallet.displayAmount
 import com.denuoweb.hnsdane.wallet.formatHnsBaseUnits
@@ -136,6 +137,7 @@ import com.denuoweb.hnsdane.wallet.walletCellularDataWarningVisible
 import com.denuoweb.hnsdane.wallet.walletDeletionMayProceed
 import com.denuoweb.hnsdane.wallet.walletNameImportMayBegin
 import com.denuoweb.hnsdane.wallet.walletNameImportMayPublish
+import com.denuoweb.hnsdane.wallet.walletAutomaticRefreshHeight
 import com.denuoweb.hnsdane.wallet.walletPendingOutgoingRefreshHeight
 import com.denuoweb.hnsdane.wallet.walletBackgroundHnsSyncMayRetain
 import com.denuoweb.hnsdane.wallet.walletOperationRetainsStorageLease
@@ -167,27 +169,33 @@ internal fun walletDirectHnsNeedsGenesisBootstrap(network: HandshakeNetwork): Bo
     network == HandshakeNetwork.Mainnet
 
 /**
- * A newly generated seed cannot have wallet activity before the instant it is
- * created. Prefer the process-owned browser's authenticated current height so
- * the independent wallet scans only blocks that could contain activity for
- * that seed. The bundled mainnet checkpoint remains a fail-safe when no fresh,
- * authoritative browser height has been observed yet; it is not otherwise the
- * wallet birthday.
+ * Wallet generation is admitted only from the browser's current,
+ * peer-authenticated header view. Keeping this gate separate from the
+ * birthday fallback prevents a fresh install from silently creating a wallet
+ * at the bundled block-300,000 checkpoint and then scanning years of blocks.
  */
-internal fun newWalletBirthdayHeight(
-    network: HandshakeNetwork,
-    verifiedHeaderHeight: Long?,
-): Long {
-    val verified = verifiedHeaderHeight?.takeIf { it in 1..MAX_HNS_BIRTHDAY_HEIGHT }
-    return when (network) {
-        HandshakeNetwork.Mainnet -> maxOf(
-            HeaderSnapshotInstaller.SNAPSHOT_HEIGHT,
-            verified ?: HeaderSnapshotInstaller.SNAPSHOT_HEIGHT,
-        )
-        HandshakeNetwork.Testnet, HandshakeNetwork.Regtest ->
-            verified ?: 0L
-    }
+internal fun authenticatedNewWalletBirthdayHeight(
+    expectedNetwork: HandshakeNetwork,
+    observedNetwork: String?,
+    observedIsCurrent: Boolean,
+    observedHeight: Long?,
+): Long? = observedHeight?.takeIf { height ->
+    observedNetwork == expectedNetwork.id &&
+        observedIsCurrent &&
+        height in 1..MAX_HNS_BIRTHDAY_HEIGHT
 }
+
+/** A Create tap made during initial header preparation is a one-shot intent. */
+internal fun walletPendingCreationMayContinue(
+    requested: Boolean,
+    foreground: Boolean,
+    busy: Boolean,
+    hasCurrentAuthenticatedHeight: Boolean,
+    hasDurableWallet: Boolean,
+    hasController: Boolean,
+    hasUnconfirmedRecovery: Boolean,
+): Boolean = requested && foreground && !busy && hasCurrentAuthenticatedHeight &&
+    !hasDurableWallet && !hasController && !hasUnconfirmedRecovery
 
 internal const val EXTRA_HANDSHAKE_PAYMENT_URI =
     "com.denuoweb.hnsdane.extra.HANDSHAKE_PAYMENT_URI"
@@ -336,6 +344,8 @@ class WalletActivity : ComponentActivity() {
     private var pendingOutgoingSnapshotHeight: Long? = null
     private var pendingOutgoingRefreshAttemptedHeight: Long? = null
     private var latestObservedBrowserHeaderHeight: Long? = null
+    private var latestObservedBrowserSyncProgress: HnsSyncProgress? = null
+    private var automaticWalletRefreshAttemptedHeight: Long? = null
     private var activeSwapHnsRefreshAttemptedHeight: Long? = null
     private var directShakescapePeerEndpoint: String? = null
     /** Most recently successful outbound board endpoints, newest first. */
@@ -445,6 +455,7 @@ class WalletActivity : ComponentActivity() {
     private var walletOpenDeferredUntilDeviceUnlock = false
     private var walletUnlockRequested = false
     private var walletUnlockAuthenticationGranted = false
+    private var newWalletCreationRequested = false
     private val walletHnsJourney = WalletHnsJourney()
     private val leaseReleaseHandoff = WalletLeaseReleaseHandoff()
 
@@ -720,6 +731,7 @@ class WalletActivity : ComponentActivity() {
         // the device-credential Activity returns.
         retainingInAppWalletSession = retainInAppSession
         foreground = false
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         stopWalletNetworkMonitoring()
         browserSyncObservation?.close()
         browserSyncObservation = null
@@ -727,6 +739,7 @@ class WalletActivity : ComponentActivity() {
         // reopening. Never carry that user-presence request off this screen.
         walletUnlockRequested = false
         walletUnlockAuthenticationGranted = false
+        newWalletCreationRequested = false
         walletNameImportInProgressCount = 0
         cachedHnsSyncPresentationWatcher?.set(false)
         dismissWalletPopupsForLock()
@@ -903,6 +916,7 @@ class WalletActivity : ComponentActivity() {
             controllerUnlocked = controllerUnlocked,
             controllerAvailableForActions = controllerAvailableForActions,
         )
+        updateRecoveryCeremonyScreenAwake()
         when (
             walletDashboardMode(
                 hasUnconfirmedRecovery =
@@ -936,6 +950,7 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun renderNoWalletDashboard() {
+        val creationBirthday = currentAuthenticatedNewWalletBirthdayHeight()
         dashboardContent.addView(statusCard(
             label = getString(R.string.wallet_dashboard_no_wallet),
             detail = statusView,
@@ -945,7 +960,11 @@ class WalletActivity : ComponentActivity() {
         dashboardContent.addView(settingsGroup(getString(R.string.wallet_dashboard_get_started)) {
             addSettingsRow(actionRow(
                 title = getString(R.string.row_wallet_create),
-                summary = getString(R.string.wallet_dashboard_create_summary),
+                summary = if (creationBirthday != null) {
+                    getString(R.string.wallet_dashboard_create_ready, creationBirthday)
+                } else {
+                    newWalletCreationProgressSummary()
+                },
             ) { createWallet() }.disabledWhenWalletHandoff(busy))
             addSettingsRow(navRow(
                 title = getString(R.string.row_wallet_restore),
@@ -1394,6 +1413,7 @@ class WalletActivity : ComponentActivity() {
         }
 
     private fun showRestoreWalletDialog() {
+        newWalletCreationRequested = false
         val phraseInput = sensitiveRestoreInput()
         val birthdayInput = restoreBirthdayInput()
         restoreInput = phraseInput
@@ -2441,6 +2461,8 @@ class WalletActivity : ComponentActivity() {
         walletDetailDialog(
             title = getString(R.string.wallet_dashboard_shakedex),
             rows = listOf(
+                getString(R.string.wallet_modal_details) to
+                    getString(R.string.wallet_shakedex_connection_help),
                 getString(R.string.row_wallet_direct_shakescape_host) to directShakescapeStatusView.text.toString(),
                 getString(R.string.row_wallet_swap_progress) to shakedexExecutionStatusView.text.toString(),
                 getString(R.string.row_wallet_shakedex_status) to shakedexQueryStatusView.text.toString(),
@@ -2864,6 +2886,19 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun createWallet() {
+        if (currentAuthenticatedNewWalletBirthdayHeight() == null) {
+            newWalletCreationRequested = true
+            statusView.text = getString(R.string.wallet_status_waiting_to_continue_creation)
+            (application as? HnsDaneApplication)?.requestForegroundSyncRefresh()
+            renderWalletDashboard()
+            Toast.makeText(
+                this,
+                R.string.wallet_create_waiting_for_initial_sync,
+                Toast.LENGTH_LONG,
+            ).show()
+            return
+        }
+        newWalletCreationRequested = false
         requireWalletAuthentication(
             getString(R.string.wallet_auth_create_title),
             getString(R.string.wallet_auth_create_message),
@@ -2872,6 +2907,14 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun createWalletAfterAuthentication() {
+        val birthdayHeight = currentAuthenticatedNewWalletBirthdayHeight()
+        if (birthdayHeight == null) {
+            newWalletCreationRequested = true
+            statusView.text = getString(R.string.wallet_status_waiting_to_continue_creation)
+            (application as? HnsDaneApplication)?.requestForegroundSyncRefresh()
+            renderWalletDashboard()
+            return
+        }
         val lease = currentStorageLease() ?: return
         if (
             !canStartNewWallet(lease) ||
@@ -2881,10 +2924,6 @@ class WalletActivity : ComponentActivity() {
         val path = walletDatabaseFile.absolutePath
         val network = walletNetworkCode(walletNetwork)
         val databaseKey = randomDatabaseKey()
-        val birthdayHeight = newWalletBirthdayHeight(
-            walletNetwork,
-            latestObservedBrowserHeaderHeight,
-        )
         thread(name = "hns-wallet-create") {
             val created = NativeWalletBridge.create(
                 path,
@@ -3032,6 +3071,10 @@ class WalletActivity : ComponentActivity() {
                     showControllerRetirementUncertain()
                     return@runOnUiThread
                 }
+                // Restore already expresses an intent to use this wallet.
+                // Reopen durably, request device presence once, then let the
+                // successful-unlock path start verified HNS synchronization.
+                walletUnlockRequested = true
                 openExistingWallet()
             }
         }
@@ -3082,13 +3125,16 @@ class WalletActivity : ComponentActivity() {
         recoveryView.clearSecret()
         if (stored) {
             if (currentStorageLease() === lease) {
-                        // The recovery confirmation made this wallet durable.
-                        // Reopen the controller from that exact durable state
-                        // before installing direct HNS reads/value authority.
-                        // This preserves the durable-open admission boundary
-                        // while making first funding usable without an app
-                        // restart.
+                // The recovery confirmation made this wallet durable.
+                // Reopen the controller from that exact durable state before
+                // installing direct HNS reads/value authority. This preserves
+                // the durable-open admission boundary while making first
+                // funding usable without an app restart.
                 if (destroyController()) {
+                    // Recovery verification completes the Create intent.
+                    // Continue through durable reopen and authenticated
+                    // unlock; successful unlock starts the first HNS sync.
+                    walletUnlockRequested = true
                     openExistingWallet()
                     renderWalletDashboard()
                 } else {
@@ -4178,6 +4224,10 @@ class WalletActivity : ComponentActivity() {
                         formatBitcoinSyncDuration(synchronization.totalMs),
                     )
                 }
+                // A long Bitcoin scan may overlap one or more authenticated
+                // Handshake blocks. Re-check the ordinary receive watcher now
+                // that the shared native controller is available again.
+                maybeRefreshWalletAfterNewBlock()
             }
         }
     }
@@ -4242,9 +4292,9 @@ class WalletActivity : ComponentActivity() {
                             watcher.get() && walletBitcoinSyncInProgress &&
                             operationIsCurrent(epoch, lease) && walletHandle == handle
                         ) {
-                            bitcoinStatusView.text = bitcoinSyncProgressText(
-                                progress,
-                                etaMillis,
+                            bitcoinStatusView.text = getString(
+                                R.string.wallet_bitcoin_sync_background_guidance,
+                                bitcoinSyncProgressText(progress, etaMillis),
                             )
                         }
                     }
@@ -4899,6 +4949,8 @@ class WalletActivity : ComponentActivity() {
     private fun showWalletActionForm(
         title: Int,
         fields: List<WalletActionInput>,
+        summary: String? = null,
+        primaryLabel: Int = R.string.action_prepare,
         submit: (List<String>) -> Unit,
     ) {
         if (busy) {
@@ -4918,6 +4970,14 @@ class WalletActivity : ComponentActivity() {
                 setPadding(uiDp(2), 0, uiDp(2), uiDp(14))
                 ViewCompat.setAccessibilityHeading(this, true)
             })
+            summary?.let { detail ->
+                addView(TextView(this@WalletActivity).apply {
+                    text = detail
+                    textSize = 15f
+                    setTextColor(themeColors().secondaryText)
+                    setPadding(uiDp(2), 0, uiDp(2), uiDp(14))
+                })
+            }
         }
         val inputs = fields.map { field ->
             EditText(this).apply {
@@ -4956,7 +5016,7 @@ class WalletActivity : ComponentActivity() {
         }
         layout.addView(walletModalSectionHeading(getString(R.string.wallet_modal_actions)))
         layout.addView(
-            dashboardActionButton(getString(R.string.action_prepare)) {
+            dashboardActionButton(getString(primaryLabel)) {
                 val values = inputs.map { it.text?.toString().orEmpty() }
                 inputs.forEach { wipeEditable(it.text) }
                 dialog.dismiss()
@@ -5138,7 +5198,7 @@ class WalletActivity : ComponentActivity() {
                 } else if (offers.isEmpty()) {
                     bitcoinStatusView.text = getString(R.string.wallet_swap_no_active_offers)
                 } else {
-                    val labels = offers.map(::directOfferLabel).toTypedArray()
+                    val labels = offers.map(::directOfferMakerLabel).toTypedArray()
                     walletAlertDialogBuilder()
                         .setTitle(R.string.wallet_swap_my_offers)
                         .setItems(labels) { _, index -> confirmCancelDirectOffer(offers[index]) }
@@ -5174,7 +5234,7 @@ class WalletActivity : ComponentActivity() {
                 } else {
                     walletAlertDialogBuilder()
                         .setTitle(R.string.wallet_swap_available_offers)
-                        .setItems(offers.map(::directOfferLabel).toTypedArray()) { _, index ->
+                        .setItems(offers.map(::directOfferTakeLabel).toTypedArray()) { _, index ->
                             showDirectOfferTakeForm(offers[index])
                         }
                         .setNegativeButton(R.string.action_cancel, null)
@@ -5184,12 +5244,19 @@ class WalletActivity : ComponentActivity() {
         }
     }
 
-    private fun directOfferLabel(offer: NativeDirectOfferSummary): String =
-        if (offer.makerSellsHns) {
-            "${formatHnsBaseUnits(offer.hnsAmountDollarydoos.toString())} HNS → ${offer.btcAmountSats} sats · ${offer.offerId.take(12)}…"
-        } else {
-            "${offer.btcAmountSats} sats → ${formatHnsBaseUnits(offer.hnsAmountDollarydoos.toString())} HNS · ${offer.offerId.take(12)}…"
-        }
+    private fun directOfferMakerLabel(offer: NativeDirectOfferSummary): String = getString(
+        R.string.wallet_swap_offer_maker_label,
+        formatSwapAmount(offer.offeredAsset, offer.offeredAmount),
+        formatSwapAmount(offer.receivedAsset, offer.receivedAmount),
+        offer.offerId.take(12),
+    )
+
+    private fun directOfferTakeLabel(offer: NativeDirectOfferSummary): String = getString(
+        R.string.wallet_swap_offer_taker_label,
+        formatSwapAmount(offer.receivedAsset, offer.receivedAmount),
+        formatSwapAmount(offer.offeredAsset, offer.offeredAmount),
+        offer.offerId.take(12),
+    )
 
     private fun showDirectOfferTakeForm(offer: NativeDirectOfferSummary) {
         val bitcoin = offer.receivedAsset == "btc"
@@ -5202,6 +5269,8 @@ class WalletActivity : ComponentActivity() {
                 initial = if (bitcoin) NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS.toString()
                 else DEFAULT_HNS_MAXIMUM_FEE,
             )),
+            summary = directOfferTakeLabel(offer),
+            primaryLabel = R.string.wallet_swap_take_review,
         ) { values ->
             val reserve = if (bitcoin) values.single().toLongOrNull()
             else parsePositiveHnsToBaseUnits(values.single())?.toLongOrNull()
@@ -5892,7 +5961,7 @@ class WalletActivity : ComponentActivity() {
             .setTitle(R.string.wallet_swap_cancel_title)
             .setMessage(getString(
                 R.string.wallet_swap_cancel_direct_message,
-                directOfferLabel(offer),
+                directOfferMakerLabel(offer),
                 offer.offerId,
             ))
             .setNegativeButton(R.string.action_cancel, null)
@@ -6140,11 +6209,19 @@ class WalletActivity : ComponentActivity() {
             .setTitle(R.string.wallet_swap_take_approval_title)
             .setMessage(getString(
                 R.string.wallet_swap_take_approval_message,
-                directOfferLabel(approval.offer),
-                approval.offer.receivedAmount,
-                approval.offer.receivedAsset.uppercase(),
-                approval.receivedFeeReserve,
-                approval.totalReceivedAssetCommitment,
+                directOfferTakeLabel(approval.offer),
+                formatSwapAmount(
+                    approval.offer.receivedAsset,
+                    approval.offer.receivedAmount,
+                ),
+                formatSwapAmount(
+                    approval.offer.receivedAsset,
+                    approval.receivedFeeReserve,
+                ),
+                formatSwapAmount(
+                    approval.offer.receivedAsset,
+                    approval.totalReceivedAssetCommitment,
+                ),
             ))
             .setNegativeButton(R.string.action_reject) { _, _ -> reject() }
             .setPositiveButton(R.string.wallet_swap_take_confirm) { _, _ ->
@@ -6666,7 +6743,7 @@ class WalletActivity : ComponentActivity() {
                         endpointInput,
                     ),
             ),
-            primaryLabel = getString(R.string.action_prepare),
+            primaryLabel = getString(R.string.wallet_direct_shakescape_connect_and_load),
             onPrimary = { dialog ->
                 val endpoint = endpointInput.text?.toString().orEmpty()
                 wipeEditable(endpointInput.text)
@@ -6781,7 +6858,11 @@ class WalletActivity : ComponentActivity() {
                 } else {
                     Log.w(TAG, "Native direct Shakescape pairing completed: outcome=$outcome")
                 }
-                showShakedexDashboard()
+                if (directShakescapeConnectionShouldOpenOffers(result)) {
+                    showAvailableDirectOffers()
+                } else {
+                    showShakedexDashboard()
+                }
             }
         }
     }
@@ -8732,7 +8813,9 @@ class WalletActivity : ComponentActivity() {
         durableWalletStoragePresent = false
         walletOpenDeferredUntilDeviceUnlock = false
         statusView.text = if (NativeWalletBridge.isAvailable) {
-            getString(R.string.wallet_status_not_created)
+            currentAuthenticatedNewWalletBirthdayHeight()?.let { height ->
+                getString(R.string.wallet_status_ready_to_create, height)
+            } ?: getString(R.string.wallet_status_waiting_for_initial_sync)
         } else {
             getString(R.string.wallet_status_native_unavailable)
         }
@@ -9206,21 +9289,113 @@ class WalletActivity : ComponentActivity() {
         val app = application as? HnsDaneApplication ?: return
         browserSyncObservation = app.observeSync { snapshot ->
             val progress = HnsSyncProgress.fromJson(snapshot.statusJson)
-            val height = progress.bestHeight
-            if (
-                progress.network != walletNetwork.id ||
-                    !progress.isCurrent ||
-                    height == null
-            ) return@observeSync
+            if (progress.network != walletNetwork.id) return@observeSync
             runOnUiThread {
-                latestObservedBrowserHeaderHeight = maxOf(
-                    latestObservedBrowserHeaderHeight ?: 0L,
-                    height,
-                )
+                latestObservedBrowserSyncProgress = progress
+                val height = progress.bestHeight
+                if (progress.isCurrent && height != null) {
+                    latestObservedBrowserHeaderHeight = maxOf(
+                        latestObservedBrowserHeaderHeight ?: 0L,
+                        height,
+                    )
+                }
+                if (!durableWalletStoragePresent && walletHandle == INVALID_HANDLE && !busy) {
+                    val creationHeight = currentAuthenticatedNewWalletBirthdayHeight()
+                    statusView.text = if (creationHeight != null) {
+                        getString(
+                            R.string.wallet_status_ready_to_create,
+                            creationHeight,
+                        )
+                    } else if (newWalletCreationRequested) {
+                        getString(R.string.wallet_status_waiting_to_continue_creation)
+                    } else {
+                        getString(R.string.wallet_status_waiting_for_initial_sync)
+                    }
+                    renderWalletDashboard()
+                }
+                if (continuePendingNewWalletCreationIfReady()) return@runOnUiThread
+                if (!progress.isCurrent || height == null) return@runOnUiThread
                 maybeRefreshPendingOutgoingAfterNewBlock()
                 maybeRefreshActiveSwapAfterNewBlock()
+                maybeRefreshWalletAfterNewBlock()
             }
         }
+    }
+
+    private fun currentAuthenticatedNewWalletBirthdayHeight(): Long? {
+        val progress = latestObservedBrowserSyncProgress
+        return authenticatedNewWalletBirthdayHeight(
+            expectedNetwork = walletNetwork,
+            observedNetwork = progress?.network,
+            observedIsCurrent = progress?.isCurrent == true,
+            observedHeight = progress?.bestHeight,
+        )
+    }
+
+    private fun continuePendingNewWalletCreationIfReady(): Boolean {
+        if (!walletPendingCreationMayContinue(
+                requested = newWalletCreationRequested,
+                foreground = foreground,
+                busy = busy,
+                hasCurrentAuthenticatedHeight =
+                    currentAuthenticatedNewWalletBirthdayHeight() != null,
+                hasDurableWallet = durableWalletStoragePresent,
+                hasController = walletHandle != INVALID_HANDLE,
+                hasUnconfirmedRecovery =
+                    unconfirmedDatabaseKey != null || recoveryView.hasSecret(),
+            )
+        ) return false
+        newWalletCreationRequested = false
+        createWallet()
+        return true
+    }
+
+    private fun newWalletCreationProgressSummary(): String {
+        val progress = latestObservedBrowserSyncProgress
+        val heights = progress?.gateHeights()
+        return when {
+            heights?.current != null && heights.target != null -> getString(
+                R.string.wallet_dashboard_create_sync_progress,
+                heights.current,
+                heights.target,
+            )
+            progress?.requiresAttention == true ->
+                getString(R.string.wallet_dashboard_create_sync_attention)
+            else -> getString(R.string.wallet_dashboard_create_sync_waiting)
+        }
+    }
+
+    /** Keep ordinary display timeout from destroying a phrase mid-copy. */
+    private fun updateRecoveryCeremonyScreenAwake() {
+        val active = foreground &&
+            (unconfirmedDatabaseKey != null || recoveryView.hasSecret())
+        if (active) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    /**
+     * Refresh an unlocked, visible wallet once for each newly authenticated
+     * browser height so incoming HNS appears without a second manual workflow.
+     */
+    private fun maybeRefreshWalletAfterNewBlock() {
+        val refreshHeight = walletAutomaticRefreshHeight(
+            snapshotHeight = latestReadSnapshot?.height,
+            observedHeaderHeight = latestObservedBrowserHeaderHeight,
+            attemptedHeaderHeight = automaticWalletRefreshAttemptedHeight,
+        ) ?: return
+        val handle = walletHandle
+        if (
+            !foreground || busy || walletHnsSyncInProgress || walletBitcoinSyncInProgress ||
+                currentStorageLease() == null || handle == INVALID_HANDLE ||
+                NativeWalletBridge.status(handle)?.locked != false ||
+                !NativeWalletBridge.hasHnsReads(handle)
+        ) return
+        automaticWalletRefreshAttemptedHeight = refreshHeight
+        Log.i(TAG, "Refreshing HNS wallet after verified Handshake height $refreshHeight")
+        synchronizeWalletReads()
     }
 
     /**

@@ -3,11 +3,34 @@ package com.denuoweb.hnsdane.wallet
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NativeWalletDirectSynchronizationTest {
+    @Test
+    fun successfulExplicitConnectionContinuesToOfferList() {
+        assertTrue(directShakescapeConnectionShouldOpenOffers(
+            NativeWalletDirectShakescapeConnectResult(
+                NativeWalletDirectShakescapeConnectResult.Outcome.Connected,
+                "192.0.2.1:12038",
+            ),
+        ))
+        assertTrue(directShakescapeConnectionShouldOpenOffers(
+            NativeWalletDirectShakescapeConnectResult(
+                NativeWalletDirectShakescapeConnectResult.Outcome.Replaced,
+                "[2001:db8::1]:12038",
+            ),
+        ))
+        assertFalse(directShakescapeConnectionShouldOpenOffers(
+            NativeWalletDirectShakescapeConnectResult(
+                NativeWalletDirectShakescapeConnectResult.Outcome.ConnectionFailed,
+                null,
+            ),
+        ))
+    }
+
     @Test
     fun directShakescapeDashboardExposesRecoveryAndDisconnectControlsWhenApplicable() {
         assertEquals(

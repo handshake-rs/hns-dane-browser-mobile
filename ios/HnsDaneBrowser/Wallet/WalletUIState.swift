@@ -57,6 +57,58 @@ func walletPendingOutgoingRefreshHeight(
     return observedHeaderHeight
 }
 
+/// Selects one newly authenticated height for the ordinary receive/balance
+/// watcher. It requires an existing verified wallet snapshot and retries at
+/// most once per browser height.
+func walletAutomaticRefreshHeight(
+    snapshotHeight: UInt64?,
+    observedHeaderHeight: UInt64?,
+    attemptedHeaderHeight: UInt64?
+) -> UInt64? {
+    guard let snapshotHeight,
+          let observedHeaderHeight,
+          observedHeaderHeight > snapshotHeight,
+          attemptedHeaderHeight.map({ observedHeaderHeight > $0 }) ?? true else {
+        return nil
+    }
+    return observedHeaderHeight
+}
+
+/// A Create tap made while browser verification is still running is retained
+/// only while the same empty wallet screen remains authoritative.
+func walletPendingCreationMayContinue(
+    requested: Bool,
+    viewIsVisible: Bool,
+    operationInFlight: Bool,
+    hasCurrentAuthenticatedHeight: Bool,
+    persistentWalletExists: Bool,
+    hasController: Bool,
+    hasUnconfirmedRecovery: Bool
+) -> Bool {
+    requested && viewIsVisible && !operationInFlight &&
+        hasCurrentAuthenticatedHeight && !persistentWalletExists &&
+        !hasController && !hasUnconfirmedRecovery
+}
+
+/// Successful unlock/setup should flow directly into the first verified HNS
+/// snapshot instead of requiring an unexplained Synchronize tap.
+func walletAutomaticHnsSyncMayStart(
+    viewIsVisible: Bool,
+    walletUnlocked: Bool,
+    readsAvailable: Bool,
+    operationInFlight: Bool,
+    bitcoinSyncInProgress: Bool
+) -> Bool {
+    viewIsVisible && walletUnlocked && readsAvailable &&
+        !operationInFlight && !bitcoinSyncInProgress
+}
+
+func directShakescapeConnectionShouldOpenOffers(
+    _ result: NativeDirectShakescapeConnectResult
+) -> Bool {
+    result.peerEndpoint != nil && [.connected, .replaced].contains(result.outcome)
+}
+
 enum WalletPendingPaymentContinuation: Equatable {
     case none
     case wait

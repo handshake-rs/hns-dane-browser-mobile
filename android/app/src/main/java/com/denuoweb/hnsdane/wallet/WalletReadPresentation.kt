@@ -116,6 +116,23 @@ internal fun walletPendingOutgoingRefreshHeight(
         (attemptedHeaderHeight == null || observed > attemptedHeaderHeight)
 }
 
+/**
+ * Selects one newly authenticated height for the ordinary receive/balance
+ * watcher. A wallet screen that remains open must not require a manual Sync
+ * tap before an incoming confirmed payment appears. A failed or no-op round
+ * is attempted at most once for the same browser height so peer trouble cannot
+ * create an automatic retry loop.
+ */
+internal fun walletAutomaticRefreshHeight(
+    snapshotHeight: Long?,
+    observedHeaderHeight: Long?,
+    attemptedHeaderHeight: Long?,
+): Long? = observedHeaderHeight?.takeIf { observed ->
+    snapshotHeight != null &&
+        observed > snapshotHeight &&
+        (attemptedHeaderHeight == null || observed > attemptedHeaderHeight)
+}
+
 internal fun walletReadCodeLabel(value: String): String = buildString(value.length + 8) {
     value.forEachIndexed { index, character ->
         when {

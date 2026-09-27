@@ -52,6 +52,10 @@ final class BrowserProcess {
     private var isForegroundSyncEnabled = false
     private var syncObserver: ((BrowserSyncSummary) -> Void)?
     private var additionalSyncObservers: [UUID: (BrowserSyncSummary) -> Void] = [:]
+    /// Replayed to secondary screens so opening Wallet after browser sync has
+    /// completed cannot lose the authenticated creation height until the next
+    /// scheduled maintenance pass.
+    private var latestSyncSummary: BrowserSyncSummary?
     // This is deliberately presentation-only. It lets the UI acknowledge that
     // foreground work has been scheduled before the Rust runtime publishes its
     // authoritative `syncInFlight` status; it must never affect proxy admission.
@@ -205,6 +209,7 @@ final class BrowserProcess {
         }
 
         suspendForegroundSync()
+        latestSyncSummary = nil
         state = .switching(environment)
         networkSwitchInFlight = true
         networkSwitchGeneration &+= 1
@@ -304,6 +309,7 @@ final class BrowserProcess {
             completion(.failure(runtimeUnavailableError()))
             return
         }
+        latestSyncSummary = nil
         preparationQueue.async {
             let result = Result { try environment.runtime.resetHeadersFromPeers() }
             DispatchQueue.main.async {
@@ -352,6 +358,9 @@ final class BrowserProcess {
     func observeSync(_ observer: @escaping (BrowserSyncSummary) -> Void) -> UUID {
         let token = UUID()
         additionalSyncObservers[token] = observer
+        if let latestSyncSummary {
+            observer(latestSyncSummary)
+        }
         return token
     }
 
@@ -362,6 +371,7 @@ final class BrowserProcess {
     func close() {
         suspendForegroundSync()
         additionalSyncObservers.removeAll()
+        latestSyncSummary = nil
         networkSwitchInFlight = false
         networkSwitchGeneration &+= 1
         drainSyncMaintenanceSafePoints(runCallbacks: false)
@@ -486,6 +496,7 @@ final class BrowserProcess {
             consecutiveSyncFailures += 1
         }
         if isForegroundSyncEnabled {
+            latestSyncSummary = summary
             syncObserver?(summary)
             Array(additionalSyncObservers.values).forEach { $0(summary) }
             let delay = syncSchedulingPolicy.delay(

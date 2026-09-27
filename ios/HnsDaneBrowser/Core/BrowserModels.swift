@@ -44,20 +44,25 @@ enum BrowserHandshakeNetwork: String, CaseIterable, Equatable, Hashable, Sendabl
         }
     }
 
-    /// A newly generated seed cannot have wallet activity before creation.
-    /// Prefer the process-owned browser's authoritative current height and use
-    /// the bundled mainnet checkpoint only when that evidence is unavailable.
-    func newWalletBirthdayHeight(verifiedHeaderHeight: UInt64?) -> UInt64 {
-        switch self {
-        case .mainnet:
-            max(
-                HeaderSnapshotBootstrapper.snapshotHeight,
-                verifiedHeaderHeight ?? HeaderSnapshotBootstrapper.snapshotHeight
-            )
-        case .testnet, .regtest:
-            verifiedHeaderHeight ?? 0
-        }
+}
+
+/// Admits new-wallet generation only after the browser has authenticated a
+/// current height for the exact selected network. This prevents a fresh seed
+/// from silently inheriting the bundled mainnet checkpoint as its birthday.
+func authenticatedNewWalletBirthdayHeight(
+    expectedNetwork: BrowserHandshakeNetwork,
+    observedNetwork: String?,
+    hasAuthoritativeCurrentness: Bool,
+    observedHeight: UInt64?
+) -> UInt64? {
+    guard observedNetwork == expectedNetwork.rawValue,
+          hasAuthoritativeCurrentness,
+          let observedHeight,
+          observedHeight > 0,
+          observedHeight <= UInt64(UInt32.max) else {
+        return nil
     }
+    return observedHeight
 }
 
 enum BrowserThemeMode: String, CaseIterable, Equatable, Sendable {
