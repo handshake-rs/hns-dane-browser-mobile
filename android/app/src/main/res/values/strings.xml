@@ -19,16 +19,16 @@
     <string name="action_share">Share</string>
     <string name="action_view">View</string>
     <string name="action_disconnect" translatable="false">Disconnect</string>
-    <string name="action_create_wallet" translatable="false">Create</string>
-    <string name="action_restore_wallet" translatable="false">Restore</string>
-    <string name="action_unlock_wallet" translatable="false">Unlock</string>
+    <string name="action_create_wallet">Create</string>
+    <string name="action_restore_wallet">Restore</string>
+    <string name="action_unlock_wallet">Unlock</string>
     <string name="action_stop_wallet_sync" translatable="false">Stop synchronization</string>
     <string name="action_stop_bitcoin_sync" translatable="false">Stop Bitcoin synchronization</string>
     <string name="action_keep_synchronizing" translatable="false">Keep synchronizing</string>
     <string name="action_stop_sync" translatable="false">Stop sync</string>
     <string name="action_lock_wallet" translatable="false">Lock</string>
-    <string name="action_saved_wallet_recovery" translatable="false">I saved it</string>
-    <string name="action_sync_wallet_reads" translatable="false">Synchronize</string>
+    <string name="action_saved_wallet_recovery">I saved it</string>
+    <string name="action_sync_wallet_reads">Synchronize</string>
     <string name="action_import_wallet_name" translatable="false">Import name</string>
     <string name="action_import_multiple_wallet_names" translatable="false">Import multiple names</string>
     <string name="action_review_wallet_names" translatable="false">Review names</string>
@@ -41,9 +41,9 @@
     <string name="action_wallet_bitcoin_receive" translatable="false">New address</string>
     <string name="action_wallet_bitcoin_birthday" translatable="false">Set recovery birthday</string>
     <string name="action_apply" translatable="false">Apply</string>
-    <string name="action_reject" translatable="false">Reject</string>
+    <string name="action_reject">Reject</string>
     <string name="action_broadcast_hns" translatable="false">Approve and broadcast</string>
-    <string name="action_prepare" translatable="false">Review</string>
+    <string name="action_prepare">Review</string>
     <string name="action_approve_hns_value" translatable="false">Approve action</string>
 
     <string name="common_copied">Copied</string>
@@ -310,13 +310,13 @@
     <string name="row_wallet_summary" translatable="false">Receive and send HNS, manage names, and use direct peer-backed marketplace features from one local account.</string>
     <string name="row_wallet_status" translatable="false">Status</string>
     <string name="row_wallet_account" translatable="false">Account identity</string>
-    <string name="row_wallet_create" translatable="false">Create wallet</string>
+    <string name="row_wallet_create">Create wallet</string>
     <string name="row_wallet_create_summary" translatable="false">Create one native HNS account, verify its recovery phrase, and save it offline.</string>
-    <string name="row_wallet_restore" translatable="false">Restore wallet</string>
+    <string name="row_wallet_restore">Restore wallet</string>
     <string name="row_wallet_restore_summary" translatable="false">Restore exactly 24 English words with an optional HNS birthday block.</string>
-    <string name="row_wallet_recovery_confirm" translatable="false">Confirm offline backup</string>
+    <string name="row_wallet_recovery_confirm">Confirm offline backup</string>
     <string name="row_wallet_recovery_confirm_summary" translatable="false">The wallet is not retained until you correctly verify all 24 recovery words.</string>
-    <string name="row_wallet_unlock" translatable="false">Unlock</string>
+    <string name="row_wallet_unlock">Unlock</string>
     <string name="row_wallet_unlock_summary" translatable="false">Unwrap the database key from Android Keystore for this foreground session.</string>
     <string name="row_wallet_lock" translatable="false">Lock</string>
     <string name="row_wallet_lock_summary" translatable="false">End the current native wallet session.</string>
@@ -326,8 +326,8 @@
     <string name="wallet_stop_sync_title" translatable="false">Stop synchronization?</string>
     <string name="wallet_stop_sync_message" translatable="false">Stop the active HNS synchronization now? No additional synchronization batch will start. An atomic peer or database operation already in progress will unwind without discarding the last completed durable checkpoint. No wallet data will be deleted. Normal wallet controls return after the controller releases protected storage.</string>
     <string name="row_wallet_read_module" translatable="false">Module status</string>
-    <string name="row_wallet_read_balance" translatable="false">Confirmed spendable balance</string>
-    <string name="row_wallet_read_receive" translatable="false">Payment receive address</string>
+    <string name="row_wallet_read_balance">Confirmed spendable balance</string>
+    <string name="row_wallet_read_receive">Payment receive address</string>
     <string name="row_wallet_read_history" translatable="false">Transaction history</string>
     <string name="row_wallet_read_names" translatable="false">Tracked names</string>
     <string name="row_wallet_name_import" translatable="false">Import exact Handshake name</string>
@@ -366,26 +366,26 @@
     <string name="row_wallet_retry_direct_shakescape_host_summary" translatable="false">Retry binding the wallet-owned listener on port 12038. This does not change wallet, chain, or board authority.</string>
     <string name="row_wallet_disconnect_direct_shakescape" translatable="false">Disconnect swap peer</string>
     <string name="row_wallet_disconnect_direct_shakescape_summary" translatable="false">Drop only the active direct board transport so a different wallet can be paired.</string>
-    <string name="row_wallet_pair_direct_shakescape" translatable="false">Connect to offer peer</string>
-    <string name="row_wallet_pair_direct_shakescape_summary" translatable="false">Connect to the offer creator. Their offers open automatically. No funds move.</string>
+    <string name="row_wallet_pair_direct_shakescape">Connect to offer peer</string>
+    <string name="row_wallet_pair_direct_shakescape_summary">Connect to the offer creator. Their offers open automatically. No funds move.</string>
 
-    <string name="wallet_restore_phrase_hint" translatable="false">24-word recovery phrase</string>
-    <string name="wallet_restore_birthday_hint" translatable="false">HNS birthday block (optional; default 0)</string>
+    <string name="wallet_restore_phrase_hint">24-word recovery phrase</string>
+    <string name="wallet_restore_birthday_hint">HNS birthday block (optional; default 0)</string>
     <string name="wallet_restore_birthday_explanation" translatable="false">The wallet skips activity before this block during future rescans. Use 0 if uncertain; a height that is too recent can hide older wallet activity.</string>
     <string name="wallet_restore_birthday_invalid" translatable="false">Enter a whole block height from 0 through 4294967295, or leave it blank for block 0.</string>
-    <string name="wallet_restore_phrase_required" translatable="false">Enter the complete 24-word recovery phrase.</string>
+    <string name="wallet_restore_phrase_required">Enter the complete 24-word recovery phrase.</string>
     <string name="wallet_already_exists" translatable="false">A wallet already exists on this device.</string>
     <string name="wallet_status_starting" translatable="false">Checking this device for a wallet…</string>
     <string name="wallet_status_waiting_for_previous_controller" translatable="false">Finishing secure wallet handoff…</string>
     <string name="wallet_status_sync_handoff" translatable="false">Keeping the existing HNS sync connected…</string>
     <string name="wallet_status_opening" translatable="false">Opening wallet… This may take up to a minute.</string>
     <string name="wallet_status_preparing_unlock" translatable="false">Preparing wallet…</string>
-    <string name="wallet_status_creating" translatable="false">Creating native wallet…</string>
-    <string name="wallet_status_restoring" translatable="false">Restoring native wallet…</string>
-    <string name="wallet_status_unlocking" translatable="false">Unlocking your wallet… Please wait.</string>
+    <string name="wallet_status_creating">Creating wallet…</string>
+    <string name="wallet_status_restoring">Restoring wallet…</string>
+    <string name="wallet_status_unlocking">Unlocking wallet…</string>
     <string name="wallet_status_locking" translatable="false">Locking native wallet…</string>
     <string name="wallet_status_deleting" translatable="false">Deleting the confirmed native wallet…</string>
-    <string name="wallet_status_syncing_reads" translatable="false">Synchronizing read-only HNS wallet…</string>
+    <string name="wallet_status_syncing_reads">Synchronizing HNS wallet…</string>
     <string name="wallet_status_outbound_12038_blocked" translatable="false">Handshake synchronization is blocked by this network.</string>
     <string name="wallet_reads_sync_stopped_checkpoint" translatable="false">HNS synchronization stopped. The last completed durable checkpoint was retained.</string>
     <string name="wallet_status_stopping_sync" translatable="false">Stopping HNS synchronization…</string>
@@ -401,12 +401,12 @@
     <string name="wallet_status_disconnecting_direct_shakescape" translatable="false">Disconnecting swap peer…</string>
     <string name="wallet_status_not_created" translatable="false">No native wallet exists on this device.</string>
     <string name="wallet_status_native_unavailable" translatable="false">Native wallet core is unavailable.</string>
-    <string name="wallet_status_recovery_required" translatable="false">Write down and confirm these words. This screen stays awake. Locking or leaving cancels setup.</string>
-    <string name="wallet_status_waiting_for_initial_sync" translatable="false">Checking the Handshake network before wallet creation…</string>
-    <string name="wallet_status_waiting_to_continue_creation" translatable="false">Checking the Handshake network… Creation will continue automatically.</string>
-    <string name="wallet_status_ready_to_create" translatable="false">Ready at block %1$d. A new wallet will not scan earlier blocks.</string>
-    <string name="wallet_create_waiting_for_initial_sync" translatable="false">Checking the Handshake network. Keep Wallet open; creation will continue automatically. You can restore now.</string>
-    <string name="wallet_status_locked" translatable="false">Wallet locked. Unlock to update balances and activity.</string>
+    <string name="wallet_status_recovery_required">Write down and confirm these words. This screen stays awake. Locking or leaving cancels setup.</string>
+    <string name="wallet_status_waiting_for_initial_sync">Checking the Handshake network before wallet creation…</string>
+    <string name="wallet_status_waiting_to_continue_creation">Checking the Handshake network… Creation will continue automatically.</string>
+    <string name="wallet_status_ready_to_create">Ready at block %1$d. A new wallet will not scan earlier blocks.</string>
+    <string name="wallet_create_waiting_for_initial_sync">Checking the Handshake network. Keep Wallet open; creation will continue automatically. You can restore now.</string>
+    <string name="wallet_status_locked">Wallet locked. Unlock to update balances and activity.</string>
     <string name="wallet_status_device_locked" translatable="false">The existing wallet is locked while Android Keystore is unavailable. Unlock this device, then retry.</string>
     <string name="wallet_status_unlocked" translatable="false">Unlocked Shakescape wallet</string>
     <string name="wallet_cellular_warning_title" translatable="false">CELLULAR DATA IN USE</string>
@@ -430,7 +430,7 @@
     <string name="wallet_reads_recovery_unconfirmed" translatable="false">Confirm the recovery backup before any wallet read backend can be installed.</string>
     <string name="wallet_reads_locked" translatable="false">Unlock the wallet before synchronizing read-only HNS data.</string>
     <string name="wallet_reads_ready_to_sync" translatable="false">The HNS wallet is ready. Synchronize to verify its current balance and enable sending.</string>
-    <string name="wallet_reads_syncing" translatable="false">Starting direct-peer HNS verification and wallet scanning…</string>
+    <string name="wallet_reads_syncing">Verifying HNS balance and activity…</string>
     <string name="wallet_reads_refresh_failed_retained" translatable="false">Refresh failed. The last verified snapshot remains visible but cannot authorize spending; synchronize again to refresh it.</string>
     <string name="wallet_reads_live_connecting" translatable="false">Finding independent Handshake peers. Verified local height %1$d; this sync continues from that checkpoint.</string>
     <string name="wallet_reads_live_headers" translatable="false">Verifying direct peer headers at height %1$d.</string>
@@ -447,19 +447,19 @@
     <string name="wallet_reads_catching_up_scan" translatable="false">Verified chain headers are current. Wallet history has scanned through %1$d of %2$d. Synchronization will continue automatically from this checkpoint.</string>
     <string name="wallet_reads_catching_up_degraded" translatable="false">Direct peers did not reach current header agreement at local height %1$d. Automatic synchronization will retry with replacement peers.</string>
     <string name="wallet_reads_outbound_12038_blocked" translatable="false">The current network appears to block outbound TCP port 12038. Handshake synchronization cannot reach public peers. Try another network or a VPN/exit node, then synchronize again.</string>
-    <string name="wallet_reads_ready" translatable="false">Handshake wallet state is ready at height %1$d.</string>
-    <string name="wallet_reads_balance_unavailable" translatable="false">Balance is not available until a verified wallet snapshot completes.</string>
+    <string name="wallet_reads_ready">HNS wallet ready at block %1$d.</string>
+    <string name="wallet_reads_balance_unavailable">Balance will appear after synchronization.</string>
     <string name="wallet_reads_balance_syncing" translatable="false">Balance is waiting for the active direct-peer verification and wallet scan to finish.</string>
     <string name="wallet_pending_outgoing_recovery" translatable="false">Transaction pending. Synchronize after a new Handshake block so Shakescape can settle the outgoing transaction.</string>
     <string name="wallet_pending_outgoing_balance_unavailable" translatable="false">Transaction pending. The synchronized balance will return after the outgoing transaction is settled.</string>
     <string name="wallet_pending_outgoing_actions_disabled" translatable="false">Send and Receive are temporarily unavailable while the outgoing transaction is pending.</string>
     <string name="wallet_reads_balance" translatable="false">%1$s HNS spendable now</string>
     <string name="wallet_reads_balance_with_pending" translatable="false">%1$s HNS spendable now\n%2$s HNS pending outgoing\nTransaction Pending, please wait.</string>
-    <string name="wallet_reads_balance_confirmed" translatable="false">%1$s HNS confirmed on chain</string>
+    <string name="wallet_reads_balance_confirmed">%1$s HNS confirmed</string>
     <string name="wallet_reads_balance_confirmed_with_pending" translatable="false">%1$s HNS confirmed on chain\n%2$s HNS pending outgoing\nTransaction Pending, please wait.</string>
     <string name="wallet_reads_swap_reserved" translatable="false">%1$s HNS reserved by active or unfunded swap commitments\n%2$s HNS available after swap reservations</string>
-    <string name="wallet_reads_receive_unavailable" translatable="false">A payment receive address is not available yet.</string>
-    <string name="wallet_reads_receive" translatable="false">%1$s\nDerivation index %2$d\nUse for ordinary HNS payments. A name transferred here remains controlled by this wallet.</string>
+    <string name="wallet_reads_receive_unavailable">Receive address will appear after synchronization.</string>
+    <string name="wallet_reads_receive">%1$s\nAddress index %2$d\nUse for HNS payments.</string>
     <string name="wallet_reads_receive_local" translatable="false">%1$s\nDerivation index %2$d\nUse for ordinary HNS payments. A name transferred here remains controlled by this wallet. Synchronize before trusting balance/history or sending.</string>
     <string name="wallet_reads_history_unavailable" translatable="false">Transaction history is not available until synchronization completes.</string>
     <string name="wallet_reads_history_empty" translatable="false">No wallet transactions were found in the synchronized snapshot.</string>
@@ -636,12 +636,12 @@
     <string name="wallet_shakedex_offer_choice" translatable="false">%1$s&#10;Price %2$s HNS · marketplace fee %3$s HNS&#10;Expires %4$s</string>
     <string name="wallet_shakedex_more_offers" translatable="false">More offers</string>
     <string name="wallet_shakedex_next_offer_page" translatable="false">Load next authenticated page</string>
-    <string name="wallet_direct_shakescape_endpoint_hint" translatable="false">IPv4:port or [IPv6]:port</string>
-    <string name="wallet_direct_shakescape_connect_and_load" translatable="false">Connect and load offers</string>
-    <string name="wallet_direct_shakescape_recent_peers" translatable="false">Recent offer peers</string>
-    <string name="wallet_direct_shakescape_discovered_peers" translatable="false">Discovered offer peers</string>
-    <string name="wallet_direct_shakescape_no_recent_peers" translatable="false">No recent offer peers.</string>
-    <string name="wallet_direct_shakescape_no_discovered_peers" translatable="false">No peers found. Paste the offer creator’s address above.</string>
+    <string name="wallet_direct_shakescape_endpoint_hint">IPv4:port or [IPv6]:port</string>
+    <string name="wallet_direct_shakescape_connect_and_load">Connect and load offers</string>
+    <string name="wallet_direct_shakescape_recent_peers">Recent offer peers</string>
+    <string name="wallet_direct_shakescape_discovered_peers">Discovered offer peers</string>
+    <string name="wallet_direct_shakescape_no_recent_peers">No recent offer peers.</string>
+    <string name="wallet_direct_shakescape_no_discovered_peers">No peers found. Paste the offer creator’s address above.</string>
     <string name="wallet_direct_shakescape_unavailable" translatable="false">P2P swap hosting is unavailable until this wallet-owned direct HNS controller is installed and unlocked.</string>
     <string name="wallet_direct_shakescape_locked" translatable="false">Unlock the wallet to host or pair a swap peer.</string>
     <string name="wallet_direct_shakescape_host_listening" translatable="false">%2$s&#10;&#10;Connect to an offer creator to browse offers. Hosting is optional.&#10;&#10;Advanced: listening on TCP port %1$d. %3$s</string>
@@ -653,9 +653,9 @@
     <string name="wallet_direct_shakescape_reachability_mapping" translatable="false">Verified NETWORK service is ready; checking public IPv6 candidates and trying PCP/NAT-PMP/UPnP reachability. %1$d discovery candidates.</string>
     <string name="wallet_direct_shakescape_reachability_local_network_permission" translatable="false">Verified NETWORK service is ready. Allow Nearby devices access for LAN inbound testing and PCP/NAT-PMP/UPnP router discovery; public IPv6 and Internet traffic remain independent. %1$d discovery candidates.</string>
     <string name="wallet_direct_shakescape_reachability_syncing" translatable="false">Waiting for fresh verified headers before NETWORK advertisement. %1$d discovery candidates.</string>
-    <string name="wallet_direct_shakescape_peer_none" translatable="false">No offer peer is connected yet.</string>
-    <string name="wallet_direct_shakescape_peer_connected" translatable="false">Connected to %1$s.</string>
-    <string name="wallet_shakedex_connection_help" translatable="false">A peer is the wallet offering the swap. Connect to view its offers. Connecting does not accept an offer or move funds. For HNS → BTC, Bitcoin monitoring starts after acceptance.</string>
+    <string name="wallet_direct_shakescape_peer_none">No offer peer is connected yet.</string>
+    <string name="wallet_direct_shakescape_peer_connected">Connected to %1$s.</string>
+    <string name="wallet_shakedex_connection_help">A peer is the wallet offering the swap. Connect to view its offers. Connecting does not accept an offer or move funds. For HNS → BTC, Bitcoin monitoring starts after acceptance.</string>
     <string name="wallet_direct_shakescape_host_retrying" translatable="false">Retrying the wallet-owned P2P swap listener…</string>
     <string name="wallet_direct_shakescape_host_retry_ready" translatable="false">P2P swap hosting is listening again.</string>
     <string name="wallet_direct_shakescape_host_retry_failed" translatable="false">P2P swap hosting is still unavailable. The wallet and verified HNS state are unchanged.</string>
@@ -701,21 +701,21 @@
     <string name="wallet_status_importing_name" translatable="false">Importing exact Handshake name…</string>
     <string name="wallet_account_identity" translatable="false">%1$s\nModule: %2$s\nAccount: %3$s</string>
     <string name="wallet_recovery_confirm_title" translatable="false">Recovery phrase saved?</string>
-    <string name="wallet_recovery_quiz_title" translatable="false">Confirm all 24 recovery words</string>
-    <string name="wallet_recovery_quiz_message" translatable="false">For each position, tap the word you recorded. Results are shown only after all 24 choices.</string>
-    <string name="wallet_recovery_quiz_word" translatable="false">Word %1$d of %2$d</string>
-    <string name="wallet_recovery_quiz_failed_title" translatable="false">Recovery confirmation did not match</string>
-    <string name="wallet_recovery_quiz_failed_message" translatable="false">At least one choice was incorrect. Review the displayed phrase and repeat all 24 words before the wallet can be saved.</string>
+    <string name="wallet_recovery_quiz_title">Confirm all 24 recovery words</string>
+    <string name="wallet_recovery_quiz_message">Tap each word in order. Results appear after all 24 choices.</string>
+    <string name="wallet_recovery_quiz_word">Word %1$d of %2$d</string>
+    <string name="wallet_recovery_quiz_failed_title">Recovery words did not match</string>
+    <string name="wallet_recovery_quiz_failed_message">At least one choice was wrong. Review the phrase and try all 24 words again.</string>
     <string name="wallet_recovery_quiz_invalid" translatable="false">The generated recovery phrase was not exactly 24 words. This wallet cannot be confirmed.</string>
     <string name="row_wallet_view_recovery" translatable="false">View recovery phrase</string>
     <string name="wallet_recovery_display_warning" translatable="false">Private recovery material. Make sure nobody can see your screen. Close this dialog as soon as you finish checking the phrase.</string>
     <string name="wallet_recovery_unavailable" translatable="false">This wallet predates protected recovery storage, so its phrase is not available for redisplay. Restore it into a new wallet profile to enable this feature.</string>
-    <string name="wallet_auth_create_title" translatable="false">Protect the new wallet</string>
-    <string name="wallet_auth_create_message" translatable="false">Confirm your device password, PIN, or pattern before generating wallet keys.</string>
-    <string name="wallet_auth_restore_title" translatable="false">Protect the restored wallet</string>
-    <string name="wallet_auth_restore_message" translatable="false">Confirm your device password, PIN, or pattern before importing recovery material.</string>
-    <string name="wallet_auth_unlock_title" translatable="false">Unlock wallet</string>
-    <string name="wallet_auth_unlock_message" translatable="false">Confirm your device password, PIN, or pattern to enable signing authority.</string>
+    <string name="wallet_auth_create_title">Protect the new wallet</string>
+    <string name="wallet_auth_create_message">Confirm your device password, PIN, or pattern before creating wallet keys.</string>
+    <string name="wallet_auth_restore_title">Protect the restored wallet</string>
+    <string name="wallet_auth_restore_message">Confirm your device password, PIN, or pattern before importing recovery words.</string>
+    <string name="wallet_auth_unlock_title">Unlock wallet</string>
+    <string name="wallet_auth_unlock_message">Confirm your device password, PIN, or pattern to unlock signing.</string>
     <string name="wallet_auth_transaction_title" translatable="false">Authorize wallet transaction</string>
     <string name="wallet_auth_transaction_message" translatable="false">Confirm your device password, PIN, or pattern before preparing this transaction for approval.</string>
     <string name="wallet_auth_recovery_title" translatable="false">View recovery phrase</string>
@@ -752,7 +752,7 @@
     <string name="wallet_dashboard_locked_short" translatable="false">Locked</string>
     <string name="wallet_dashboard_unlocked_short" translatable="false">Unlocked</string>
     <string name="wallet_dashboard_unlock_summary" translatable="false">Unlock and update balances</string>
-    <string name="wallet_dashboard_hns_balance" translatable="false">HNS BALANCE</string>
+    <string name="wallet_dashboard_hns_balance">HNS BALANCE</string>
     <string name="wallet_dashboard_receive" translatable="false">RECEIVE</string>
     <string name="wallet_dashboard_send" translatable="false">SEND</string>
     <string name="wallet_activity_transactions" translatable="false">Transactions</string>
@@ -773,7 +773,7 @@
     <string name="wallet_dashboard_receive_message" translatable="false">%1$s</string>
     <string name="wallet_dashboard_copy_address" translatable="false">Copy address</string>
     <string name="wallet_dashboard_address_unavailable" translatable="false">A receive address is not available yet</string>
-    <string name="wallet_receive_qr_description" translatable="false">QR code containing this Handshake payment address</string>
+    <string name="wallet_receive_qr_description">QR code for this HNS payment address</string>
     <string name="wallet_save_qr_code" translatable="false">Save QR code</string>
     <string name="wallet_scan_payment_qr" translatable="false">Scan payment QR</string>
     <string name="wallet_qr_invalid" translatable="false">That QR code is not a valid Handshake payment URI</string>
@@ -810,7 +810,7 @@
     <string name="wallet_dashboard_send_bitcoin" translatable="false">Send Bitcoin</string>
     <string name="wallet_swap_sell_btc" translatable="false">Sell BTC for HNS</string>
     <string name="wallet_swap_sell_hns" translatable="false">Sell HNS for BTC</string>
-    <string name="wallet_swap_available_offers" translatable="false">Browse offers</string>
+    <string name="wallet_swap_available_offers">Browse offers</string>
     <string name="wallet_swap_my_offers" translatable="false">My active BTC/HNS swap offers</string>
     <string name="wallet_swap_hns_offered_hint" translatable="false">HNS locked (minimum 0.100546 including fee reserve)</string>
     <string name="wallet_swap_btc_requested_hint" translatable="false">BTC locked (sats, minimum 1330 including fee reserve)</string>
@@ -820,13 +820,13 @@
     <string name="wallet_swap_hns_approval_message" translatable="false">Lock %1$s HNS for exactly %2$d sats. The locked amount includes a maximum %3$s HNS settlement-fee reserve. Total HNS locked: %4$s HNS. Publishing signs and shares the fixed terms; it does not fund the atomic swap.</string>
     <string name="wallet_swap_hns_published" translatable="false">HNS-for-BTC offer %1$s… is active and will be announced to connected swap peers.</string>
     <string name="wallet_swap_loading_my_offers" translatable="false">Loading authenticated local swap offers…</string>
-    <string name="wallet_swap_loading_available_offers" translatable="false">Loading offers…</string>
+    <string name="wallet_swap_loading_available_offers">Loading offers…</string>
     <string name="wallet_swap_available_failed" translatable="false">Offers could not be verified.</string>
-    <string name="wallet_swap_no_available_offers" translatable="false">No offers from this peer.</string>
-    <string name="wallet_swap_offer_maker_label" translatable="false">You offer %1$s → You request %2$s · %3$s…</string>
-    <string name="wallet_swap_offer_taker_label" translatable="false">You pay %1$s → You receive %2$s · %3$s…</string>
+    <string name="wallet_swap_no_available_offers">No offers from this peer.</string>
+    <string name="wallet_swap_offer_maker_label">You offer %1$s → You request %2$s · %3$s…</string>
+    <string name="wallet_swap_offer_taker_label">You pay %1$s → You receive %2$s · %3$s…</string>
     <string name="wallet_swap_take_offer" translatable="false">Accept offer</string>
-    <string name="wallet_swap_take_review" translatable="false">Review offer</string>
+    <string name="wallet_swap_take_review">Review offer</string>
     <string name="wallet_swap_take_btc_fee_reserve_hint" translatable="false">Bitcoin fee reserve (sats, minimum 1000)</string>
     <string name="wallet_swap_take_hns_fee_reserve_hint" translatable="false">HNS fee reserve</string>
     <string name="wallet_swap_take_preparing" translatable="false">Preparing offer review…</string>
@@ -835,9 +835,9 @@
     <string name="wallet_swap_take_insufficient_hns" translatable="false">This offer requires a %1$s HNS lock including a %2$s HNS fee reserve (%3$s HNS total), but this wallet has %4$s HNS spendable.</string>
     <string name="wallet_swap_take_reserved_btc" translatable="false">This offer requires %1$d sats total and the wallet has %2$d confirmed sats, but earlier swap commitments reserve enough Bitcoin that the combined commitments cannot be funded. Open Atomic swap executions to abandon an unfunded acceptance, complete or refund a funded swap, or add confirmed Bitcoin.</string>
     <string name="wallet_swap_take_reserved_hns" translatable="false">This offer requires %1$s HNS total and the wallet has %2$s HNS confirmed, but earlier swap commitments reserve enough HNS that the combined commitments cannot be funded. Open Atomic swap executions to abandon an unfunded acceptance, complete or refund a funded swap, or add confirmed HNS.</string>
-    <string name="wallet_swap_take_approval_title" translatable="false">Accept this atomic-swap offer?</string>
-    <string name="wallet_swap_take_approval_message" translatable="false">Offer: %1$s\n\nLock: %2$s\nMaximum fee: %3$s\nTotal: %4$s\n\nAccepting starts negotiation. Funding is approved separately.</string>
-    <string name="wallet_swap_take_confirm" translatable="false">Accept offer</string>
+    <string name="wallet_swap_take_approval_title">Accept this swap offer?</string>
+    <string name="wallet_swap_take_approval_message">Offer: %1$s\n\nLock: %2$s\nMaximum fee: %3$s\nTotal: %4$s\n\nAccepting starts negotiation. Funding is approved separately.</string>
+    <string name="wallet_swap_take_confirm">Accept offer</string>
     <string name="wallet_swap_take_failed" translatable="false">The signed acceptance was not sent. The peer may have disconnected or the offer may have expired.</string>
     <string name="wallet_swap_take_sent" translatable="false">Offer accepted. Atomic-swap session %1$s… is negotiating with the maker.</string>
     <string name="wallet_swap_cancel_direct_message" translatable="false">Withdraw %1$s?\n\nOffer ID: %2$s. Cancellation releases the local reservation but cannot cancel an already accepted session.</string>
@@ -924,9 +924,9 @@
     <string name="wallet_swap_funding_fee_hint" translatable="false">Maximum Bitcoin funding fee (sats)</string>
     <string name="wallet_swap_funding_preparing" translatable="false">Preparing exact session-bound Bitcoin HTLC funding…</string>
     <string name="wallet_swap_funding_prepare_failed" translatable="false">Bitcoin HTLC funding was not prepared. Confirm the accepted session, current chain state, and signed fee reserve.</string>
-    <string name="wallet_swap_funding_approval_title" translatable="false">Broadcast Bitcoin HTLC funding?</string>
-    <string name="wallet_swap_funding_approval_message" translatable="false">Lock %1$d sats in the session HTLC. Network fee: %2$d sats (maximum %3$d).\n\nTransaction: %4$s\nSession: %5$s\n\nBroadcast is irreversible. This submission receipt is not confirmation; the swap advances only after the local Bitcoin verifier confirms the exact lock.</string>
-    <string name="wallet_swap_broadcast_funding" translatable="false">Broadcast funding</string>
+    <string name="wallet_swap_funding_approval_title">Broadcast Bitcoin funding?</string>
+    <string name="wallet_swap_funding_approval_message">Lock %1$d sats. Network fee: %2$d sats (maximum %3$d).\n\nTransaction: %4$s\nSession: %5$s\n\nBroadcast is irreversible. The swap advances after the Bitcoin lock is confirmed.</string>
+    <string name="wallet_swap_broadcast_funding">Broadcast funding</string>
     <string name="wallet_swap_funding_broadcast_failed" translatable="false">The Bitcoin HTLC funding transaction was not submitted.</string>
     <string name="wallet_swap_funding_submitted" translatable="false">Bitcoin HTLC funding %1$s… was submitted. Waiting for independent local confirmation.</string>
     <string name="wallet_swap_fund_hns" translatable="false">Prepare HNS funding</string>
@@ -948,9 +948,9 @@
     <string name="wallet_swap_hns_funding_fee_hint" translatable="false">Maximum HNS funding fee (dollarydoos)</string>
     <string name="wallet_swap_hns_funding_preparing" translatable="false">Preparing the exact session-bound Handshake HTLC…</string>
     <string name="wallet_swap_hns_funding_prepare_failed" translatable="false">Handshake HTLC funding was not prepared. The Bitcoin lock must first be independently confirmed and the fee must remain within the signed reserve.</string>
-    <string name="wallet_swap_hns_funding_approval_title" translatable="false">Broadcast Handshake HTLC funding?</string>
-    <string name="wallet_swap_hns_funding_approval_message" translatable="false">Lock %1$s HNS. Network fee: %2$s HNS (maximum %3$s).\n\nTransaction: %4$s\nSession: %5$s\n\nBroadcast is irreversible. Submission is not confirmation; the swap advances only after the local Handshake verifier confirms the exact lock.</string>
-    <string name="wallet_swap_broadcast_hns_funding" translatable="false">Broadcast HNS funding</string>
+    <string name="wallet_swap_hns_funding_approval_title">Broadcast HNS funding?</string>
+    <string name="wallet_swap_hns_funding_approval_message">Lock %1$s HNS. Network fee: %2$s HNS (maximum %3$s).\n\nTransaction: %4$s\nSession: %5$s\n\nBroadcast is irreversible. The swap advances after the HNS lock is confirmed.</string>
+    <string name="wallet_swap_broadcast_hns_funding">Broadcast HNS funding</string>
     <string name="wallet_swap_hns_funding_broadcast_failed" translatable="false">The Handshake HTLC funding transaction was not submitted.</string>
     <string name="wallet_swap_hns_funding_submitted" translatable="false">Handshake HTLC funding %1$s… was submitted. Waiting for independent local confirmation.</string>
 

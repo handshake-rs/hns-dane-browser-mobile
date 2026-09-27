@@ -29,12 +29,18 @@ classify_path() {
     .github/workflows/ci.yml | \
       scripts/ci-changed-targets.sh | \
       tests/test_ci_changed_targets.py | \
+      scripts/generate_wallet_localizations.py | \
       scripts/verify_android_translations.py | \
       scripts/check.sh | \
       scripts/check-runtime-boundaries.sh | \
       scripts/check-version-consistency.sh | \
       scripts/verify-supply-chain.sh)
       set_all_targets
+      ;;
+
+    localization/*)
+      android=true
+      ios=true
       ;;
 
     # Credentialed release and exact-source artifact policy is exercised in

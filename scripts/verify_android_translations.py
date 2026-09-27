@@ -34,36 +34,37 @@ def token_profiles(element: ET.Element) -> frozenset[TokenProfile]:
 
 
 def resources(
-    path: Path, *, base: bool
+    paths: list[Path], *, base: bool
 ) -> dict[tuple[str, str], frozenset[TokenProfile]]:
-    root = ET.parse(path).getroot()
     found: dict[tuple[str, str], frozenset[TokenProfile]] = {}
-    for element in root:
-        if element.tag not in TRANSLATABLE_KINDS:
-            continue
-        name = element.get("name")
-        if not name:
-            raise ValueError(f"{path}: unnamed <{element.tag}> resource")
-        if base and element.get("translatable") == "false":
-            continue
-        key = (element.tag, name)
-        if key in found:
-            raise ValueError(f"{path}: duplicate {element.tag} resource {name!r}")
-        found[key] = token_profiles(element)
+    for path in paths:
+        root = ET.parse(path).getroot()
+        for element in root:
+            if element.tag not in TRANSLATABLE_KINDS:
+                continue
+            name = element.get("name")
+            if not name:
+                raise ValueError(f"{path}: unnamed <{element.tag}> resource")
+            if base and element.get("translatable") == "false":
+                continue
+            key = (element.tag, name)
+            if key in found:
+                raise ValueError(f"{path}: duplicate {element.tag} resource {name!r}")
+            found[key] = token_profiles(element)
     return found
 
 
 def verify() -> list[str]:
-    base_path = RESOURCES / "values" / "strings.xml"
-    base = resources(base_path, base=True)
+    base_paths = sorted((RESOURCES / "values").glob("*.xml"))
+    base = resources(base_paths, base=True)
     errors: list[str] = []
-    locale_paths = sorted(RESOURCES.glob("values-*/strings.xml"))
-    if not locale_paths:
+    locale_dirs = sorted(path for path in RESOURCES.glob("values-*") if path.is_dir())
+    if not locale_dirs:
         return ["no localized strings.xml files found"]
 
-    for path in locale_paths:
+    for locale_dir in locale_dirs:
         try:
-            localized = resources(path, base=False)
+            localized = resources(sorted(locale_dir.glob("*.xml")), base=False)
         except (ET.ParseError, ValueError) as error:
             errors.append(str(error))
             continue
@@ -71,11 +72,11 @@ def verify() -> list[str]:
         for kind, name in sorted(base):
             key = (kind, name)
             if key not in localized:
-                errors.append(f"{path}: missing <{kind} name={name!r}>")
+                errors.append(f"{locale_dir}: missing <{kind} name={name!r}>")
                 continue
             if not localized[key].issubset(base[key]):
                 errors.append(
-                    f"{path}: format-token profiles for {kind} {name!r} are "
+                    f"{locale_dir}: format-token profiles for {kind} {name!r} are "
                     f"{localized[key]}, expected profiles from {base[key]}"
                 )
 
@@ -87,7 +88,7 @@ def main() -> int:
     if errors:
         print("\n".join(errors), file=sys.stderr)
         return 1
-    locale_count = sum(1 for _ in RESOURCES.glob("values-*/strings.xml"))
+    locale_count = sum(1 for path in RESOURCES.glob("values-*") if path.is_dir())
     print(f"Android translation coverage and format tokens verified for {locale_count} locales")
     return 0
 

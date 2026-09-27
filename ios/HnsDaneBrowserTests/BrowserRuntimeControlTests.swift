@@ -760,15 +760,19 @@ final class BrowserRuntimeControlTests: XCTestCase {
 
         XCTAssertEqual(
             presentation.status,
-            "Synced and ready at height 42. Pending outgoing transactions are reflected in the available balance."
+            WalletCopy.format("wallet_reads_ready", 42)
         )
-        XCTAssertEqual(presentation.balance, "12.345678 HNS spendable now")
+        XCTAssertEqual(
+            presentation.balance,
+            WalletCopy.format("wallet_reads_balance_confirmed", "12.345678")
+        )
         XCTAssertEqual(
             presentation.paymentReceive,
-            "Payment receive\n" +
-                "rs1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq8euwz\n" +
-                "Derivation index 7\n" +
-                "Use for ordinary HNS payments. A name transferred here remains controlled by this wallet."
+            WalletCopy.format(
+                "wallet_reads_receive",
+                "rs1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq8euwz",
+                7
+            )
         )
         XCTAssertEqual(
             receiveTargets.paymentAddress,
@@ -828,7 +832,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertEqual(pendingBalance.pendingOutgoingBaseUnits, "100123")
         XCTAssertEqual(
             WalletReadPresenter.present(pendingOutgoingSnapshot).balance,
-            "12.345678 HNS spendable now\n" +
+            WalletCopy.format("wallet_reads_balance_confirmed", "12.345678") + "\n" +
                 "0.100123 HNS pending outgoing\n" +
                 "Transaction Pending, please wait."
         )

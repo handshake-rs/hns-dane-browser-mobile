@@ -57,6 +57,8 @@
 		B20000000000000000000007 /* WalletEventProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000007 /* WalletEventProjection.swift */; };
 		B20000000000000000000008 /* RustNativeWallet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000008 /* RustNativeWallet.swift */; };
 		B20000000000000000000009 /* WalletViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000009 /* WalletViewController.swift */; };
+		B70000000000000000000001 /* WalletLocalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70000000000000000000001 /* WalletLocalization.swift */; };
+		B70000000000000000000002 /* Wallet.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = F70000000000000000000002 /* Wallet.xcstrings */; };
 		B2000000000000000000000C /* WalletNamesGalleryViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2000000000000000000000C /* WalletNamesGalleryViewController.swift */; };
 		B2000000000000000000000A /* HrmHnsaWalletConsumer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2000000000000000000000A /* HrmHnsaWalletConsumer.swift */; };
 		B2000000000000000000000B /* HrmHnsaWalletConsumerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2000000000000000000000B /* HrmHnsaWalletConsumerTests.swift */; };
@@ -135,6 +137,8 @@
 		F20000000000000000000007 /* WalletEventProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletEventProjection.swift; sourceTree = "<group>"; };
 		F20000000000000000000008 /* RustNativeWallet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RustNativeWallet.swift; sourceTree = "<group>"; };
 		F20000000000000000000009 /* WalletViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletViewController.swift; sourceTree = "<group>"; };
+		F70000000000000000000001 /* WalletLocalization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletLocalization.swift; sourceTree = "<group>"; };
+		F70000000000000000000002 /* Wallet.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Wallet.xcstrings; sourceTree = "<group>"; };
 		F2000000000000000000000C /* WalletNamesGalleryViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletNamesGalleryViewController.swift; sourceTree = "<group>"; };
 		F2000000000000000000000A /* HrmHnsaWalletConsumer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HrmHnsaWalletConsumer.swift; sourceTree = "<group>"; };
 		F2000000000000000000000B /* HrmHnsaWalletConsumerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HrmHnsaWalletConsumerTests.swift; sourceTree = "<group>"; };
@@ -242,6 +246,7 @@
 			children = (
 				F1000000000000000000000D /* Info.plist */,
 				F1000000000000000000000E /* PrivacyInfo.xcprivacy */,
+				F70000000000000000000002 /* Wallet.xcstrings */,
 				F1000000000000000000000F /* Assets.xcassets */,
 				F10000000000000000000010 /* LaunchScreen.storyboard */,
 				F10000000000000000000011 /* HnsDaneBrowser-Bridging-Header.h */,
@@ -257,6 +262,7 @@
 				F20000000000000000000006 /* WalletApprovalProjection.swift */,
 				F20000000000000000000007 /* WalletEventProjection.swift */,
 				F20000000000000000000001 /* WalletKeychainStore.swift */,
+				F70000000000000000000001 /* WalletLocalization.swift */,
 				F20000000000000000000002 /* WalletProviderProtocol.swift */,
 				F20000000000000000000003 /* WalletUIState.swift */,
 				F20000000000000000000009 /* WalletViewController.swift */,
@@ -411,6 +417,26 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
+				ar,
+				de,
+				es,
+				fa,
+				fr,
+				he,
+				hi,
+				id,
+				it,
+				ja,
+				ko,
+				nl,
+				pl,
+				pt,
+				ru,
+				tr,
+				uk,
+				vi,
+				"zh-Hans",
+				"zh-Hant",
 				Base,
 			);
 			mainGroup = G10000000000000000000001;
@@ -432,6 +458,7 @@
 			files = (
 				B60000000000000000000001 /* bip39-english.txt in Resources */,
 				B1000000000000000000000D /* PrivacyInfo.xcprivacy in Resources */,
+				B70000000000000000000002 /* Wallet.xcstrings in Resources */,
 				B1000000000000000000000E /* Assets.xcassets in Resources */,
 				B1000000000000000000000F /* LaunchScreen.storyboard in Resources */,
 				B10000000000000000000010 /* hns_headers_300000.snapshot.gzip in Resources */,
@@ -481,6 +508,7 @@
 				B20000000000000000000006 /* WalletApprovalProjection.swift in Sources */,
 				B20000000000000000000007 /* WalletEventProjection.swift in Sources */,
 				B20000000000000000000001 /* WalletKeychainStore.swift in Sources */,
+				B70000000000000000000001 /* WalletLocalization.swift in Sources */,
 				B20000000000000000000002 /* WalletProviderProtocol.swift in Sources */,
 				B20000000000000000000003 /* WalletUIState.swift in Sources */,
 				B20000000000000000000004 /* WalletWebKitBridge.swift in Sources */,

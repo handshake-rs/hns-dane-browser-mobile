@@ -94,6 +94,19 @@ class CiChangedTargetsTests(unittest.TestCase):
                     ios=True,
                 )
 
+    def test_wallet_localization_source_builds_both_application_shells(self) -> None:
+        for path in (
+            "localization/wallet-critical.json",
+            "localization/README.md",
+        ):
+            with self.subTest(path=path):
+                self.assert_targets(
+                    (path,),
+                    rust=False,
+                    android=True,
+                    ios=True,
+                )
+
     def test_ios_only_change_skips_android(self) -> None:
         for path in (
             "ios/HnsDaneBrowser/App/AppDelegate.swift",
@@ -148,6 +161,7 @@ class CiChangedTargetsTests(unittest.TestCase):
             ".github/workflows/ci.yml",
             ".github/workflows/future-shared.yml",
             "scripts/ci-changed-targets.sh",
+            "scripts/generate_wallet_localizations.py",
             "scripts/verify_android_translations.py",
             "scripts/check-runtime-boundaries.sh",
             "scripts/verify-supply-chain.sh",
