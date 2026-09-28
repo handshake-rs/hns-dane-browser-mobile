@@ -339,7 +339,7 @@
     <string name="wallet_swap_take_reserved_btc">此報價需要%1$d sats；皮夾已確認%2$d，但其他掉期儲備太多。釋放無資金支持的承兌，完成或退款掉期，或增加 Bitcoin。</string>
     <string name="wallet_swap_take_reserved_hns">此報價需要%1$s HNS；皮夾已確認%2$s，但其他掉期儲備太多。釋放無資金支持的承兌，完成或退款掉期，或增加 HNS。</string>
     <string name="wallet_swap_take_failed">簽署的接受書未發送。對等方可能已斷線或優惠可能已過期。</string>
-    <string name="wallet_swap_take_sent">接受報價。原子交換會話%1$s…正在與製造商協商。</string>
+    <string name="wallet_swap_take_sent">交換 %1$s… 已啟動。正在等待另一個錢包簽署。</string>
     <string name="wallet_swap_cancel_direct_message">提現%1$s？ \n\n優惠ID：%2$s。取消會釋放本地預訂，但無法取消已接受的會話。</string>
     <string name="wallet_swap_btc_amount_hint">BTC 鎖定（sats，最低 1330 含手續費）</string>
     <string name="wallet_swap_hns_amount_hint">HNS 鎖定（最低 0.100546 包括費用準備金）</string>
@@ -410,6 +410,10 @@
     <string name="wallet_swap_notification_channel_description">本地驗證的原子交換的可操作資金、贖回、退款和完成更新。</string>
     <string name="wallet_swap_notification_action_required">需要原子交換操作</string>
     <string name="wallet_swap_notification_updated">原子交換更新</string>
+    <string name="wallet_swap_notification_offer_accepted">你的報價已被接受</string>
+    <string name="wallet_swap_notification_offer_accepted_detail">另一個錢包已啟動交換 · 正在等待簽署條款 · 工作階段 %1$s…</string>
+    <string name="wallet_hns_received_notification_title">已收到 HNS</string>
+    <string name="wallet_hns_received_notification_detail">已確認收到 %1$s HNS</string>
     <string name="wallet_swap_notification_completed">原子交換完成</string>
     <string name="wallet_swap_notification_refunded">原子交換退款</string>
     <string name="wallet_swap_notification_failed">原子交換需要注意</string>

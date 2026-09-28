@@ -70,8 +70,8 @@ import com.denuoweb.hnsdane.wallet.NativeBitcoinHtlcFundingApproval
 import com.denuoweb.hnsdane.wallet.NativeBitcoinSyncProgress
 import com.denuoweb.hnsdane.wallet.NativeBtcForHnsOfferApproval
 import com.denuoweb.hnsdane.wallet.NativeDirectOfferSummary
-import com.denuoweb.hnsdane.wallet.NativeDirectOfferTakeApproval
-import com.denuoweb.hnsdane.wallet.NativeDirectOfferTakePreparation
+import com.denuoweb.hnsdane.wallet.NativeDirectOfferAcceptanceApproval
+import com.denuoweb.hnsdane.wallet.NativeDirectOfferAcceptancePreparation
 import com.denuoweb.hnsdane.wallet.NativeHnsForBtcOfferApproval
 import com.denuoweb.hnsdane.wallet.NativeShakedexNameOffer
 import com.denuoweb.hnsdane.wallet.NativeShakedexQueryResult
@@ -202,8 +202,8 @@ internal const val EXTRA_HANDSHAKE_PAYMENT_URI =
 
 private const val SHOW_SHAKEDEX_WALLET_CARD = true
 
-/** Exact received-asset commitment signed by a direct-offer taker. */
-internal fun directOfferTakeRequiredFunding(receivedAmount: Long, feeReserve: Long): Long? =
+/** Exact first-chain commitment signed by the offer responder/swap maker. */
+internal fun directOfferAcceptanceRequiredFunding(receivedAmount: Long, feeReserve: Long): Long? =
     if (receivedAmount > feeReserve && feeReserve > 0L) {
         receivedAmount
     } else {
@@ -379,6 +379,7 @@ class WalletActivity : ComponentActivity() {
         atomicSwapNotificationPermissionRequestInFlight = false
         if (granted && ::atomicSwapNotifications.isInitialized) {
             latestShakescapeExecutionStatus?.let(::publishAtomicSwapNotifications)
+            latestReadSnapshot?.let(::publishIncomingHnsNotifications)
         }
     }
     private val walletAuthentication = registerForActivityResult(
@@ -4498,8 +4499,9 @@ class WalletActivity : ComponentActivity() {
         val execution = status.executions
             .filterNot { it.state in terminal }
             .maxByOrNull { it.lastVerifiedAtUnix }
+        val offerResponse = status.pendingOfferResponses.maxByOrNull { it.createdAtUnix }
         val pending = status.pendingAcceptances.maxByOrNull { it.createdAtUnix }
-        if (execution == null && pending == null) {
+        if (execution == null && offerResponse == null && pending == null) {
             activeSwapHnsRefreshAttemptedHeight = null
             finishWalletForegroundSyncIfIdle()
         } else {
@@ -4514,6 +4516,7 @@ class WalletActivity : ComponentActivity() {
                 R.string.wallet_dashboard_swap_active,
                 execution.state.replace('_', ' '),
             )
+            offerResponse != null -> getString(R.string.wallet_dashboard_swap_negotiating)
             pending != null -> getString(R.string.wallet_dashboard_swap_negotiating)
             else -> null
         }
@@ -4524,6 +4527,10 @@ class WalletActivity : ComponentActivity() {
                 formatSwapAmount(execution.offeredAsset, execution.offeredAmount),
                 formatSwapAmount(execution.receivedAsset, execution.receivedAmount),
                 execution.sessionId.take(12),
+            )
+            offerResponse != null -> getString(
+                R.string.wallet_swap_notification_offer_accepted_detail,
+                offerResponse.sessionId.take(12),
             )
             pending != null -> getString(
                 R.string.wallet_swap_status_negotiating,
@@ -4550,6 +4557,22 @@ class WalletActivity : ComponentActivity() {
         val permissionNeeded = atomicSwapNotifications.reconcile(
             status,
             ::swapExecutionNotificationStage,
+        )
+        if (
+            permissionNeeded && !atomicSwapNotificationPermissionRequestInFlight &&
+                atomicSwapNotifications.shouldRequestPermission()
+        ) {
+            atomicSwapNotificationPermissionRequestInFlight = true
+            atomicSwapNotifications.markPermissionRequested()
+            atomicSwapNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    private fun publishIncomingHnsNotifications(snapshot: NativeWalletReadSnapshot) {
+        if (!::atomicSwapNotifications.isInitialized) return
+        val permissionNeeded = atomicSwapNotifications.reconcileIncomingHns(
+            snapshot,
+            ::formatHnsBaseUnits,
         )
         if (
             permissionNeeded && !atomicSwapNotificationPermissionRequestInFlight &&
@@ -4656,7 +4679,8 @@ class WalletActivity : ComponentActivity() {
     ): Boolean {
         val projection = status ?: return false
         val terminal = setOf("completed", "refunded", "failed")
-        return projection.pendingAcceptances.isNotEmpty() ||
+        return projection.pendingOfferResponses.isNotEmpty() ||
+            projection.pendingAcceptances.isNotEmpty() ||
             projection.executions.any { it.state !in terminal }
     }
 
@@ -5301,7 +5325,7 @@ class WalletActivity : ComponentActivity() {
                         ?.spendableBaseUnits
                         ?.toLongOrNull()
                 }
-                val required = directOfferTakeRequiredFunding(offer.receivedAmount, reserve)
+                val required = directOfferAcceptanceRequiredFunding(offer.receivedAmount, reserve)
                 if (required != null && available != null && required > available) {
                     val message = if (bitcoin) {
                         getString(
@@ -5377,7 +5401,10 @@ class WalletActivity : ComponentActivity() {
                         .setMessage(message)
                         .setPositiveButton(android.R.string.ok, null)
                         .show()
-                } else if (status.executions.isEmpty() && status.pendingAcceptances.isEmpty()) {
+                } else if (
+                    status.executions.isEmpty() && status.pendingAcceptances.isEmpty() &&
+                        status.pendingOfferResponses.isEmpty()
+                ) {
                     val message = getString(R.string.wallet_swap_no_executions_waiting) +
                         "\n\n" + bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery)
                     bitcoinStatusView.text = message
@@ -5397,7 +5424,10 @@ class WalletActivity : ComponentActivity() {
                     val liveExecutions = orderedExecutions.filterNot {
                         it.state in terminalStates
                     }
-                    if (status.pendingAcceptances.isEmpty() && liveExecutions.size == 1) {
+                    if (
+                        status.pendingOfferResponses.isEmpty() &&
+                            status.pendingAcceptances.isEmpty() && liveExecutions.size == 1
+                    ) {
                         showShakescapeExecution(liveExecutions.single())
                         return@runOnUiThread
                     }
@@ -5410,10 +5440,16 @@ class WalletActivity : ComponentActivity() {
                             it.sessionId.take(12),
                         )
                     }
+                    val responseLabels = status.pendingOfferResponses.map {
+                        getString(
+                            R.string.wallet_swap_notification_offer_accepted_detail,
+                            it.sessionId.take(12),
+                        )
+                    }
                     val executionLabels = orderedExecutions.map {
                         "${it.state.replace('_', ' ')} · ${it.offeredAmount} ${it.offeredAsset.uppercase()} → ${it.receivedAmount} ${it.receivedAsset.uppercase()} · ${it.sessionId.take(12)}…"
                     }
-                    val labels = (pendingLabels + executionLabels).toTypedArray()
+                    val labels = (responseLabels + pendingLabels + executionLabels).toTypedArray()
                     // AlertDialog's message ScrollView and selectable ListView
                     // are mutually exclusive content modes on Android. Setting
                     // both leaves the recovery message visible while silently
@@ -5423,11 +5459,27 @@ class WalletActivity : ComponentActivity() {
                     val picker = walletAlertDialogBuilder()
                         .setTitle(R.string.wallet_swap_executions)
                         .setItems(labels) { _, index ->
-                            if (index < status.pendingAcceptances.size) {
-                                confirmAbandonPendingAcceptance(status.pendingAcceptances[index])
+                            if (index < status.pendingOfferResponses.size) {
+                                walletAlertDialogBuilder()
+                                    .setTitle(R.string.wallet_swap_notification_offer_accepted)
+                                    .setMessage(responseLabels[index])
+                                    .setPositiveButton(android.R.string.ok, null)
+                                    .show()
+                            } else if (
+                                index < status.pendingOfferResponses.size +
+                                    status.pendingAcceptances.size
+                            ) {
+                                confirmAbandonPendingAcceptance(
+                                    status.pendingAcceptances[
+                                        index - status.pendingOfferResponses.size
+                                    ],
+                                )
                             } else {
                                 showShakescapeExecution(
-                                    orderedExecutions[index - status.pendingAcceptances.size],
+                                    orderedExecutions[
+                                        index - status.pendingOfferResponses.size -
+                                            status.pendingAcceptances.size
+                                    ],
                                 )
                             }
                         }
@@ -5456,7 +5508,7 @@ class WalletActivity : ComponentActivity() {
             "$amount sats"
         }
 
-    private fun confirmAbandonPendingAcceptance(take: com.denuoweb.hnsdane.wallet.NativeDirectOfferTakeSummary) {
+    private fun confirmAbandonPendingAcceptance(take: com.denuoweb.hnsdane.wallet.NativeDirectOfferAcceptanceSummary) {
         walletAlertDialogBuilder()
             .setTitle(R.string.wallet_swap_abandon_acceptance_title)
             .setMessage(getString(
@@ -6097,12 +6149,12 @@ class WalletActivity : ComponentActivity() {
                     )
                     runOnUiThread {
                         if (!operationIsCurrent(epoch, lease) || walletHandle != handle) {
-                            (preparation as? NativeDirectOfferTakePreparation.Approval)?.value?.let {
+                            (preparation as? NativeDirectOfferAcceptancePreparation.Approval)?.value?.let {
                                 NativeWalletBridge.rejectDirectOfferTake(handle, it.actionToken)
                                 it.close()
                             }
                             releaseStorageLeaseAfterOperation(lease)
-                        } else if (preparation is NativeDirectOfferTakePreparation.InsufficientFunds) {
+                        } else if (preparation is NativeDirectOfferAcceptancePreparation.InsufficientFunds) {
                             busy = false
                             val message = directOfferTakeInsufficientFundsMessage(
                                 offer,
@@ -6120,7 +6172,7 @@ class WalletActivity : ComponentActivity() {
                             releaseStorageLeaseAfterOperation(lease)
                         } else {
                             val approval =
-                                (preparation as? NativeDirectOfferTakePreparation.Approval)?.value
+                                (preparation as? NativeDirectOfferAcceptancePreparation.Approval)?.value
                             if (approval == null || approval.offer.offerId != offer.offerId) {
                                 approval?.let {
                                     NativeWalletBridge.rejectDirectOfferTake(handle, it.actionToken)
@@ -6144,12 +6196,12 @@ class WalletActivity : ComponentActivity() {
     private fun directOfferTakeInsufficientFundsMessage(
         offer: NativeDirectOfferSummary,
         feeReserve: Long,
-        failure: NativeDirectOfferTakePreparation.InsufficientFunds,
+        failure: NativeDirectOfferAcceptancePreparation.InsufficientFunds,
     ): String {
         if (failure.receivedAsset != offer.receivedAsset) {
             return getString(R.string.wallet_swap_take_prepare_failed)
         }
-        val required = directOfferTakeRequiredFunding(offer.receivedAmount, feeReserve)
+        val required = directOfferAcceptanceRequiredFunding(offer.receivedAmount, feeReserve)
             ?: return getString(R.string.wallet_swap_take_prepare_failed)
         return if (failure.receivedAsset == "btc") {
             if (required > failure.confirmedAmount) {
@@ -6185,7 +6237,7 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun showDirectOfferTakeApproval(
-        approval: NativeDirectOfferTakeApproval,
+        approval: NativeDirectOfferAcceptanceApproval,
         lease: WalletStorageOwnershipGate.Lease,
         epoch: Long,
     ) {
@@ -9189,6 +9241,7 @@ class WalletActivity : ComponentActivity() {
         WalletHnsLiveSyncPresentationCache.clear(walletNetwork.id)
         walletHnsJourney.verifiedSnapshotObserved()
         latestReadSnapshot = snapshot
+        publishIncomingHnsNotifications(snapshot)
         loadedTrackedNames = snapshot.trackedNames.take(MAX_VISIBLE_READ_ITEMS)
         trackedNamePageOffset = 0
         selectedTrackedNameIndex = 0

@@ -416,7 +416,7 @@ internal object NativeWalletBridge {
         handle: Long,
         offerId: String,
         receivedFeeReserve: Long,
-    ): NativeDirectOfferTakePreparation? {
+    ): NativeDirectOfferAcceptancePreparation? {
         if (!isValidHandle(handle) || !isAvailable || receivedFeeReserve <= 0L ||
             offerId.length != 64 || offerId.any { it !in '0'..'9' && it !in 'a'..'f' }
         ) return null
@@ -430,7 +430,7 @@ internal object NativeWalletBridge {
     fun approveDirectOfferTake(
         handle: Long,
         actionToken: NativeHnsValueActionToken,
-    ): NativeDirectOfferTakeSummary? = actionToken.consume { tokenAscii ->
+    ): NativeDirectOfferAcceptanceSummary? = actionToken.consume { tokenAscii ->
         if (!isValidHandle(handle) || !isAvailable) return@consume null
         val bundle = runCatching { nativeApproveDirectOfferTake(handle, tokenAscii) }.getOrNull()
             ?: return@consume null

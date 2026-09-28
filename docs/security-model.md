@@ -59,7 +59,13 @@ Applied WebView controls:
 
 The app follows the Android security checklist as a platform baseline:
 
-- Manifest permissions are limited to `INTERNET`, `ACCESS_NETWORK_STATE`, `CAMERA`, and the foreground data-sync permissions. Camera access is used only by the native payment-QR scanner; the app does not request contacts, location, SMS, microphone, account, package-visibility, notification, or broad file permissions.
+- Manifest permissions are limited to network access/state, local-network and
+  Wi-Fi multicast access, `CAMERA`, `POST_NOTIFICATIONS`, and the foreground
+  data-sync permissions. Camera access is requested only for the native
+  payment-QR scanner. Notification access is requested only when the wallet
+  has a swap or newly confirmed receipt to report; denial does not grant or
+  block transaction authority. The app does not request contacts, location,
+  SMS, microphone, accounts, package visibility, or broad file access.
 - Only `LauncherActivity` is exported. The browser, settings, diagnostics, history, downloads, proof/TLSA views, resolver trace, native `WalletActivity`, and `WalletSyncForegroundService` are explicitly non-exported. The service only keeps a user-started bounded wallet synchronization visible to Android.
 - App backup and device-transfer extraction are disabled for files, databases, shared preferences, root storage, and external app data. Browser history, download records, diagnostics, resolver cache, sync/cache state, and wallet database/key ciphertext remain app-local unless the user explicitly exports or shares data.
 - Normal browsing does not enable `file://` or `content://` WebView access. User-initiated downloads use Android DownloadManager into public Downloads, but the system-visible download description does not include the full URL.
@@ -72,8 +78,15 @@ The app follows the Android security checklist as a platform baseline:
 
 The app follows the Android privacy checklist as a platform baseline:
 
-- The app requests no dangerous runtime permissions. Sync is scoped to the application foreground, so there is no notification permission prompt or foreground-service notification.
-- The app does not request location, nearby device, camera, microphone, contacts, SMS, call log, account, advertising ID, all-files storage, or package-visibility permissions.
+- Camera permission is requested only after the user opens the payment-QR
+  scanner. On Android 13 and later, notification permission is requested only
+  when a wallet-status notification is pending. Active swap monitoring and
+  user-started synchronization use the visible foreground data-sync service
+  required by Android; notification delivery remains presentation, never
+  wallet or signing authority.
+- The app does not request location, nearby-device discovery, microphone,
+  contacts, SMS, call log, accounts, advertising ID, all-files storage, or
+  package-visibility permissions.
 - The app does not use background location, location foreground services, device serial numbers, IMEI, SSAID, Advertising ID, or an app-generated cross-install tracking identifier.
 - External storage use is limited to user-initiated downloads through Android DownloadManager into public Downloads; app metadata and wallet storage stay in private preferences or app-private files and are excluded from backup and device transfer.
 - Sensitive app-to-app sharing uses explicit user actions such as Android share/copy flows or DownloadManager. Sync snapshots stay in-process and internal diagnostic activities are non-exported.

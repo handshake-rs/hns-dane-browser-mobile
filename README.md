@@ -43,9 +43,16 @@ a crate.
 - Lists, discovers, cancels, accepts, resumes, redeems, refunds, and recovers
   direct ShakeDex name offers and bidirectional BTC-for-HNS / HNS-for-BTC
   atomic swaps.
+- Treats a public HNS/BTC offer as an intent: the responding wallet initializes
+  the executable swap as maker and funds first; the original offer setter
+  countersigns as taker and funds second.
 - Surfaces swap-stage status in the ShakeDex UI and through native local
   notifications on both Android and iOS. Durable state, not a notification, is
-  the authority after restart.
+  the authority after restart. The projection moves from response to ordinary
+  execution state automatically; there is no user-managed inbox or outbox.
+- Uses the verified confirmed HNS receipt as the seller notification for a
+  fixed-price name sale. That protocol has no separate interactive acceptance
+  packet to notify before the on-chain payment appears.
 
 ### Direct peer networking
 

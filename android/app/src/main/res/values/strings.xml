@@ -859,7 +859,7 @@
     <string name="wallet_swap_take_approval_message">Offer: %1$s\n\nLock: %2$s\nMaximum fee: %3$s\nTotal: %4$s\n\nAccepting starts negotiation. Funding is approved separately.</string>
     <string name="wallet_swap_take_confirm">Accept offer</string>
     <string name="wallet_swap_take_failed">The signed acceptance was not sent. The peer may have disconnected or the offer may have expired.</string>
-    <string name="wallet_swap_take_sent">Offer accepted. Atomic-swap session %1$s… is negotiating with the maker.</string>
+    <string name="wallet_swap_take_sent">Swap %1$s… started. Waiting for the other wallet to sign.</string>
     <string name="wallet_swap_cancel_direct_message">Withdraw %1$s?\n\nOffer ID: %2$s. Cancellation releases the local reservation but cannot cancel an already accepted session.</string>
     <string name="wallet_swap_direct_cancelled">Direct offer cancelled.</string>
     <string name="wallet_swap_direct_cancel_failed">The direct offer was not cancelled.</string>
@@ -934,6 +934,10 @@
     <string name="wallet_swap_notification_channel_description">Actionable funding, redemption, refund, and completion updates for locally verified atomic swaps.</string>
     <string name="wallet_swap_notification_action_required">Atomic swap action required</string>
     <string name="wallet_swap_notification_updated">Atomic swap updated</string>
+    <string name="wallet_swap_notification_offer_accepted">Your offer was accepted</string>
+    <string name="wallet_swap_notification_offer_accepted_detail">Another wallet started the swap · waiting for signed terms · Session %1$s…</string>
+    <string name="wallet_hns_received_notification_title">HNS received</string>
+    <string name="wallet_hns_received_notification_detail">%1$s HNS confirmed</string>
     <string name="wallet_swap_notification_completed">Atomic swap completed</string>
     <string name="wallet_swap_notification_refunded">Atomic swap refunded</string>
     <string name="wallet_swap_notification_failed">Atomic swap needs attention</string>

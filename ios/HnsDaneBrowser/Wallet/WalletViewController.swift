@@ -1,4 +1,5 @@
 import Security
+import CryptoKit
 import UIKit
 import UniformTypeIdentifiers
 import LocalAuthentication
@@ -25,10 +26,11 @@ private let automaticSwapBitcoinStopGraceInterval: TimeInterval = 5 * 60
 private let maximumVisibleDirectShakescapePeers = 3
 private let showShakedexWalletCard = true
 
-/// Presents authenticated journal transitions without persisting wallet data.
-/// UserDefaults contains only a random session identifier and presentation
-/// fingerprint; amounts, addresses, peers, and signed transaction material
-/// never leave the encrypted native wallet database.
+/// Presents authenticated journal and confirmed-receive transitions without
+/// persisting wallet contents. UserDefaults contains random session IDs plus
+/// one-way account/transaction fingerprints; amounts, addresses, names,
+/// peers, and signed transaction material never leave the encrypted native
+/// wallet database.
 @MainActor
 private final class AtomicSwapNotificationCoordinator {
     private struct Record {
@@ -37,6 +39,8 @@ private final class AtomicSwapNotificationCoordinator {
         let title: String
         let body: String
         let historicalTerminal: Bool
+        let initialTitle: String?
+        let initialBody: String?
     }
 
     private let center = UNUserNotificationCenter.current()
@@ -45,12 +49,31 @@ private final class AtomicSwapNotificationCoordinator {
     private let fingerprintsKey = "atomic-swap-notifications.fingerprints.v1"
     private let terminalStates: Set<String> = ["completed", "refunded", "failed"]
     private var pendingFingerprints: [String: String] = [:]
+    private let hnsReceiveInitializedKey = "hns-receive-notifications.initialized.v1"
+    private let hnsReceiveAccountKey = "hns-receive-notifications.account.v1"
+    private let hnsReceiveFingerprintsKey = "hns-receive-notifications.fingerprints.v1"
+    private let maximumHnsReceiveFingerprints = 4_096
+    private var pendingHnsFingerprints: Set<String> = []
 
     func reconcile(
         _ status: NativeShakescapeExecutionStatus,
         stageText: (NativeShakescapeExecutionSummary) -> String
     ) {
         var records: [String: Record] = [:]
+        for offer in status.pendingOfferResponses {
+            records[offer.sessionId] = Record(
+                sessionId: offer.sessionId,
+                fingerprint: "offer-response",
+                title: WalletCopy.text("wallet_swap_notification_offer_accepted"),
+                body: WalletCopy.format(
+                    "wallet_swap_notification_offer_accepted_detail",
+                    String(offer.sessionId.prefix(12))
+                ),
+                historicalTerminal: false,
+                initialTitle: nil,
+                initialBody: nil
+            )
+        }
         for pending in status.pendingAcceptances {
             records[pending.sessionId] = Record(
                 sessionId: pending.sessionId,
@@ -60,7 +83,9 @@ private final class AtomicSwapNotificationCoordinator {
                     "wallet_swap_notification_negotiating",
                     String(pending.sessionId.prefix(12))
                 ),
-                historicalTerminal: false
+                historicalTerminal: false,
+                initialTitle: nil,
+                initialBody: nil
             )
         }
         for execution in status.executions {
@@ -85,7 +110,18 @@ private final class AtomicSwapNotificationCoordinator {
                     stage,
                     String(execution.sessionId.prefix(12))
                 ),
-                historicalTerminal: terminalStates.contains(execution.state)
+                historicalTerminal: terminalStates.contains(execution.state),
+                initialTitle: execution.localRole == "taker" &&
+                    !terminalStates.contains(execution.state)
+                    ? WalletCopy.text("wallet_swap_notification_offer_accepted")
+                    : nil,
+                initialBody: execution.localRole == "taker" &&
+                    !terminalStates.contains(execution.state)
+                    ? WalletCopy.format(
+                        "wallet_swap_notification_offer_accepted_detail",
+                        String(execution.sessionId.prefix(12))
+                    )
+                    : nil
             )
         }
 
@@ -110,9 +146,67 @@ private final class AtomicSwapNotificationCoordinator {
                 fingerprints[record.sessionId] = record.fingerprint
                 continue
             }
-            post(record)
+            if previous == nil,
+               let initialTitle = record.initialTitle,
+               let initialBody = record.initialBody {
+                post(Record(
+                    sessionId: record.sessionId,
+                    fingerprint: record.fingerprint,
+                    title: initialTitle,
+                    body: initialBody,
+                    historicalTerminal: record.historicalTerminal,
+                    initialTitle: nil,
+                    initialBody: nil
+                ))
+            } else {
+                post(record)
+            }
         }
         persist(fingerprints)
+    }
+
+    /// Fixed-price name sales have no interactive acceptance packet. Their
+    /// authoritative completion signal is the confirmed incoming HNS payment
+    /// already present in the verified wallet snapshot. Establish a per-wallet
+    /// baseline before alerting so restores never replay historical activity.
+    func reconcileIncomingHns(
+        _ snapshot: NativeHnsReadSnapshot,
+        amountText: (String) -> String
+    ) {
+        let accountFingerprint = fingerprint(
+            domain: "account",
+            bytes: snapshot.receiveTarget.account
+        )
+        let incoming = snapshot.transactionHistory.filter { transaction in
+            transaction.status == "confirmed" &&
+                transaction.confirmationCount > 0 &&
+                !transaction.netAmount.negative &&
+                transaction.netAmount.magnitude != "0"
+        }
+        let current = Set(incoming.map { transaction in
+            fingerprint(domain: "hns", bytes: transaction.txid)
+        })
+        if !defaults.bool(forKey: hnsReceiveInitializedKey) ||
+            defaults.string(forKey: hnsReceiveAccountKey) != accountFingerprint {
+            defaults.set(true, forKey: hnsReceiveInitializedKey)
+            defaults.set(accountFingerprint, forKey: hnsReceiveAccountKey)
+            defaults.set(
+                Array(current.sorted().suffix(maximumHnsReceiveFingerprints)),
+                forKey: hnsReceiveFingerprintsKey
+            )
+            return
+        }
+
+        let known = Set(defaults.stringArray(forKey: hnsReceiveFingerprintsKey) ?? [])
+        for transaction in incoming {
+            let transactionFingerprint = fingerprint(domain: "hns", bytes: transaction.txid)
+            guard !known.contains(transactionFingerprint),
+                  !pendingHnsFingerprints.contains(transactionFingerprint) else { continue }
+            postIncomingHns(
+                fingerprint: transactionFingerprint,
+                amount: amountText(transaction.netAmount.magnitude)
+            )
+        }
     }
 
     private func post(_ record: Record) {
@@ -183,6 +277,73 @@ private final class AtomicSwapNotificationCoordinator {
             }
         )
         defaults.set(bounded, forKey: fingerprintsKey)
+    }
+
+    private func postIncomingHns(fingerprint: String, amount: String) {
+        pendingHnsFingerprints.insert(fingerprint)
+        center.getNotificationSettings { [weak self] settings in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                switch settings.authorizationStatus {
+                case .authorized, .provisional, .ephemeral:
+                    let content = UNMutableNotificationContent()
+                    content.title = WalletCopy.text("wallet_hns_received_notification_title")
+                    content.body = WalletCopy.format(
+                        "wallet_hns_received_notification_detail",
+                        amount
+                    )
+                    content.sound = .default
+                    content.categoryIdentifier = "WALLET_STATUS"
+                    self.center.add(
+                        UNNotificationRequest(
+                            identifier: "hns-receive:\(fingerprint)",
+                            content: content,
+                            trigger: nil
+                        )
+                    ) { [weak self] error in
+                        DispatchQueue.main.async {
+                            guard let self else { return }
+                            self.pendingHnsFingerprints.remove(fingerprint)
+                            guard error == nil else { return }
+                            var known = Set(
+                                self.defaults.stringArray(
+                                    forKey: self.hnsReceiveFingerprintsKey
+                                ) ?? []
+                            )
+                            known.insert(fingerprint)
+                            let bounded = Array(
+                                known.sorted().suffix(self.maximumHnsReceiveFingerprints)
+                            )
+                            self.defaults.set(
+                                bounded,
+                                forKey: self.hnsReceiveFingerprintsKey
+                            )
+                        }
+                    }
+                case .notDetermined:
+                    self.center.requestAuthorization(options: [.alert, .sound]) {
+                        [weak self] granted, _ in
+                        DispatchQueue.main.async {
+                            guard let self else { return }
+                            self.pendingHnsFingerprints.remove(fingerprint)
+                            if granted {
+                                self.postIncomingHns(fingerprint: fingerprint, amount: amount)
+                            }
+                        }
+                    }
+                case .denied:
+                    self.pendingHnsFingerprints.remove(fingerprint)
+                @unknown default:
+                    self.pendingHnsFingerprints.remove(fingerprint)
+                }
+            }
+        }
+    }
+
+    private func fingerprint(domain: String, bytes: [UInt8]) -> String {
+        var data = Data(domain.utf8)
+        data.append(contentsOf: bytes)
+        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 }
 
@@ -301,7 +462,7 @@ final class WalletViewController: UIViewController {
     private weak var hnsForBtcOfferApprovalAlert: UIAlertController?
     private var pendingHnsForBtcOfferApproval: NativeHnsForBtcOfferApproval?
     private weak var directOfferTakeApprovalAlert: UIAlertController?
-    private var pendingDirectOfferTakeApproval: NativeDirectOfferTakeApproval?
+    private var pendingDirectOfferTakeApproval: NativeDirectOfferAcceptanceApproval?
     private weak var btcForHnsFundingApprovalAlert: UIAlertController?
     private var pendingBtcForHnsFundingApproval: NativeBitcoinHtlcFundingApproval?
     private weak var hnsForBtcFundingApprovalAlert: UIAlertController?
@@ -2226,7 +2387,7 @@ final class WalletViewController: UIViewController {
     }
 
     private func presentDirectOfferTakeApproval(
-        _ approval: NativeDirectOfferTakeApproval,
+        _ approval: NativeDirectOfferAcceptanceApproval,
         wallet: RustNativeWallet
     ) {
         pendingDirectOfferTakeApproval?.actionToken.discard()
@@ -2296,7 +2457,8 @@ final class WalletViewController: UIViewController {
                 guard let self, self.wallet === wallet else { return }
                 switch outcome {
                 case .success(let status) where
-                    status.executions.isEmpty && status.pendingAcceptances.isEmpty:
+                    status.executions.isEmpty && status.pendingAcceptances.isEmpty &&
+                    status.pendingOfferResponses.isEmpty:
                     let message = WalletCopy.text("wallet_swap_no_executions_waiting")
                         + "\n\n"
                         + self.bitcoinBroadcastRecoveryText(
@@ -2327,7 +2489,8 @@ final class WalletViewController: UIViewController {
                     let liveExecutions = orderedExecutions.filter {
                         !terminal.contains($0.state)
                     }
-                    if status.pendingAcceptances.isEmpty, liveExecutions.count == 1,
+                    if status.pendingOfferResponses.isEmpty,
+                       status.pendingAcceptances.isEmpty, liveExecutions.count == 1,
                        let execution = liveExecutions.first {
                         self.showShakescapeExecution(execution, wallet: wallet)
                         return
@@ -2339,6 +2502,15 @@ final class WalletViewController: UIViewController {
                         ),
                         preferredStyle: .alert
                     )
+                    for offer in status.pendingOfferResponses {
+                        alert.addAction(UIAlertAction(
+                            title: WalletCopy.format(
+                                "wallet_swap_notification_offer_accepted_detail",
+                                String(offer.sessionId.prefix(12))
+                            ),
+                            style: .default
+                        ))
+                    }
                     for take in status.pendingAcceptances {
                         let offered = self.swapAmount(take.offeredAmount, asset: take.offeredAsset)
                         let received = self.swapAmount(take.receivedAmount, asset: take.receivedAsset)
@@ -2389,7 +2561,7 @@ final class WalletViewController: UIViewController {
     }
 
     private func confirmAbandonPendingAcceptance(
-        _ take: NativeDirectOfferTakeSummary,
+        _ take: NativeDirectOfferAcceptanceSummary,
         wallet: RustNativeWallet
     ) {
         let alert = UIAlertController(
@@ -4499,6 +4671,13 @@ final class WalletViewController: UIViewController {
                 shakescapeExecutionStage(execution),
                 String(execution.sessionId.prefix(12))
             )
+        } else if let offer = status.pendingOfferResponses.max(by: {
+            $0.createdAtUnix < $1.createdAtUnix
+        }) {
+            bitcoinStatusLabel.text = WalletCopy.format(
+                "wallet_swap_notification_offer_accepted_detail",
+                String(offer.sessionId.prefix(12))
+            )
         } else if let pending = status.pendingAcceptances.max(by: {
             $0.createdAtUnix < $1.createdAtUnix
         }) {
@@ -6447,6 +6626,10 @@ final class WalletViewController: UIViewController {
         let presentation = WalletReadPresenter.present(snapshot)
         let balance = WalletHnsBalancePresenter.present(snapshot)
         latestReadSnapshot = snapshot
+        atomicSwapNotifications.reconcileIncomingHns(
+            snapshot,
+            amountText: WalletReadPresenter.formatHnsBaseUnits
+        )
         latestReadSnapshotObservedAtUptime = ProcessInfo.processInfo.systemUptime
         if shakescapeExecutionStatusSnapshot.flatMap({
             liveAtomicSwapFingerprint($0)

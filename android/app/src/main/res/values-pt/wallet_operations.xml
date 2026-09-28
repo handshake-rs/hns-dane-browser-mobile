@@ -339,7 +339,7 @@
     <string name="wallet_swap_take_reserved_btc">Esta oferta precisa de %1$d sats; a carteira tem %2$d confirmado, mas outros swaps reservam muito. Libere uma aceitação sem financiamento, finalize ou reembolse uma troca ou adicione Bitcoin.</string>
     <string name="wallet_swap_take_reserved_hns">Esta oferta precisa de %1$s HNS; a carteira tem %2$s confirmado, mas outros swaps reservam muito. Libere uma aceitação sem financiamento, finalize ou reembolse uma troca ou adicione HNS.</string>
     <string name="wallet_swap_take_failed">A aceitação assinada não foi enviada. O peer pode ter se desconectado ou a oferta pode ter expirado.</string>
-    <string name="wallet_swap_take_sent">Oferta aceita. A sessão de troca atômica %1$s… está negociando com o fabricante.</string>
+    <string name="wallet_swap_take_sent">Troca %1$s… iniciada. Aguardando a assinatura da outra carteira.</string>
     <string name="wallet_swap_cancel_direct_message">Retirar %1$s?\n\nID da oferta: %2$s. O cancelamento libera a reserva local, mas não pode cancelar uma sessão já aceita.</string>
     <string name="wallet_swap_btc_amount_hint">BTC bloqueado (sats, mínimo 1330 incluindo reserva de taxa)</string>
     <string name="wallet_swap_hns_amount_hint">HNS bloqueado (mínimo 0,100546 incluindo reserva de taxa)</string>
@@ -410,6 +410,10 @@
     <string name="wallet_swap_notification_channel_description">Atualizações acionáveis de financiamento, resgate, reembolso e conclusão para trocas atômicas verificadas localmente.</string>
     <string name="wallet_swap_notification_action_required">Ação de troca atômica necessária</string>
     <string name="wallet_swap_notification_updated">Troca atômica atualizada</string>
+    <string name="wallet_swap_notification_offer_accepted">Sua oferta foi aceita</string>
+    <string name="wallet_swap_notification_offer_accepted_detail">Outra carteira iniciou a troca · aguardando os termos assinados · Sessão %1$s…</string>
+    <string name="wallet_hns_received_notification_title">HNS recebidos</string>
+    <string name="wallet_hns_received_notification_detail">Recebimento de %1$s HNS confirmado</string>
     <string name="wallet_swap_notification_completed">Troca atômica concluída</string>
     <string name="wallet_swap_notification_refunded">Troca atômica reembolsada</string>
     <string name="wallet_swap_notification_failed">A troca atômica precisa de atenção</string>

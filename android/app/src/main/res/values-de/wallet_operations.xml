@@ -339,7 +339,7 @@
     <string name="wallet_swap_take_reserved_btc">Dieses Angebot erfordert %1$d sats; Das Wallet hat %2$d bestätigt, aber andere Swaps reservieren zu viel. Geben Sie eine nicht finanzierte Annahme frei, beenden oder erstatten Sie einen Tausch oder fügen Sie Bitcoin hinzu.</string>
     <string name="wallet_swap_take_reserved_hns">Dieses Angebot erfordert %1$s HNS; Das Wallet hat %2$s bestätigt, aber andere Swaps reservieren zu viel. Geben Sie eine nicht finanzierte Annahme frei, beenden oder erstatten Sie einen Tausch oder fügen Sie HNS hinzu.</string>
     <string name="wallet_swap_take_failed">Die unterschriebene Annahmeerklärung wurde nicht verschickt. Der Peer hat möglicherweise die Verbindung getrennt oder das Angebot ist abgelaufen.</string>
-    <string name="wallet_swap_take_sent">Angebot angenommen. Atomic-Swap-Session %1$s… verhandelt mit dem Hersteller.</string>
+    <string name="wallet_swap_take_sent">Swap %1$s… gestartet. Warte auf die Signatur der anderen Wallet.</string>
     <string name="wallet_swap_cancel_direct_message">Abheben %1$s?\n\nAngebots-ID: %2$s. Durch die Stornierung wird die lokale Reservierung freigegeben, eine bereits akzeptierte Sitzung kann jedoch nicht storniert werden.</string>
     <string name="wallet_swap_btc_amount_hint">BTC gesperrt (sats, mindestens 1330 inklusive Gebührenreserve)</string>
     <string name="wallet_swap_hns_amount_hint">HNS gesperrt (mindestens 0,100546 inklusive Gebührenreserve)</string>
@@ -410,6 +410,10 @@
     <string name="wallet_swap_notification_channel_description">Umsetzbare Finanzierungs-, Einlösungs-, Rückerstattungs- und Abschlussaktualisierungen für lokal verifizierte Atom-Swaps.</string>
     <string name="wallet_swap_notification_action_required">Atomic-Swap-Aktion erforderlich</string>
     <string name="wallet_swap_notification_updated">Atomic Swap aktualisiert</string>
+    <string name="wallet_swap_notification_offer_accepted">Dein Angebot wurde angenommen</string>
+    <string name="wallet_swap_notification_offer_accepted_detail">Eine andere Wallet hat den Tausch gestartet · Warten auf signierte Bedingungen · Sitzung %1$s…</string>
+    <string name="wallet_hns_received_notification_title">HNS empfangen</string>
+    <string name="wallet_hns_received_notification_detail">%1$s HNS bestätigt</string>
     <string name="wallet_swap_notification_completed">Atomaustausch abgeschlossen</string>
     <string name="wallet_swap_notification_refunded">Atomic Swap zurückerstattet</string>
     <string name="wallet_swap_notification_failed">Der Atomaustausch braucht Aufmerksamkeit</string>

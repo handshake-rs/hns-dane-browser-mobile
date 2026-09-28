@@ -339,7 +339,7 @@
     <string name="wallet_swap_take_reserved_btc">Questa offerta richiede %1$d sats; il portafoglio ha %2$d confermato, ma altri scambi riservano troppo. Rilascia un\'accettazione non finanziata, completa o rimborsa uno scambio oppure aggiungi Bitcoin.</string>
     <string name="wallet_swap_take_reserved_hns">Questa offerta richiede %1$s HNS; il portafoglio ha %2$s confermato, ma altri scambi riservano troppo. Rilascia un\'accettazione non finanziata, completa o rimborsa uno scambio oppure aggiungi HNS.</string>
     <string name="wallet_swap_take_failed">L\'accettazione firmata non è stata inviata. Il peer potrebbe essersi disconnesso o l\'offerta potrebbe essere scaduta.</string>
-    <string name="wallet_swap_take_sent">Offerta accettata. Sessione di scambio atomico %1$s... sta negoziando con il produttore.</string>
+    <string name="wallet_swap_take_sent">Scambio %1$s… avviato. In attesa della firma dell’altro portafoglio.</string>
     <string name="wallet_swap_cancel_direct_message">Ritirare %1$s?\n\nOID offerta: %2$s. La cancellazione rilascia la prenotazione locale ma non può cancellare una sessione già accettata.</string>
     <string name="wallet_swap_btc_amount_hint">BTC bloccato (sats, minimo 1330 inclusa riserva di commissione)</string>
     <string name="wallet_swap_hns_amount_hint">HNS bloccato (minimo 0,100546 compresa la riserva tariffaria)</string>
@@ -410,6 +410,10 @@
     <string name="wallet_swap_notification_channel_description">Aggiornamenti attuabili su finanziamenti, rimborsi, rimborsi e completamento per atomic swap verificati localmente.</string>
     <string name="wallet_swap_notification_action_required">È richiesta l\'azione di scambio atomico</string>
     <string name="wallet_swap_notification_updated">Scambio atomico aggiornato</string>
+    <string name="wallet_swap_notification_offer_accepted">La tua offerta è stata accettata</string>
+    <string name="wallet_swap_notification_offer_accepted_detail">Un altro portafoglio ha avviato lo scambio · in attesa dei termini firmati · Sessione %1$s…</string>
+    <string name="wallet_hns_received_notification_title">HNS ricevuti</string>
+    <string name="wallet_hns_received_notification_detail">Ricezione di %1$s HNS confermata</string>
     <string name="wallet_swap_notification_completed">Scambio atomico completato</string>
     <string name="wallet_swap_notification_refunded">Scambio atomico rimborsato</string>
     <string name="wallet_swap_notification_failed">Lo scambio atomico richiede attenzione</string>

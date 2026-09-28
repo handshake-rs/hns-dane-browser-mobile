@@ -339,7 +339,7 @@
     <string name="wallet_swap_take_reserved_btc">Penawaran ini membutuhkan %1$d sats; dompet telah mengkonfirmasi %2$d, tetapi swap lainnya memiliki terlalu banyak cadangan. Lepaskan penerimaan yang tidak didanai, selesaikan atau kembalikan dana swap, atau tambahkan Bitcoin.</string>
     <string name="wallet_swap_take_reserved_hns">Penawaran ini membutuhkan %1$s HNS; dompet telah mengkonfirmasi %2$s, tetapi swap lainnya memiliki terlalu banyak cadangan. Lepaskan penerimaan yang tidak didanai, selesaikan atau kembalikan dana swap, atau tambahkan HNS.</string>
     <string name="wallet_swap_take_failed">Penerimaan yang ditandatangani tidak dikirim. Rekan tersebut mungkin telah terputus atau penawarannya mungkin telah kedaluwarsa.</string>
-    <string name="wallet_swap_take_sent">Penawaran diterima. Sesi pertukaran atom %1$s… sedang bernegosiasi dengan pembuatnya.</string>
+    <string name="wallet_swap_take_sent">Pertukaran %1$s… dimulai. Menunggu tanda tangan dompet lain.</string>
     <string name="wallet_swap_cancel_direct_message">Penarikan %1$s?\n\nID Penawaran: %2$s. Pembatalan melepaskan reservasi lokal tetapi tidak dapat membatalkan sesi yang sudah diterima.</string>
     <string name="wallet_swap_btc_amount_hint">BTC terkunci (sats, minimum 1330 termasuk biaya cadangan)</string>
     <string name="wallet_swap_hns_amount_hint">HNS terkunci (minimal 0,100546 termasuk cadangan biaya)</string>
@@ -410,6 +410,10 @@
     <string name="wallet_swap_notification_channel_description">Pembaruan pendanaan, penebusan, pengembalian dana, dan penyelesaian yang dapat ditindaklanjuti untuk pertukaran atom yang diverifikasi secara lokal.</string>
     <string name="wallet_swap_notification_action_required">Diperlukan tindakan pertukaran atom</string>
     <string name="wallet_swap_notification_updated">Pertukaran atom diperbarui</string>
+    <string name="wallet_swap_notification_offer_accepted">Penawaran Anda diterima</string>
+    <string name="wallet_swap_notification_offer_accepted_detail">Dompet lain memulai pertukaran · menunggu ketentuan yang ditandatangani · Sesi %1$s…</string>
+    <string name="wallet_hns_received_notification_title">HNS diterima</string>
+    <string name="wallet_hns_received_notification_detail">%1$s HNS dikonfirmasi</string>
     <string name="wallet_swap_notification_completed">Pertukaran atom selesai</string>
     <string name="wallet_swap_notification_refunded">Pertukaran atom dikembalikan</string>
     <string name="wallet_swap_notification_failed">Pertukaran atom perlu mendapat perhatian</string>

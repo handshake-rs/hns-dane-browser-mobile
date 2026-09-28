@@ -339,7 +339,7 @@
     <string name="wallet_swap_take_reserved_btc">Ưu đãi này cần %1$d sats; ví đã xác nhận %2$d nhưng các giao dịch hoán đổi khác dự trữ quá nhiều. Phát hành chấp nhận không được cấp vốn, hoàn thành hoặc hoàn lại tiền hoán đổi hoặc thêm Bitcoin.</string>
     <string name="wallet_swap_take_reserved_hns">Ưu đãi này cần %1$s HNS; ví đã xác nhận %2$s nhưng các giao dịch hoán đổi khác dự trữ quá nhiều. Phát hành chấp nhận không được cấp vốn, hoàn thành hoặc hoàn lại tiền hoán đổi hoặc thêm HNS.</string>
     <string name="wallet_swap_take_failed">Sự chấp nhận đã ký không được gửi. Thiết bị ngang hàng có thể đã bị ngắt kết nối hoặc ưu đãi có thể đã hết hạn.</string>
-    <string name="wallet_swap_take_sent">Đề nghị được chấp nhận. Phiên hoán đổi nguyên tử %1$s… đang đàm phán với nhà sản xuất.</string>
+    <string name="wallet_swap_take_sent">Đã bắt đầu hoán đổi %1$s… Đang chờ ví kia ký.</string>
     <string name="wallet_swap_cancel_direct_message">Rút %1$s?\n\nID ưu đãi: %2$s. Việc hủy sẽ giải phóng phần đặt chỗ cục bộ nhưng không thể hủy phiên đã được chấp nhận.</string>
     <string name="wallet_swap_btc_amount_hint">BTC bị khóa (sats, tối thiểu 1330 bao gồm phí dự trữ)</string>
     <string name="wallet_swap_hns_amount_hint">HNS bị khóa (tối thiểu 0,100546 bao gồm phí dự trữ)</string>
@@ -410,6 +410,10 @@
     <string name="wallet_swap_notification_channel_description">Các bản cập nhật tài trợ, quy đổi, hoàn tiền và hoàn thành có thể thực hiện được đối với các giao dịch hoán đổi nguyên tử đã được xác minh tại địa phương.</string>
     <string name="wallet_swap_notification_action_required">Cần có hành động hoán đổi nguyên tử</string>
     <string name="wallet_swap_notification_updated">Đã cập nhật trao đổi nguyên tử</string>
+    <string name="wallet_swap_notification_offer_accepted">Đề nghị của bạn đã được chấp nhận</string>
+    <string name="wallet_swap_notification_offer_accepted_detail">Ví khác đã bắt đầu hoán đổi · đang chờ các điều khoản đã ký · Phiên %1$s…</string>
+    <string name="wallet_hns_received_notification_title">Đã nhận HNS</string>
+    <string name="wallet_hns_received_notification_detail">Đã xác nhận nhận %1$s HNS</string>
     <string name="wallet_swap_notification_completed">Hoán đổi nguyên tử đã hoàn tất</string>
     <string name="wallet_swap_notification_refunded">Hoán đổi nguyên tử được hoàn lại</string>
     <string name="wallet_swap_notification_failed">Trao đổi nguyên tử cần được chú ý</string>

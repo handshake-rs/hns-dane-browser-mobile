@@ -339,7 +339,7 @@
     <string name="wallet_swap_take_reserved_btc">このオファーには %1$d sats が必要です。ウォレットには%2$dが確認されていますが、他のスワップの予約が多すぎます。未入金の受け入れを解除するか、スワップを終了または返金するか、Bitcoin を追加します。</string>
     <string name="wallet_swap_take_reserved_hns">このオファーには %1$s HNS が必要です。ウォレットには%2$sが確認されていますが、他のスワップの予約が多すぎます。未入金の受け入れを解除するか、スワップを終了または返金するか、HNS を追加します。</string>
     <string name="wallet_swap_take_failed">署名された承諾書は送信されませんでした。ピアが切断されたか、オファーの有効期限が切れた可能性があります。</string>
-    <string name="wallet_swap_take_sent">オファーは受け入れられました。アトミック スワップ セッション %1$s… はメーカーと交渉中です。</string>
+    <string name="wallet_swap_take_sent">スワップ %1$s… を開始しました。もう一方のウォレットの署名を待っています。</string>
     <string name="wallet_swap_cancel_direct_message">%1$s を引き出しますか?\n\nオファー ID: %2$s 。キャンセルするとローカル予約は解除されますが、すでに受け付けたセッションをキャンセルすることはできません。</string>
     <string name="wallet_swap_btc_amount_hint">BTC ロック済み (sats、手数料リザーブを含む最低 1330)</string>
     <string name="wallet_swap_hns_amount_hint">HNS ロック済み (手数料準備金を含む最小 0.100546)</string>
@@ -410,6 +410,10 @@
     <string name="wallet_swap_notification_channel_description">ローカルで検証されたアトミック スワップの実用的な資金調達、償還、払い戻し、完了に関する最新情報。</string>
     <string name="wallet_swap_notification_action_required">アトミック スワップ アクションが必要です</string>
     <string name="wallet_swap_notification_updated">アトミックスワップが更新されました</string>
+    <string name="wallet_swap_notification_offer_accepted">あなたのオファーが承認されました</string>
+    <string name="wallet_swap_notification_offer_accepted_detail">別のウォレットがスワップを開始しました · 署名済み条件を待機中 · セッション %1$s…</string>
+    <string name="wallet_hns_received_notification_title">HNSを受け取りました</string>
+    <string name="wallet_hns_received_notification_detail">%1$s HNSの受取を確認しました</string>
     <string name="wallet_swap_notification_completed">アトミックスワップが完了しました</string>
     <string name="wallet_swap_notification_refunded">アトミックスワップが返金されました</string>
     <string name="wallet_swap_notification_failed">アトミックスワップには注意が必要です</string>

@@ -64846,6 +64846,110 @@
         }
       }
     },
+    "wallet_hns_received_notification_detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": { "stringUnit": { "state": "translated", "value": "تم تأكيد استلام %1$@ HNS" } },
+        "de": { "stringUnit": { "state": "translated", "value": "%1$@ HNS bestätigt" } },
+        "en": { "stringUnit": { "state": "translated", "value": "%1$@ HNS confirmed" } },
+        "es": { "stringUnit": { "state": "translated", "value": "%1$@ HNS confirmados" } },
+        "fa": { "stringUnit": { "state": "translated", "value": "دریافت %1$@ HNS تأیید شد" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Réception de %1$@ HNS confirmée" } },
+        "he": { "stringUnit": { "state": "translated", "value": "קבלת %1$@ HNS אושרה" } },
+        "hi": { "stringUnit": { "state": "translated", "value": "%1$@ HNS की प्राप्ति की पुष्टि हुई" } },
+        "id": { "stringUnit": { "state": "translated", "value": "%1$@ HNS dikonfirmasi" } },
+        "it": { "stringUnit": { "state": "translated", "value": "Ricezione di %1$@ HNS confermata" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "%1$@ HNSの受取を確認しました" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "%1$@ HNS 수신이 확인되었습니다" } },
+        "nl": { "stringUnit": { "state": "translated", "value": "%1$@ HNS bevestigd" } },
+        "pl": { "stringUnit": { "state": "translated", "value": "Potwierdzono otrzymanie %1$@ HNS" } },
+        "pt": { "stringUnit": { "state": "translated", "value": "Recebimento de %1$@ HNS confirmado" } },
+        "ru": { "stringUnit": { "state": "translated", "value": "Получение %1$@ HNS подтверждено" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "%1$@ HNS alımı onaylandı" } },
+        "uk": { "stringUnit": { "state": "translated", "value": "Отримання %1$@ HNS підтверджено" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Đã xác nhận nhận %1$@ HNS" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已确认收到 %1$@ HNS" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "已確認收到 %1$@ HNS" } }
+      }
+    },
+    "wallet_hns_received_notification_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": { "stringUnit": { "state": "translated", "value": "تم استلام HNS" } },
+        "de": { "stringUnit": { "state": "translated", "value": "HNS empfangen" } },
+        "en": { "stringUnit": { "state": "translated", "value": "HNS received" } },
+        "es": { "stringUnit": { "state": "translated", "value": "HNS recibidos" } },
+        "fa": { "stringUnit": { "state": "translated", "value": "HNS دریافت شد" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "HNS reçus" } },
+        "he": { "stringUnit": { "state": "translated", "value": "התקבל HNS" } },
+        "hi": { "stringUnit": { "state": "translated", "value": "HNS प्राप्त हुआ" } },
+        "id": { "stringUnit": { "state": "translated", "value": "HNS diterima" } },
+        "it": { "stringUnit": { "state": "translated", "value": "HNS ricevuti" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "HNSを受け取りました" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "HNS 수신됨" } },
+        "nl": { "stringUnit": { "state": "translated", "value": "HNS ontvangen" } },
+        "pl": { "stringUnit": { "state": "translated", "value": "Otrzymano HNS" } },
+        "pt": { "stringUnit": { "state": "translated", "value": "HNS recebidos" } },
+        "ru": { "stringUnit": { "state": "translated", "value": "HNS получены" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "HNS alındı" } },
+        "uk": { "stringUnit": { "state": "translated", "value": "HNS отримано" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Đã nhận HNS" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已收到 HNS" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "已收到 HNS" } }
+      }
+    },
+    "wallet_swap_notification_offer_accepted": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": { "stringUnit": { "state": "translated", "value": "تم قبول عرضك" } },
+        "de": { "stringUnit": { "state": "translated", "value": "Dein Angebot wurde angenommen" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Your offer was accepted" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Tu oferta fue aceptada" } },
+        "fa": { "stringUnit": { "state": "translated", "value": "پیشنهاد شما پذیرفته شد" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Votre offre a été acceptée" } },
+        "he": { "stringUnit": { "state": "translated", "value": "ההצעה שלך התקבלה" } },
+        "hi": { "stringUnit": { "state": "translated", "value": "आपका ऑफ़र स्वीकार कर लिया गया" } },
+        "id": { "stringUnit": { "state": "translated", "value": "Penawaran Anda diterima" } },
+        "it": { "stringUnit": { "state": "translated", "value": "La tua offerta è stata accettata" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "あなたのオファーが承認されました" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "내 제안이 수락되었습니다" } },
+        "nl": { "stringUnit": { "state": "translated", "value": "Je aanbod is geaccepteerd" } },
+        "pl": { "stringUnit": { "state": "translated", "value": "Twoja oferta została przyjęta" } },
+        "pt": { "stringUnit": { "state": "translated", "value": "Sua oferta foi aceita" } },
+        "ru": { "stringUnit": { "state": "translated", "value": "Ваше предложение принято" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Teklifiniz kabul edildi" } },
+        "uk": { "stringUnit": { "state": "translated", "value": "Вашу пропозицію прийнято" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Đề nghị của bạn đã được chấp nhận" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "你的报价已被接受" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "你的報價已被接受" } }
+      }
+    },
+    "wallet_swap_notification_offer_accepted_detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": { "stringUnit": { "state": "translated", "value": "بدأت محفظة أخرى المبادلة · في انتظار الشروط الموقعة · الجلسة %1$@…" } },
+        "de": { "stringUnit": { "state": "translated", "value": "Eine andere Wallet hat den Tausch gestartet · Warten auf signierte Bedingungen · Sitzung %1$@…" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Another wallet started the swap · waiting for signed terms · Session %1$@…" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Otra cartera inició el intercambio · esperando las condiciones firmadas · Sesión %1$@…" } },
+        "fa": { "stringUnit": { "state": "translated", "value": "کیف پول دیگری مبادله را آغاز کرد · در انتظار شرایط امضاشده · جلسه %1$@…" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Un autre portefeuille a lancé l’échange · en attente des conditions signées · Session %1$@…" } },
+        "he": { "stringUnit": { "state": "translated", "value": "ארנק אחר התחיל את ההחלפה · ממתין לתנאים החתומים · הפעלה %1$@…" } },
+        "hi": { "stringUnit": { "state": "translated", "value": "दूसरे वॉलेट ने स्वैप शुरू किया · हस्ताक्षरित शर्तों की प्रतीक्षा · सत्र %1$@…" } },
+        "id": { "stringUnit": { "state": "translated", "value": "Dompet lain memulai pertukaran · menunggu ketentuan yang ditandatangani · Sesi %1$@…" } },
+        "it": { "stringUnit": { "state": "translated", "value": "Un altro portafoglio ha avviato lo scambio · in attesa dei termini firmati · Sessione %1$@…" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "別のウォレットがスワップを開始しました · 署名済み条件を待機中 · セッション %1$@…" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "다른 지갑이 스왑을 시작했습니다 · 서명된 조건을 기다리는 중 · 세션 %1$@…" } },
+        "nl": { "stringUnit": { "state": "translated", "value": "Een andere wallet heeft de swap gestart · wachten op ondertekende voorwaarden · Sessie %1$@…" } },
+        "pl": { "stringUnit": { "state": "translated", "value": "Inny portfel rozpoczął wymianę · oczekiwanie na podpisane warunki · Sesja %1$@…" } },
+        "pt": { "stringUnit": { "state": "translated", "value": "Outra carteira iniciou a troca · aguardando os termos assinados · Sessão %1$@…" } },
+        "ru": { "stringUnit": { "state": "translated", "value": "Другой кошелек начал обмен · ожидание подписанных условий · Сеанс %1$@…" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Başka bir cüzdan takası başlattı · imzalı koşullar bekleniyor · Oturum %1$@…" } },
+        "uk": { "stringUnit": { "state": "translated", "value": "Інший гаманець розпочав обмін · очікування підписаних умов · Сесія %1$@…" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Ví khác đã bắt đầu hoán đổi · đang chờ các điều khoản đã ký · Phiên %1$@…" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "另一个钱包已启动交换 · 正在等待签名条款 · 会话 %1$@…" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "另一個錢包已啟動交換 · 正在等待簽署條款 · 工作階段 %1$@…" } }
+      }
+    },
     "wallet_swap_notification_refunded": {
       "extractionState": "manual",
       "localizations": {
@@ -74415,127 +74519,127 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "تم قبول العرض. جلسة المبادلة الذرية %1$@... تتفاوض مع الشركة المصنعة."
+            "value": "بدأت المبادلة %1$@… بانتظار توقيع المحفظة الأخرى."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Angebot angenommen. Atomic-Swap-Session %1$@… verhandelt mit dem Hersteller."
+            "value": "Swap %1$@… gestartet. Warte auf die Signatur der anderen Wallet."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Offer accepted. Atomic-swap session %1$@… is negotiating with the maker."
+            "value": "Swap %1$@… started. Waiting for the other wallet to sign."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Oferta aceptada. La sesión de intercambio atómico %1$@… está negociando con el fabricante."
+            "value": "Intercambio %1$@… iniciado. Esperando la firma de la otra cartera."
           }
         },
         "fa": {
           "stringUnit": {
             "state": "translated",
-            "value": "پیشنهاد پذیرفته شد جلسه مبادله اتمی %1$@… در حال مذاکره با سازنده است."
+            "value": "مبادله %1$@… آغاز شد. در انتظار امضای کیف پول دیگر."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Offre acceptée. La session d'échange atomique %1$@… est en négociation avec le fabricant."
+            "value": "Échange %1$@… lancé. En attente de la signature de l’autre portefeuille."
           }
         },
         "he": {
           "stringUnit": {
             "state": "translated",
-            "value": "ההצעה התקבלה. סשן החלפה אטומית %1$@... מנהל משא ומתן עם היצרן."
+            "value": "החלפה %1$@… התחילה. ממתין לחתימת הארנק האחר."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "प्रस्ताव स्वीकार कर लिया गया. परमाणु-स्वैप सत्र %1$@… निर्माता के साथ बातचीत कर रहा है।"
+            "value": "स्वैप %1$@… शुरू हुआ। दूसरे वॉलेट के हस्ताक्षर की प्रतीक्षा है।"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Penawaran diterima. Sesi pertukaran atom %1$@… sedang bernegosiasi dengan pembuatnya."
+            "value": "Pertukaran %1$@… dimulai. Menunggu tanda tangan dompet lain."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Offerta accettata. Sessione di scambio atomico %1$@... sta negoziando con il produttore."
+            "value": "Scambio %1$@… avviato. In attesa della firma dell’altro portafoglio."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "オファーは受け入れられました。アトミック スワップ セッション %1$@… はメーカーと交渉中です。"
+            "value": "スワップ %1$@… を開始しました。もう一方のウォレットの署名を待っています。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "제안이 수락되었습니다. 아토믹 스왑 세션 %1$@… 제조사와 협상 중입니다."
+            "value": "스왑 %1$@… 시작됨. 다른 지갑의 서명을 기다리는 중입니다."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aanbieding geaccepteerd. Atomic-swapsessie %1$@… is in onderhandeling met de maker."
+            "value": "Swap %1$@… gestart. Wachten op ondertekening door de andere wallet."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Oferta przyjęta. Sesja wymiany atomowej %1$@… negocjuje z producentem."
+            "value": "Rozpoczęto wymianę %1$@… Oczekiwanie na podpis drugiego portfela."
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Oferta aceita. A sessão de troca atômica %1$@… está negociando com o fabricante."
+            "value": "Troca %1$@… iniciada. Aguardando a assinatura da outra carteira."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Предложение принято. Сеанс атомного обмена %1$@… ведет переговоры с производителем."
+            "value": "Обмен %1$@… начат. Ожидание подписи другого кошелька."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Teklif kabul edildi. Atomik takas oturumu %1$@… yapımcıyla görüşüyor."
+            "value": "Takas %1$@… başlatıldı. Diğer cüzdanın imzası bekleniyor."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Пропозиція прийнята. Сесія Atomic-swap %1$@… веде переговори з виробником."
+            "value": "Обмін %1$@… розпочато. Очікування підпису іншого гаманця."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Đề nghị được chấp nhận. Phiên hoán đổi nguyên tử %1$@… đang đàm phán với nhà sản xuất."
+            "value": "Đã bắt đầu hoán đổi %1$@… Đang chờ ví kia ký."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "接受报价。原子交换会话%1$@…正在与制造商协商。"
+            "value": "交换 %1$@… 已启动。正在等待另一个钱包签名。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "接受報價。原子交換會話%1$@…正在與製造商協商。"
+            "value": "交換 %1$@… 已啟動。正在等待另一個錢包簽署。"
           }
         }
       }

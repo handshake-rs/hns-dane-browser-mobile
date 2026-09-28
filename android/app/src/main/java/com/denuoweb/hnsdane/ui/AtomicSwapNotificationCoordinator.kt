@@ -11,15 +11,18 @@ import android.content.pm.PackageManager
 import android.os.Build
 import com.denuoweb.hnsdane.R
 import com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionStatus
+import com.denuoweb.hnsdane.wallet.NativeWalletReadSnapshot
+import java.security.MessageDigest
 
 /**
  * Publishes one durable, deduplicated notification for each meaningful atomic-swap stage.
  *
  * The native execution journal remains the authority. This class persists only the last
- * presentation fingerprint for each random session ID; it stores no keys, transaction bytes,
- * addresses, amounts, or counterparty endpoints. The first observation after this feature is
- * installed establishes a baseline so historical or abandoned executions do not all alert at
- * once. Every later new session and stage transition is eligible for one notification.
+ * presentation fingerprint for each random session ID and one-way fingerprints for confirmed
+ * HNS receives; it stores no keys, raw transaction IDs or bytes, addresses, names, amounts, or
+ * counterparty endpoints. The first observation after this feature is installed establishes a
+ * baseline so historical activity does not all alert at once. Every later new session, stage
+ * transition, or confirmed incoming HNS payment is eligible for one notification.
  */
 internal class AtomicSwapNotificationCoordinator(context: Context) {
     private val applicationContext = context.applicationContext
@@ -50,6 +53,20 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
         stageText: (com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionSummary) -> String,
     ): Boolean {
         val records = LinkedHashMap<String, SwapNotificationRecord>()
+        status.pendingOfferResponses.forEach { offer ->
+            records[offer.sessionId] = SwapNotificationRecord(
+                sessionId = offer.sessionId,
+                fingerprint = "offer_response",
+                title = applicationContext.getString(
+                    R.string.wallet_swap_notification_offer_accepted,
+                ),
+                text = applicationContext.getString(
+                    R.string.wallet_swap_notification_offer_accepted_detail,
+                    offer.sessionId.take(12),
+                ),
+                historicalTerminal = false,
+            )
+        }
         status.pendingAcceptances.forEach { pending ->
             records[pending.sessionId] = SwapNotificationRecord(
                 sessionId = pending.sessionId,
@@ -64,6 +81,8 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
         }
         status.executions.forEach { execution ->
             val stage = stageText(execution)
+            val firstObservationIsOfferAcceptance =
+                execution.localRole == "taker" && execution.state !in TERMINAL_STATES
             records[execution.sessionId] = SwapNotificationRecord(
                 sessionId = execution.sessionId,
                 // Do not include the native revision: confirmation-count and replay bookkeeping
@@ -76,6 +95,19 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
                     execution.sessionId.take(12),
                 ),
                 historicalTerminal = execution.state in TERMINAL_STATES,
+                initialTitle = if (firstObservationIsOfferAcceptance) {
+                    applicationContext.getString(R.string.wallet_swap_notification_offer_accepted)
+                } else {
+                    null
+                },
+                initialText = if (firstObservationIsOfferAcceptance) {
+                    applicationContext.getString(
+                        R.string.wallet_swap_notification_offer_accepted_detail,
+                        execution.sessionId.take(12),
+                    )
+                } else {
+                    null
+                },
             )
         }
 
@@ -104,12 +136,91 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
                 permissionNeeded = true
                 return@forEach
             }
+            val presentation = if (
+                previous == null && record.initialTitle != null && record.initialText != null
+            ) {
+                record.copy(title = record.initialTitle, text = record.initialText)
+            } else {
+                record
+            }
             manager.notify(
                 "atomic-swap:${record.sessionId}",
                 NOTIFICATION_ID,
-                notification(record),
+                notification(presentation),
             )
             preferences.edit().putString(key, record.fingerprint).apply()
+        }
+        return permissionNeeded
+    }
+
+    /**
+     * Announce newly confirmed incoming HNS from the ordinary verified wallet snapshot. This is
+     * also the fixed-price name-sale completion signal: that protocol has no interactive peer
+     * acceptance packet, so the confirmed chain payment is the first authoritative event.
+     *
+     * A per-wallet baseline suppresses restore/history floods. Preferences retain only SHA-256
+     * fingerprints of account and transaction identifiers, never amounts, addresses, or names.
+     */
+    fun reconcileIncomingHns(
+        snapshot: NativeWalletReadSnapshot,
+        amountText: (String) -> String,
+    ): Boolean {
+        val accountFingerprint = fingerprint("account:${snapshot.paymentReceiveTarget.accountId}")
+        val incoming = snapshot.transactions.filter { transaction ->
+            transaction.status == "confirmed" &&
+                transaction.confirmationCount > 0L &&
+                !transaction.negative &&
+                transaction.magnitudeBaseUnits != "0"
+        }
+        val currentFingerprints = incoming
+            .mapTo(linkedSetOf()) { transaction -> fingerprint("hns:${transaction.txid}") }
+        if (
+            !preferences.getBoolean(HNS_RECEIVE_INITIALIZED, false) ||
+                preferences.getString(HNS_RECEIVE_ACCOUNT, null) != accountFingerprint
+        ) {
+            preferences.edit()
+                .putBoolean(HNS_RECEIVE_INITIALIZED, true)
+                .putString(HNS_RECEIVE_ACCOUNT, accountFingerprint)
+                .putStringSet(HNS_RECEIVE_FINGERPRINTS, currentFingerprints)
+                .apply()
+            return false
+        }
+
+        val known = preferences.getStringSet(HNS_RECEIVE_FINGERPRINTS, emptySet())
+            ?.toSet() ?: emptySet()
+        val canNotify = canPostNotifications()
+        var permissionNeeded = false
+        incoming.forEach { transaction ->
+            val transactionFingerprint = fingerprint("hns:${transaction.txid}")
+            if (transactionFingerprint in known) return@forEach
+            if (!canNotify) {
+                permissionNeeded = true
+                return@forEach
+            }
+            val record = SwapNotificationRecord(
+                sessionId = "hns:$transactionFingerprint",
+                fingerprint = "confirmed",
+                title = applicationContext.getString(R.string.wallet_hns_received_notification_title),
+                text = applicationContext.getString(
+                    R.string.wallet_hns_received_notification_detail,
+                    amountText(transaction.magnitudeBaseUnits),
+                ),
+                historicalTerminal = false,
+            )
+            manager.notify(
+                "hns-receive:$transactionFingerprint",
+                NOTIFICATION_ID,
+                notification(record),
+            )
+        }
+        // The authenticated snapshot is bounded. Replacing the set instead of
+        // accumulating every historical tx keeps unencrypted presentation
+        // metadata bounded as well. Do not advance it while permission is
+        // unavailable; a later grant should still announce the new receipts.
+        if (canNotify && known != currentFingerprints) {
+            preferences.edit()
+                .putStringSet(HNS_RECEIVE_FINGERPRINTS, currentFingerprints)
+                .apply()
         }
         return permissionNeeded
     }
@@ -173,12 +284,18 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
 
     private fun sessionKey(sessionId: String): String = "session:$sessionId"
 
+    private fun fingerprint(value: String): String = MessageDigest.getInstance("SHA-256")
+        .digest(value.toByteArray(Charsets.UTF_8))
+        .joinToString(separator = "") { byte -> "%02x".format(byte.toInt() and 0xff) }
+
     private data class SwapNotificationRecord(
         val sessionId: String,
         val fingerprint: String,
         val title: String,
         val text: String,
         val historicalTerminal: Boolean,
+        val initialTitle: String? = null,
+        val initialText: String? = null,
     )
 
     private companion object {
@@ -186,6 +303,9 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
         const val PREFERENCES = "atomic_swap_notifications_v1"
         const val INITIALIZED = "initialized"
         const val PERMISSION_REQUESTED = "permission_requested"
+        const val HNS_RECEIVE_INITIALIZED = "hns_receive_initialized"
+        const val HNS_RECEIVE_ACCOUNT = "hns_receive_account"
+        const val HNS_RECEIVE_FINGERPRINTS = "hns_receive_fingerprints"
         const val NOTIFICATION_ID = 1
         val TERMINAL_STATES = setOf("completed", "refunded", "failed")
     }

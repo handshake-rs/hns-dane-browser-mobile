@@ -339,7 +339,7 @@
     <string name="wallet_swap_take_reserved_btc">Voor deze aanbieding is %1$d sats nodig; de portemonnee heeft %2$d bevestigd, maar andere swaps reserveren te veel. Geef een niet-gefinancierde acceptatie vrij, voltooi een ruil of betaal deze terug, of voeg Bitcoin toe.</string>
     <string name="wallet_swap_take_reserved_hns">Voor deze aanbieding is %1$s HNS nodig; de portemonnee heeft %2$s bevestigd, maar andere swaps reserveren te veel. Geef een niet-gefinancierde acceptatie vrij, voltooi een ruil of betaal deze terug, of voeg HNS toe.</string>
     <string name="wallet_swap_take_failed">De ondertekende aanvaarding is niet verzonden. Mogelijk is de verbinding met de peer verbroken of is de aanbieding verlopen.</string>
-    <string name="wallet_swap_take_sent">Aanbieding geaccepteerd. Atomic-swapsessie %1$s… is in onderhandeling met de maker.</string>
+    <string name="wallet_swap_take_sent">Swap %1$s… gestart. Wachten op ondertekening door de andere wallet.</string>
     <string name="wallet_swap_cancel_direct_message">%1$s intrekken?\n\nBiedings-ID: %2$s. Bij annulering wordt de lokale reservering vrijgegeven, maar een reeds geaccepteerde sessie kan niet worden geannuleerd.</string>
     <string name="wallet_swap_btc_amount_hint">BTC vergrendeld (sats, minimaal 1330 inclusief vergoedingsreserve)</string>
     <string name="wallet_swap_hns_amount_hint">HNS vergrendeld (minimaal 0,100546 inclusief vergoedingsreserve)</string>
@@ -410,6 +410,10 @@
     <string name="wallet_swap_notification_channel_description">Bruikbare updates voor financiering, aflossing, terugbetaling en voltooiing voor lokaal geverifieerde atomaire swaps.</string>
     <string name="wallet_swap_notification_action_required">Atomaire ruilactie vereist</string>
     <string name="wallet_swap_notification_updated">Atomaire swap bijgewerkt</string>
+    <string name="wallet_swap_notification_offer_accepted">Je aanbod is geaccepteerd</string>
+    <string name="wallet_swap_notification_offer_accepted_detail">Een andere wallet heeft de swap gestart · wachten op ondertekende voorwaarden · Sessie %1$s…</string>
+    <string name="wallet_hns_received_notification_title">HNS ontvangen</string>
+    <string name="wallet_hns_received_notification_detail">%1$s HNS bevestigd</string>
     <string name="wallet_swap_notification_completed">Atoomwissel voltooid</string>
     <string name="wallet_swap_notification_refunded">Atomic swap terugbetaald</string>
     <string name="wallet_swap_notification_failed">Atomaire swap heeft aandacht nodig</string>

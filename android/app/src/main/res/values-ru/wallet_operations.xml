@@ -339,7 +339,7 @@
     <string name="wallet_swap_take_reserved_btc">Для этого предложения требуется %1$d sats; в кошельке подтвержден %2$d, но другие свопы резервируют слишком много. Отпустите необеспеченный акцепт, завершите или возместите своп или добавьте Bitcoin.</string>
     <string name="wallet_swap_take_reserved_hns">Для этого предложения требуется %1$s HNS; в кошельке подтвержден %2$s, но другие свопы резервируют слишком много. Отпустите необеспеченный акцепт, завершите или возместите своп или добавьте HNS.</string>
     <string name="wallet_swap_take_failed">Подписанный акцепт не был отправлен. Возможно, одноранговый узел отключился или срок действия предложения истек.</string>
-    <string name="wallet_swap_take_sent">Предложение принято. Сеанс атомного обмена %1$s… ведет переговоры с производителем.</string>
+    <string name="wallet_swap_take_sent">Обмен %1$s… начат. Ожидание подписи другого кошелька.</string>
     <string name="wallet_swap_cancel_direct_message">Вывести %1$s?\n\nИдентификатор предложения: %2$s. Отмена освобождает локальное резервирование, но не может отменить уже принятый сеанс.</string>
     <string name="wallet_swap_btc_amount_hint">BTC заблокирован (sats, минимум 1330, включая резерв комиссии)</string>
     <string name="wallet_swap_hns_amount_hint">HNS заблокирован (минимум 0,100546, включая резерв комиссии)</string>
@@ -410,6 +410,10 @@
     <string name="wallet_swap_notification_channel_description">Практические обновления финансирования, погашения, возврата и завершения локально проверенных атомных свопов.</string>
     <string name="wallet_swap_notification_action_required">Требуется действие атомарного обмена</string>
     <string name="wallet_swap_notification_updated">Обновлен атомный своп</string>
+    <string name="wallet_swap_notification_offer_accepted">Ваше предложение принято</string>
+    <string name="wallet_swap_notification_offer_accepted_detail">Другой кошелек начал обмен · ожидание подписанных условий · Сеанс %1$s…</string>
+    <string name="wallet_hns_received_notification_title">HNS получены</string>
+    <string name="wallet_hns_received_notification_detail">Получение %1$s HNS подтверждено</string>
     <string name="wallet_swap_notification_completed">Атомный обмен завершен</string>
     <string name="wallet_swap_notification_refunded">Возврат средств по атомному свопу</string>
     <string name="wallet_swap_notification_failed">Атомный своп требует внимания</string>

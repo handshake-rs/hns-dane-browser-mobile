@@ -34,11 +34,12 @@ hns-browser-observability = "=0.3.0"
 hns-browser-runtime = "=0.2.2"
 hns-icann-dane = "=0.2.2"
 hns-loopback-proxy = { package = "hns-browser-loopback-proxy", version = "=0.2.3", default-features = false, features = ["mobile"] }
-# The coordinated wallet cohort is published and checksum-bearing. Keep all
-# three application entry points exact so Cargo cannot mix release cohorts.
-hns-wallet-ffi = "=0.2.6"
-hns-wallet-mobile = "=0.2.6"
-hns-wallet-types = "=0.2.6"
+# Coordinated development integration for the direct-offer role-model update.
+# Release packaging pins these three entry points to the corresponding
+# published wallet cohort so Cargo cannot mix protocol generations.
+hns-wallet-ffi = { path = "../../hns-wallet-rs/crates/hns-wallet-ffi" }
+hns-wallet-mobile = { path = "../../hns-wallet-rs/crates/hns-wallet-mobile" }
+hns-wallet-types = { path = "../../hns-wallet-rs/crates/hns-wallet-types" }
 hns-mobile-platform-runtime = { path = "crates/hns-mobile-platform-runtime" }
 hns-namespace-resolution = "=0.2.3"
 hns-resolution-policy = "=0.3.0"
@@ -87,3 +88,20 @@ panic = "abort"
 [profile.ios-release]
 inherits = "release"
 panic = "unwind"
+
+# Keep the coordinated local wallet/protocol cohort source-identical while
+# the breaking responder-as-maker protocol generation is under review.
+# Release packaging replaces these paths with published exact versions.
+[patch.crates-io]
+hns-covenants = { path = "../../hns-rs/crates/hns-covenants" }
+hns-encoding = { path = "../../hns-rs/crates/hns-encoding" }
+hns-header-consensus = { path = "../../hns-rs/crates/hns-header-consensus" }
+hns-marketplace-protocol = { path = "../../hns-rs/crates/hns-marketplace-protocol" }
+hns-mining = { path = "../../hns-rs/crates/hns-mining" }
+hns-p2p-experimental = { path = "../../hns-rs/crates/hns-p2p-experimental" }
+hns-p2p-wire = { path = "../../hns-rs/crates/hns-p2p-wire" }
+hns-primitives = { path = "../../hns-rs/crates/hns-primitives" }
+hns-script = { path = "../../hns-rs/crates/hns-script" }
+hns-swap = { path = "../../hns-rs/crates/hns-swap" }
+hns-transaction = { path = "../../hns-rs/crates/hns-transaction" }
+hns-urkel-proof = { path = "../../hns-rs/crates/hns-urkel-proof" }

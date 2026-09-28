@@ -339,7 +339,7 @@
     <string name="wallet_swap_take_reserved_btc">این پیشنهاد به %1$d sats نیاز دارد. کیف پول دارای %2$d تایید شده است، اما سایر مبادلات بیش از حد ذخیره می کنند. یک پذیرش بدون بودجه را منتشر کنید، یک مبادله را تکمیل یا بازپرداخت کنید، یا Bitcoin را اضافه کنید.</string>
     <string name="wallet_swap_take_reserved_hns">این پیشنهاد به %1$s HNS نیاز دارد. کیف پول دارای %2$s تایید شده است، اما سایر مبادلات بیش از حد ذخیره می کنند. یک پذیرش بدون بودجه را منتشر کنید، یک مبادله را تکمیل یا بازپرداخت کنید، یا HNS را اضافه کنید.</string>
     <string name="wallet_swap_take_failed">پذیرش امضا شده ارسال نشد. ممکن است ارتباط همتا قطع شده باشد یا پیشنهاد منقضی شده باشد.</string>
-    <string name="wallet_swap_take_sent">پیشنهاد پذیرفته شد جلسه مبادله اتمی %1$s… در حال مذاکره با سازنده است.</string>
+    <string name="wallet_swap_take_sent">مبادله %1$s… آغاز شد. در انتظار امضای کیف پول دیگر.</string>
     <string name="wallet_swap_cancel_direct_message">برداشت %1$s?\n\n شناسه پیشنهاد: %2$s. لغو رزرو محلی را آزاد می کند اما نمی تواند یک جلسه از قبل پذیرفته شده را لغو کند.</string>
     <string name="wallet_swap_btc_amount_hint">BTC قفل شده (sats، حداقل 1330 شامل ذخیره هزینه)</string>
     <string name="wallet_swap_hns_amount_hint">HNS قفل شده است (حداقل 0.100546 با احتساب هزینه ذخیره)</string>
@@ -410,6 +410,10 @@
     <string name="wallet_swap_notification_channel_description">به‌روزرسانی‌های تأمین مالی، بازخرید، بازپرداخت و تکمیل برای سوآپ‌های اتمی تأیید شده محلی.</string>
     <string name="wallet_swap_notification_action_required">اقدام مبادله اتمی مورد نیاز است</string>
     <string name="wallet_swap_notification_updated">مبادله اتمی به روز شد</string>
+    <string name="wallet_swap_notification_offer_accepted">پیشنهاد شما پذیرفته شد</string>
+    <string name="wallet_swap_notification_offer_accepted_detail">کیف پول دیگری مبادله را آغاز کرد · در انتظار شرایط امضاشده · جلسه %1$s…</string>
+    <string name="wallet_hns_received_notification_title">HNS دریافت شد</string>
+    <string name="wallet_hns_received_notification_detail">دریافت %1$s HNS تأیید شد</string>
     <string name="wallet_swap_notification_completed">مبادله اتمی تکمیل شد</string>
     <string name="wallet_swap_notification_refunded">سوآپ اتمی بازپرداخت شد</string>
     <string name="wallet_swap_notification_failed">سوآپ اتمی نیاز به توجه دارد</string>

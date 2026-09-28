@@ -339,7 +339,7 @@
     <string name="wallet_swap_take_reserved_btc">Для цієї пропозиції потрібен %1$d sats; гаманець підтвердив %2$d, але інші свопи резервують занадто багато. Відпустіть нефінансований акцепт, завершіть або відшкодуйте обмін або додайте Bitcoin.</string>
     <string name="wallet_swap_take_reserved_hns">Для цієї пропозиції потрібен %1$s HNS; гаманець підтвердив %2$s, але інші свопи резервують занадто багато. Відпустіть нефінансований акцепт, завершіть або відшкодуйте обмін або додайте HNS.</string>
     <string name="wallet_swap_take_failed">Підписане прийняття не було надіслано. Можливо, вузол від’єднався або термін дії пропозиції закінчився.</string>
-    <string name="wallet_swap_take_sent">Пропозиція прийнята. Сесія Atomic-swap %1$s… веде переговори з виробником.</string>
+    <string name="wallet_swap_take_sent">Обмін %1$s… розпочато. Очікування підпису іншого гаманця.</string>
     <string name="wallet_swap_cancel_direct_message">Зняти %1$s?\n\nІдентифікатор пропозиції: %2$s. Скасування скасовує локальне бронювання, але не може скасувати вже прийнятий сеанс.</string>
     <string name="wallet_swap_btc_amount_hint">BTC заблоковано (sats, мінімум 1330, включаючи резерв комісії)</string>
     <string name="wallet_swap_hns_amount_hint">HNS заблоковано (мінімум 0,100546, включаючи резерв комісії)</string>
@@ -410,6 +410,10 @@
     <string name="wallet_swap_notification_channel_description">Актуальні оновлення щодо фінансування, викупу, відшкодування та завершення для локально підтверджених атомарних обмінів.</string>
     <string name="wallet_swap_notification_action_required">Потрібна дія атомарного обміну</string>
     <string name="wallet_swap_notification_updated">Atomic swap оновлено</string>
+    <string name="wallet_swap_notification_offer_accepted">Вашу пропозицію прийнято</string>
+    <string name="wallet_swap_notification_offer_accepted_detail">Інший гаманець розпочав обмін · очікування підписаних умов · Сесія %1$s…</string>
+    <string name="wallet_hns_received_notification_title">HNS отримано</string>
+    <string name="wallet_hns_received_notification_detail">Отримання %1$s HNS підтверджено</string>
     <string name="wallet_swap_notification_completed">Атомний обмін завершено</string>
     <string name="wallet_swap_notification_refunded">Atomic swap повернено</string>
     <string name="wallet_swap_notification_failed">Атомний своп потребує уваги</string>

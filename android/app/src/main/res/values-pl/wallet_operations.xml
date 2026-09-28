@@ -339,7 +339,7 @@
     <string name="wallet_swap_take_reserved_btc">Ta oferta wymaga %1$d sats; portfel ma potwierdzone %2$d, ale inne swapy rezerwują za dużo. Zwolnij akceptację bez środków, zakończ wymianę lub zwróć pieniądze albo dodaj Bitcoin.</string>
     <string name="wallet_swap_take_reserved_hns">Ta oferta wymaga %1$s HNS; portfel ma potwierdzone %2$s, ale inne swapy rezerwują za dużo. Zwolnij akceptację bez środków, zakończ wymianę lub zwróć pieniądze albo dodaj HNS.</string>
     <string name="wallet_swap_take_failed">Podpisana akceptacja nie została wysłana. Partner mógł się rozłączyć lub oferta mogła wygasnąć.</string>
-    <string name="wallet_swap_take_sent">Oferta przyjęta. Sesja wymiany atomowej %1$s… negocjuje z producentem.</string>
+    <string name="wallet_swap_take_sent">Rozpoczęto wymianę %1$s… Oczekiwanie na podpis drugiego portfela.</string>
     <string name="wallet_swap_cancel_direct_message">Wycofaj %1$s?\n\nIdentyfikator oferty: %2$s. Anulowanie zwalnia lokalną rezerwację, ale nie może anulować już zaakceptowanej sesji.</string>
     <string name="wallet_swap_btc_amount_hint">BTC zablokowany (sats, minimum 1330 łącznie z rezerwą na opłaty)</string>
     <string name="wallet_swap_hns_amount_hint">HNS zablokowany (minimum 0,100546 łącznie z rezerwą opłaty)</string>
@@ -410,6 +410,10 @@
     <string name="wallet_swap_notification_channel_description">Aktywne aktualizacje dotyczące finansowania, wykupu, zwrotu kosztów i zakończenia dla lokalnie zweryfikowanych swapów atomowych.</string>
     <string name="wallet_swap_notification_action_required">Wymagana jest akcja wymiany atomowej</string>
     <string name="wallet_swap_notification_updated">Zaktualizowano wymianę atomową</string>
+    <string name="wallet_swap_notification_offer_accepted">Twoja oferta została przyjęta</string>
+    <string name="wallet_swap_notification_offer_accepted_detail">Inny portfel rozpoczął wymianę · oczekiwanie na podpisane warunki · Sesja %1$s…</string>
+    <string name="wallet_hns_received_notification_title">Otrzymano HNS</string>
+    <string name="wallet_hns_received_notification_detail">Potwierdzono otrzymanie %1$s HNS</string>
     <string name="wallet_swap_notification_completed">Zamiana atomowa zakończona</string>
     <string name="wallet_swap_notification_refunded">Zwrócono pieniądze za wymianę atomową</string>
     <string name="wallet_swap_notification_failed">Zamiana atomowa wymaga uwagi</string>

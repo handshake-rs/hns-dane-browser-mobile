@@ -339,7 +339,7 @@
     <string name="wallet_swap_take_reserved_btc">הצעה זו צריכה %1$d sats; לארנק יש אישור %2$d, אבל החלפות אחרות שומרות יותר מדי. שחרר קבלה ללא מימון, סיים או החזר החלפה, או הוסף Bitcoin.</string>
     <string name="wallet_swap_take_reserved_hns">הצעה זו צריכה %1$s HNS; לארנק יש אישור %2$s, אבל החלפות אחרות שומרות יותר מדי. שחרר קבלה ללא מימון, סיים או החזר החלפה, או הוסף HNS.</string>
     <string name="wallet_swap_take_failed">הקבלה החתומה לא נשלחה. ייתכן שהעמית התנתק או שההצעה פג.</string>
-    <string name="wallet_swap_take_sent">ההצעה התקבלה. סשן החלפה אטומית %1$s... מנהל משא ומתן עם היצרן.</string>
+    <string name="wallet_swap_take_sent">החלפה %1$s… התחילה. ממתין לחתימת הארנק האחר.</string>
     <string name="wallet_swap_cancel_direct_message">למשוך את %1$s?\n\n מזהה הצעה: %2$s. ביטול משחרר את ההזמנה המקומית אך לא יכול לבטל הפעלה שכבר התקבלה.</string>
     <string name="wallet_swap_btc_amount_hint">BTC נעול (sats, מינימום 1330 כולל רזרבה לתשלום)</string>
     <string name="wallet_swap_hns_amount_hint">HNS נעול (מינימום 0.100546 כולל רזרבה לתשלום)</string>
@@ -410,6 +410,10 @@
     <string name="wallet_swap_notification_channel_description">עדכוני מימון, פדיון, החזר והשלמה ניתנים לפעולה עבור החלפות אטומיות מאומתות מקומית.</string>
     <string name="wallet_swap_notification_action_required">נדרשת פעולת החלפה אטומית</string>
     <string name="wallet_swap_notification_updated">החלפה אטומית עודכנה</string>
+    <string name="wallet_swap_notification_offer_accepted">ההצעה שלך התקבלה</string>
+    <string name="wallet_swap_notification_offer_accepted_detail">ארנק אחר התחיל את ההחלפה · ממתין לתנאים החתומים · הפעלה %1$s…</string>
+    <string name="wallet_hns_received_notification_title">התקבל HNS</string>
+    <string name="wallet_hns_received_notification_detail">קבלת %1$s HNS אושרה</string>
     <string name="wallet_swap_notification_completed">ההחלפה האטומית הושלמה</string>
     <string name="wallet_swap_notification_refunded">החלפה אטומית הוחזרה</string>
     <string name="wallet_swap_notification_failed">חילוף אטומי דורש תשומת לב</string>

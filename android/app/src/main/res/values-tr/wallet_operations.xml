@@ -339,7 +339,7 @@
     <string name="wallet_swap_take_reserved_btc">Bu teklifin %1$d sats\'ye ihtiyacı vardır; cüzdanda %2$d onaylandı ancak diğer swaplar çok fazla rezerve ediyor. Finanse edilmemiş bir kabulü iptal edin, takas işlemini tamamlayın veya iade edin ya da Bitcoin ekleyin.</string>
     <string name="wallet_swap_take_reserved_hns">Bu teklifin %1$s HNS\'ye ihtiyacı vardır; cüzdanda %2$s onaylandı ancak diğer swaplar çok fazla rezerve ediyor. Finanse edilmemiş bir kabulü iptal edin, takas işlemini tamamlayın veya iade edin ya da HNS ekleyin.</string>
     <string name="wallet_swap_take_failed">İmzalı kabul gönderilmedi. Eşin bağlantısı kesilmiş olabilir veya teklifin süresi dolmuş olabilir.</string>
-    <string name="wallet_swap_take_sent">Teklif kabul edildi. Atomik takas oturumu %1$s… yapımcıyla görüşüyor.</string>
+    <string name="wallet_swap_take_sent">Takas %1$s… başlatıldı. Diğer cüzdanın imzası bekleniyor.</string>
     <string name="wallet_swap_cancel_direct_message">%1$s\'yi geri çekin?\n\nTeklif Kimliği: %2$s. İptal yerel rezervasyonu iptal eder ancak önceden kabul edilmiş bir oturumu iptal edemez.</string>
     <string name="wallet_swap_btc_amount_hint">BTC kilitli (sats, ücret rezervi dahil minimum 1330)</string>
     <string name="wallet_swap_hns_amount_hint">HNS kilitli (ücret rezervi dahil minimum 0,100546)</string>
@@ -410,6 +410,10 @@
     <string name="wallet_swap_notification_channel_description">Yerel olarak doğrulanmış atom takasları için uygulanabilir finansman, itfa, geri ödeme ve tamamlama güncellemeleri.</string>
     <string name="wallet_swap_notification_action_required">Atomik takas eylemi gerekli</string>
     <string name="wallet_swap_notification_updated">Atomik takas güncellendi</string>
+    <string name="wallet_swap_notification_offer_accepted">Teklifiniz kabul edildi</string>
+    <string name="wallet_swap_notification_offer_accepted_detail">Başka bir cüzdan takası başlattı · imzalı koşullar bekleniyor · Oturum %1$s…</string>
+    <string name="wallet_hns_received_notification_title">HNS alındı</string>
+    <string name="wallet_hns_received_notification_detail">%1$s HNS alımı onaylandı</string>
     <string name="wallet_swap_notification_completed">Atomik takas tamamlandı</string>
     <string name="wallet_swap_notification_refunded">Atom takası iade edildi</string>
     <string name="wallet_swap_notification_failed">Atomik takasın dikkat edilmesi gerekiyor</string>

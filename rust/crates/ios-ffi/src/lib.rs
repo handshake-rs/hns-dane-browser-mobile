@@ -27,10 +27,11 @@ use hns_wallet_mobile::{
     HnsInboundNetworkPeer, HnsLightFloor, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig,
     HnsPublicPeerSessions, HnsReadSystemClock, MAX_MOBILE_RECOVERY_PHRASE_BYTES,
     MOBILE_DATABASE_KEY_BYTES, MobileBitcoinDirectConfig, MobileBitcoinValueController,
-    MobileDatabaseKey, MobileHnsNameSummary, MobileHnsReadController, MobileHnsReadSnapshot,
-    MobileHnsValueController, MobileHnsValueIntent, MobilePlatform, MobileRecoveryPhrase,
-    MobileShakedexQuery, MobileShakescapeBitcoinFundingPermit, MobileShakescapeBitcoinWatchPermit,
-    MobileShakescapeSessionController, MobileWalletController, MobileWalletError,
+    MobileDatabaseKey, MobileDirectOfferSummary, MobileHnsNameSummary, MobileHnsReadController,
+    MobileHnsReadSnapshot, MobileHnsValueController, MobileHnsValueIntent, MobilePlatform,
+    MobileRecoveryPhrase, MobileShakedexQuery, MobileShakescapeBitcoinFundingPermit,
+    MobileShakescapeBitcoinWatchPermit, MobileShakescapeSessionController, MobileWalletController,
+    MobileWalletError,
 };
 use hns_wallet_types::{BaseUnits, SessionId};
 use serde_json::{Value, json};
@@ -204,7 +205,7 @@ fn promote_direct_shakescape_primary<T>(primary: &mut Option<T>, replicas: &mut 
     primary.is_some()
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 enum IosDirectPeerService {
     Idle,
     Retain { board_changed: bool },
@@ -258,7 +259,7 @@ fn service_connected_shakescape_peer(
         }
         Ok(Some(HnsDirectShakescapeMessage::CrossChain { envelope })) => {
             match shakescape_sessions.service_direct_envelope(peer, envelope.as_slice(), now_unix) {
-                Ok(_) => IosDirectPeerService::Retain {
+                Ok(_report) => IosDirectPeerService::Retain {
                     board_changed: false,
                 },
                 Err(error) if error.invalidates_direct_shakescape_transport() => {
@@ -1562,9 +1563,9 @@ impl NativeWalletController {
         shakescape_sessions.durable_executions()
     }
 
-    fn pending_direct_offer_takes(
+    fn pending_direct_offer_acceptances(
         &self,
-    ) -> Result<Vec<hns_wallet_mobile::MobileDirectOfferTakeSummary>, MobileWalletError> {
+    ) -> Result<Vec<hns_wallet_mobile::MobileDirectOfferAcceptanceSummary>, MobileWalletError> {
         let Self::DirectHnsValue {
             shakescape_sessions,
             ..
@@ -1572,7 +1573,18 @@ impl NativeWalletController {
         else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        shakescape_sessions.pending_direct_offer_takes(HnsReadSystemClock.now_unix()?)
+        shakescape_sessions.pending_direct_offer_acceptances(HnsReadSystemClock.now_unix()?)
+    }
+
+    fn pending_offer_responses(&self) -> Result<Vec<MobileDirectOfferSummary>, MobileWalletError> {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        shakescape_sessions.pending_local_offer_responses(HnsReadSystemClock.now_unix()?)
     }
 
     fn pending_first_bitcoin_funding_sessions(&self) -> Result<Vec<SessionId>, MobileWalletError> {
@@ -6078,8 +6090,12 @@ pub unsafe extern "C" fn hns_browser_wallet_shakescape_executions(
             .map_err(|_| wallet_runtime_failure("Shakescape execution listing failed"))?;
         let pending_acceptances = entry
             .controller
-            .pending_direct_offer_takes()
+            .pending_direct_offer_acceptances()
             .map_err(|_| wallet_runtime_failure("pending Shakescape acceptance listing failed"))?;
+        let pending_offer_responses = entry
+            .controller
+            .pending_offer_responses()
+            .map_err(|_| wallet_runtime_failure("pending Shakescape response listing failed"))?;
         drop(entry);
         let bitcoin_broadcast_recovery =
             wallet_bitcoin_control_entry(wallet)
@@ -6093,6 +6109,7 @@ pub unsafe extern "C" fn hns_browser_wallet_shakescape_executions(
         let bundle = wallet_bitcoin_bundle(&json!({
             "executions": executions,
             "pendingAcceptances": pending_acceptances,
+            "pendingOfferResponses": pending_offer_responses,
             "bitcoinBroadcastRecovery": bitcoin_broadcast_recovery,
         }))?;
         let output = allocate_output(&bundle.0, true)?;

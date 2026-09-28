@@ -339,7 +339,7 @@
     <string name="wallet_swap_take_reserved_btc">يحتاج هذا العرض إلى %1$d sats؛ تم تأكيد المحفظة %2$d، لكن المقايضات الأخرى تحتفظ كثيرًا. قم بتحرير قبول غير ممول، أو إنهاء المبادلة أو استردادها، أو إضافة Bitcoin.</string>
     <string name="wallet_swap_take_reserved_hns">يحتاج هذا العرض إلى %1$s HNS؛ تم تأكيد المحفظة %2$s، لكن المقايضات الأخرى تحتفظ كثيرًا. قم بتحرير قبول غير ممول، أو إنهاء المبادلة أو استردادها، أو إضافة HNS.</string>
     <string name="wallet_swap_take_failed">لم يتم إرسال القبول الموقع. ربما تم قطع اتصال النظير أو ربما انتهت صلاحية العرض.</string>
-    <string name="wallet_swap_take_sent">تم قبول العرض. جلسة المبادلة الذرية %1$s... تتفاوض مع الشركة المصنعة.</string>
+    <string name="wallet_swap_take_sent">بدأت المبادلة %1$s… بانتظار توقيع المحفظة الأخرى.</string>
     <string name="wallet_swap_cancel_direct_message">هل تريد سحب %1$s؟ \n\n معرف العرض: %2$s. يؤدي الإلغاء إلى تحرير الحجز المحلي ولكن لا يمكن إلغاء جلسة تم قبولها بالفعل.</string>
     <string name="wallet_swap_btc_amount_hint">BTC مقفل (sats، الحد الأدنى 1330 بما في ذلك احتياطي الرسوم)</string>
     <string name="wallet_swap_hns_amount_hint">HNS مقفل (الحد الأدنى 0.100546 بما في ذلك احتياطي الرسوم)</string>
@@ -410,6 +410,10 @@
     <string name="wallet_swap_notification_channel_description">تحديثات التمويل والاسترداد والاسترداد والإكمال القابلة للتنفيذ للمقايضات الذرية التي تم التحقق منها محليًا.</string>
     <string name="wallet_swap_notification_action_required">مطلوب إجراء المبادلة الذرية</string>
     <string name="wallet_swap_notification_updated">تم تحديث المبادلة الذرية</string>
+    <string name="wallet_swap_notification_offer_accepted">تم قبول عرضك</string>
+    <string name="wallet_swap_notification_offer_accepted_detail">بدأت محفظة أخرى المبادلة · في انتظار الشروط الموقعة · الجلسة %1$s…</string>
+    <string name="wallet_hns_received_notification_title">تم استلام HNS</string>
+    <string name="wallet_hns_received_notification_detail">تم تأكيد استلام %1$s HNS</string>
     <string name="wallet_swap_notification_completed">تم الانتهاء من المبادلة الذرية</string>
     <string name="wallet_swap_notification_refunded">تم رد المبادلة الذرية</string>
     <string name="wallet_swap_notification_failed">المبادلة الذرية تحتاج إلى الاهتمام</string>

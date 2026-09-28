@@ -233,7 +233,7 @@ fn promote_direct_shakescape_primary<T>(primary: &mut Option<T>, replicas: &mut 
     primary.is_some()
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 enum AndroidDirectPeerService {
     Idle,
     Retain { board_changed: bool },
@@ -1490,11 +1490,23 @@ impl AndroidWalletController {
                 return None;
             }
         };
-        let pending_acceptances = match shakescape_sessions.pending_direct_offer_takes(now_unix) {
-            Ok(pending_acceptances) => pending_acceptances,
+        let pending_acceptances =
+            match shakescape_sessions.pending_direct_offer_acceptances(now_unix) {
+                Ok(pending_acceptances) => pending_acceptances,
+                Err(error) => {
+                    android_log_error(&format!(
+                        "ShakeScape execution refresh could not load pending acceptances: {error}"
+                    ));
+                    return None;
+                }
+            };
+        let pending_offer_responses = match shakescape_sessions
+            .pending_local_offer_responses(now_unix)
+        {
+            Ok(responses) => responses,
             Err(error) => {
                 android_log_error(&format!(
-                    "ShakeScape execution refresh could not load pending acceptances: {error}"
+                    "ShakeScape execution refresh could not load pending offer responses: {error}"
                 ));
                 return None;
             }
@@ -1502,6 +1514,7 @@ impl AndroidWalletController {
         let mut json = match serde_json::to_vec(&serde_json::json!({
             "executions": executions,
             "pendingAcceptances": pending_acceptances,
+            "pendingOfferResponses": pending_offer_responses,
             "bitcoinBroadcastRecovery": bitcoin_broadcast_recovery,
         })) {
             Ok(json) => json,
@@ -2455,16 +2468,16 @@ impl AndroidWalletController {
                 {
                     direct_inventory_peers = direct_inventory_peers.saturating_add(1);
                     if report.active_offers != 0
-                        || report.pending_takes != 0
+                        || report.pending_acceptances != 0
                         || report.session_envelopes != 0
                     {
                         android_log_info(
                             "hns-shakescape",
                             &format!(
-                                "replayed direct-offer state: active_offers={} cancellations={} pending_takes={} session_envelopes={}",
+                                "replayed direct-offer state: active_offers={} cancellations={} pending_acceptances={} session_envelopes={}",
                                 report.active_offers,
                                 report.cancellations,
-                                report.pending_takes,
+                                report.pending_acceptances,
                                 report.session_envelopes,
                             ),
                         );
@@ -2486,16 +2499,16 @@ impl AndroidWalletController {
                 {
                     direct_inventory_peers = direct_inventory_peers.saturating_add(1);
                     if report.active_offers != 0
-                        || report.pending_takes != 0
+                        || report.pending_acceptances != 0
                         || report.session_envelopes != 0
                     {
                         android_log_info(
                             "hns-shakescape",
                             &format!(
-                                "replayed replicated direct-offer state: active_offers={} cancellations={} pending_takes={} session_envelopes={}",
+                                "replayed replicated direct-offer state: active_offers={} cancellations={} pending_acceptances={} session_envelopes={}",
                                 report.active_offers,
                                 report.cancellations,
-                                report.pending_takes,
+                                report.pending_acceptances,
                                 report.session_envelopes,
                             ),
                         );

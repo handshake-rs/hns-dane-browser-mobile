@@ -339,7 +339,7 @@
     <string name="wallet_swap_take_reserved_btc">이 제안에는 %1$d sats가 필요합니다. 지갑에 %2$d가 확인되었지만 다른 스왑은 너무 많이 보유하고 있습니다. 자금이 지원되지 않은 수락을 해제하거나, 스왑을 완료 또는 환불하거나, Bitcoin를 추가하세요.</string>
     <string name="wallet_swap_take_reserved_hns">이 제안에는 %1$s HNS가 필요합니다. 지갑에 %2$s가 확인되었지만 다른 스왑은 너무 많이 보유하고 있습니다. 자금이 없는 승인을 해제하거나, 스왑을 완료 또는 환불하거나, HNS를 추가하세요.</string>
     <string name="wallet_swap_take_failed">서명된 수락이 전송되지 않았습니다. 피어의 연결이 끊어졌거나 제안이 만료되었을 수 있습니다.</string>
-    <string name="wallet_swap_take_sent">제안이 수락되었습니다. 아토믹 스왑 세션 %1$s… 제조사와 협상 중입니다.</string>
+    <string name="wallet_swap_take_sent">스왑 %1$s… 시작됨. 다른 지갑의 서명을 기다리는 중입니다.</string>
     <string name="wallet_swap_cancel_direct_message">%1$s 출금?\n\n제안 ID: %2$s. 취소하면 로컬 예약이 해제되지만 이미 수락된 세션은 취소할 수 없습니다.</string>
     <string name="wallet_swap_btc_amount_hint">BTC 잠김(sats, 수수료 예비 포함 최소 1330)</string>
     <string name="wallet_swap_hns_amount_hint">HNS 잠김(수수료 예비 포함 최소 0.100546)</string>
@@ -410,6 +410,10 @@
     <string name="wallet_swap_notification_channel_description">현지에서 검증된 아토믹 스왑에 대한 실행 가능한 자금 조달, 상환, 환불 및 완료 업데이트.</string>
     <string name="wallet_swap_notification_action_required">원자 교환 작업이 필요합니다.</string>
     <string name="wallet_swap_notification_updated">원자 교환이 업데이트되었습니다.</string>
+    <string name="wallet_swap_notification_offer_accepted">내 제안이 수락되었습니다</string>
+    <string name="wallet_swap_notification_offer_accepted_detail">다른 지갑이 스왑을 시작했습니다 · 서명된 조건을 기다리는 중 · 세션 %1$s…</string>
+    <string name="wallet_hns_received_notification_title">HNS 수신됨</string>
+    <string name="wallet_hns_received_notification_detail">%1$s HNS 수신이 확인되었습니다</string>
     <string name="wallet_swap_notification_completed">아토믹 스왑 완료</string>
     <string name="wallet_swap_notification_refunded">아토믹 스왑 환불됨</string>
     <string name="wallet_swap_notification_failed">원자 교환에 주의가 필요함</string>
