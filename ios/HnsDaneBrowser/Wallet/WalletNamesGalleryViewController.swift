@@ -45,7 +45,7 @@ final class WalletNamesGalleryViewController: UIViewController,
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Names"
+        title = WalletCopy.text("wallet_dashboard_names")
         navigationItem.largeTitleDisplayMode = .never
         view.backgroundColor = UIColor(red: 0.025, green: 0.035, blue: 0.065, alpha: 1)
         configureSearch()
@@ -99,7 +99,7 @@ final class WalletNamesGalleryViewController: UIViewController,
         view.addSubview(searchContainer)
 
         searchField.translatesAutoresizingMaskIntoConstraints = false
-        searchField.placeholder = "Search tracked names…"
+        searchField.placeholder = WalletCopy.text("wallet_name_search_omnibar_hint")
         searchField.autocapitalizationType = .none
         searchField.autocorrectionType = .no
         searchField.spellCheckingType = .no
@@ -163,10 +163,10 @@ final class WalletNamesGalleryViewController: UIViewController,
         footerButtons.distribution = .fillEqually
         footer.addArrangedSubview(footerButtons)
 
-        configureFooterButton(previousButton, title: "← PREVIOUS", action: #selector(showPrevious))
-        configureFooterButton(searchButton, title: "SEARCH", action: #selector(toggleSearch))
-        configureFooterButton(optionsButton, title: "OPTIONS", action: #selector(showOptions), primary: true)
-        configureFooterButton(nextButton, title: "NEXT →", action: #selector(showNext))
+        configureFooterButton(previousButton, title: WalletCopy.text("wallet_name_previous"), action: #selector(showPrevious))
+        configureFooterButton(searchButton, title: WalletCopy.text("wallet_name_search_button"), action: #selector(toggleSearch))
+        configureFooterButton(optionsButton, title: WalletCopy.text("wallet_name_options"), action: #selector(showOptions), primary: true)
+        configureFooterButton(nextButton, title: WalletCopy.text("wallet_name_next"), action: #selector(showNext))
 
         NSLayoutConstraint.activate([
             footer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
@@ -223,11 +223,15 @@ final class WalletNamesGalleryViewController: UIViewController,
 
     private func renderSelection() {
         if names.isEmpty {
-            positionLabel.text = "NO TRACKED NAMES"
+            positionLabel.text = WalletCopy.text("wallet_name_card_position_empty")
             card.configure(name: nil, snapshotHeight: snapshotHeight)
         } else {
             selectedIndex = min(max(selectedIndex, 0), names.count - 1)
-            positionLabel.text = "NAME \(selectedIndex + 1) OF \(totalNameCount)"
+            positionLabel.text = WalletCopy.format(
+                "wallet_name_card_position",
+                selectedIndex + 1,
+                totalNameCount
+            )
             card.configure(name: names[selectedIndex], snapshotHeight: snapshotHeight)
         }
         previousButton.isEnabled = actionsAvailable && selectedIndex > 0
@@ -469,9 +473,11 @@ private final class HolographicWalletNameCardView: UIView {
             $0.removeFromSuperview()
         }
         guard let name else {
-            titleLabel.attributedText = tronTitle("NO NAME")
+            titleLabel.attributedText = tronTitle(
+                WalletCopy.text("wallet_name_card_position_empty")
+            )
             content.addArrangedSubview(titleLabel)
-            accessibilityLabel = "No tracked Handshake name"
+            accessibilityLabel = WalletCopy.text("wallet_name_card_no_names")
             accessibilityValue = nil
             return
         }

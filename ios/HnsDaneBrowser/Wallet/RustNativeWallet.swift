@@ -2959,12 +2959,15 @@ private struct NativeHnsValueApprovalPayload: Decodable {
                 }
                 self.kind = kind == "nameTransfer" ? .nameTransfer : .nameFinalize
                 title = kind == "nameTransfer"
-                    ? "Transfer Handshake name"
-                    : "Finalize name transfer"
+                    ? WalletCopy.text("row_wallet_transfer_name")
+                    : WalletCopy.text("row_wallet_finalize_name")
                 detailLines = [
-                    "Name: \(name)",
-                    "Recipient: \(recipient)",
-                    "Maximum fee: \(Self.formatHnsBaseUnits(maximumFee.baseUnits)) HNS",
+                    WalletCopy.format("wallet_value_review_name", name),
+                    WalletCopy.format("wallet_value_review_recipient", recipient),
+                    WalletCopy.format(
+                        "wallet_value_review_maximum_fee",
+                        Self.formatHnsBaseUnits(maximumFee.baseUnits)
+                    ),
                 ] + warnings.map(Self.warningText)
             case "nameUpdate":
                 let container = try decoder.strictContainer(keyedBy: UpdateKeys.self)
@@ -2988,13 +2991,24 @@ private struct NativeHnsValueApprovalPayload: Decodable {
                     throw NativeWalletBridgeError.invalidOutput("invalid HNS name-update summary")
                 }
                 self.kind = .nameUpdate
-                title = "Set Handshake resource records"
+                title = WalletCopy.text("row_wallet_set_records")
                 detailLines = [
-                    "Name: \(name)",
-                    "Records: \(recordCount)",
-                    "Resource size: \(resourceBytes) bytes",
-                    "Exact resource hex: \(resourceHex.isEmpty ? "(empty; clear records)" : resourceHex)",
-                    "Maximum fee: \(Self.formatHnsBaseUnits(maximumFee.baseUnits)) HNS",
+                    WalletCopy.format("wallet_value_review_name", name),
+                    WalletCopy.format("wallet_value_review_records", Int(recordCount)),
+                    WalletCopy.format(
+                        "wallet_value_review_resource_size",
+                        Int(resourceBytes)
+                    ),
+                    WalletCopy.format(
+                        "wallet_value_review_resource_hex",
+                        resourceHex.isEmpty
+                            ? WalletCopy.text("wallet_value_review_empty_resource")
+                            : resourceHex
+                    ),
+                    WalletCopy.format(
+                        "wallet_value_review_maximum_fee",
+                        Self.formatHnsBaseUnits(maximumFee.baseUnits)
+                    ),
                 ] + warnings.map(Self.warningText)
             case "nameMarketOffer":
                 let container = try decoder.strictContainer(keyedBy: OfferKeys.self)
@@ -3036,21 +3050,29 @@ private struct NativeHnsValueApprovalPayload: Decodable {
                 self.kind = .nameMarketOffer
                 switch action {
                 case "create":
-                    title = "Create fixed-price name offer"
+                    title = WalletCopy.text("row_wallet_create_offer")
                 case "cancel":
-                    title = "Cancel name offer"
+                    title = WalletCopy.text("row_wallet_cancel_offer")
                 case "recover":
-                    title = "Recover name from offer"
+                    title = WalletCopy.text("row_wallet_recover_name")
                 default:
                     throw NativeWalletBridgeError.invalidOutput("unknown HNS name-offer action")
                 }
                 var lines = [
-                    "Name: \(name)",
-                    "Price: \(Self.formatHnsBaseUnits(price.baseUnits)) HNS",
+                    WalletCopy.format("wallet_value_review_name", name),
+                    WalletCopy.format(
+                        "wallet_value_review_price",
+                        Self.formatHnsBaseUnits(price.baseUnits)
+                    ),
                 ]
-                if let listingID { lines.append("Listing: \(listingID)") }
+                if let listingID {
+                    lines.append(WalletCopy.format("wallet_value_review_listing", listingID))
+                }
                 lines.append(
-                    "Maximum fee: \(Self.formatHnsBaseUnits(maximumFee.baseUnits)) HNS"
+                    WalletCopy.format(
+                        "wallet_value_review_maximum_fee",
+                        Self.formatHnsBaseUnits(maximumFee.baseUnits)
+                    )
                 )
                 detailLines = lines + warnings.map(Self.warningText)
             case "nameMarketPurchase":
@@ -3073,13 +3095,19 @@ private struct NativeHnsValueApprovalPayload: Decodable {
                     throw NativeWalletBridgeError.invalidOutput("invalid HNS name-purchase summary")
                 }
                 self.kind = .nameMarketPurchase
-                title = "Execute Shakedex purchase step"
+                title = WalletCopy.text("row_wallet_accept_offer")
                 detailLines = [
-                    "Name: \(name)",
-                    "Listing/session: \(listingID)",
-                    "Payment: \(Self.formatHnsBaseUnits(payment.baseUnits)) HNS",
-                    "Recipient: \(recipient)",
-                    "Maximum fee: \(Self.formatHnsBaseUnits(maximumFee.baseUnits)) HNS",
+                    WalletCopy.format("wallet_value_review_name", name),
+                    WalletCopy.format("wallet_value_review_listing", listingID),
+                    WalletCopy.format(
+                        "wallet_value_review_payment",
+                        Self.formatHnsBaseUnits(payment.baseUnits)
+                    ),
+                    WalletCopy.format("wallet_value_review_recipient", recipient),
+                    WalletCopy.format(
+                        "wallet_value_review_maximum_fee",
+                        Self.formatHnsBaseUnits(maximumFee.baseUnits)
+                    ),
                 ] + warnings.map(Self.warningText)
             default:
                 throw NativeWalletBridgeError.invalidOutput("unsupported HNS value summary")
@@ -3109,13 +3137,13 @@ private struct NativeHnsValueApprovalPayload: Decodable {
         private static func warningText(_ warning: String) -> String {
             switch warning {
             case "feeEstimateMayChange":
-                return "Warning: network fee may change before broadcast."
+                return WalletCopy.text("wallet_value_warning_fee")
             case "nameTransferIsIrreversible":
-                return "Warning: the name transfer is irreversible."
+                return WalletCopy.text("wallet_value_warning_irreversible_transfer")
             case "refundRequiresManualAction":
-                return "Warning: recovery requires an explicit manual action."
+                return WalletCopy.text("wallet_value_warning_manual_recovery")
             case "settlementCanBeDelayed":
-                return "Warning: Shakedex settlement can require later steps."
+                return WalletCopy.text("wallet_value_warning_delayed_settlement")
             default:
                 return ""
             }

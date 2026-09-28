@@ -1,6 +1,6 @@
 import Foundation
 
-/// Critical wallet copy is keyed identically on Android and Apple. The
+/// Controlled wallet copy is keyed identically on Android and Apple. The
 /// canonical English lives in Android's base resources; Wallet.xcstrings is a
 /// generated, checked-in projection containing the same copy and translations.
 enum WalletCopy {

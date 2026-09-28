@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the critical wallet locale resources and Apple string catalog."""
+"""Generate controlled wallet locale resources and the Apple string catalog."""
 
 from __future__ import annotations
 
@@ -12,7 +12,10 @@ import xml.etree.ElementTree as ET
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "localization" / "wallet-critical.json"
+SOURCES = {
+    "critical": ROOT / "localization" / "wallet-critical.json",
+    "operations": ROOT / "localization" / "wallet-operations.json",
+}
 ANDROID_RES = ROOT / "android" / "app" / "src" / "main" / "res"
 ANDROID_BASE = ANDROID_RES / "values" / "strings.xml"
 APPLE_CATALOG = (
@@ -58,24 +61,33 @@ def android_base_strings() -> dict[str, ET.Element]:
     }
 
 
-def load_source() -> tuple[list[str], dict[str, dict[str, str]]]:
-    document = json.loads(SOURCE.read_text(encoding="utf-8"))
+def load_source(source: Path) -> tuple[list[str], dict[str, dict[str, str]]]:
+    document = json.loads(source.read_text(encoding="utf-8"))
     if document.get("schema") != 1:
-        raise ValueError("wallet localization schema must be 1")
+        raise ValueError(f"{source.name}: wallet localization schema must be 1")
     keys = document.get("keys")
     translation_rows = document.get("translations")
     if not isinstance(keys, list) or not keys or len(keys) != len(set(keys)):
-        raise ValueError("wallet localization keys must be a unique non-empty list")
+        raise ValueError(
+            f"{source.name}: wallet localization keys must be a unique non-empty list"
+        )
     if set(translation_rows or {}) != set(ANDROID_TO_APPLE_LOCALE):
-        raise ValueError("wallet translation locales do not match the supported locale set")
+        raise ValueError(
+            f"{source.name}: translation locales do not match the supported locale set"
+        )
     translations: dict[str, dict[str, str]] = {}
     for locale, row in translation_rows.items():
         if not isinstance(row, dict) or set(row) != set(keys):
             missing = sorted(set(keys) - set(row if isinstance(row, dict) else ()))
             extra = sorted(set(row if isinstance(row, dict) else ()) - set(keys))
-            raise ValueError(f"{locale}: translation keys differ; missing={missing}, extra={extra}")
+            raise ValueError(
+                f"{source.name}/{locale}: translation keys differ; "
+                f"missing={missing}, extra={extra}"
+            )
         if any(not isinstance(row[key], str) or not row[key] for key in keys):
-            raise ValueError(f"{locale}: every localized value must be non-empty text")
+            raise ValueError(
+                f"{source.name}/{locale}: every localized value must be non-empty text"
+            )
         translations[locale] = {key: row[key] for key in keys}
     return keys, translations
 
@@ -91,14 +103,16 @@ def validate_source(
         key for key in keys if base[key].attrib.get("translatable") == "false"
     ]
     if still_blocked:
-        raise ValueError(f"critical wallet strings are still non-translatable: {still_blocked}")
-    english = {key: resource_text(base[key]) for key in keys}
+        raise ValueError(
+            f"controlled wallet strings are still non-translatable: {still_blocked}"
+        )
+    english = {key: resource_text(base[key]).replace(r"\n", "\n") for key in keys}
     token = re.compile(r"%(?:\d+\$)?[a-zA-Z%]")
     for locale, localized in translations.items():
         for key in keys:
             if sorted(token.findall(localized[key])) != sorted(token.findall(english[key])):
                 raise ValueError(f"{locale}/{key}: format tokens differ from canonical English")
-            expected_line_breaks = english[key].count(r"\n")
+            expected_line_breaks = english[key].count("\n")
             if localized[key].count("\n") != expected_line_breaks:
                 raise ValueError(
                     f"{locale}/{key}: expected {expected_line_breaks} line breaks"
@@ -128,7 +142,15 @@ def android_xml(keys: list[str], localized: dict[str, str]) -> str:
     ]
     for key in keys:
         element = ET.Element("string", {"name": key})
-        element.text = localized[key].replace("\n", r"\n")
+        # Android parses a second layer of resource-string escapes after XML.
+        # Protect translation punctuation before encoding actual line breaks.
+        element.text = (
+            localized[key]
+            .replace("\\", r"\\")
+            .replace("'", r"\'")
+            .replace('"', r'\"')
+            .replace("\n", r"\n")
+        )
         encoded = ET.tostring(element, encoding="unicode", short_empty_elements=False)
         lines.append(f"    {encoded}")
     lines.append("</resources>")
@@ -136,8 +158,7 @@ def android_xml(keys: list[str], localized: dict[str, str]) -> str:
 
 
 def apple_format(value: str) -> str:
-    apple_value = value.replace(r"\n", "\n")
-    return ANDROID_FORMAT.sub(lambda match: f"%{match.group(1)}$@", apple_value)
+    return ANDROID_FORMAT.sub(lambda match: f"%{match.group(1)}$@", value)
 
 
 def apple_catalog(
@@ -170,16 +191,27 @@ def apple_catalog(
 
 
 def outputs() -> dict[Path, str]:
-    keys, translations = load_source()
-    english = validate_source(keys, translations)
-    validate_apple_usage(keys)
-    generated = {
-        ANDROID_RES / f"values-{locale}" / "wallet_critical.xml": android_xml(
-            keys, translations[locale]
-        )
-        for locale in ANDROID_TO_APPLE_LOCALE
-    }
-    generated[APPLE_CATALOG] = apple_catalog(keys, english, translations)
+    generated: dict[Path, str] = {}
+    all_keys: list[str] = []
+    all_english: dict[str, str] = {}
+    all_translations = {locale: {} for locale in ANDROID_TO_APPLE_LOCALE}
+    for cohort, source in SOURCES.items():
+        keys, translations = load_source(source)
+        overlap = sorted(set(all_keys) & set(keys))
+        if overlap:
+            raise ValueError(f"{source.name}: duplicate keys across cohorts: {overlap}")
+        english = validate_source(keys, translations)
+        all_keys.extend(keys)
+        all_english.update(english)
+        for locale in ANDROID_TO_APPLE_LOCALE:
+            all_translations[locale].update(translations[locale])
+            generated[
+                ANDROID_RES / f"values-{locale}" / f"wallet_{cohort}.xml"
+            ] = android_xml(keys, translations[locale])
+    validate_apple_usage(all_keys)
+    generated[APPLE_CATALOG] = apple_catalog(
+        all_keys, all_english, all_translations
+    )
     return generated
 
 
@@ -205,7 +237,10 @@ def main() -> int:
         print("\n".join(map(str, stale)), file=sys.stderr)
         return 1
     action = "verified" if args.check else "generated"
-    print(f"Wallet critical-path localizations {action} for {len(generated) - 1} locales")
+    print(
+        f"Wallet localizations {action} for "
+        f"{len(ANDROID_TO_APPLE_LOCALE)} locales across {len(SOURCES)} cohorts"
+    )
     return 0
 
 

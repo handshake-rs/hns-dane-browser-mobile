@@ -55,8 +55,11 @@ private final class AtomicSwapNotificationCoordinator {
             records[pending.sessionId] = Record(
                 sessionId: pending.sessionId,
                 fingerprint: "pending-acceptance",
-                title: "Atomic swap updated",
-                body: "Offer accepted; negotiating countersigned terms · Session \(pending.sessionId.prefix(12))…",
+                title: WalletCopy.text("wallet_swap_notification_updated"),
+                body: WalletCopy.format(
+                    "wallet_swap_notification_negotiating",
+                    String(pending.sessionId.prefix(12))
+                ),
                 historicalTerminal: false
             )
         }
@@ -64,20 +67,24 @@ private final class AtomicSwapNotificationCoordinator {
             let stage = stageText(execution)
             let title: String
             switch execution.state {
-            case "completed": title = "Atomic swap completed"
-            case "refunded": title = "Atomic swap refunded"
-            case "failed": title = "Atomic swap needs attention"
-            case "refund_eligible": title = "Atomic swap action required"
+            case "completed": title = WalletCopy.text("wallet_swap_notification_completed")
+            case "refunded": title = WalletCopy.text("wallet_swap_notification_refunded")
+            case "failed": title = WalletCopy.text("wallet_swap_notification_failed")
+            case "refund_eligible": title = WalletCopy.text("wallet_swap_notification_action_required")
             case _ where stage.localizedCaseInsensitiveContains("ready") ||
                 stage.localizedCaseInsensitiveContains("redeem"):
-                title = "Atomic swap action required"
-            default: title = "Atomic swap updated"
+                title = WalletCopy.text("wallet_swap_notification_action_required")
+            default: title = WalletCopy.text("wallet_swap_notification_updated")
             }
             records[execution.sessionId] = Record(
                 sessionId: execution.sessionId,
                 fingerprint: "\(execution.state):\(execution.localRole):\(stage)",
                 title: title,
-                body: "\(stage) · Session \(execution.sessionId.prefix(12))…",
+                body: WalletCopy.format(
+                    "wallet_swap_notification_stage",
+                    stage,
+                    String(execution.sessionId.prefix(12))
+                ),
                 historicalTerminal: terminalStates.contains(execution.state)
             )
         }
@@ -551,7 +558,7 @@ final class WalletViewController: UIViewController {
             cellularDataWarningLabel,
             identifier: "wallet.cellular-data-warning"
         )
-        cellularDataWarningLabel.text = "This unlocked wallet is using a cellular connection. Header synchronization, wallet scanning, and direct peer traffic may use significant mobile data. Switch to Wi-Fi or lock the wallet to stop unlocked-wallet network activity."
+        cellularDataWarningLabel.text = WalletCopy.text("wallet_cellular_warning")
         cellularDataWarningLabel.textColor = .systemOrange
         configureSummaryLabel(accountLabel, identifier: "wallet.account")
         configureSummaryLabel(readStatusLabel, identifier: "wallet.read-status")
@@ -601,7 +608,7 @@ final class WalletViewController: UIViewController {
             title: WalletCopy.text("row_wallet_unlock"),
             action: #selector(openOrUnlockWallet)
         )
-        configureButton(lockButton, title: "Lock", action: #selector(lockWallet))
+        configureButton(lockButton, title: WalletCopy.text("action_lock_wallet"), action: #selector(lockWallet))
         configureButton(
             confirmRecoveryButton,
             title: WalletCopy.text("row_wallet_recovery_confirm"),
@@ -615,49 +622,49 @@ final class WalletViewController: UIViewController {
         )
         configureButton(
             bitcoinReceiveButton,
-            title: "New Bitcoin address",
+            title: WalletCopy.text("action_wallet_bitcoin_receive"),
             action: #selector(nextBitcoinReceiveAddress)
         )
         configureButton(
             bitcoinSyncButton,
-            title: "Synchronize Bitcoin",
+            title: WalletCopy.text("row_wallet_bitcoin_sync"),
             action: #selector(toggleBitcoinSynchronization)
         )
         configureButton(
             bitcoinSendButton,
-            title: "Send Bitcoin",
+            title: WalletCopy.text("wallet_dashboard_send_bitcoin"),
             action: #selector(showBitcoinSendForm)
         )
         configureButton(
             bitcoinBirthdayButton,
-            title: "Set Bitcoin recovery birthday",
+            title: WalletCopy.text("wallet_bitcoin_birthday_title"),
             action: #selector(showBitcoinBirthdayForm)
         )
         configureButton(
             bitcoinSellForHnsButton,
-            title: "Sell BTC for HNS",
+            title: WalletCopy.text("wallet_swap_sell_btc"),
             action: #selector(showBtcForHnsOfferForm)
         )
         configureButton(
             bitcoinOffersButton,
-            title: "Active BTC-for-HNS offers",
+            title: WalletCopy.text("wallet_swap_active_offers"),
             action: #selector(showActiveBtcForHnsOffers)
         )
         configureButton(
             bitcoinExecutionsButton,
-            title: "Atomic swap executions",
+            title: WalletCopy.text("wallet_swap_executions"),
             action: #selector(showShakescapeExecutions)
         )
         bitcoinBirthdayButton.isHidden = true
         configureButton(
             importNameButton,
-            title: "Track exact HNS name",
+            title: WalletCopy.text("row_wallet_name_import"),
             action: #selector(requestExactHnsNameImport)
         )
         importNameButton.accessibilityIdentifier = "wallet.import-hns-name"
         configureButton(
             deleteButton,
-            title: "Delete confirmed wallet",
+            title: WalletCopy.text("row_wallet_delete"),
             action: #selector(requestConfirmedWalletDeletion)
         )
         deleteButton.configuration?.baseBackgroundColor = .systemRed
@@ -748,7 +755,7 @@ final class WalletViewController: UIViewController {
             transport: activeWalletNetworkTransport
         ) else { return }
         dashboardStack.addArrangedSubview(dashboardCard(
-            title: "CELLULAR DATA IN USE",
+            title: WalletCopy.text("wallet_cellular_warning_title"),
             body: [cellularDataWarningLabel],
             accent: .systemOrange
         ))
@@ -867,7 +874,7 @@ final class WalletViewController: UIViewController {
             notice.adjustsFontForContentSizeCategory = true
             notice.text = finalizeNotices.map(formatFinalizeNotice).joined(separator: "\n\n")
             dashboardStack.addArrangedSubview(dashboardCard(
-                title: "PENDING FINALIZE",
+                title: WalletCopy.text("wallet_dashboard_finalize_notice"),
                 body: [notice],
                 accent: finalizeNotices.contains(where: { $0.phase == "finalizeAvailable" })
                     ? .systemOrange : .systemCyan
@@ -879,9 +886,9 @@ final class WalletViewController: UIViewController {
             snapshot.knownNameCount == 1
                 ? "1 tracked name"
                 : "\(snapshot.knownNameCount) tracked names"
-        } ?? "Synchronize to update"
+        } ?? WalletCopy.text("wallet_dashboard_sync_required")
         let namesTile = dashboardTile(
-            title: "Names",
+            title: WalletCopy.text("wallet_dashboard_names"),
             summary: namesSummary,
             enabled: !isOperating,
             action: { [weak self] in self?.showNamesDashboard() }
@@ -895,7 +902,7 @@ final class WalletViewController: UIViewController {
         dashboardStack.addArrangedSubview(dashboardTileRow(namesTile, walletTile))
         let bitcoinTile = dashboardTile(
             title: "Bitcoin",
-            summary: bitcoinValueAvailable ? "Ready" : "Synchronize to update",
+            summary: bitcoinValueAvailable ? WalletCopy.text("wallet_dashboard_ready") : WalletCopy.text("wallet_dashboard_sync_required"),
             enabled: !isOperating,
             action: { [weak self] in self?.showBitcoinDashboard() }
         )
@@ -905,7 +912,7 @@ final class WalletViewController: UIViewController {
                     ? "No board peer connected"
                     : "Board peer connected")
             let shakedexTile = dashboardTile(
-                title: "Shakedex",
+                title: WalletCopy.text("wallet_dashboard_shakedex"),
                 summary: shakedexSummary,
                 enabled: !isOperating,
                 action: { [weak self] in self?.showShakedexDashboard() }
@@ -1020,7 +1027,7 @@ final class WalletViewController: UIViewController {
 
     @objc private func showPaymentReceiveAddress() {
         guard pendingOutgoingSnapshotHeight == nil else {
-            showErrorMessage("Send and Receive are temporarily unavailable while the outgoing transaction is pending.")
+            showErrorMessage(WalletCopy.text("wallet_pending_outgoing_actions_disabled"))
             return
         }
         guard let paymentReceiveAddress = receiveTargets?.paymentAddress else { return }
@@ -1034,52 +1041,54 @@ final class WalletViewController: UIViewController {
         if let snapshot = bitcoinSnapshot {
             let count = Int(snapshot.recentActivityTotal)
             activitySummary = count == 0
-                ? "No Bitcoin activity found in the synchronized recovery range."
-                : "\(count) recent Bitcoin transaction\(count == 1 ? "" : "s")"
+                ? WalletCopy.text("wallet_bitcoin_activity_empty")
+                : WalletCopy.text("wallet_bitcoin_recent_activity")
         } else {
-            activitySummary = "Synchronize Bitcoin to load recent activity."
+            activitySummary = WalletCopy.text("wallet_bitcoin_activity_unavailable")
         }
         var actions: [WalletMenuAction] = []
         if bitcoinReceiveButton.isEnabled {
-            actions.append(WalletMenuAction(title: "New receive address") { [weak self] in
+            actions.append(WalletMenuAction(title: WalletCopy.text("action_wallet_bitcoin_receive")) { [weak self] in
                 self?.nextBitcoinReceiveAddress()
             })
         }
         if bitcoinSyncButton.isEnabled {
             actions.append(WalletMenuAction(
-                title: bitcoinSyncInProgress ? "Stop synchronization" : "Synchronize Bitcoin"
+                title: bitcoinSyncInProgress
+                    ? WalletCopy.text("action_stop_bitcoin_sync")
+                    : WalletCopy.text("row_wallet_bitcoin_sync")
             ) { [weak self] in
                 self?.toggleBitcoinSynchronization()
             })
         }
         if bitcoinBirthdayButton.isEnabled && !bitcoinBirthdayButton.isHidden {
-            actions.append(WalletMenuAction(title: "Set recovery birthday") { [weak self] in
+            actions.append(WalletMenuAction(title: WalletCopy.text("action_wallet_bitcoin_birthday")) { [weak self] in
                 self?.showBitcoinBirthdayForm()
             })
         }
         if bitcoinSendButton.isEnabled {
-            actions.append(WalletMenuAction(title: "Send Bitcoin") { [weak self] in
+            actions.append(WalletMenuAction(title: WalletCopy.text("wallet_dashboard_send_bitcoin")) { [weak self] in
                 self?.showBitcoinSendForm()
             })
         }
         if bitcoinSnapshot != nil {
-            actions.append(WalletMenuAction(title: "View recent activity") { [weak self] in
+            actions.append(WalletMenuAction(title: WalletCopy.text("wallet_bitcoin_recent_activity")) { [weak self] in
                 self?.showBitcoinActivity()
             })
         }
         presentWalletMenu(
-            title: "Bitcoin",
+            title: WalletCopy.text("row_wallet_bitcoin_status"),
             rows: [
-                WalletMenuRow(title: "Status", detail: bitcoinStatusLabel.text ?? "Status unavailable.") { [weak self] in
-                    self?.bitcoinStatusLabel.text ?? "Status unavailable."
+                WalletMenuRow(title: WalletCopy.text("row_wallet_bitcoin_status"), detail: bitcoinStatusLabel.text ?? WalletCopy.text("wallet_bitcoin_sync_failed")) { [weak self] in
+                    self?.bitcoinStatusLabel.text ?? WalletCopy.text("wallet_bitcoin_sync_failed")
                 },
-                WalletMenuRow(title: "Balance", detail: bitcoinBalanceLabel.text ?? "Balance unavailable.") { [weak self] in
-                    self?.bitcoinBalanceLabel.text ?? "Balance unavailable."
+                WalletMenuRow(title: WalletCopy.text("row_wallet_bitcoin_balance"), detail: bitcoinBalanceLabel.text ?? WalletCopy.text("wallet_bitcoin_balance_unavailable")) { [weak self] in
+                    self?.bitcoinBalanceLabel.text ?? WalletCopy.text("wallet_bitcoin_balance_unavailable")
                 },
-                WalletMenuRow(title: "Receive address", detail: bitcoinReceiveLabel.text ?? "Receive address unavailable.") { [weak self] in
-                    self?.bitcoinReceiveLabel.text ?? "Receive address unavailable."
+                WalletMenuRow(title: WalletCopy.text("row_wallet_bitcoin_receive"), detail: bitcoinReceiveLabel.text ?? WalletCopy.text("wallet_bitcoin_receive_unavailable")) { [weak self] in
+                    self?.bitcoinReceiveLabel.text ?? WalletCopy.text("wallet_bitcoin_receive_unavailable")
                 },
-                WalletMenuRow(title: "Recent activity", detail: activitySummary),
+                WalletMenuRow(title: WalletCopy.text("wallet_bitcoin_recent_activity"), detail: activitySummary),
             ],
             actions: actions,
             retainForChildActions: true
@@ -1089,7 +1098,7 @@ final class WalletViewController: UIViewController {
     private func showBitcoinActivity() {
         guard walletCanPresentChild else { return }
         guard let snapshot = bitcoinSnapshot else {
-            showErrorMessage("Synchronize Bitcoin to load recent activity.")
+            showErrorMessage(WalletCopy.text("wallet_bitcoin_activity_unavailable"))
             return
         }
         let pageSize = 20
@@ -1109,7 +1118,7 @@ final class WalletViewController: UIViewController {
                       offset: UInt32(bitcoinActivityPageOffset)
                   ) else {
                 showErrorMessage(
-                    "The next authenticated Bitcoin activity page is temporarily unavailable."
+                    WalletCopy.text("wallet_bitcoin_activity_page_failed")
                 )
                 return
             }
@@ -1119,30 +1128,35 @@ final class WalletViewController: UIViewController {
         }
         let message: String
         if page.isEmpty {
-            message = "No Bitcoin activity found in the synchronized recovery range."
+            message = WalletCopy.text("wallet_bitcoin_activity_empty")
         } else {
             let first = bitcoinActivityPageOffset + 1
             let last = bitcoinActivityPageOffset + page.count
-            message = "Showing Bitcoin activity \(first)–\(last) of \(pageTotal).\n\n" +
+            message = WalletCopy.format(
+                "wallet_activity_page_position",
+                first,
+                last,
+                pageTotal
+            ) + "\n\n" +
                 formatBitcoinActivity(page)
         }
         var actions: [WalletMenuAction] = []
         if bitcoinActivityPageOffset > 0 {
-            actions.append(WalletMenuAction(title: "Previous") { [weak self] in
+            actions.append(WalletMenuAction(title: WalletCopy.text("action_previous_wallet_activity")) { [weak self] in
                 guard let self else { return }
                 self.bitcoinActivityPageOffset -= pageSize
                 self.showBitcoinActivity()
             })
         }
         if hasMore {
-            actions.append(WalletMenuAction(title: "Next") { [weak self] in
+            actions.append(WalletMenuAction(title: WalletCopy.text("action_next_wallet_activity")) { [weak self] in
                 guard let self else { return }
                 self.bitcoinActivityPageOffset += pageSize
                 self.showBitcoinActivity()
             })
         }
         if !page.isEmpty {
-            actions.append(WalletMenuAction(title: "Copy activity") {
+            actions.append(WalletMenuAction(title: WalletCopy.text("wallet_action_copy")) {
                 UIPasteboard.general.setItems(
                     [[UTType.plainText.identifier: message]],
                     options: [.localOnly: true]
@@ -1150,8 +1164,11 @@ final class WalletViewController: UIViewController {
             })
         }
         presentWalletMenu(
-            title: "Bitcoin recent activity",
-            rows: [WalletMenuRow(title: "Transactions", detail: message)],
+            title: WalletCopy.text("wallet_bitcoin_recent_activity"),
+            rows: [WalletMenuRow(
+                title: WalletCopy.text("wallet_bitcoin_recent_activity"),
+                detail: message
+            )],
             actions: actions
         )
     }
@@ -1160,26 +1177,53 @@ final class WalletViewController: UIViewController {
         activity.map { item in
             let amount: String
             switch item.direction {
-            case "incoming": amount = "Received: +\(item.amountSats) sats"
-            case "outgoing": amount = "Sent: −\(item.amountSats) sats"
-            default: amount = "Self-transfer"
+            case "incoming":
+                amount = WalletCopy.format(
+                    "wallet_bitcoin_activity_incoming",
+                    Int(item.amountSats)
+                )
+            case "outgoing":
+                amount = WalletCopy.format(
+                    "wallet_bitcoin_activity_outgoing",
+                    Int(item.amountSats)
+                )
+            default:
+                amount = WalletCopy.text("wallet_bitcoin_activity_self_transfer")
             }
             let status: String
             switch item.status {
             case "confirmed":
-                status = "Confirmed in block \(item.blockHeight ?? 0) · \(item.confirmationCount ?? 0) confirmations"
-            case "unconfirmed": status = "Unconfirmed in the verified local wallet view"
-            case "prepared": status = "Prepared locally; not submitted"
-            case "submissionStarted": status = "Submission started; peer outcome is not yet known"
-            case "submitted": status = "Submitted to peers; not yet observed in the local chain view"
-            default: status = "No longer observed in the verified local chain view"
+                status = WalletCopy.format(
+                    "wallet_bitcoin_activity_confirmed",
+                    Int(item.blockHeight ?? 0),
+                    Int(item.confirmationCount ?? 0)
+                )
+            case "unconfirmed":
+                status = WalletCopy.text("wallet_bitcoin_activity_unconfirmed")
+            case "prepared":
+                status = WalletCopy.text("wallet_bitcoin_activity_prepared")
+            case "submissionStarted":
+                status = WalletCopy.text("wallet_bitcoin_activity_submission_started")
+            case "submitted":
+                status = WalletCopy.text("wallet_bitcoin_activity_submitted")
+            default:
+                status = WalletCopy.text("wallet_bitcoin_activity_not_observed")
             }
             var lines = [amount]
-            if let fee = item.feeSats { lines.append("Fee: \(fee) sats") }
+            if let fee = item.feeSats {
+                lines.append(WalletCopy.format("wallet_bitcoin_activity_fee", Int(fee)))
+            }
             lines.append(status)
-            lines.append("Transaction: \(item.txid)")
+            lines.append(WalletCopy.format("wallet_bitcoin_activity_txid", item.txid))
             let date = Date(timeIntervalSince1970: TimeInterval(item.lastChangedAtUnix))
-            lines.append("Updated: \(DateFormatter.localizedString(from: date, dateStyle: .medium, timeStyle: .short))")
+            lines.append(WalletCopy.format(
+                "wallet_bitcoin_activity_updated",
+                DateFormatter.localizedString(
+                    from: date,
+                    dateStyle: .medium,
+                    timeStyle: .short
+                )
+            ))
             return lines.joined(separator: "\n")
         }.joined(separator: "\n\n")
     }
@@ -1196,7 +1240,9 @@ final class WalletViewController: UIViewController {
                 switch outcome {
                 case .success(let receive):
                     self.renderBitcoinSnapshot(receive.snapshot)
-                    self.bitcoinStatusLabel.text = "New BIP84 receive address derived locally."
+                    self.bitcoinStatusLabel.text = WalletCopy.text(
+                        "wallet_bitcoin_receive_ready"
+                    )
                     self.presentBitcoinReceiveAddress(receive.receiveAddress)
                 case .failure(let error):
                     self.showError(error)
@@ -1208,9 +1254,12 @@ final class WalletViewController: UIViewController {
 
     private func presentBitcoinReceiveAddress(_ address: String) {
         presentWalletMenu(
-            title: "Receive Bitcoin",
-            rows: [WalletMenuRow(title: "Bitcoin address", detail: address)],
-            actions: [WalletMenuAction(title: "Copy address") {
+            title: WalletCopy.text("row_wallet_bitcoin_receive"),
+            rows: [WalletMenuRow(
+                title: WalletCopy.text("row_wallet_bitcoin_receive"),
+                detail: address
+            )],
+            actions: [WalletMenuAction(title: WalletCopy.text("wallet_action_copy")) {
                 UIPasteboard.general.setItems(
                     [[UTType.plainText.identifier: address]],
                     options: [.localOnly: true]
@@ -1247,21 +1296,23 @@ final class WalletViewController: UIViewController {
               ["recoveryUnknown", "recoveryPendingValidation"]
                 .contains(bitcoinSnapshot.birthdayState) else { return }
         presentWalletForm(
-            title: "Set Bitcoin recovery birthday",
-            message: "For a restored wallet, enter the earliest Bitcoin block that could contain activity. The request is stored now; the next Bitcoin synchronization validates its predecessor and begins recovery from the entered block. The HNS birthday is unrelated.",
+            title: WalletCopy.text("wallet_bitcoin_birthday_title"),
+            message: WalletCopy.text("wallet_bitcoin_birthday_message"),
             fields: [WalletSheetFormField(
-                label: "Recovery start",
-                placeholder: "Earliest possible transaction block",
+                label: WalletCopy.text("wallet_bitcoin_birthday_hint"),
+                placeholder: WalletCopy.text("wallet_bitcoin_birthday_hint"),
                 keyboardType: .numberPad,
                 accessibilityIdentifier: "wallet.bitcoin.birthday"
             )],
-            primaryTitle: "Apply",
+            primaryTitle: WalletCopy.text("action_apply"),
             primaryStyle: .destructive
         ) { [weak self, weak wallet] values in
             guard let self, let wallet, self.wallet === wallet,
                   let text = values.first,
                   let height = UInt32(text), height > 0 else {
-                self?.showErrorMessage("Enter a nonzero Bitcoin block height.")
+                self?.showErrorMessage(
+                    WalletCopy.text("wallet_bitcoin_birthday_invalid_height")
+                )
                 return
             }
             self.setBitcoinBirthdayHeight(height, wallet: wallet)
@@ -1273,7 +1324,9 @@ final class WalletViewController: UIViewController {
         wallet: RustNativeWallet
     ) {
         bitcoinBirthdayResetInProgress = true
-        bitcoinStatusLabel.text = "Saving Bitcoin recovery birthday height \(height) for validation during synchronization…"
+        bitcoinStatusLabel.text = WalletCopy.format(
+            "wallet_bitcoin_birthday_setting", Int(height)
+        )
         refreshButtonStates()
         DispatchQueue.global(qos: .userInitiated).async { [wallet] in
             let outcome = Result {
@@ -1285,9 +1338,13 @@ final class WalletViewController: UIViewController {
                 switch outcome {
                 case .success(let snapshot):
                     self.renderBitcoinSnapshot(snapshot)
-                    self.bitcoinStatusLabel.text = "Bitcoin recovery birthday block \(snapshot.birthdayHeight) is pending validation. Synchronize Bitcoin to authenticate it and begin recovery."
+                    self.bitcoinStatusLabel.text = WalletCopy.format(
+                        "wallet_bitcoin_birthday_set", Int(snapshot.birthdayHeight)
+                    )
                 case .failure(let error):
-                    self.bitcoinStatusLabel.text = "The Bitcoin recovery birthday was not saved. This is available only for an incomplete restored-wallet recovery."
+                    self.bitcoinStatusLabel.text = WalletCopy.text(
+                        "wallet_bitcoin_birthday_failed"
+                    )
                     self.showError(error)
                 }
                 self.refreshButtonStates()
@@ -1308,7 +1365,7 @@ final class WalletViewController: UIViewController {
               !bitcoinBirthdayResetInProgress else { return }
         bitcoinSyncInProgress = true
         bitcoinSyncStopRequested = false
-        bitcoinStatusLabel.text = "Connecting to direct Bitcoin peers…"
+        bitcoinStatusLabel.text = WalletCopy.text("wallet_bitcoin_syncing")
         startBitcoinProgressWatcher(wallet: wallet)
         refreshButtonStates()
         DispatchQueue.global(qos: .userInitiated).async { [wallet] in
@@ -1325,14 +1382,24 @@ final class WalletViewController: UIViewController {
                     self.lastAutomaticSwapBitcoinSyncAtUptime = ProcessInfo.processInfo.systemUptime
                     self.renderBitcoinSnapshot(synchronization.snapshot)
                     let elapsed = String(format: "%.2fs", Double(synchronization.totalMs) / 1_000)
-                    self.bitcoinStatusLabel.text = "Bitcoin synchronized at height \(synchronization.checkpointHeight) with \(synchronization.connectedPeerCount)/\(synchronization.requiredPeerCount) peers in \(elapsed)."
+                    self.bitcoinStatusLabel.text = WalletCopy.format(
+                        "wallet_bitcoin_synchronized",
+                        Int(synchronization.checkpointHeight),
+                        Int(synchronization.connectedPeerCount),
+                        Int(synchronization.requiredPeerCount),
+                        elapsed
+                    )
                 case .failure where stopped:
-                    self.bitcoinStatusLabel.text = "Bitcoin synchronization stopped at the last durable checkpoint."
+                    self.bitcoinStatusLabel.text = WalletCopy.text(
+                        "wallet_bitcoin_sync_stopped"
+                    )
                     if let snapshot = try? wallet.bitcoinSnapshot() {
                         self.renderBitcoinSnapshot(snapshot)
                     }
                 case .failure(let error):
-                    self.bitcoinStatusLabel.text = "Bitcoin synchronization did not complete."
+                    self.bitcoinStatusLabel.text = WalletCopy.text(
+                        "wallet_bitcoin_sync_failed"
+                    )
                     self.showError(error)
                 }
                 self.refreshButtonStates()
@@ -1349,7 +1416,7 @@ final class WalletViewController: UIViewController {
         bitcoinSyncStopRequested = true
         automaticSwapBitcoinSyncPausedUntilUptime =
             ProcessInfo.processInfo.systemUptime + automaticSwapBitcoinStopGraceInterval
-        bitcoinStatusLabel.text = "Stopping Bitcoin synchronization now…"
+        bitcoinStatusLabel.text = WalletCopy.text("wallet_bitcoin_sync_stopping")
         refreshButtonStates()
         DispatchQueue.global(qos: .userInitiated).async { [wallet] in
             let outcome = Result { try wallet.cancelBitcoinSynchronization() }
@@ -1377,33 +1444,69 @@ final class WalletViewController: UIViewController {
                 DispatchQueue.main.async { [weak self, weak wallet] in
                     guard let self, let wallet, self.wallet === wallet,
                           self.bitcoinSyncInProgress, let progress else { return }
-                    let percent = Double(progress.completionBasisPoints) / 100
-                    let height = progress.chainHeight.map { " · chain height \($0)" } ?? ""
+                    let percentWhole = Int(progress.completionBasisPoints / 100)
+                    let percentFraction = Int(progress.completionBasisPoints % 100)
+                    let height = progress.chainHeight.map(String.init) ?? "—"
                     let elapsed = String(format: "%.1fs", Double(progress.cycleElapsedMs) / 1_000)
                     switch progress.stage {
                     case "connecting":
-                        self.bitcoinStatusLabel.text = "Connecting to Bitcoin peers · \(progress.successfulHandshakes)/\(progress.requiredPeerCount) handshakes\(height) · \(elapsed)"
+                        self.bitcoinStatusLabel.text = WalletCopy.format(
+                            "wallet_bitcoin_sync_connecting",
+                            Int(progress.successfulHandshakes),
+                            Int(progress.requiredPeerCount),
+                            Int(progress.connectionFailures),
+                            Int(progress.peerTimeouts),
+                            Int(progress.incompatiblePeers),
+                            elapsed
+                        )
                     case "syncing_filters":
-                        self.bitcoinStatusLabel.text = "Scanning Bitcoin compact filters · \(String(format: "%.2f", percent))%\(height) · \(progress.processedFilterCount) processed, \(progress.matchedFilterCount) matched · \(elapsed)"
+                        self.bitcoinStatusLabel.text = WalletCopy.format(
+                            "wallet_bitcoin_sync_progress",
+                            percentWhole,
+                            percentFraction,
+                            height,
+                            elapsed,
+                            WalletCopy.text("wallet_bitcoin_sync_eta_calculating"),
+                            Int(progress.processedFilterCount),
+                            Int(progress.matchedFilterCount)
+                        )
                     case "fetching_blocks":
-                        self.bitcoinStatusLabel.text = "Downloading matched Bitcoin blocks · \(progress.downloadedBlockCount)/\(progress.matchedFilterCount) · \(elapsed)"
+                        self.bitcoinStatusLabel.text = WalletCopy.format(
+                            "wallet_bitcoin_sync_fetching_blocks",
+                            Int(progress.downloadedBlockCount),
+                            Int(progress.matchedFilterCount),
+                            elapsed
+                        )
                     case "applying_wallet":
-                        self.bitcoinStatusLabel.text = "Applying verified Bitcoin blocks to the encrypted wallet · \(elapsed)"
+                        self.bitcoinStatusLabel.text = WalletCopy.format(
+                            "wallet_bitcoin_sync_applying_wallet", elapsed
+                        )
                     case "validating_chain":
-                        self.bitcoinStatusLabel.text = "Validating the Bitcoin checkpoint and reorganization boundary · \(elapsed)"
+                        self.bitcoinStatusLabel.text = WalletCopy.format(
+                            "wallet_bitcoin_sync_validating_chain", elapsed
+                        )
                     case "reconciling":
-                        self.bitcoinStatusLabel.text = "Reconciling the encrypted Bitcoin transaction and output view · \(elapsed)"
+                        self.bitcoinStatusLabel.text = WalletCopy.format(
+                            "wallet_bitcoin_sync_reconciling", elapsed
+                        )
                     case "ready":
-                        self.bitcoinStatusLabel.text = "Bitcoin synchronization is ready at the durable checkpoint."
+                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                            "wallet_dashboard_ready"
+                        )
                     case "failed":
-                        self.bitcoinStatusLabel.text = "Bitcoin synchronization did not complete."
+                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                            "wallet_bitcoin_sync_failed"
+                        )
                     default:
-                        self.bitcoinStatusLabel.text = "Bitcoin synchronization progress is unavailable."
+                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                            "wallet_bitcoin_sync_failed"
+                        )
                     }
                     if !["ready", "failed"].contains(progress.stage),
                        let progressText = self.bitcoinStatusLabel.text {
-                        self.bitcoinStatusLabel.text = progressText +
-                            "\n\nKeep Shakescape open. You can close this sheet. If iOS pauses sync, it resumes from the last checkpoint."
+                        self.bitcoinStatusLabel.text = WalletCopy.format(
+                            "wallet_bitcoin_sync_background_guidance", progressText
+                        )
                     }
                 }
             }
@@ -1414,33 +1517,33 @@ final class WalletViewController: UIViewController {
         guard let wallet, bitcoinValueAvailable, !bitcoinSyncInProgress,
               !bitcoinBirthdayResetInProgress else { return }
         presentWalletForm(
-            title: "Send Bitcoin",
-            message: "Enter a native Bitcoin address, amount in satoshis, and an absolute fee cap. The native wallet will show the exact selected fee before signing.",
+            title: WalletCopy.text("wallet_dashboard_send_bitcoin"),
+            message: WalletCopy.text("row_wallet_bitcoin_send_summary"),
             fields: [
                 WalletSheetFormField(
-                    label: "Destination",
-                    placeholder: "Bitcoin address",
+                    label: WalletCopy.text("wallet_bitcoin_send_destination_hint"),
+                    placeholder: WalletCopy.text("wallet_bitcoin_send_destination_hint"),
                     accessibilityIdentifier: "wallet.bitcoin.destination"
                 ),
                 WalletSheetFormField(
-                    label: "Amount",
-                    placeholder: "Amount (sats)",
+                    label: WalletCopy.text("wallet_bitcoin_send_amount_hint"),
+                    placeholder: WalletCopy.text("wallet_bitcoin_send_amount_hint"),
                     keyboardType: .numberPad,
                     accessibilityIdentifier: "wallet.bitcoin.amount"
                 ),
                 WalletSheetFormField(
-                    label: "Fee cap",
-                    placeholder: "Maximum fee (sats)",
+                    label: WalletCopy.text("wallet_bitcoin_send_fee_hint"),
+                    placeholder: WalletCopy.text("wallet_bitcoin_send_fee_hint"),
                     keyboardType: .numberPad,
                     accessibilityIdentifier: "wallet.bitcoin.maximum-fee"
                 ),
             ],
-            primaryTitle: "Review send"
+            primaryTitle: WalletCopy.text("action_prepare_wallet_send")
         ) { [weak self, weak wallet] fields in
             guard let self, let wallet, self.wallet === wallet,
                   fields.count == 3 else { return }
             self.authenticateWalletAction(
-                reason: "Authenticate before preparing this Bitcoin transaction"
+                reason: WalletCopy.text("wallet_auth_transaction_message")
             ) { [weak self, weak wallet] in
                 guard let self, let wallet, self.wallet === wallet else { return }
                 self.prepareBitcoinSendAfterAuthentication(
@@ -1462,7 +1565,7 @@ final class WalletViewController: UIViewController {
         var destinationBytes = Array(destination.utf8)
         var amountBytes = Array(amount.utf8)
         var feeBytes = Array(maximumFee.utf8)
-        statusLabel.text = "Preparing exact Bitcoin send…"
+        statusLabel.text = WalletCopy.text("wallet_status_preparing_bitcoin_send")
         DispatchQueue.global(qos: .userInitiated).async { [wallet] in
             let outcome = Result {
                 try wallet.prepareBitcoinSend(
@@ -1489,23 +1592,27 @@ final class WalletViewController: UIViewController {
     ) {
         pendingBitcoinSendApproval?.actionToken.discard()
         pendingBitcoinSendApproval = approval
-        let message = """
-        Destination: \(approval.destination)
-        Amount: \(approval.amountSats) sats
-        Selected fee: \(approval.feeSats) sats
-        Maximum fee: \(approval.maximumFeeSats) sats
-
-        This approval is single-use and expires at Unix time \(approval.expiresAtUnix).
-        """
-        let alert = UIAlertController(title: "Review Bitcoin send", message: message, preferredStyle: .alert)
+        let message = WalletCopy.format(
+            "wallet_bitcoin_send_approval_message",
+            approval.destination,
+            Int(approval.amountSats),
+            Int(approval.feeSats),
+            Int(approval.maximumFeeSats),
+            String(approval.expiresAtUnix)
+        )
+        let alert = UIAlertController(
+            title: WalletCopy.text("wallet_bitcoin_send_approval_title"),
+            message: message,
+            preferredStyle: .alert
+        )
         bitcoinSendApprovalAlert = alert
-        alert.addAction(UIAlertAction(title: "Reject", style: .cancel) { [weak self, weak wallet] _ in
+        alert.addAction(UIAlertAction(title: WalletCopy.text("action_reject"), style: .cancel) { [weak self, weak wallet] _ in
             guard let self, let wallet, self.wallet === wallet,
                   let pending = self.pendingBitcoinSendApproval else { return }
             self.pendingBitcoinSendApproval = nil
             DispatchQueue.global(qos: .userInitiated).async { try? wallet.rejectBitcoinSend(pending.actionToken) }
         })
-        alert.addAction(UIAlertAction(title: "Sign and broadcast", style: .destructive) {
+        alert.addAction(UIAlertAction(title: WalletCopy.text("action_broadcast_hns"), style: .destructive) {
             [weak self, weak wallet] _ in
             guard let self, let wallet, self.wallet === wallet,
                   let pending = self.pendingBitcoinSendApproval else { return }
@@ -1516,12 +1623,18 @@ final class WalletViewController: UIViewController {
                     guard let self, self.wallet === wallet else { return }
                     switch outcome {
                     case .success(let receipt):
-                        self.bitcoinStatusLabel.text = "Bitcoin transaction broadcast: \(receipt.txid)"
+                        self.bitcoinStatusLabel.text = WalletCopy.format(
+                            "wallet_bitcoin_send_accepted", receipt.txid
+                        )
                         if let snapshot = try? wallet.bitcoinSnapshot() { self.renderBitcoinSnapshot(snapshot) }
                     case .failure:
                         self.refreshState()
-                        self.bitcoinStatusLabel.text = "The Bitcoin transaction is durably pending, but Kyoto was not ready to submit it. Synchronize Bitcoin to retry this same transaction. Do not prepare another send."
-                        self.showErrorMessage("The Bitcoin transaction is durably pending. Synchronize Bitcoin to retry this same transaction; do not prepare another send.")
+                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                            "wallet_bitcoin_send_ambiguous"
+                        )
+                        self.showErrorMessage(
+                            WalletCopy.text("wallet_bitcoin_send_ambiguous")
+                        )
                     }
                     self.refreshButtonStates()
                 }
@@ -1532,7 +1645,7 @@ final class WalletViewController: UIViewController {
 
     @objc private func showBtcForHnsOfferForm() {
         authenticateWalletAction(
-            reason: "Authenticate before creating a signed Bitcoin-for-HNS offer"
+            reason: WalletCopy.text("wallet_auth_transaction_message")
         ) { [weak self] in
             self?.showBtcForHnsOfferFormAfterAuthentication()
         }
@@ -1542,30 +1655,34 @@ final class WalletViewController: UIViewController {
         guard let wallet, bitcoinValueAvailable, !bitcoinSyncInProgress,
               !bitcoinBirthdayResetInProgress, !isOperating else { return }
         presentWalletForm(
-            title: "Sell BTC for HNS",
-            message: "Create one exact, indivisible direct-board offer. Confirmed Bitcoin must cover active offers and the complete locked amount, which includes its fee reserve.",
+            title: WalletCopy.text("wallet_swap_sell_btc"),
+            message: nil,
             fields: [
                 WalletSheetFormField(
-                    label: "BTC locked (minimum 1330 sats including fee reserve)",
-                    placeholder: "Satoshis",
+                    label: WalletCopy.text("wallet_swap_btc_amount_hint"),
+                    placeholder: WalletCopy.text("wallet_bitcoin_send_amount_hint"),
                     keyboardType: .numberPad,
                     initialValue: String(minimumBitcoinHtlcSats)
                 ),
-                WalletSheetFormField(label: "HNS locked (minimum 0.100546 including fee reserve)", placeholder: "HNS", keyboardType: .decimalPad),
                 WalletSheetFormField(
-                    label: "Bitcoin fee reserve (minimum 1000 sats)",
-                    placeholder: "Satoshis",
+                    label: WalletCopy.text("wallet_swap_hns_amount_hint"),
+                    placeholder: WalletCopy.text("wallet_send_amount_label"),
+                    keyboardType: .decimalPad
+                ),
+                WalletSheetFormField(
+                    label: WalletCopy.text("wallet_swap_fee_reserve_hint"),
+                    placeholder: WalletCopy.text("wallet_bitcoin_send_fee_hint"),
                     keyboardType: .numberPad,
                     initialValue: String(minimumBitcoinFeeReserveSats)
                 ),
                 WalletSheetFormField(
-                    label: "Listing lifetime",
-                    placeholder: "Hours (2–168)",
+                    label: WalletCopy.text("wallet_swap_lifetime_hours_hint"),
+                    placeholder: WalletCopy.text("wallet_swap_lifetime_hours_hint"),
                     keyboardType: .numberPad,
                     initialValue: "24"
                 ),
             ],
-            primaryTitle: "Review offer"
+            primaryTitle: WalletCopy.text("wallet_action_review_transaction")
         ) { [weak self, weak wallet] fields in
             guard let self, let wallet, self.wallet === wallet,
                   fields.count == 4,
@@ -1576,11 +1693,11 @@ final class WalletViewController: UIViewController {
                   btc >= reserve, btc - reserve >= bitcoinHtlcReceiverDustSats,
                   let hours = UInt64(fields[3]), (2...168).contains(hours),
                   hours <= UInt64.max / 3_600 else {
-                self?.showErrorMessage("Enter a BTC lock of at least 1330 sats, an HNS lock of at least 0.100546, a Bitcoin fee reserve of at least 1000 sats, and 2–168 hours.")
+                self?.showErrorMessage(WalletCopy.text("wallet_swap_prepare_failed"))
                 return
             }
             self.isOperating = true
-            self.bitcoinStatusLabel.text = "Preparing exact BTC-for-HNS listing…"
+            self.bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_preparing")
             self.refreshButtonStates()
             DispatchQueue.global(qos: .userInitiated).async { [wallet] in
                 let outcome = Result {
@@ -1598,7 +1715,7 @@ final class WalletViewController: UIViewController {
                     case .success(let approval):
                         self.presentBtcForHnsOfferApproval(approval, wallet: wallet)
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = "The listing was not prepared. Confirmed BTC must cover active listings and this complete locked amount, which includes its fee reserve."
+                        self.bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_prepare_failed")
                         self.showError(error)
                     }
                     self.refreshButtonStates()
@@ -1619,20 +1736,19 @@ final class WalletViewController: UIViewController {
             dateStyle: .medium,
             timeStyle: .medium
         )
-        let message = """
-        Bitcoin locked: \(approval.btcAmountSats) sats
-        Receive exactly: \(hns) HNS
-        Maximum fee reserve included in lock: \(approval.bitcoinFeeReserveSats) sats
-        Total Bitcoin locked: \(approval.totalBitcoinCommitmentSats) sats
-        Listing expires: \(expiry)
-
-        Publishing signs and shares fixed terms. It does not broadcast a Bitcoin funding transaction. Settlement requires a connected swap peer and a separately approved atomic-swap session.
-        """
+        let message = WalletCopy.format(
+            "wallet_swap_approval_message",
+            Int(approval.btcAmountSats),
+            hns,
+            Int(approval.bitcoinFeeReserveSats),
+            Int(approval.totalBitcoinCommitmentSats),
+            expiry
+        )
         let alert = UIAlertController(
-            title: "Publish BTC-for-HNS offer?", message: message, preferredStyle: .alert
+            title: WalletCopy.text("wallet_swap_approval_title"), message: message, preferredStyle: .alert
         )
         btcForHnsOfferApprovalAlert = alert
-        alert.addAction(UIAlertAction(title: "Reject", style: .cancel) {
+        alert.addAction(UIAlertAction(title: WalletCopy.text("action_reject"), style: .cancel) {
             [weak self, weak wallet] _ in
             guard let self, let wallet, self.wallet === wallet,
                   let pending = self.pendingBtcForHnsOfferApproval else { return }
@@ -1641,13 +1757,13 @@ final class WalletViewController: UIViewController {
                 try? wallet.rejectBtcForHnsOffer(pending.actionToken)
             }
         })
-        alert.addAction(UIAlertAction(title: "Publish offer", style: .destructive) {
+        alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_swap_publish"), style: .destructive) {
             [weak self, weak wallet] _ in
             guard let self, let wallet, self.wallet === wallet,
                   let pending = self.pendingBtcForHnsOfferApproval else { return }
             self.pendingBtcForHnsOfferApproval = nil
             self.isOperating = true
-            self.bitcoinStatusLabel.text = "Signing and publishing the exact offer…"
+            self.bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_publishing")
             self.refreshButtonStates()
             DispatchQueue.global(qos: .userInitiated).async { [wallet] in
                 let outcome = Result { try wallet.approveBtcForHnsOffer(pending.actionToken) }
@@ -1656,9 +1772,14 @@ final class WalletViewController: UIViewController {
                     self.isOperating = false
                     switch outcome {
                     case .success(let summary):
-                        self.bitcoinStatusLabel.text = "BTC-for-HNS offer \(summary.offerId.prefix(12))… is active and will be announced to a connected swap peer."
+                        self.bitcoinStatusLabel.text = WalletCopy.format(
+                            "wallet_swap_published",
+                            String(summary.offerId.prefix(12))
+                        )
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = "The BTC-for-HNS offer was not published."
+                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                            "wallet_swap_publish_failed"
+                        )
                         self.showError(error)
                     }
                     self.refreshButtonStates()
@@ -1670,18 +1791,18 @@ final class WalletViewController: UIViewController {
 
     @objc private func showActiveBtcForHnsOffers() {
         guard let wallet, walletIsUnlocked, bitcoinValueAvailable, !isOperating else { return }
-        bitcoinStatusLabel.text = "Loading authenticated local BTC-for-HNS offers…"
+        bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_loading_offers")
         DispatchQueue.global(qos: .userInitiated).async { [wallet] in
             let outcome = Result { try wallet.localBtcForHnsOffers() }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.wallet === wallet else { return }
                 switch outcome {
                 case .success(let offers) where offers.isEmpty:
-                    self.bitcoinStatusLabel.text = "There are no active local BTC-for-HNS offers."
+                    self.bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_no_active_offers")
                 case .success(let offers):
                     let alert = UIAlertController(
-                        title: "Active BTC-for-HNS offers",
-                        message: "Choose an offer to review cancellation.",
+                        title: WalletCopy.text("wallet_swap_active_offers"),
+                        message: nil,
                         preferredStyle: .alert
                     )
                     for offer in offers {
@@ -1696,10 +1817,13 @@ final class WalletViewController: UIViewController {
                             self.confirmCancelBtcForHnsOffer(offer, wallet: wallet)
                         })
                     }
-                    alert.addAction(UIAlertAction(title: "Done", style: .cancel))
+                    alert.addAction(UIAlertAction(
+                        title: WalletCopy.text("wallet_action_done"),
+                        style: .cancel
+                    ))
                     self.walletPresentationHost.present(alert, animated: true)
                 case .failure(let error):
-                    self.bitcoinStatusLabel.text = "Active BTC-for-HNS offers could not be authenticated."
+                    self.bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_list_failed")
                     self.showError(error)
                 }
             }
@@ -1708,7 +1832,7 @@ final class WalletViewController: UIViewController {
 
     private func showHnsForBtcOfferForm() {
         authenticateWalletAction(
-            reason: "Authenticate before creating a signed HNS-for-BTC offer"
+            reason: WalletCopy.text("wallet_auth_transaction_message")
         ) { [weak self] in
             self?.showHnsForBtcOfferFormAfterAuthentication()
         }
@@ -1717,26 +1841,34 @@ final class WalletViewController: UIViewController {
     private func showHnsForBtcOfferFormAfterAuthentication() {
         guard let wallet, shakedexActionMayStart, bitcoinValueAvailable else { return }
         presentWalletForm(
-            title: "Sell HNS for BTC",
-            message: "Create one exact, indivisible direct-board offer. Confirmed HNS must cover active offers and the complete locked amount, which includes its fee reserve.",
+            title: WalletCopy.text("wallet_swap_sell_hns"),
+            message: nil,
             fields: [
-                WalletSheetFormField(label: "HNS locked (minimum 0.100546 including fee reserve)", placeholder: "HNS", keyboardType: .decimalPad),
                 WalletSheetFormField(
-                    label: "BTC locked (minimum 1330 sats including fee reserve)",
-                    placeholder: "Satoshis",
+                    label: WalletCopy.text("wallet_swap_hns_amount_hint"),
+                    placeholder: WalletCopy.text("wallet_send_amount_label"),
+                    keyboardType: .decimalPad
+                ),
+                WalletSheetFormField(
+                    label: WalletCopy.text("wallet_swap_btc_requested_hint"),
+                    placeholder: WalletCopy.text("wallet_bitcoin_send_amount_hint"),
                     keyboardType: .numberPad,
                     initialValue: String(minimumBitcoinHtlcSats)
                 ),
                 WalletSheetFormField(
-                    label: "HNS fee reserve", placeholder: "HNS", keyboardType: .decimalPad,
+                    label: WalletCopy.text("wallet_swap_hns_fee_reserve_hint"),
+                    placeholder: WalletCopy.text("wallet_send_amount_label"),
+                    keyboardType: .decimalPad,
                     initialValue: defaultHnsMaximumFee
                 ),
                 WalletSheetFormField(
-                    label: "Listing lifetime", placeholder: "Hours (2–168)", keyboardType: .numberPad,
+                    label: WalletCopy.text("wallet_swap_lifetime_hours_hint"),
+                    placeholder: WalletCopy.text("wallet_swap_lifetime_hours_hint"),
+                    keyboardType: .numberPad,
                     initialValue: "24"
                 ),
             ],
-            primaryTitle: "Review offer"
+            primaryTitle: WalletCopy.text("wallet_action_review_transaction")
         ) { [weak self, weak wallet] fields in
             guard let self, let wallet, self.wallet === wallet, fields.count == 4,
                   let hnsText = Self.positiveHnsBaseUnits(fields[0]),
@@ -1746,11 +1878,13 @@ final class WalletViewController: UIViewController {
                   let reserve = UInt64(reserveText), reserve >= minimumHnsFeeReserveDollarydoos,
                   hns >= reserve, hns - reserve >= hnsSwapReceiverDustDollarydoos,
                   let hours = UInt64(fields[3]), (2...168).contains(hours) else {
-                self?.showErrorMessage("Enter an HNS lock of at least 0.100546, a BTC lock of at least 1330 sats, an HNS fee reserve of at least 0.1 HNS, and 2–168 hours.")
+                self?.showErrorMessage(WalletCopy.text("wallet_swap_hns_prepare_failed"))
                 return
             }
             self.isOperating = true
-            self.bitcoinStatusLabel.text = "Preparing exact HNS-for-BTC listing…"
+            self.bitcoinStatusLabel.text = WalletCopy.text(
+                "wallet_status_preparing_value_action"
+            )
             self.refreshButtonStates()
             DispatchQueue.global(qos: .userInitiated).async { [wallet] in
                 let outcome = Result {
@@ -1768,7 +1902,9 @@ final class WalletViewController: UIViewController {
                     case .success(let approval):
                         self.presentHnsForBtcOfferApproval(approval, wallet: wallet)
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = "The HNS-for-BTC listing was not prepared."
+                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                            "wallet_swap_publish_failed"
+                        )
                         self.showError(error)
                     }
                     self.refreshButtonStates()
@@ -1786,19 +1922,18 @@ final class WalletViewController: UIViewController {
         let offered = WalletReadPresenter.formatHnsBaseUnits(String(approval.hnsAmountDollarydoos))
         let reserve = WalletReadPresenter.formatHnsBaseUnits(String(approval.hnsFeeReserveDollarydoos))
         let total = WalletReadPresenter.formatHnsBaseUnits(String(approval.totalHnsCommitmentDollarydoos))
-        let message = """
-        HNS locked: \(offered) HNS
-        Receive exactly: \(approval.btcAmountSats) sats
-        Maximum fee reserve included in lock: \(reserve) HNS
-        Total HNS locked: \(total) HNS
-
-        Publishing signs and shares fixed terms. It does not broadcast an HNS funding transaction. Settlement requires a connected swap peer and a separately approved atomic-swap session.
-        """
+        let message = WalletCopy.format(
+            "wallet_swap_hns_approval_message",
+            offered,
+            Int(approval.btcAmountSats),
+            reserve,
+            total
+        )
         let alert = UIAlertController(
-            title: "Publish HNS-for-BTC offer?", message: message, preferredStyle: .alert
+            title: WalletCopy.text("wallet_swap_hns_approval_title"), message: message, preferredStyle: .alert
         )
         hnsForBtcOfferApprovalAlert = alert
-        alert.addAction(UIAlertAction(title: "Reject", style: .cancel) {
+        alert.addAction(UIAlertAction(title: WalletCopy.text("action_reject"), style: .cancel) {
             [weak self, weak wallet] _ in
             guard let self, let wallet, self.wallet === wallet,
                   let pending = self.pendingHnsForBtcOfferApproval else { return }
@@ -1807,7 +1942,7 @@ final class WalletViewController: UIViewController {
                 try? wallet.rejectHnsForBtcOffer(pending.actionToken)
             }
         })
-        alert.addAction(UIAlertAction(title: "Publish offer", style: .destructive) {
+        alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_swap_publish"), style: .destructive) {
             [weak self, weak wallet] _ in
             guard let self, let wallet, self.wallet === wallet,
                   let pending = self.pendingHnsForBtcOfferApproval else { return }
@@ -1821,9 +1956,14 @@ final class WalletViewController: UIViewController {
                     self.isOperating = false
                     switch outcome {
                     case .success(let summary):
-                        self.bitcoinStatusLabel.text = "HNS-for-BTC offer \(summary.offerId.prefix(12))… is active and will be announced to a connected swap peer."
+                        self.bitcoinStatusLabel.text = WalletCopy.format(
+                            "wallet_swap_hns_published",
+                            String(summary.offerId.prefix(12))
+                        )
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = "The HNS-for-BTC offer was not published."
+                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                            "wallet_swap_publish_failed"
+                        )
                         self.showError(error)
                     }
                     self.refreshButtonStates()
@@ -1851,18 +1991,20 @@ final class WalletViewController: UIViewController {
 
     private func showMyDirectOffers() {
         guard let wallet, shakedexActionMayStart else { return }
-        bitcoinStatusLabel.text = "Loading authenticated local direct offers…"
+        bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_loading_my_offers")
         DispatchQueue.global(qos: .userInitiated).async { [wallet] in
             let outcome = Result { try wallet.localDirectOffers() }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.wallet === wallet else { return }
                 switch outcome {
                 case .success(let offers) where offers.isEmpty:
-                    self.bitcoinStatusLabel.text = "There are no active local direct offers."
+                    self.bitcoinStatusLabel.text = WalletCopy.text(
+                        "wallet_swap_no_active_offers"
+                    )
                 case .success(let offers):
                     self.presentWalletMenu(
-                        title: "My direct offers",
-                        rows: [WalletMenuRow(title: "Offers", detail: "Select an offer to review cancellation.")],
+                        title: WalletCopy.text("wallet_swap_my_offers"),
+                        rows: [],
                         actions: offers.map { offer in
                             WalletMenuAction(title: self.directOfferMakerLabel(offer)) { [weak self, weak wallet] in
                                 guard let self, let wallet, self.wallet === wallet else { return }
@@ -1871,7 +2013,9 @@ final class WalletViewController: UIViewController {
                         }
                     )
                 case .failure(let error):
-                    self.bitcoinStatusLabel.text = "Local direct offers could not be authenticated."
+                    self.bitcoinStatusLabel.text = WalletCopy.text(
+                        "wallet_swap_available_failed"
+                    )
                     self.showError(error)
                 }
             }
@@ -1883,12 +2027,19 @@ final class WalletViewController: UIViewController {
         wallet: RustNativeWallet
     ) {
         let alert = UIAlertController(
-            title: "Cancel direct offer?",
-            message: "\(directOfferMakerLabel(offer))\n\nOffer ID: \(offer.offerId)",
+            title: WalletCopy.text("wallet_swap_cancel_title"),
+            message: WalletCopy.format(
+                "wallet_swap_cancel_direct_message",
+                directOfferMakerLabel(offer),
+                offer.offerId
+            ),
             preferredStyle: .alert
         )
-        alert.addAction(UIAlertAction(title: "Keep offer", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Cancel offer", style: .destructive) {
+        alert.addAction(UIAlertAction(
+            title: WalletCopy.text("wallet_swap_keep_offer"),
+            style: .cancel
+        ))
+        alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_swap_cancel_offer"), style: .destructive) {
             [weak self, weak wallet] _ in
             guard let self, let wallet, self.wallet === wallet else { return }
             DispatchQueue.global(qos: .userInitiated).async { [wallet] in
@@ -1897,9 +2048,13 @@ final class WalletViewController: UIViewController {
                     guard let self, self.wallet === wallet else { return }
                     switch outcome {
                     case .success:
-                        self.bitcoinStatusLabel.text = "Direct offer cancelled."
+                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                            "wallet_swap_direct_cancelled"
+                        )
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = "The direct offer was not cancelled."
+                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                            "wallet_swap_direct_cancel_failed"
+                        )
                         self.showError(error)
                     }
                 }
@@ -1921,15 +2076,15 @@ final class WalletViewController: UIViewController {
                     self.presentWalletMenu(
                         title: WalletCopy.text("wallet_swap_available_offers"),
                         rows: [WalletMenuRow(
-                            title: "No offers",
+                            title: WalletCopy.text("wallet_swap_no_available_offers"),
                             detail: WalletCopy.text("wallet_swap_no_available_offers")
                         )],
                         actions: []
                     )
                 case .success(let offers):
                     self.presentWalletMenu(
-                        title: "Offers",
-                        rows: [WalletMenuRow(title: "Offers", detail: "Select an offer to review.")],
+                        title: WalletCopy.text("wallet_swap_available_offers"),
+                        rows: [],
                         actions: offers.map { offer in
                             WalletMenuAction(title: self.directOfferTakeLabel(offer)) { [weak self] in
                                 self?.showDirectOfferTakeForm(offer)
@@ -1937,7 +2092,9 @@ final class WalletViewController: UIViewController {
                         }
                     )
                 case .failure(let error):
-                    self.bitcoinStatusLabel.text = "Available direct offers could not be authenticated."
+                    self.bitcoinStatusLabel.text = WalletCopy.text(
+                        "wallet_swap_available_failed"
+                    )
                     self.showError(error)
                 }
             }
@@ -1950,8 +2107,16 @@ final class WalletViewController: UIViewController {
             title: WalletCopy.text("wallet_swap_take_review"),
             message: directOfferTakeLabel(offer),
             fields: [WalletSheetFormField(
-                label: reserveIsBitcoin ? "Bitcoin fee reserve (minimum 1000 sats)" : "HNS fee reserve",
-                placeholder: reserveIsBitcoin ? "Satoshis" : "HNS",
+                label: WalletCopy.text(
+                    reserveIsBitcoin
+                        ? "wallet_swap_take_btc_fee_reserve_hint"
+                        : "wallet_swap_take_hns_fee_reserve_hint"
+                ),
+                placeholder: WalletCopy.text(
+                    reserveIsBitcoin
+                        ? "wallet_bitcoin_send_fee_hint"
+                        : "wallet_action_maximum_fee_hint"
+                ),
                 keyboardType: reserveIsBitcoin ? .numberPad : .decimalPad,
                 initialValue: reserveIsBitcoin ? String(minimumBitcoinFeeReserveSats) : defaultHnsMaximumFee
             )],
@@ -1970,14 +2135,14 @@ final class WalletViewController: UIViewController {
             guard let reserve, reserve >= minimumReserve,
                   offer.receivedAmount >= reserve,
                   offer.receivedAmount - reserve >= receiverDust else {
-                self.showErrorMessage(
-                    reserveIsBitcoin
-                        ? "Enter a Bitcoin fee reserve of at least 1000 sats."
-                        : "Enter an HNS fee reserve of at least 0.1 HNS; the lock must still leave 0.000546 HNS after that reserve."
-                )
+                self.showErrorMessage(WalletCopy.text(
+                    "wallet_swap_take_prepare_failed"
+                ))
                 return
             }
-            self.authenticateWalletAction(reason: "Authenticate before accepting a direct swap offer") {
+            self.authenticateWalletAction(
+                reason: WalletCopy.text("wallet_auth_transaction_message")
+            ) {
                 [weak self] in self?.prepareDirectOfferTake(offer, feeReserve: reserve)
             }
         }
@@ -1986,7 +2151,7 @@ final class WalletViewController: UIViewController {
     private func prepareDirectOfferTake(_ offer: NativeDirectOfferSummary, feeReserve: UInt64) {
         guard let wallet, shakedexActionMayStart else { return }
         isOperating = true
-        bitcoinStatusLabel.text = "Preparing offer review…"
+        bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_take_preparing")
         refreshButtonStates()
         DispatchQueue.global(qos: .userInitiated).async { [wallet] in
             let outcome = Result {
@@ -2003,18 +2168,56 @@ final class WalletViewController: UIViewController {
                     self.presentDirectOfferTakeApproval(approval, wallet: wallet)
                 case .success(.approval(let approval)):
                     try? wallet.rejectDirectOfferTake(approval.actionToken)
-                    self.showErrorMessage("The native offer review did not match the selected offer.")
+                    self.showErrorMessage(
+                        WalletCopy.text("wallet_swap_take_prepare_failed")
+                    )
                 case .success(.insufficientFunds(let receivedAsset, let confirmedAmount)):
                     let required = offer.receivedAmount
-                    let amount = self.swapAmount(confirmedAmount, asset: receivedAsset)
-                    let requiredAmount = self.swapAmount(required, asset: receivedAsset)
-                    let message = required > confirmedAmount
-                        ? "This offer requires \(requiredAmount) total, but the synchronized wallet has \(amount) confirmed."
-                        : "This offer requires \(requiredAmount) total. The wallet has \(amount) confirmed, but existing active or unfunded swap commitments reserve enough funds that this take cannot be funded. Complete, refund, or abandon an eligible swap before retrying."
+                    let message: String
+                    if receivedAsset == "btc" {
+                        message = required > confirmedAmount
+                            ? WalletCopy.format(
+                                "wallet_swap_take_insufficient_btc",
+                                Int(required - min(required, feeReserve)),
+                                Int(feeReserve),
+                                Int(required),
+                                Int(confirmedAmount)
+                            )
+                            : WalletCopy.format(
+                                "wallet_swap_take_reserved_btc",
+                                Int(required),
+                                Int(confirmedAmount)
+                            )
+                    } else {
+                        let lock = WalletReadPresenter.formatHnsBaseUnits(
+                            String(required - min(required, feeReserve))
+                        )
+                        let reserve = WalletReadPresenter.formatHnsBaseUnits(
+                            String(feeReserve)
+                        )
+                        message = required > confirmedAmount
+                            ? WalletCopy.format(
+                                "wallet_swap_take_insufficient_hns",
+                                lock, reserve,
+                                WalletReadPresenter.formatHnsBaseUnits(String(required)),
+                                WalletReadPresenter.formatHnsBaseUnits(
+                                    String(confirmedAmount)
+                                )
+                            )
+                            : WalletCopy.format(
+                                "wallet_swap_take_reserved_hns",
+                                WalletReadPresenter.formatHnsBaseUnits(String(required)),
+                                WalletReadPresenter.formatHnsBaseUnits(
+                                    String(confirmedAmount)
+                                )
+                            )
+                    }
                     self.bitcoinStatusLabel.text = message
                     self.showErrorMessage(message)
                 case .failure(let error):
-                    self.bitcoinStatusLabel.text = "The direct-offer take was not prepared."
+                    self.bitcoinStatusLabel.text = WalletCopy.text(
+                        "wallet_swap_take_prepare_failed"
+                    )
                     self.showError(error)
                 }
                 self.refreshButtonStates()
@@ -2067,9 +2270,14 @@ final class WalletViewController: UIViewController {
                     self.isOperating = false
                     switch outcome {
                     case .success(let summary):
-                        self.bitcoinStatusLabel.text = "Direct offer \(summary.offerId.prefix(12))… accepted; atomic funding approvals are now available."
+                        self.bitcoinStatusLabel.text = WalletCopy.format(
+                            "wallet_swap_take_sent",
+                            String(summary.sessionId.prefix(12))
+                        )
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = "The direct offer was not accepted."
+                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                            "wallet_swap_take_failed"
+                        )
                         self.showError(error)
                     }
                     self.refreshButtonStates()
@@ -2081,7 +2289,7 @@ final class WalletViewController: UIViewController {
 
     @objc private func showShakescapeExecutions() {
         guard let wallet, walletIsUnlocked, bitcoinValueAvailable, !isOperating else { return }
-        bitcoinStatusLabel.text = "Loading durable atomic swap state…"
+        bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_loading_executions")
         DispatchQueue.global(qos: .userInitiated).async { [wallet] in
             let outcome = Result { try wallet.shakescapeExecutions() }
             DispatchQueue.main.async { [weak self] in
@@ -2089,14 +2297,21 @@ final class WalletViewController: UIViewController {
                 switch outcome {
                 case .success(let status) where
                     status.executions.isEmpty && status.pendingAcceptances.isEmpty:
-                    let message = "There are no negotiated atomic-swap executions on this wallet yet. If a take was just accepted, keep both maker and taker wallets unlocked and connected while the signed session proposal and acceptance are exchanged.\n\n\(self.bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery))"
+                    let message = WalletCopy.text("wallet_swap_no_executions_waiting")
+                        + "\n\n"
+                        + self.bitcoinBroadcastRecoveryText(
+                            status.bitcoinBroadcastRecovery
+                        )
                     self.bitcoinStatusLabel.text = message
                     let alert = UIAlertController(
-                        title: "Atomic swap executions",
+                        title: WalletCopy.text("wallet_swap_executions"),
                         message: message,
                         preferredStyle: .alert
                     )
-                    alert.addAction(UIAlertAction(title: "OK", style: .default))
+                    alert.addAction(UIAlertAction(
+                        title: WalletCopy.text("wallet_action_ok"),
+                        style: .default
+                    ))
                     self.walletPresentationHost.present(alert, animated: true)
                 case .success(let status):
                     self.bitcoinStatusLabel.text = self.bitcoinBroadcastRecoveryText(
@@ -2118,15 +2333,26 @@ final class WalletViewController: UIViewController {
                         return
                     }
                     let alert = UIAlertController(
-                        title: "Atomic swap executions",
-                        message: "Statuses advance only from independently verified chain evidence.\n\n\(self.bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery))",
+                        title: WalletCopy.text("wallet_swap_executions"),
+                        message: self.bitcoinBroadcastRecoveryText(
+                            status.bitcoinBroadcastRecovery
+                        ),
                         preferredStyle: .alert
                     )
                     for take in status.pendingAcceptances {
                         let offered = self.swapAmount(take.offeredAmount, asset: take.offeredAsset)
                         let received = self.swapAmount(take.receivedAmount, asset: take.receivedAsset)
                         alert.addAction(UIAlertAction(
-                            title: "Unfunded acceptance · \(offered) → \(received) · reserve \(self.swapAmount(take.receivedFeeReserve, asset: take.receivedAsset)) · \(take.sessionId.prefix(12))…",
+                            title: WalletCopy.format(
+                                "wallet_swap_pending_acceptance",
+                                offered,
+                                received,
+                                self.swapAmount(
+                                    take.receivedFeeReserve,
+                                    asset: take.receivedAsset
+                                ),
+                                String(take.sessionId.prefix(12))
+                            ),
                             style: .default
                         ) { [weak self, weak wallet] _ in
                             guard let self, let wallet, self.wallet === wallet else { return }
@@ -2142,10 +2368,13 @@ final class WalletViewController: UIViewController {
                             self.showShakescapeExecution(execution, wallet: wallet)
                         })
                     }
-                    alert.addAction(UIAlertAction(title: "Done", style: .cancel))
+                    alert.addAction(UIAlertAction(
+                        title: WalletCopy.text("wallet_action_done"),
+                        style: .cancel
+                    ))
                     self.walletPresentationHost.present(alert, animated: true)
                 case .failure(let error):
-                    self.bitcoinStatusLabel.text = "Durable atomic swap state could not be authenticated."
+                    self.bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_execution_list_failed")
                     self.showError(error)
                 }
             }
@@ -2164,12 +2393,19 @@ final class WalletViewController: UIViewController {
         wallet: RustNativeWallet
     ) {
         let alert = UIAlertController(
-            title: "Abandon unfunded acceptance?",
-            message: "This acceptance has not reached countersigned terms and has not funded either chain. Abandoning it releases \(swapAmount(take.receivedAmount, asset: take.receivedAsset)) reserved by session \(take.sessionId). A delayed maker proposal for this session will be rejected permanently. Terms-frozen or funded swaps cannot be abandoned here.",
+            title: WalletCopy.text("wallet_swap_abandon_acceptance_title"),
+            message: WalletCopy.format(
+                "wallet_swap_abandon_acceptance_message",
+                swapAmount(take.receivedAmount, asset: take.receivedAsset),
+                take.sessionId
+            ),
             preferredStyle: .alert
         )
-        alert.addAction(UIAlertAction(title: "Keep acceptance", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Abandon and release funds", style: .destructive) {
+        alert.addAction(UIAlertAction(
+            title: WalletCopy.text("wallet_swap_keep_acceptance"),
+            style: .cancel
+        ))
+        alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_swap_abandon_acceptance"), style: .destructive) {
             [weak self, weak wallet] _ in
             guard let self, let wallet, self.wallet === wallet else { return }
             DispatchQueue.global(qos: .userInitiated).async { [wallet] in
@@ -2180,11 +2416,13 @@ final class WalletViewController: UIViewController {
                     guard let self, self.wallet === wallet else { return }
                     switch outcome {
                     case .success:
-                        self.bitcoinStatusLabel.text = "The unfunded acceptance was abandoned and its reserved funds were released."
+                        self.bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_acceptance_abandoned")
                         if let snapshot = self.latestReadSnapshot { self.publish(snapshot) }
                         self.showShakescapeExecutions()
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = "The acceptance could not be abandoned. It may already have reached countersigned or funded state."
+                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                            "wallet_swap_acceptance_abandon_failed"
+                        )
                         self.showError(error)
                     }
                     self.refreshButtonStates()
@@ -2198,38 +2436,52 @@ final class WalletViewController: UIViewController {
         _ recovery: NativeBitcoinBroadcastRecovery?
     ) -> String {
         guard let recovery else {
-            return "Bitcoin broadcast recovery status is temporarily unavailable while the Bitcoin controller is busy or inactive."
+            return WalletCopy.text("wallet_swap_recovery_unavailable")
         }
         guard recovery.totalApproved > 0 else {
-            return "No approved Bitcoin transaction is awaiting durable broadcast recovery."
+            return WalletCopy.text("wallet_swap_recovery_none")
         }
-        return "Durable Bitcoin broadcasts — waiting for submission: \(recovery.unobservedPrepared); submission outcome pending: \(recovery.unobservedSubmissionStarted); submitted and awaiting wallet observation: \(recovery.unobservedSubmitted); observed: \(recovery.observed); highest attempt count: \(recovery.highestAttemptCount); last durable change: Unix \(recovery.lastChangedAtUnix ?? 0). Exact signed bytes remain private and automatic recovery never creates a replacement transaction."
+        return WalletCopy.format(
+            "wallet_swap_recovery_detail",
+            Int(recovery.unobservedPrepared),
+            Int(recovery.unobservedSubmissionStarted),
+            Int(recovery.unobservedSubmitted),
+            Int(recovery.observed),
+            Int(recovery.highestAttemptCount),
+            Int(recovery.lastChangedAtUnix ?? 0)
+        )
     }
 
     private func showShakescapeExecution(
         _ execution: NativeShakescapeExecutionSummary, wallet: RustNativeWallet
     ) {
-        let message = """
-        Session: \(execution.sessionId)
-        State: \(execution.state.replacingOccurrences(of: "_", with: " "))
-        Local role: \(execution.localRole)
-        Funding order: \(execution.firstChain), then \(execution.secondChain)
-        First funding confirmed: \(execution.firstFundingConfirmed)
-        Second funding confirmed: \(execution.secondFundingConfirmed)
-        Local funding status: \(execution.localFundingState ?? "Not submitted")
-        New-funding deadline: Unix \(execution.fundingDeadlineUnix)
-        First-chain refund time: Unix \(execution.firstRefundAtUnix)
-        Second-chain refund time: Unix \(execution.secondRefundAtUnix)
-        Failure reason: \(execution.failureReason ?? "None")
-
-        Only locally verified chain evidence advances this status.
-        """
-        let alert = UIAlertController(title: "Atomic swap status", message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Done", style: .cancel))
+        let message = WalletCopy.format(
+            "wallet_swap_execution_detail",
+            execution.sessionId,
+            execution.state.replacingOccurrences(of: "_", with: " "),
+            execution.localRole,
+            execution.firstChain,
+            execution.secondChain,
+            String(execution.firstFundingConfirmed),
+            String(execution.secondFundingConfirmed),
+            Int(execution.fundingDeadlineUnix),
+            Int(execution.firstRefundAtUnix),
+            Int(execution.secondRefundAtUnix),
+            execution.failureReason ?? WalletCopy.text("wallet_swap_failure_none")
+        )
+        let alert = UIAlertController(
+            title: WalletCopy.text("wallet_swap_execution_title"),
+            message: message,
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(
+            title: WalletCopy.text("wallet_action_done"),
+            style: .cancel
+        ))
         let newFundingWindowOpen = UInt64(Date().timeIntervalSince1970) < execution.fundingDeadlineUnix
         if execution.state == "first_funding_pending" && newFundingWindowOpen &&
             execution.localRole == "maker" && execution.firstChain == "bitcoin" {
-            alert.addAction(UIAlertAction(title: "Prepare Bitcoin funding", style: .destructive) {
+            alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_swap_fund_bitcoin"), style: .destructive) {
                 [weak self, weak wallet] _ in
                 guard let self, let wallet, self.wallet === wallet else { return }
                 self.showBtcForHnsFundingFee(execution, wallet: wallet)
@@ -2239,7 +2491,7 @@ final class WalletViewController: UIViewController {
             execution.state == "second_funding_pending") &&
             execution.localRole == "taker" &&
             execution.secondChain == "handshake" {
-            alert.addAction(UIAlertAction(title: "Prepare HNS funding", style: .destructive) {
+            alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_swap_fund_hns"), style: .destructive) {
                 [weak self, weak wallet] _ in
                 guard let self, let wallet, self.wallet === wallet else { return }
                 self.showHnsForBtcFundingFee(execution, wallet: wallet)
@@ -2248,12 +2500,14 @@ final class WalletViewController: UIViewController {
         if execution.state == "first_funded" && execution.localRole == "maker" {
             let bitcoin = execution.firstChain == "bitcoin"
             alert.addAction(UIAlertAction(
-                title: bitcoin ? "Refund locked Bitcoin" : "Refund locked HNS",
+                title: bitcoin
+                    ? WalletCopy.text("wallet_swap_refund_bitcoin")
+                    : WalletCopy.text("wallet_swap_refund_hns"),
                 style: .destructive
             ) { [weak self, weak wallet] _ in
                 guard let self, let wallet, self.wallet === wallet else { return }
                 self.authenticateWalletAction(
-                    reason: "Authenticate before preparing an atomic-swap refund transaction"
+                    reason: WalletCopy.text("wallet_auth_transaction_message")
                 ) { [weak self, weak wallet] in
                     guard let self, let wallet, self.wallet === wallet else { return }
                     self.showSwapSettlementFee(
@@ -2263,7 +2517,7 @@ final class WalletViewController: UIViewController {
             })
         }
         if ["both_funded", "first_redeemed", "secret_observed"].contains(execution.state) {
-            alert.addAction(UIAlertAction(title: "Redeem or refund", style: .default) {
+            alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_swap_settlement_actions"), style: .default) {
                 [weak self, weak wallet] _ in
                 guard let self, let wallet, self.wallet === wallet else { return }
                 self.showSwapSettlementActions(execution, wallet: wallet)
@@ -2276,7 +2530,7 @@ final class WalletViewController: UIViewController {
         _ execution: NativeShakescapeExecutionSummary, wallet: RustNativeWallet
     ) {
         authenticateWalletAction(
-            reason: "Authenticate before preparing an atomic-swap settlement transaction"
+            reason: WalletCopy.text("wallet_auth_transaction_message")
         ) { [weak self, weak wallet] in
             guard let self, let wallet, self.wallet === wallet else { return }
             self.showSwapSettlementActionsAfterAuthentication(execution, wallet: wallet)
@@ -2287,15 +2541,15 @@ final class WalletViewController: UIViewController {
         _ execution: NativeShakescapeExecutionSummary, wallet: RustNativeWallet
     ) {
         let alert = UIAlertController(
-            title: "Redeem or refund",
-            message: "Only the action authorized for this wallet role and verified chain state can be prepared. Refunds remain unavailable until their signed timeout is mature.",
+            title: WalletCopy.text("wallet_swap_settlement_actions"),
+            message: nil,
             preferredStyle: .actionSheet
         )
         for (title, action, bitcoin) in [
-            ("Redeem received HNS", NativeSwapSettlementAction.redeem, false),
-            ("Redeem received Bitcoin", .redeem, true),
-            ("Refund locked HNS", .refund, false),
-            ("Refund locked Bitcoin", .refund, true),
+            (WalletCopy.text("wallet_swap_redeem_hns"), NativeSwapSettlementAction.redeem, false),
+            (WalletCopy.text("wallet_swap_redeem_bitcoin"), .redeem, true),
+            (WalletCopy.text("wallet_swap_refund_hns"), .refund, false),
+            (WalletCopy.text("wallet_swap_refund_bitcoin"), .refund, true),
         ] {
             alert.addAction(UIAlertAction(title: title, style: action == .refund ? .destructive : .default) {
                 [weak self, weak wallet] _ in
@@ -2305,7 +2559,10 @@ final class WalletViewController: UIViewController {
                 )
             })
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(
+            title: WalletCopy.text("wallet_action_cancel"),
+            style: .cancel
+        ))
         let host = walletPresentationHost
         if let popover = alert.popoverPresentationController {
             host.loadViewIfNeeded()
@@ -2328,26 +2585,36 @@ final class WalletViewController: UIViewController {
         bitcoin: Bool,
         wallet: RustNativeWallet
     ) {
-        let unit = bitcoin ? "sats" : "dollarydoos"
-        let asset = bitcoin ? "Bitcoin" : "HNS"
         let alert = UIAlertController(
-            title: "Maximum settlement fee",
-            message: "Enter the maximum \(asset) fee in \(unit).",
+            title: WalletCopy.text("wallet_swap_settlement_fee_title"),
+            message: nil,
             preferredStyle: .alert
         )
         alert.addTextField { field in
-            field.placeholder = "Maximum fee (\(unit))"
+            field.placeholder = WalletCopy.text(
+                bitcoin
+                    ? "wallet_swap_settlement_btc_fee_hint"
+                    : "wallet_swap_settlement_hns_fee_hint"
+            )
             if !bitcoin {
                 field.text = defaultHnsMaximumFeeBaseUnits
             }
             field.keyboardType = .numberPad
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Review transaction", style: .default) {
+        alert.addAction(UIAlertAction(
+            title: WalletCopy.text("wallet_action_cancel"),
+            style: .cancel
+        ))
+        alert.addAction(UIAlertAction(
+            title: WalletCopy.text("wallet_action_review_transaction"),
+            style: .default
+        ) {
             [weak self, weak alert, weak wallet] _ in
             guard let self, let wallet, self.wallet === wallet,
                   let fee = UInt64(alert?.textFields?.first?.text ?? ""), fee > 0 else {
-                self?.showErrorMessage("Enter a positive maximum settlement fee.")
+                self?.showErrorMessage(WalletCopy.text(
+                    "wallet_swap_settlement_fee_invalid"
+                ))
                 return
             }
             alert?.textFields?.first?.text = nil
@@ -2371,7 +2638,9 @@ final class WalletViewController: UIViewController {
                             approval, bitcoin: bitcoin, wallet: wallet
                         )
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = "That swap action is not currently authorized. Check role, verified funding, secret observation, timeout maturity, synchronization, and fee cap."
+                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                            "wallet_swap_settlement_prepare_failed"
+                        )
                         self.showError(error)
                     }
                     self.refreshButtonStates()
@@ -2390,24 +2659,26 @@ final class WalletViewController: UIViewController {
         pendingSwapSettlementApproval = approval
         pendingSwapSettlementIsBitcoin = bitcoin
         let unit = bitcoin ? "sats" : "dollarydoos"
-        let message = """
-        Transaction inputs: \(approval.inputAmount) \(unit)
-        Wallet-controlled output: \(approval.outputAmount) \(unit)
-        Network fee: \(approval.fee) \(unit) (maximum \(approval.maximumFee))
-        Transaction: \(approval.transactionId)
-        Session: \(approval.sessionId)
-
-        The verified HTLC is included; additional wallet inputs may sponsor the network fee.
-
-        Broadcast is irreversible. The swap advances only after independent local chain verification, not from this submission receipt.
-        """
+        let message = WalletCopy.format(
+            "wallet_swap_settlement_approval_message",
+            Int(approval.inputAmount),
+            unit,
+            Int(approval.outputAmount),
+            Int(approval.fee),
+            Int(approval.maximumFee),
+            approval.transactionId,
+            approval.sessionId
+        )
         let alert = UIAlertController(
-            title: "Broadcast swap \(approval.action.rawValue)?",
+            title: WalletCopy.format(
+                "wallet_swap_settlement_approval_title",
+                approval.action.rawValue
+            ),
             message: message,
             preferredStyle: .alert
         )
         swapSettlementApprovalAlert = alert
-        alert.addAction(UIAlertAction(title: "Reject", style: .cancel) {
+        alert.addAction(UIAlertAction(title: WalletCopy.text("action_reject"), style: .cancel) {
             [weak self, weak wallet] _ in
             guard let self, let wallet, self.wallet === wallet,
                   let pending = self.pendingSwapSettlementApproval else { return }
@@ -2417,7 +2688,7 @@ final class WalletViewController: UIViewController {
                 try? wallet.rejectSwapSettlement(pending.actionToken, bitcoin: isBitcoin)
             }
         })
-        alert.addAction(UIAlertAction(title: "Broadcast settlement", style: .destructive) {
+        alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_swap_broadcast_settlement"), style: .destructive) {
             [weak self, weak wallet] _ in
             guard let self, let wallet, self.wallet === wallet,
                   let pending = self.pendingSwapSettlementApproval else { return }
@@ -2436,9 +2707,15 @@ final class WalletViewController: UIViewController {
                     self.isOperating = false
                     switch outcome {
                     case .success(let receipt):
-                        self.bitcoinStatusLabel.text = "Swap \(receipt.action.rawValue) \(receipt.transactionId.prefix(12))… submitted; waiting for independent local confirmation."
+                        self.bitcoinStatusLabel.text = WalletCopy.format(
+                            "wallet_swap_settlement_submitted",
+                            receipt.action.rawValue,
+                            String(receipt.transactionId.prefix(12))
+                        )
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = "Settlement submission did not complete. Check durable transaction status before retrying."
+                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                            "wallet_swap_settlement_broadcast_failed"
+                        )
                         self.showError(error)
                     }
                     self.refreshButtonStates()
@@ -2452,7 +2729,7 @@ final class WalletViewController: UIViewController {
         _ execution: NativeShakescapeExecutionSummary, wallet: RustNativeWallet
     ) {
         authenticateWalletAction(
-            reason: "Authenticate before preparing an HNS funding transaction"
+            reason: WalletCopy.text("wallet_auth_transaction_message")
         ) { [weak self, weak wallet] in
             guard let self, let wallet, self.wallet === wallet else { return }
             self.showHnsForBtcFundingFeeAfterAuthentication(execution, wallet: wallet)
@@ -2463,21 +2740,29 @@ final class WalletViewController: UIViewController {
         _ execution: NativeShakescapeExecutionSummary, wallet: RustNativeWallet
     ) {
         let alert = UIAlertController(
-            title: "Prepare HNS funding",
-            message: "Enter a maximum HNS fee within the reserve signed into this accepted session.",
+            title: WalletCopy.text("wallet_swap_fund_hns"),
+            message: nil,
             preferredStyle: .alert
         )
         alert.addTextField { field in
-            field.placeholder = "Maximum funding fee (dollarydoos)"
+            field.placeholder = WalletCopy.text("wallet_swap_hns_funding_fee_hint")
             field.text = defaultHnsMaximumFeeBaseUnits
             field.keyboardType = .numberPad
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Review transaction", style: .default) {
+        alert.addAction(UIAlertAction(
+            title: WalletCopy.text("wallet_action_cancel"),
+            style: .cancel
+        ))
+        alert.addAction(UIAlertAction(
+            title: WalletCopy.text("wallet_action_review_transaction"),
+            style: .default
+        ) {
             [weak self, weak alert, weak wallet] _ in
             guard let self, let wallet, self.wallet === wallet,
                   let fee = UInt64(alert?.textFields?.first?.text ?? ""), fee > 0 else {
-                self?.showErrorMessage("Enter a positive maximum HNS fee in dollarydoos.")
+                self?.showErrorMessage(WalletCopy.text(
+                    "wallet_swap_hns_funding_fee_invalid"
+                ))
                 return
             }
             alert?.textFields?.first?.text = nil
@@ -2498,7 +2783,9 @@ final class WalletViewController: UIViewController {
                     case .success(let approval):
                         self.presentHnsForBtcFundingApproval(approval, wallet: wallet)
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = "HNS HTLC funding was not prepared."
+                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                            "wallet_swap_hns_funding_prepare_failed"
+                        )
                         self.showError(error)
                     }
                     self.refreshButtonStates()
@@ -2555,9 +2842,14 @@ final class WalletViewController: UIViewController {
                     self.isOperating = false
                     switch outcome {
                     case .success(let receipt):
-                        self.bitcoinStatusLabel.text = "HNS HTLC funding \(receipt.transactionId.prefix(12))… submitted; waiting for authenticated confirmation."
+                        self.bitcoinStatusLabel.text = WalletCopy.format(
+                            "wallet_swap_hns_funding_submitted",
+                            String(receipt.transactionId.prefix(12))
+                        )
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = "The HNS HTLC funding transaction was not submitted."
+                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                            "wallet_swap_hns_funding_broadcast_failed"
+                        )
                         self.showError(error)
                     }
                     self.refreshButtonStates()
@@ -2571,7 +2863,7 @@ final class WalletViewController: UIViewController {
         _ execution: NativeShakescapeExecutionSummary, wallet: RustNativeWallet
     ) {
         authenticateWalletAction(
-            reason: "Authenticate before preparing a Bitcoin funding transaction"
+            reason: WalletCopy.text("wallet_auth_transaction_message")
         ) { [weak self, weak wallet] in
             guard let self, let wallet, self.wallet === wallet else { return }
             self.showBtcForHnsFundingFeeAfterAuthentication(execution, wallet: wallet)
@@ -2582,20 +2874,28 @@ final class WalletViewController: UIViewController {
         _ execution: NativeShakescapeExecutionSummary, wallet: RustNativeWallet
     ) {
         let alert = UIAlertController(
-            title: "Prepare Bitcoin funding",
-            message: "Enter a maximum fee within the reserve signed into this accepted session.",
+            title: WalletCopy.text("wallet_swap_fund_bitcoin"),
+            message: nil,
             preferredStyle: .alert
         )
         alert.addTextField { field in
-            field.placeholder = "Maximum funding fee (sats)"
+            field.placeholder = WalletCopy.text("wallet_swap_funding_fee_hint")
             field.keyboardType = .numberPad
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Review transaction", style: .default) {
+        alert.addAction(UIAlertAction(
+            title: WalletCopy.text("wallet_action_cancel"),
+            style: .cancel
+        ))
+        alert.addAction(UIAlertAction(
+            title: WalletCopy.text("wallet_action_review_transaction"),
+            style: .default
+        ) {
             [weak self, weak alert, weak wallet] _ in
             guard let self, let wallet, self.wallet === wallet,
                   let fee = UInt64(alert?.textFields?.first?.text ?? ""), fee > 0 else {
-                self?.showErrorMessage("Enter a positive maximum Bitcoin fee in satoshis.")
+                self?.showErrorMessage(WalletCopy.text(
+                    "wallet_swap_bitcoin_funding_fee_invalid"
+                ))
                 return
             }
             alert?.textFields?.first?.text = nil
@@ -2616,7 +2916,9 @@ final class WalletViewController: UIViewController {
                     case .success(let approval):
                         self.presentBtcForHnsFundingApproval(approval, wallet: wallet)
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = "Bitcoin HTLC funding was not prepared."
+                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                            "wallet_swap_funding_prepare_failed"
+                        )
                         self.showError(error)
                     }
                     self.refreshButtonStates()
@@ -2668,9 +2970,12 @@ final class WalletViewController: UIViewController {
                     self.isOperating = false
                     switch outcome {
                     case .success(let receipt):
-                        self.bitcoinStatusLabel.text = "Bitcoin HTLC funding \(receipt.txid.prefix(12))… submitted; waiting for independent local confirmation."
+                        self.bitcoinStatusLabel.text = WalletCopy.format(
+                            "wallet_swap_funding_submitted",
+                            String(receipt.txid.prefix(12))
+                        )
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = "The Bitcoin HTLC funding transaction was not submitted."
+                        self.bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_funding_broadcast_failed")
                         self.showError(error)
                     }
                     self.refreshButtonStates()
@@ -2686,16 +2991,24 @@ final class WalletViewController: UIViewController {
     ) {
         let hns = WalletReadPresenter.formatHnsBaseUnits(String(offer.hnsAmountDollarydoos))
         let alert = UIAlertController(
-            title: "Cancel this offer?",
-            message: "Withdraw the signed offer of \(offer.btcAmountSats) sats for \(hns) HNS?\n\nOffer ID: \(offer.offerId)\n\nCancellation releases its local balance reservation and is announced to the connected swap peer. It does not cancel a swap session that has already accepted and frozen these terms.",
+            title: WalletCopy.text("wallet_swap_cancel_title"),
+            message: WalletCopy.format(
+                "wallet_swap_cancel_message",
+                Int(offer.btcAmountSats),
+                hns,
+                offer.offerId
+            ),
             preferredStyle: .alert
         )
-        alert.addAction(UIAlertAction(title: "Keep offer", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Cancel offer", style: .destructive) {
+        alert.addAction(UIAlertAction(
+            title: WalletCopy.text("wallet_swap_keep_offer"),
+            style: .cancel
+        ))
+        alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_swap_cancel_offer"), style: .destructive) {
             [weak self, weak wallet] _ in
             guard let self, let wallet, self.wallet === wallet else { return }
             self.isOperating = true
-            self.bitcoinStatusLabel.text = "Signing direct-offer cancellation…"
+            self.bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_cancelling")
             self.refreshButtonStates()
             DispatchQueue.global(qos: .userInitiated).async { [wallet] in
                 let outcome = Result { try wallet.cancelBtcForHnsOffer(offerId: offer.offerId) }
@@ -2704,9 +3017,9 @@ final class WalletViewController: UIViewController {
                     self.isOperating = false
                     switch outcome {
                     case .success:
-                        self.bitcoinStatusLabel.text = "The BTC-for-HNS offer was cancelled and its local reservation was released."
+                        self.bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_cancelled")
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = "The offer was not cancelled. It may have expired or entered a swap session."
+                        self.bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_cancel_failed")
                         self.showError(error)
                     }
                     self.refreshButtonStates()
@@ -2719,21 +3032,39 @@ final class WalletViewController: UIViewController {
     private func renderBitcoinSnapshot(_ snapshot: NativeBitcoinWalletSnapshot) {
         bitcoinSnapshot = snapshot
         bitcoinActivityPageOffset = 0
-        bitcoinBalanceLabel.text = "Confirmed: \(snapshot.confirmedSats) sats · pending: \(snapshot.trustedPendingSats + snapshot.untrustedPendingSats) sats · total: \(snapshot.totalSats) sats"
         let birthday: String
         switch snapshot.birthdayState {
         case "awaitingCreationTip":
-            birthday = "new wallet: set automatically during first Bitcoin sync"
+            birthday = WalletCopy.text("wallet_bitcoin_birthday_creation_pending")
         case "recoveryUnknown":
-            birthday = "recovery height unknown; full historical scan if synchronized"
+            birthday = WalletCopy.text("wallet_bitcoin_birthday_recovery_unknown")
         case "recoveryPendingValidation":
-            birthday = "recovery block \(snapshot.birthdayHeight), pending validation"
+            birthday = WalletCopy.format(
+                "wallet_bitcoin_birthday_recovery_pending",
+                Int(snapshot.birthdayHeight)
+            )
         default:
-            birthday = "validated birthday block \(snapshot.birthdayHeight)"
+            birthday = WalletCopy.format(
+                "wallet_bitcoin_birthday_validated",
+                Int(snapshot.birthdayHeight)
+            )
         }
+        bitcoinBalanceLabel.text = WalletCopy.format(
+            "wallet_bitcoin_balance",
+            Int(snapshot.confirmedSats),
+            Int(snapshot.trustedPendingSats),
+            Int(snapshot.untrustedPendingSats),
+            Int(snapshot.immatureSats),
+            Int(snapshot.totalSats),
+            birthday,
+            Int(snapshot.synchronizedHeight)
+        )
         bitcoinBirthdayButton.isHidden = !["recoveryUnknown", "recoveryPendingValidation"]
             .contains(snapshot.birthdayState)
-        bitcoinReceiveLabel.text = "BIP84 receive\n\(snapshot.receiveAddress)\n\(birthday)"
+        bitcoinReceiveLabel.text = WalletCopy.format(
+            "wallet_bitcoin_receive",
+            snapshot.receiveAddress
+        )
     }
 
     @objc private func showHnsSendForm() {
@@ -2750,16 +3081,16 @@ final class WalletViewController: UIViewController {
             return
         }
         let alert = UIAlertController(
-            title: "Send HNS",
-            message: "A direct peer synchronization runs before review. The maximum fee is a cap; the wallet selects an HSD-compatible network fee at or below it. The default cap is 1 HNS.",
+            title: WalletCopy.text("row_wallet_send"),
+            message: nil,
             preferredStyle: .alert
         )
         alert.addTextField { field in
             Self.configureSendField(
                 field,
-                visibleLabel: "Recipient",
-                placeholder: "hs1…",
-                accessibilityLabel: "HNS recipient address"
+                visibleLabel: WalletCopy.text("wallet_send_recipient_label"),
+                placeholder: WalletCopy.text("wallet_send_recipient_hint"),
+                accessibilityLabel: WalletCopy.text("wallet_send_recipient_label")
             )
             field.autocapitalizationType = .none
             field.autocorrectionType = .no
@@ -2771,7 +3102,7 @@ final class WalletViewController: UIViewController {
             let scanButton = UIButton(type: .system)
             scanButton.frame = CGRect(x: 0, y: 0, width: 36, height: 36)
             scanButton.setImage(UIImage(systemName: "qrcode.viewfinder"), for: .normal)
-            scanButton.accessibilityLabel = "Scan Handshake payment QR code"
+            scanButton.accessibilityLabel = WalletCopy.text("wallet_scan_payment_qr")
             scanButton.addAction(UIAction { [weak self, weak alert] _ in
                 guard let self, let alert else { return }
                 self.clearHnsSendForm(alert)
@@ -2785,9 +3116,9 @@ final class WalletViewController: UIViewController {
         alert.addTextField { field in
             Self.configureSendField(
                 field,
-                visibleLabel: "Amount (HNS)",
-                placeholder: "0.00",
-                accessibilityLabel: "Amount in HNS"
+                visibleLabel: WalletCopy.text("wallet_send_amount_label"),
+                placeholder: WalletCopy.text("wallet_send_amount_hint"),
+                accessibilityLabel: WalletCopy.text("wallet_send_amount_label")
             )
             field.keyboardType = .decimalPad
             field.textContentType = nil
@@ -2797,26 +3128,24 @@ final class WalletViewController: UIViewController {
         alert.addTextField { field in
             Self.configureSendField(
                 field,
-                visibleLabel: "Fee cap (HNS)",
-                placeholder: defaultHnsMaximumFee,
-                accessibilityLabel: "Maximum fee cap in HNS"
+                visibleLabel: WalletCopy.text("wallet_send_maximum_fee_label"),
+                placeholder: WalletCopy.text("wallet_send_maximum_fee_hint"),
+                accessibilityLabel: WalletCopy.text("wallet_send_maximum_fee_label")
             )
             field.text = defaultHnsMaximumFee
             field.keyboardType = .decimalPad
             field.textContentType = nil
             field.accessibilityIdentifier = "wallet.send.maximum-fee"
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_action_cancel"), style: .cancel) { [weak self] _ in
             self?.clearHnsSendForm(alert)
         })
-        alert.addAction(UIAlertAction(title: "Review send", style: .default) { [weak self, weak alert] _ in
+        alert.addAction(UIAlertAction(title: WalletCopy.text("action_prepare_wallet_send"), style: .default) { [weak self, weak alert] _ in
             guard let self, let alert else { return }
             let request = self.takeHnsSendRequest(from: alert)
             self.clearHnsSendForm(alert)
             guard let request else {
-                self.showErrorMessage(
-                    "Enter a visible HNS recipient, a positive amount, and a positive maximum fee with no more than six decimal places."
-                )
+                self.showErrorMessage(WalletCopy.text("wallet_send_invalid"))
                 return
             }
             self.beginHnsSendReview(request)
@@ -2832,7 +3161,7 @@ final class WalletViewController: UIViewController {
             guard let self else { return }
             scanner?.dismiss(animated: true) {
                 guard let request = HandshakePaymentURI.parse(value) else {
-                    self.showErrorMessage("That QR code is not a valid Handshake payment URI.")
+                    self.showErrorMessage(WalletCopy.text("wallet_qr_invalid"))
                     return
                 }
                 // A full-screen camera may temporarily protect and release the
@@ -2979,7 +3308,7 @@ final class WalletViewController: UIViewController {
 
     private func beginHnsSendReview(_ request: WalletHnsSendRequest) {
         authenticateWalletAction(
-            reason: "Authenticate before preparing this Handshake transaction"
+            reason: WalletCopy.text("wallet_auth_transaction_message")
         ) { [weak self] in
             self?.beginHnsSendReviewAfterAuthentication(request)
         }
@@ -2993,7 +3322,7 @@ final class WalletViewController: UIViewController {
               directHnsValueAvailable,
               synchronizedReadsAvailable,
               unconfirmedDatabaseKey == nil else {
-            showErrorMessage("Unlock and synchronize the direct HNS wallet before reviewing a send.")
+            showErrorMessage(WalletCopy.text("wallet_send_locked"))
             return
         }
         isOperating = true
@@ -3001,7 +3330,7 @@ final class WalletViewController: UIViewController {
         let generation = readGeneration
         let walletIdentity = ObjectIdentifier(wallet)
         let authorityGeneration = walletAuthorityGeneration
-        readStatusLabel.text = "Synchronizing the direct HNS wallet for send review…"
+        readStatusLabel.text = WalletCopy.text("wallet_send_syncing_before_review")
         refreshButtonStates()
         let keychain = keychain
         DispatchQueue.global(qos: .userInitiated).async { [wallet, keychain] in
@@ -3058,7 +3387,7 @@ final class WalletViewController: UIViewController {
                 case .failure(let error):
                     self.isOperating = false
                     self.refreshState()
-                    self.readStatusLabel.text = "HNS send review could not be prepared. Synchronize again before retrying."
+                    self.readStatusLabel.text = WalletCopy.text("wallet_send_prepare_failed")
                     self.showError(error)
                 }
             }
@@ -3076,16 +3405,21 @@ final class WalletViewController: UIViewController {
         pendingHnsSendApproval = approval
         let date = Date(timeIntervalSince1970: TimeInterval(approval.expiresAtUnix))
         let expiry = DateFormatter.localizedString(from: date, dateStyle: .medium, timeStyle: .medium)
-        let message = [
-            "Recipient: \(approval.recipient)",
-            "Amount: \(WalletReadPresenter.formatHnsBaseUnits(approval.amountBaseUnits)) HNS",
-            "Maximum fee: \(WalletReadPresenter.formatHnsBaseUnits(approval.maximumFeeBaseUnits)) HNS",
-            "Finality: proof-of-work confirmations",
-            "Warning: fee estimate may change",
-            "Expires: \(expiry)",
-        ].joined(separator: "\n\n\n")
-        let alert = UIAlertController(title: "Review HNS send", message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Reject", style: .cancel) { [weak self] _ in
+        let message = WalletCopy.format(
+            "wallet_send_approval_message",
+            approval.recipient,
+            WalletReadPresenter.formatHnsBaseUnits(approval.amountBaseUnits),
+            WalletReadPresenter.formatHnsBaseUnits(approval.maximumFeeBaseUnits),
+            WalletCopy.text("wallet_send_finality_pow"),
+            WalletCopy.text("wallet_send_warning_fee_change"),
+            expiry
+        )
+        let alert = UIAlertController(
+            title: WalletCopy.text("wallet_send_approval_title"),
+            message: message,
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: WalletCopy.text("action_reject"), style: .cancel) { [weak self] _ in
             self?.rejectHnsSendApproval(
                 approval,
                 lease: lease,
@@ -3094,7 +3428,7 @@ final class WalletViewController: UIViewController {
                 authorityGeneration: authorityGeneration
             )
         })
-        alert.addAction(UIAlertAction(title: "Broadcast", style: .destructive) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: WalletCopy.text("action_broadcast_hns"), style: .destructive) { [weak self] _ in
             self?.approveHnsSendApproval(
                 approval,
                 lease: lease,
@@ -3118,7 +3452,7 @@ final class WalletViewController: UIViewController {
               let wallet else { return }
         pendingHnsSendApproval = nil
         hnsSendApprovalAlert = nil
-        readStatusLabel.text = "Broadcasting the approved HNS send…"
+        readStatusLabel.text = WalletCopy.text("wallet_send_broadcasting")
         let pendingRefreshFloor = latestPublishedSnapshotHeight
         let pendingRecoveryAccountID = confirmedDeletionAccountID
         let pendingRecoveryNetworkID = network.rawValue
@@ -3168,16 +3502,22 @@ final class WalletViewController: UIViewController {
                         .status
                     if let admissionStatus,
                        admissionStatus == "mempool" || admissionStatus == "confirmed" {
-                        self.readStatusLabel.text = "HNS transaction \(result.receipt.txid) has verified network status: \(admissionStatus). You may close the wallet; confirmation still requires inclusion in a verified block."
+                        self.readStatusLabel.text = WalletCopy.format(
+                            "wallet_send_admission_verified",
+                            result.receipt.txid,
+                            admissionStatus
+                        )
                     } else if result.snapshot == nil {
                         self.pendingOutgoingSnapshotHeight = pendingRefreshFloor ?? 0
-                        self.readStatusLabel.text = "Transaction pending. Shakescape could not refresh the wallet immediately and will retry automatically after it detects a new Handshake block."
+                        self.readStatusLabel.text = WalletCopy.text("wallet_send_submitted_sync_failed")
                         self.maybeRefreshPendingOutgoingAfterNewBlock()
                     } else {
-                        self.readStatusLabel.text = "Transaction pending. Shakescape will refresh the wallet automatically after it detects a new Handshake block."
+                        self.readStatusLabel.text = WalletCopy.text("wallet_send_admission_unverified")
                     }
                 case .failure(let error):
-                    self.readStatusLabel.text = "HNS send outcome is ambiguous. The wallet was locked; unlock and synchronize before taking another action."
+                    self.readStatusLabel.text = WalletCopy.text(
+                        "wallet_send_broadcast_ambiguous"
+                    )
                     self.showError(error)
                 }
                 self.refreshButtonStates()
@@ -3216,9 +3556,9 @@ final class WalletViewController: UIViewController {
                 self.refreshState()
                 switch outcome {
                 case .success:
-                    self.readStatusLabel.text = "HNS send rejected. No payment was broadcast."
+                    self.readStatusLabel.text = WalletCopy.text("wallet_send_rejected")
                 case .failure(let error):
-                    self.readStatusLabel.text = "HNS send rejection could not be verified. The wallet was locked."
+                    self.readStatusLabel.text = WalletCopy.text("wallet_send_reject_failed")
                     self.showError(error)
                 }
                 self.refreshButtonStates()
@@ -3246,7 +3586,7 @@ final class WalletViewController: UIViewController {
 
     private func showNamesDashboard() {
         guard let snapshot = latestReadSnapshot else {
-            showErrorMessage("Synchronize the HNS wallet before opening tracked names.")
+            showErrorMessage(WalletCopy.text("wallet_reads_names_unavailable"))
             return
         }
         let gallery = WalletNamesGalleryViewController(
@@ -3320,23 +3660,24 @@ final class WalletViewController: UIViewController {
         guard walletCanPresentChild else { return }
         var actions: [WalletMenuAction] = []
         if importNameButton.isEnabled {
-            actions.append(WalletMenuAction(title: "Track exact HNS name") { [weak self] in
+            actions.append(WalletMenuAction(title: WalletCopy.text("row_wallet_name_import")) { [weak self] in
                 self?.requestExactHnsNameImport()
             })
-            actions.append(WalletMenuAction(title: "Import multiple names") { [weak self] in
+            actions.append(WalletMenuAction(title: WalletCopy.text("action_import_multiple_wallet_names")) { [weak self] in
                 self?.requestMultipleHnsNameImport()
             })
         }
         if hnsValueActionMayStart {
-            actions.append(WalletMenuAction(title: "Name actions") { [weak self] in
+            actions.append(WalletMenuAction(title: WalletCopy.text("wallet_dashboard_name_actions")) { [weak self] in
                 self?.showNameActionMenu()
             })
         }
         presentWalletMenu(
-            title: "Name options",
+            title: WalletCopy.text("wallet_name_options"),
             rows: [WalletMenuRow(
-                title: "Tracked names",
-                detail: nameImportStatusLabel.text ?? "Name import status unavailable."
+                title: WalletCopy.text("row_wallet_read_names"),
+                detail: nameImportStatusLabel.text
+                    ?? WalletCopy.text("wallet_name_import_unavailable")
             )],
             actions: actions,
             retainForChildActions: true
@@ -3360,15 +3701,15 @@ final class WalletViewController: UIViewController {
     private func showNameActionMenu() {
         guard hnsValueActionMayStart, walletCanPresentChild else { return }
         presentWalletMenu(
-            title: "Name actions",
+            title: WalletCopy.text("wallet_dashboard_name_actions"),
             rows: [WalletMenuRow(
-                title: "Direct wallet review",
-                detail: "Every action runs one fresh direct-peer synchronization and shows the exact native review before broadcast."
+                title: WalletCopy.text("wallet_name_action_status_heading"),
+                detail: WalletCopy.text("wallet_name_actions_description")
             )],
             actions: [
-                WalletMenuAction(title: "Transfer name") { [weak self] in self?.showTransferNameForm() },
-                WalletMenuAction(title: "Finalize transfer") { [weak self] in self?.showFinalizeNameForm() },
-                WalletMenuAction(title: "Set records") { [weak self] in self?.showSetNameRecordsForm() },
+                WalletMenuAction(title: WalletCopy.text("row_wallet_transfer_name")) { [weak self] in self?.showTransferNameForm() },
+                WalletMenuAction(title: WalletCopy.text("row_wallet_finalize_name")) { [weak self] in self?.showFinalizeNameForm() },
+                WalletMenuAction(title: WalletCopy.text("row_wallet_set_records")) { [weak self] in self?.showSetNameRecordsForm() },
             ],
             retainForChildActions: true
         )
@@ -3422,26 +3763,26 @@ final class WalletViewController: UIViewController {
             WalletMenuAction(title: WalletCopy.text("row_wallet_pair_direct_shakescape"), dismissBeforeAction: true) { [weak self] in
                 self?.showPairDirectShakescapeForm()
             },
-            WalletMenuAction(title: "Sell BTC for HNS", section: "Coin Swap Actions", enabled: paired) { [weak self] in
+            WalletMenuAction(title: WalletCopy.text("wallet_swap_sell_btc"), section: WalletCopy.text("wallet_swap_coin_actions"), enabled: paired) { [weak self] in
                 self?.showBtcForHnsOfferForm()
             },
-            WalletMenuAction(title: "Sell HNS for BTC", section: "Coin Swap Actions", enabled: paired) { [weak self] in
+            WalletMenuAction(title: WalletCopy.text("wallet_swap_sell_hns"), section: WalletCopy.text("wallet_swap_coin_actions"), enabled: paired) { [weak self] in
                 self?.showHnsForBtcOfferForm()
             },
-            WalletMenuAction(title: WalletCopy.text("wallet_swap_available_offers"), section: "Coin Swap Actions", enabled: paired) { [weak self] in
+            WalletMenuAction(title: WalletCopy.text("wallet_swap_available_offers"), section: WalletCopy.text("wallet_swap_coin_actions"), enabled: paired) { [weak self] in
                 self?.showAvailableDirectOffers()
             },
-            WalletMenuAction(title: "My active BTC/HNS swap offers", section: "Coin Swap Actions", enabled: paired) { [weak self] in
+            WalletMenuAction(title: WalletCopy.text("wallet_swap_my_offers"), section: WalletCopy.text("wallet_swap_coin_actions"), enabled: paired) { [weak self] in
                 self?.showMyDirectOffers()
             },
-            WalletMenuAction(title: "Atomic swap executions", section: "Coin Swap Actions", enabled: paired) { [weak self] in
+            WalletMenuAction(title: WalletCopy.text("wallet_swap_executions"), section: WalletCopy.text("wallet_swap_coin_actions"), enabled: paired) { [weak self] in
                 self?.showShakescapeExecutions()
             },
-            WalletMenuAction(title: "Create fixed-price offer", section: "Name Swap Actions", enabled: paired) { [weak self] in self?.showCreateOfferForm() },
-            WalletMenuAction(title: "Cancel offer", section: "Name Swap Actions", enabled: paired) { [weak self] in self?.showCancelOfferForm() },
-            WalletMenuAction(title: "Recover name from offer", section: "Name Swap Actions", enabled: paired) { [weak self] in self?.showRecoverNameForm() },
-            WalletMenuAction(title: "List Handshake name-sale offers", section: "Name Swap Actions", enabled: paired) { [weak self] in self?.showListOffersForm() },
-            WalletMenuAction(title: "Get session", section: "Name Swap Actions", enabled: paired) { [weak self] in self?.showGetSessionForm() },
+            WalletMenuAction(title: WalletCopy.text("row_wallet_create_offer"), section: WalletCopy.text("wallet_swap_name_actions"), enabled: paired) { [weak self] in self?.showCreateOfferForm() },
+            WalletMenuAction(title: WalletCopy.text("wallet_swap_cancel_offer"), section: WalletCopy.text("wallet_swap_name_actions"), enabled: paired) { [weak self] in self?.showCancelOfferForm() },
+            WalletMenuAction(title: WalletCopy.text("row_wallet_recover_name"), section: WalletCopy.text("wallet_swap_name_actions"), enabled: paired) { [weak self] in self?.showRecoverNameForm() },
+            WalletMenuAction(title: WalletCopy.text("row_wallet_list_offers"), section: WalletCopy.text("wallet_swap_name_actions"), enabled: paired) { [weak self] in self?.showListOffersForm() },
+            WalletMenuAction(title: WalletCopy.text("row_wallet_get_session"), section: WalletCopy.text("wallet_swap_name_actions"), enabled: paired) { [weak self] in self?.showGetSessionForm() },
         ]
         if shakedexActionMayStart {
             // No snapshot can mean the native non-blocking controller read was
@@ -3450,25 +3791,31 @@ final class WalletViewController: UIViewController {
             if let shakescapeStatus,
                shakescapeStatus.unlocked,
                shakescapeStatus.listenerPort == nil {
-                actions.insert(WalletMenuAction(title: "Retry listener", enabled: paired) { [weak self] in
+                actions.insert(WalletMenuAction(title: WalletCopy.text("row_wallet_retry_direct_shakescape_host"), enabled: paired) { [weak self] in
                     self?.retryDirectShakescapeListener()
                 }, at: 1)
             }
             if shakescapeStatus?.peerEndpoint != nil {
-                actions.insert(WalletMenuAction(title: "Disconnect peer", style: .destructive) { [weak self] in
+                actions.insert(WalletMenuAction(title: WalletCopy.text("row_wallet_disconnect_direct_shakescape"), style: .destructive) { [weak self] in
                     self?.disconnectDirectShakescapePeer()
                 }, at: 1)
             }
         }
         presentWalletMenu(
-            title: "Shakedex",
+            title: WalletCopy.text("wallet_dashboard_shakedex"),
             rows: [
-                WalletMenuRow(title: "Native control", detail: summary),
                 WalletMenuRow(
-                    title: "About peers",
-                    detail: "A peer is the wallet offering the swap. Connect to view its offers. Connecting does not accept an offer or move funds. For HNS → BTC, Bitcoin monitoring starts after acceptance."
+                    title: WalletCopy.text("row_wallet_direct_shakescape_host"),
+                    detail: summary
                 ),
-                WalletMenuRow(title: "Swap connection", detail: transportLine),
+                WalletMenuRow(
+                    title: WalletCopy.text("row_wallet_pair_direct_shakescape"),
+                    detail: WalletCopy.text("row_wallet_pair_direct_shakescape_summary")
+                ),
+                WalletMenuRow(
+                    title: WalletCopy.text("row_wallet_direct_shakescape_host"),
+                    detail: transportLine
+                ),
             ],
             actions: actions,
             retainForChildActions: true
@@ -3560,7 +3907,7 @@ final class WalletViewController: UIViewController {
         let fieldDefinition = fields[index]
         presentWalletForm(
             title: title,
-            message: "Step \(index + 1) of \(fields.count)",
+            message: nil,
             fields: [WalletSheetFormField(
                 label: fieldDefinition.label,
                 placeholder: fieldDefinition.placeholder,
@@ -3575,7 +3922,9 @@ final class WalletViewController: UIViewController {
                     }
                 }
             )],
-            primaryTitle: index + 1 == fields.count ? "Review" : "Next"
+            primaryTitle: index + 1 == fields.count
+                ? WalletCopy.text("wallet_action_review_transaction")
+                : WalletCopy.text("action_next_wallet_activity")
         ) { [weak self] submitted in
             guard let self, let text = submitted.first else { return }
             self.collectHnsValueForm(
@@ -3590,12 +3939,12 @@ final class WalletViewController: UIViewController {
 
     private func showTransferNameForm() {
         collectHnsValueForm(
-            title: "Transfer name",
+            title: WalletCopy.text("row_wallet_transfer_name"),
             fields: [
-                .init(label: "Exact name", placeholder: "name"),
-                .init(label: "Recipient", placeholder: "Recipient address"),
+                .init(label: WalletCopy.text("wallet_action_name_hint"), placeholder: WalletCopy.text("wallet_name_search_hint")),
+                .init(label: WalletCopy.text("wallet_action_recipient_hint"), placeholder: WalletCopy.text("wallet_send_recipient_label")),
                 .init(
-                    label: "Maximum fee cap in HNS",
+                    label: WalletCopy.text("wallet_action_maximum_fee_hint"),
                     placeholder: defaultHnsMaximumFee,
                     numeric: true,
                     initialValue: defaultHnsMaximumFee
@@ -3605,7 +3954,7 @@ final class WalletViewController: UIViewController {
             guard let self,
                   values.count == 3,
                   let fee = Self.positiveHnsBaseUnits(values[2]) else {
-                self?.showErrorMessage("Enter a name, recipient, and positive maximum fee with no more than six decimal places.")
+                self?.showErrorMessage(WalletCopy.text("wallet_value_actions_invalid"))
                 return
             }
             self.beginHnsValueAction(
@@ -3616,12 +3965,12 @@ final class WalletViewController: UIViewController {
 
     private func showFinalizeNameForm() {
         collectHnsValueForm(
-            title: "Finalize transfer",
+            title: WalletCopy.text("row_wallet_finalize_name"),
             fields: [
-                .init(label: "Exact name", placeholder: "name"),
-                .init(label: "Expected recipient (optional)", placeholder: "Recipient address"),
+                .init(label: WalletCopy.text("wallet_action_name_hint"), placeholder: WalletCopy.text("wallet_name_search_hint")),
+                .init(label: WalletCopy.text("wallet_action_expected_recipient_hint"), placeholder: WalletCopy.text("wallet_send_recipient_label")),
                 .init(
-                    label: "Maximum fee cap in HNS",
+                    label: WalletCopy.text("wallet_action_maximum_fee_hint"),
                     placeholder: defaultHnsMaximumFee,
                     numeric: true,
                     initialValue: defaultHnsMaximumFee
@@ -3631,7 +3980,7 @@ final class WalletViewController: UIViewController {
             guard let self,
                   values.count == 3,
                   let fee = Self.positiveHnsBaseUnits(values[2]) else {
-                self?.showErrorMessage("Enter a name and positive maximum fee with no more than six decimal places.")
+                self?.showErrorMessage(WalletCopy.text("wallet_value_actions_invalid"))
                 return
             }
             self.beginHnsValueAction(
@@ -3649,9 +3998,7 @@ final class WalletViewController: UIViewController {
         let editor = NameRecordsEditorViewController { [weak self] name, records, feeText in
             guard let self,
                   let fee = Self.positiveHnsBaseUnits(feeText) else {
-                self?.showErrorMessage(
-                    "Enter an exact name, valid resource records, and a positive maximum fee with no more than six decimal places."
-                )
+                self?.showErrorMessage(WalletCopy.text("wallet_value_actions_invalid"))
                 return
             }
             self.beginHnsValueAction(
@@ -3665,17 +4012,17 @@ final class WalletViewController: UIViewController {
 
     private func showCreateOfferForm() {
         collectHnsValueForm(
-            title: "Create fixed-price offer",
+            title: WalletCopy.text("row_wallet_create_offer"),
             fields: [
-                .init(label: "Exact name", placeholder: "name"),
-                .init(label: "Price in HNS", placeholder: "1", numeric: true),
+                .init(label: WalletCopy.text("wallet_action_name_hint"), placeholder: WalletCopy.text("wallet_name_search_hint")),
+                .init(label: WalletCopy.text("wallet_action_price_hint"), placeholder: "1", numeric: true),
                 .init(
-                    label: "Maximum fee cap in HNS",
+                    label: WalletCopy.text("wallet_action_maximum_fee_hint"),
                     placeholder: defaultHnsMaximumFee,
                     numeric: true,
                     initialValue: defaultHnsMaximumFee
                 ),
-                .init(label: "Listing lifetime in seconds", placeholder: "86400", numeric: true, initialValue: "86400"),
+                .init(label: WalletCopy.text("wallet_action_lifetime_hint"), placeholder: "86400", numeric: true, initialValue: "86400"),
             ]
         ) { [weak self] values in
             guard let self,
@@ -3683,7 +4030,7 @@ final class WalletViewController: UIViewController {
                   let price = Self.positiveHnsBaseUnits(values[1]),
                   let fee = Self.positiveHnsBaseUnits(values[2]),
                   let lifetime = UInt64(values[3]) else {
-                self?.showErrorMessage("Enter a name, positive price/fee, and a whole-number listing lifetime.")
+                self?.showErrorMessage(WalletCopy.text("wallet_value_actions_invalid"))
                 return
             }
             self.beginHnsValueAction(
@@ -3699,8 +4046,8 @@ final class WalletViewController: UIViewController {
 
     private func showCancelOfferForm() {
         collectHnsValueForm(
-            title: "Cancel offer",
-            fields: [.init(label: "Seller session ID", placeholder: "64 lowercase hex characters")]
+            title: WalletCopy.text("wallet_swap_cancel_offer"),
+            fields: [.init(label: WalletCopy.text("wallet_action_seller_session_hint"), placeholder: WalletCopy.text("wallet_action_seller_session_hint"))]
         ) { [weak self] values in
             guard let self, let sellerSessionID = values.first else { return }
             self.beginHnsValueAction(.cancelOffer(sellerSessionID: sellerSessionID))
@@ -3709,11 +4056,11 @@ final class WalletViewController: UIViewController {
 
     private func showRecoverNameForm() {
         collectHnsValueForm(
-            title: "Recover name from offer",
+            title: WalletCopy.text("row_wallet_recover_name"),
             fields: [
-                .init(label: "Seller session ID", placeholder: "64 lowercase hex characters"),
+                .init(label: WalletCopy.text("wallet_action_seller_session_hint"), placeholder: WalletCopy.text("wallet_action_seller_session_hint")),
                 .init(
-                    label: "Maximum fee cap in HNS",
+                    label: WalletCopy.text("wallet_action_maximum_fee_hint"),
                     placeholder: defaultHnsMaximumFee,
                     numeric: true,
                     initialValue: defaultHnsMaximumFee
@@ -3723,7 +4070,7 @@ final class WalletViewController: UIViewController {
             guard let self,
                   values.count == 2,
                   let fee = Self.positiveHnsBaseUnits(values[1]) else {
-                self?.showErrorMessage("Enter the seller session ID and a positive maximum fee.")
+                self?.showErrorMessage(WalletCopy.text("wallet_value_actions_invalid"))
                 return
             }
             self.beginHnsValueAction(
@@ -3734,16 +4081,16 @@ final class WalletViewController: UIViewController {
 
     private func showAcceptOfferForm(selectedOffer: NativeShakedexNameOffer) {
         collectHnsValueForm(
-            title: "Accept offer",
+            title: WalletCopy.text("wallet_swap_take_offer"),
             fields: [
                 .init(
-                    label: "Listing ID",
-                    placeholder: "64 lowercase hex characters",
+                    label: WalletCopy.text("wallet_action_listing_hint"),
+                    placeholder: WalletCopy.text("wallet_action_listing_hint"),
                     initialValue: selectedOffer.listingID,
                     editable: false
                 ),
                 .init(
-                    label: "Maximum fee cap in HNS",
+                    label: WalletCopy.text("wallet_action_maximum_fee_hint"),
                     placeholder: defaultHnsMaximumFee,
                     numeric: true,
                     initialValue: defaultHnsMaximumFee
@@ -3753,7 +4100,7 @@ final class WalletViewController: UIViewController {
             guard let self,
                   values.count == 2,
                   let fee = Self.positiveHnsBaseUnits(values[1]) else {
-                self?.showErrorMessage("Enter the listing ID and a positive maximum fee.")
+                self?.showErrorMessage(WalletCopy.text("wallet_value_actions_invalid"))
                 return
             }
             self.beginHnsValueAction(.acceptOffer(
@@ -3766,16 +4113,16 @@ final class WalletViewController: UIViewController {
 
     private func showListOffersForm() {
         collectHnsValueForm(
-            title: "List offers",
+            title: WalletCopy.text("row_wallet_list_offers"),
             fields: [
-                .init(label: "Cursor (optional)", placeholder: "64 lowercase hex characters"),
-                .init(label: "Page size", placeholder: "32", numeric: true, initialValue: "32"),
+                .init(label: WalletCopy.text("wallet_action_cursor_hint"), placeholder: WalletCopy.text("wallet_action_cursor_hint")),
+                .init(label: WalletCopy.text("wallet_action_limit_hint"), placeholder: "32", numeric: true, initialValue: "32"),
             ]
         ) { [weak self] values in
             guard let self,
                   values.count == 2,
                   let limit = UInt8(values[1]) else {
-                self?.showErrorMessage("Enter an optional cursor and a page size from 1 to 64.")
+                self?.showErrorMessage(WalletCopy.text("wallet_shakedex_queries_invalid"))
                 return
             }
             self.beginShakedexQuery(.listOffers(cursor: values[0].isEmpty ? nil : values[0], limit: limit))
@@ -3784,8 +4131,8 @@ final class WalletViewController: UIViewController {
 
     private func showGetSessionForm() {
         collectHnsValueForm(
-            title: "Get session",
-            fields: [.init(label: "Session ID", placeholder: "64 lowercase hex characters")]
+            title: WalletCopy.text("row_wallet_get_session"),
+            fields: [.init(label: WalletCopy.text("wallet_action_session_hint"), placeholder: WalletCopy.text("wallet_action_session_hint"))]
         ) { [weak self] values in
             guard let self, let sessionID = values.first else { return }
             self.beginShakedexQuery(.getSession(sessionID: sessionID))
@@ -3803,7 +4150,7 @@ final class WalletViewController: UIViewController {
             title: WalletCopy.text("row_wallet_pair_direct_shakescape"),
             message: WalletCopy.text("row_wallet_pair_direct_shakescape_summary"),
             fields: [.init(
-                label: "Offer peer address",
+                label: WalletCopy.text("wallet_direct_shakescape_endpoint_hint"),
                 placeholder: WalletCopy.text("wallet_direct_shakescape_endpoint_hint"),
                 accessibilityIdentifier: "wallet.shakescape.endpoint"
             )],
@@ -3827,7 +4174,7 @@ final class WalletViewController: UIViewController {
     }
 
     private func connectDirectShakescapePeer(_ endpoint: String) {
-        runDirectShakescapeOperation(status: "Pairing the explicit P2P swap endpoint…") {
+        runDirectShakescapeOperation(status: WalletCopy.text("wallet_direct_shakescape_connecting")) {
             try $0.connectDirectShakescape(endpoint: endpoint)
         } completion: { [weak self] result in
             guard let self else { return }
@@ -3838,21 +4185,31 @@ final class WalletViewController: UIViewController {
                 }
                 switch connection.outcome {
                 case .connected:
-                    self.readStatusLabel.text = WalletCopy.format("wallet_direct_shakescape_peer_connected",
+                    self.readStatusLabel.text = WalletCopy.format(
+                        "wallet_direct_shakescape_connected",
                         connection.peerEndpoint ?? "unknown endpoint"
                     )
                 case .replaced:
-                    self.readStatusLabel.text = WalletCopy.format("wallet_direct_shakescape_peer_connected",
+                    self.readStatusLabel.text = WalletCopy.format(
+                        "wallet_direct_shakescape_replaced",
                         connection.peerEndpoint ?? "unknown endpoint"
                     )
                 case .unavailable:
-                    self.readStatusLabel.text = "P2P swap connection is unavailable."
+                    self.readStatusLabel.text = WalletCopy.text(
+                        "wallet_direct_shakescape_connect_unavailable"
+                    )
                 case .locked:
-                    self.readStatusLabel.text = "Unlock the wallet before pairing a swap peer."
+                    self.readStatusLabel.text = WalletCopy.text(
+                        "wallet_direct_shakescape_connect_locked"
+                    )
                 case .connectionFailed:
-                    self.readStatusLabel.text = "The explicit P2P swap endpoint could not be reached."
+                    self.readStatusLabel.text = WalletCopy.text(
+                        "wallet_direct_shakescape_connect_failed"
+                    )
                 case .exchangeFailed:
-                    self.readStatusLabel.text = "The peer connected but rejected the bounded P2P swap exchange."
+                    self.readStatusLabel.text = WalletCopy.text(
+                        "wallet_direct_shakescape_exchange_failed"
+                    )
                 }
                 if directShakescapeConnectionShouldOpenOffers(connection) {
                     self.showAvailableDirectOffers()
@@ -3860,40 +4217,48 @@ final class WalletViewController: UIViewController {
                     self.showShakedexDashboard()
                 }
             case .failure(let error):
-                self.readStatusLabel.text = "P2P swap pairing failed without changing wallet or chain state."
+                self.readStatusLabel.text = WalletCopy.text(
+                    "wallet_direct_shakescape_connect_bridge_failed"
+                )
                 self.showError(error)
             }
         }
     }
 
     private func retryDirectShakescapeListener() {
-        runDirectShakescapeOperation(status: "Retrying the wallet-owned P2P swap listener…") {
+        runDirectShakescapeOperation(status: WalletCopy.text("wallet_direct_shakescape_host_retrying")) {
             try $0.retryDirectShakescapeListener()
             return true
         } completion: { [weak self] result in
             guard let self else { return }
             switch result {
             case .success:
-                self.readStatusLabel.text = "The wallet-owned P2P swap listener is ready."
+                self.readStatusLabel.text = WalletCopy.text(
+                    "wallet_direct_shakescape_host_retry_ready"
+                )
             case .failure(let error):
-                self.readStatusLabel.text = "The P2P swap listener remains unavailable; the HNS wallet is unchanged."
+                self.readStatusLabel.text = WalletCopy.text(
+                    "wallet_direct_shakescape_host_retry_failed"
+                )
                 self.showError(error)
             }
         }
     }
 
     private func disconnectDirectShakescapePeer() {
-        runDirectShakescapeOperation(status: "Disconnecting the swap peer…") {
+        runDirectShakescapeOperation(status: WalletCopy.text("wallet_status_disconnecting_direct_shakescape")) {
             try $0.disconnectDirectShakescape()
         } completion: { [weak self] result in
             guard let self else { return }
             switch result {
             case .success(let disconnected):
                 self.readStatusLabel.text = disconnected
-                    ? "Swap peer disconnected."
-                    : "No swap peer was connected."
+                    ? WalletCopy.text("wallet_direct_shakescape_disconnected")
+                    : WalletCopy.text("wallet_direct_shakescape_no_peer")
             case .failure(let error):
-                self.readStatusLabel.text = "The swap-peer disconnect could not be verified."
+                self.readStatusLabel.text = WalletCopy.text(
+                    "wallet_direct_shakescape_connect_bridge_failed"
+                )
                 self.showError(error)
             }
         }
@@ -3907,7 +4272,7 @@ final class WalletViewController: UIViewController {
         guard shakedexActionMayStart,
               let wallet,
               let lease = storageLease else {
-            showErrorMessage("Unlock and synchronize the direct HNS wallet first.")
+            showErrorMessage(WalletCopy.text("wallet_direct_shakescape_locked"))
             return
         }
         isOperating = true
@@ -4129,15 +4494,26 @@ final class WalletViewController: UIViewController {
         if let execution = status.executions
             .filter({ !terminal.contains($0.state) })
             .max(by: { $0.lastVerifiedAtUnix < $1.lastVerifiedAtUnix }) {
-            bitcoinStatusLabel.text = "Atomic swap · \(shakescapeExecutionStage(execution)) · Session \(execution.sessionId.prefix(12))…"
+            bitcoinStatusLabel.text = WalletCopy.format(
+                "wallet_swap_notification_stage",
+                shakescapeExecutionStage(execution),
+                String(execution.sessionId.prefix(12))
+            )
         } else if let pending = status.pendingAcceptances.max(by: {
             $0.createdAtUnix < $1.createdAtUnix
         }) {
-            bitcoinStatusLabel.text = "Atomic swap · Offer accepted; negotiating countersigned terms · Session \(pending.sessionId.prefix(12))…"
+            bitcoinStatusLabel.text = WalletCopy.format(
+                "wallet_swap_notification_negotiating",
+                String(pending.sessionId.prefix(12))
+            )
         } else if let latest = status.executions.max(by: {
             $0.lastVerifiedAtUnix < $1.lastVerifiedAtUnix
         }) {
-            bitcoinStatusLabel.text = "Atomic swap · \(shakescapeExecutionStage(latest)) · Session \(latest.sessionId.prefix(12))…"
+            bitcoinStatusLabel.text = WalletCopy.format(
+                "wallet_swap_notification_stage",
+                shakescapeExecutionStage(latest),
+                String(latest.sessionId.prefix(12))
+            )
         }
     }
 
@@ -4151,63 +4527,88 @@ final class WalletViewController: UIViewController {
         let fundingWasSubmitted = ["broadcast", "seen", "confirmed"]
             .contains(execution.localFundingState ?? "")
         if includeBitcoinSync && bitcoinSyncInProgress {
-            return "Synchronizing Bitcoin compact filters and watched transactions"
+            return WalletCopy.text("wallet_swap_stage_bitcoin_syncing")
         }
         switch execution.state {
         case "terms_frozen", "refunds_prepared":
-            return "Terms are frozen; waiting for first funding"
+            return WalletCopy.text("wallet_swap_stage_terms_waiting")
         case "first_funding_pending":
             if now >= execution.fundingDeadlineUnix {
-                return "The new-funding window expired"
+                return WalletCopy.text("wallet_swap_stage_funding_expired")
             }
             if execution.localRole == "maker", fundingWasSubmitted {
-                return "\(first) funding was submitted; waiting for confirmation"
+                return WalletCopy.format(
+                    "wallet_swap_stage_funding_submitted", first
+                )
             }
             if execution.localRole == "maker", execution.localFundingState == "reorged" {
-                return "\(first) funding was reorganized; review before retrying"
+                return WalletCopy.format(
+                    "wallet_swap_stage_funding_reorged", first
+                )
             }
             return execution.localRole == "maker"
-                ? "\(first) funding is ready for approval on this device"
-                : "Waiting for the counterparty to fund \(first)"
+                ? WalletCopy.format("wallet_swap_stage_funding_ready_here", first)
+                : WalletCopy.format(
+                    "wallet_swap_stage_waiting_counterparty_funding", first
+                )
         case "first_funded", "second_funding_pending":
             if execution.localRole == "taker" {
                 guard now < execution.fundingDeadlineUnix ||
                         execution.state == "second_funding_pending" else {
-                    return "The new-funding window expired"
+                    return WalletCopy.text("wallet_swap_stage_funding_expired")
                 }
                 if fundingWasSubmitted {
-                    return "\(second) funding was submitted; waiting for confirmation"
+                    return WalletCopy.format(
+                        "wallet_swap_stage_funding_submitted", second
+                    )
                 }
                 if execution.localFundingState == "reorged" {
-                    return "\(second) funding was reorganized; review before retrying"
+                    return WalletCopy.format(
+                        "wallet_swap_stage_funding_reorged", second
+                    )
                 }
-                return "\(second) funding is ready for approval on this device"
+                return WalletCopy.format(
+                    "wallet_swap_stage_funding_ready_here", second
+                )
             }
             if now >= execution.firstRefundAtUnix {
-                return "\(first) refund is ready on this device"
+                return WalletCopy.format(
+                    "wallet_swap_stage_refund_ready_here", first
+                )
             }
-            return "Waiting for the counterparty to fund \(second)"
+            return WalletCopy.format(
+                "wallet_swap_stage_waiting_counterparty_funding", second
+            )
         case "both_funded":
             return execution.localRole == "maker"
-                ? "\(second) redemption is ready on this device"
-                : "Waiting for the counterparty to redeem \(second)"
+                ? WalletCopy.format(
+                    "wallet_swap_stage_redeem_ready_here", second
+                )
+                : WalletCopy.format(
+                    "wallet_swap_stage_waiting_counterparty_redeem", second
+                )
         case "first_redeemed", "secret_observed":
             return execution.localRole == "taker"
-                ? "The secret is verified; redeem \(first) on this device"
-                : "Waiting for the counterparty to redeem \(first)"
+                ? WalletCopy.format(
+                    "wallet_swap_stage_secret_redeem_ready_here", first
+                )
+                : WalletCopy.format(
+                    "wallet_swap_stage_waiting_counterparty_final_redeem", first
+                )
         case "second_redeemed":
-            return "Both redemptions are being verified"
+            return WalletCopy.text("wallet_swap_stage_second_redeemed")
         case "completed":
-            return "Completed"
+            return WalletCopy.text("wallet_swap_stage_completed")
         case "refund_eligible":
-            return "A refund is eligible for approval"
+            return WalletCopy.format(
+                "wallet_swap_stage_refund_ready_here", first
+            )
         case "refund_broadcast":
-            return "Refund broadcast; waiting for confirmation"
+            return WalletCopy.text("wallet_swap_stage_refunding")
         case "refunded":
-            return "Refunded"
+            return WalletCopy.text("wallet_swap_stage_refunded")
         case "failed":
-            return execution.failureReason.map { "Needs attention: \($0)" }
-                ?? "Needs attention"
+            return WalletCopy.text("wallet_swap_stage_failed")
         default:
             return execution.state.replacingOccurrences(of: "_", with: " ")
         }
@@ -4231,7 +4632,7 @@ final class WalletViewController: UIViewController {
 
     private func beginHnsValueAction(_ intent: NativeHnsValueIntent) {
         authenticateWalletAction(
-            reason: "Authenticate before preparing this Handshake transaction"
+            reason: WalletCopy.text("wallet_auth_transaction_message")
         ) { [weak self] in
             self?.beginHnsValueActionAfterAuthentication(intent)
         }
@@ -4242,7 +4643,7 @@ final class WalletViewController: UIViewController {
               !intent.requiresShakedex || shakedexAvailable,
               let lease = storageLease,
               let wallet else {
-            showErrorMessage("Unlock and synchronize the direct HNS wallet before reviewing this action.")
+            showErrorMessage(WalletCopy.text("wallet_value_actions_locked"))
             return
         }
         isOperating = true
@@ -4251,7 +4652,7 @@ final class WalletViewController: UIViewController {
         let walletIdentity = ObjectIdentifier(wallet)
         let authorityGeneration = walletAuthorityGeneration
         let expectedKind = intent.expectedApprovalKind
-        readStatusLabel.text = "Synchronizing the direct HNS wallet for native action review…"
+        readStatusLabel.text = WalletCopy.text("wallet_value_actions_syncing")
         refreshButtonStates()
         let keychain = keychain
         DispatchQueue.global(qos: .userInitiated).async { [wallet, keychain] in
@@ -4300,8 +4701,9 @@ final class WalletViewController: UIViewController {
                 case .failure(let error):
                     self.isOperating = false
                     self.refreshState()
-                    self.readStatusLabel.text =
-                        "The native HNS action review could not be prepared. Synchronize before retrying."
+                    self.readStatusLabel.text = WalletCopy.text(
+                        "wallet_value_actions_prepare_failed"
+                    )
                     self.showError(error)
                 }
             }
@@ -4325,13 +4727,15 @@ final class WalletViewController: UIViewController {
             dateStyle: .medium,
             timeStyle: .medium
         )
-        let message = (approval.detailLines + ["Expires: \(expiry)"]).joined(separator: "\n\n")
+        let message = (approval.detailLines + [WalletCopy.format(
+            "wallet_value_actions_expires", expiry
+        )]).joined(separator: "\n\n")
         let alert = UIAlertController(
-            title: approval.title,
+            title: WalletCopy.text("action_approve_hns_value"),
             message: message,
             preferredStyle: .alert
         )
-        alert.addAction(UIAlertAction(title: "Reject", style: .cancel) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: WalletCopy.text("action_reject"), style: .cancel) { [weak self] _ in
             self?.rejectHnsValueApproval(
                 approval,
                 lease: lease,
@@ -4340,7 +4744,7 @@ final class WalletViewController: UIViewController {
                 authorityGeneration: authorityGeneration
             )
         })
-        alert.addAction(UIAlertAction(title: "Approve and broadcast", style: .destructive) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: WalletCopy.text("action_broadcast_hns"), style: .destructive) { [weak self] _ in
             self?.approveHnsValueApproval(
                 approval,
                 lease: lease,
@@ -4365,7 +4769,7 @@ final class WalletViewController: UIViewController {
         pendingHnsValueApproval = nil
         trackedShakedexFinalizeApprovalTransactionID = nil
         hnsValueApprovalAlert = nil
-        readStatusLabel.text = "Executing the approved native HNS action…"
+        readStatusLabel.text = WalletCopy.text("wallet_value_actions_executing")
         let keychain = keychain
         DispatchQueue.global(qos: .userInitiated).async { [wallet, keychain] in
             let outcome: Result<(NativeHnsValueResult, NativeHnsReadSnapshot?), Error> = Result {
@@ -4395,12 +4799,20 @@ final class WalletViewController: UIViewController {
                 case .success(let result):
                     if let snapshot = result.1 { self.publish(snapshot) }
                     self.readStatusLabel.text = result.1 == nil
-                        ? "The native HNS action was accepted. Unlock and synchronize to refresh wallet state."
-                        : "The native HNS action was accepted and wallet state was refreshed."
-                    self.showNativeHnsResult(title: "HNS action accepted", json: result.0.displayJSON)
+                        ? WalletCopy.text(
+                            "wallet_value_actions_submitted_reconciling"
+                        )
+                        : WalletCopy.format(
+                            "wallet_value_actions_result", result.0.displayJSON
+                        )
+                    self.showNativeHnsResult(
+                        title: WalletCopy.text("wallet_value_actions_result_title"),
+                        json: result.0.displayJSON
+                    )
                 case .failure(let error):
-                    self.readStatusLabel.text =
-                        "The HNS action outcome is ambiguous. The wallet was locked; unlock and synchronize before another action."
+                    self.readStatusLabel.text = WalletCopy.text(
+                        "wallet_value_actions_result_ambiguous"
+                    )
                     self.showError(error)
                 }
                 self.refreshButtonStates()
@@ -4443,9 +4855,13 @@ final class WalletViewController: UIViewController {
                 self.refreshState()
                 switch outcome {
                 case .success:
-                    self.readStatusLabel.text = "Native HNS action rejected. Nothing was broadcast."
+                    self.readStatusLabel.text = WalletCopy.text(
+                        "wallet_value_actions_rejected"
+                    )
                 case .failure(let error):
-                    self.readStatusLabel.text = "HNS action rejection could not be verified. The wallet was locked."
+                    self.readStatusLabel.text = WalletCopy.text(
+                        "wallet_value_actions_reject_failed"
+                    )
                     self.showError(error)
                 }
                 self.refreshButtonStates()
@@ -4480,7 +4896,7 @@ final class WalletViewController: UIViewController {
         guard shakedexActionMayStart,
               let lease = storageLease,
               let wallet else {
-            showErrorMessage("Unlock and synchronize the direct HNS wallet before querying Shakedex.")
+            showErrorMessage(WalletCopy.text("wallet_shakedex_queries_locked"))
             return
         }
         isOperating = true
@@ -4488,7 +4904,7 @@ final class WalletViewController: UIViewController {
         let generation = readGeneration
         let walletIdentity = ObjectIdentifier(wallet)
         let authorityGeneration = walletAuthorityGeneration
-        readStatusLabel.text = "Refreshing direct HNS state for the Shakedex query…"
+        readStatusLabel.text = WalletCopy.text("wallet_shakedex_queries_loading")
         refreshButtonStates()
         let keychain = keychain
         DispatchQueue.global(qos: .userInitiated).async { [wallet, keychain] in
@@ -4514,19 +4930,28 @@ final class WalletViewController: UIViewController {
                 self.refreshState()
                 switch outcome {
                 case .success(let result):
-                    self.readStatusLabel.text = "Shakedex query completed through the native wallet."
+                    self.readStatusLabel.text = WalletCopy.format(
+                        "wallet_shakedex_queries_result", result.displayJSON
+                    )
                     if case .listOffers = query {
                         do {
                             self.showShakedexOfferPicker(try result.offerPage())
                         } catch {
-                            self.readStatusLabel.text = "The authenticated offer page did not match the supported schema."
+                            self.readStatusLabel.text = WalletCopy.text(
+                                "wallet_shakedex_offer_page_invalid"
+                            )
                             self.showError(error)
                         }
                     } else {
-                        self.showNativeHnsResult(title: "Shakedex result", json: result.displayJSON)
+                        self.showNativeHnsResult(
+                            title: WalletCopy.text("row_wallet_shakedex_status"),
+                            json: result.displayJSON
+                        )
                     }
                 case .failure(let error):
-                    self.readStatusLabel.text = "Shakedex query failed. Synchronize before retrying."
+                    self.readStatusLabel.text = WalletCopy.text(
+                        "wallet_shakedex_queries_failed"
+                    )
                     self.showError(error)
                 }
                 self.refreshButtonStates()
@@ -4536,27 +4961,51 @@ final class WalletViewController: UIViewController {
 
     private func showShakedexOfferPicker(_ page: NativeShakedexOfferPage) {
         let detail = page.offers.isEmpty
-            ? "No authenticated Handshake name-sale offers are available at board revision \(page.boardRevision)."
-            : "Select one of \(page.offers.count) authenticated offers from board revision \(page.boardRevision) to prepare its exact native purchase review."
+            ? WalletCopy.format(
+                "wallet_shakedex_offer_page_empty", Int(page.boardRevision)
+            )
+            : WalletCopy.format(
+                "wallet_shakedex_offer_page_select",
+                page.offers.count,
+                Int(page.boardRevision)
+            )
         var actions = page.offers.map { offer in
             let expiry = DateFormatter.localizedString(
                 from: Date(timeIntervalSince1970: TimeInterval(offer.expiresAtUnix)),
                 dateStyle: .medium,
                 timeStyle: .medium
             )
-            let title = "\(offer.name)\nPrice \(WalletReadPresenter.formatHnsBaseUnits(offer.priceBaseUnits)) HNS · marketplace fee \(WalletReadPresenter.formatHnsBaseUnits(offer.marketplaceFeeBaseUnits)) HNS\nExpires \(expiry)"
-            return WalletMenuAction(title: title, section: "Available Name-Sale Offers") { [weak self] in
+            let title = WalletCopy.format(
+                "wallet_shakedex_offer_choice",
+                offer.name,
+                WalletReadPresenter.formatHnsBaseUnits(offer.priceBaseUnits),
+                WalletReadPresenter.formatHnsBaseUnits(
+                    offer.marketplaceFeeBaseUnits
+                ),
+                expiry
+            )
+            return WalletMenuAction(
+                title: title,
+                section: WalletCopy.text("wallet_shakedex_available_name_offers")
+            ) { [weak self] in
                 self?.showAcceptOfferForm(selectedOffer: offer)
             }
         }
         if let cursor = page.nextCursor {
-            actions.append(WalletMenuAction(title: "Load next authenticated page", section: "More Offers") { [weak self] in
+            actions.append(WalletMenuAction(title: WalletCopy.text("wallet_shakedex_next_offer_page"), section: WalletCopy.text("wallet_shakedex_more_offers")) { [weak self] in
                 self?.beginShakedexQuery(.listOffers(cursor: cursor, limit: 32))
             })
         }
         presentWalletMenu(
-            title: "Handshake name-sale offers",
-            rows: [WalletMenuRow(title: "Authenticated board", detail: detail)],
+            title: WalletCopy.text("wallet_shakedex_available_name_offers"),
+            rows: [WalletMenuRow(
+                title: WalletCopy.format(
+                    "wallet_shakedex_offer_page_summary",
+                    page.offers.count,
+                    Int(page.boardRevision)
+                ),
+                detail: detail
+            )],
             actions: actions,
             retainForChildActions: false
         )
@@ -4564,7 +5013,7 @@ final class WalletViewController: UIViewController {
 
     private func showNativeHnsResult(title: String, json: String) {
         let alert = UIAlertController(title: title, message: json, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Done", style: .cancel))
+        alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_action_done"), style: .cancel))
         walletPresentationHost.present(alert, animated: true)
     }
 
@@ -4584,14 +5033,14 @@ final class WalletViewController: UIViewController {
         recentActivityPageOffset = page.offset
         var actions: [WalletMenuAction] = []
         if page.hasPrevious {
-            actions.append(WalletMenuAction(title: "Previous") { [weak self] in
+            actions.append(WalletMenuAction(title: WalletCopy.text("action_previous_wallet_activity")) { [weak self] in
                 guard let self else { return }
                 self.recentActivityPageOffset -= page.pageSize
                 DispatchQueue.main.async { self.showWalletActivity() }
             })
         }
         if page.hasNext {
-            actions.append(WalletMenuAction(title: "Next") { [weak self] in
+            actions.append(WalletMenuAction(title: WalletCopy.text("action_next_wallet_activity")) { [weak self] in
                 guard let self else { return }
                 self.recentActivityPageOffset += page.pageSize
                 DispatchQueue.main.async { self.showWalletActivity() }
@@ -4617,13 +5066,13 @@ final class WalletViewController: UIViewController {
             WalletHnsSyncPresentationCache.canRequestCancellation(networkID: network.rawValue)
         if canStopSynchronization {
             actions.append(WalletMenuAction(
-                title: "Stop synchronization",
+                title: WalletCopy.text("action_stop_wallet_sync"),
                 style: .destructive
             ) { [weak self] in
                 self?.requestHnsSynchronizationCancellation()
             })
         } else if walletIsUnlocked {
-            actions.append(WalletMenuAction(title: "Lock") { [weak self] in
+            actions.append(WalletMenuAction(title: WalletCopy.text("action_lock_wallet")) { [weak self] in
                 self?.lockWallet()
             })
         } else if openButton.isEnabled {
@@ -4744,7 +5193,7 @@ final class WalletViewController: UIViewController {
             field.accessibilityLabel = WalletCopy.text("wallet_restore_birthday_hint")
             field.accessibilityIdentifier = "wallet.restore.birthday"
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_action_cancel"), style: .cancel) { [weak self] _ in
             self?.clearRestoreInput()
         })
         let submit: () -> Void = { [weak self, weak alert] in
@@ -4961,7 +5410,7 @@ final class WalletViewController: UIViewController {
                 }
             })
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_action_cancel"), style: .cancel) { [weak self] _ in
             self?.setRecoveryPhraseObscured(false)
         })
         walletPresentationHost.present(alert, animated: true)
@@ -5039,7 +5488,7 @@ final class WalletViewController: UIViewController {
                 message: "Keep this private. Anyone with these words can spend the wallet.\n\n\(text)",
                 preferredStyle: .alert
             )
-            alert.addAction(UIAlertAction(title: "Done", style: .cancel))
+            alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_action_done"), style: .cancel))
             walletPresentationHost.present(alert, animated: true)
         } catch {
             showError(error)
@@ -5195,9 +5644,13 @@ final class WalletViewController: UIViewController {
                         self.hnsCatchupRetryPending = false
                     }
                 case .cancelled:
-                    self.readStatusLabel.text = "HNS synchronization stopped. Existing synchronized balances remain available."
+                    self.readStatusLabel.text = WalletCopy.text(
+                        "wallet_reads_sync_stopped_checkpoint"
+                    )
                 case .failure(let detail):
-                    self.readStatusLabel.text = "HNS synchronization did not finish. The direct wallet was locked; unlock before retrying."
+                    self.readStatusLabel.text = WalletCopy.text(
+                        "wallet_reads_sync_failed"
+                    )
                     self.clearReadProjection()
                     if reportFailure { self.showErrorMessage(detail) }
                 }
@@ -5210,19 +5663,35 @@ final class WalletViewController: UIViewController {
     private func renderHnsCatchup(_ progress: NativeHnsCatchupProgress) {
         if progress.scannedHeight == nil,
            progress.headerTipHeight < progress.birthdayHeight {
-            readStatusLabel.text = "Verified headers are at height \(progress.headerTipHeight), catching up to wallet birthday \(progress.birthdayHeight). Wallet scanning has not started."
+            readStatusLabel.text = WalletCopy.format(
+                "wallet_reads_catching_up_before_birthday",
+                Int(progress.headerTipHeight),
+                Int(progress.birthdayHeight)
+            )
             return
         }
         let scanned = progress.scannedHeight ?? progress.birthdayHeight
         switch progress.headerState {
         case .current:
-            readStatusLabel.text = "Verified headers reached \(progress.headerTipHeight). Wallet scan checkpoint \(scanned) of \(progress.targetHeight); continuing automatically."
+            readStatusLabel.text = WalletCopy.format(
+                "wallet_reads_catching_up_scan",
+                Int(scanned),
+                Int(progress.targetHeight)
+            )
         case .syncing:
-            readStatusLabel.text = "Verifying direct peer headers at \(progress.headerTipHeight). Wallet scan checkpoint \(scanned) of \(progress.targetHeight); continuing automatically."
+            readStatusLabel.text = WalletCopy.format(
+                "wallet_reads_catching_up_headers",
+                Int(progress.headerTipHeight),
+                Int(scanned),
+                Int(progress.targetHeight)
+            )
         case .degraded:
-            readStatusLabel.text = "Direct peers checkpointed at verified height \(progress.headerTipHeight). Retrying from the durable checkpoint."
+            readStatusLabel.text = WalletCopy.format(
+                "wallet_reads_catching_up_degraded",
+                Int(progress.headerTipHeight)
+            )
         case .outboundPortBlocked:
-            readStatusLabel.text = "The current network appears to block outbound TCP port 12038. Handshake synchronization cannot reach public peers. Try another network or a VPN/exit node, then synchronize again."
+            readStatusLabel.text = WalletCopy.text("wallet_reads_outbound_12038_blocked")
         }
     }
 
@@ -5367,32 +5836,34 @@ final class WalletViewController: UIViewController {
         guard walletCanPresentChild,
               let expected = current.authority,
               walletNameImportMayStart(expected: expected, current: current) else {
-            nameImportStatusLabel.text =
-                "Exact-name tracking requires the current reopened, unlocked, read-configured wallet in protected foreground access."
+            nameImportStatusLabel.text = WalletCopy.text(
+                "wallet_name_import_waiting_for_wallet"
+            )
             return
         }
 
         let form = presentWalletForm(
-            title: "Track exact HNS name",
-            message: "Enter one Handshake name in its Unicode or canonical ASCII spelling. Unicode is converted to the exact on-chain A-label; spaces and trailing dots are not accepted.",
+            title: WalletCopy.text("row_wallet_name_import"),
+            message: WalletCopy.text("wallet_name_import_ready"),
             fields: [WalletSheetFormField(
-                label: "Handshake name",
-                placeholder: "exact-name",
+                label: WalletCopy.text("wallet_name_import_hint"),
+                placeholder: WalletCopy.text("wallet_name_import_hint"),
                 accessibilityIdentifier: "wallet.import-hns-name.text",
                 configure: { [weak self] field in
                     configureWalletNameImportTextField(field)
                     self?.walletNameImportField = field
                 }
             )],
-            primaryTitle: "Track name"
+            primaryTitle: WalletCopy.text("action_import_wallet_name")
         ) { [weak self] values in
             let canonical = values.first.flatMap(canonicalHandshakeNameImportText)
             let input = WalletExactHnsNameInput(exactText: canonical)
             guard let self else { return }
             self.clearWalletNameImportPrompt(dismiss: false)
             guard let input else {
-                self.nameImportStatusLabel.text =
-                    "Enter one valid Unicode or canonical ASCII HNS name. Spaces and trailing dots are not accepted."
+                self.nameImportStatusLabel.text = WalletCopy.text(
+                    "wallet_name_import_invalid"
+                )
                 return
             }
             let rechecked = self.currentWalletNameImportState()
@@ -5400,8 +5871,9 @@ final class WalletViewController: UIViewController {
                 expected: expected,
                 current: rechecked
             ) else {
-                self.nameImportStatusLabel.text =
-                    "Wallet authority changed while the prompt was open. No name was tracked."
+                self.nameImportStatusLabel.text = WalletCopy.text(
+                    "wallet_action_busy"
+                )
                 return
             }
             self.beginExactHnsNameImport(input: input, authority: expected)
@@ -5417,15 +5889,15 @@ final class WalletViewController: UIViewController {
         guard walletNameImportMayStart(expected: authority, current: current),
               let wallet,
               let lease = storageLease else {
-            nameImportStatusLabel.text =
-                "Wallet authority changed before name tracking began. No name was tracked."
+            nameImportStatusLabel.text = WalletCopy.text("wallet_action_busy")
             return
         }
         isOperating = true
         readGeneration &+= 1
         let generation = readGeneration
-        nameImportStatusLabel.text =
-            "Tracking one exact HNS name and refreshing synchronized wallet rows…"
+        nameImportStatusLabel.text = WalletCopy.text(
+            "wallet_name_import_importing"
+        )
         refreshButtonStates()
         let keychain = keychain
 
@@ -5486,22 +5958,28 @@ final class WalletViewController: UIViewController {
                 switch outcome {
                 case .success(let summary, let snapshot):
                     self.publish(snapshot)
-                    self.nameImportStatusLabel.text =
-                        "Imported and refreshed:\n\(WalletReadPresenter.presentName(summary))"
-                case .successRefreshFailed(let detail):
+                    self.nameImportStatusLabel.text = WalletCopy.format(
+                        "wallet_name_import_success",
+                        WalletReadPresenter.presentName(summary)
+                    )
+                case .successRefreshFailed:
                     self.refreshState()
-                    self.readStatusLabel.text =
-                        "The required post-import refresh failed closed. Reopen and unlock before retrying."
+                    self.readStatusLabel.text = WalletCopy.text(
+                        "wallet_name_import_success_refresh_failed"
+                    )
                     self.clearReadProjection()
-                    self.nameImportStatusLabel.text =
-                        "The import result could not be confirmed in fresh wallet rows. The wallet was locked and no imported row was published. \(detail)"
+                    self.nameImportStatusLabel.text = WalletCopy.text(
+                        "wallet_name_import_success_refresh_failed"
+                    )
                 case .invalidInput:
-                    self.nameImportStatusLabel.text =
-                        "The exact text is not one canonical Handshake name. Nothing was imported and the wallet remains usable."
-                case .failure(let detail):
+                    self.nameImportStatusLabel.text = WalletCopy.text(
+                        "wallet_name_import_invalid"
+                    )
+                case .failure:
                     self.refreshState()
-                    self.nameImportStatusLabel.text =
-                        "Name import failed closed. Reopen and unlock the wallet before retrying. \(detail)"
+                    self.nameImportStatusLabel.text = WalletCopy.text(
+                        "wallet_name_import_failed"
+                    )
                 }
                 self.refreshButtonStates()
             }
@@ -5513,8 +5991,9 @@ final class WalletViewController: UIViewController {
         guard walletCanPresentChild,
               let expected = current.authority,
               walletNameImportMayStart(expected: expected, current: current) else {
-            nameImportStatusLabel.text =
-                "Multiple-name import requires the current reopened, unlocked, read-configured wallet in protected foreground access."
+            nameImportStatusLabel.text = WalletCopy.text(
+                "wallet_name_import_waiting_for_wallet"
+            )
             return
         }
         let editor = WalletMultipleNameImportEditorViewController { [weak self] names in
@@ -5530,16 +6009,16 @@ final class WalletViewController: UIViewController {
         guard walletCanPresentChild else { return }
         let current = currentWalletNameImportState()
         guard walletNameImportMayStart(expected: authority, current: current) else {
-            nameImportStatusLabel.text =
-                "Wallet authority changed before the import review. No names were imported."
+            nameImportStatusLabel.text = WalletCopy.text("wallet_action_busy")
             return
         }
         let review = WalletMultipleNameImportReviewViewController(names: names) { [weak self] in
             guard let self else { return }
             let rechecked = self.currentWalletNameImportState()
             guard walletNameImportMayStart(expected: authority, current: rechecked) else {
-                self.nameImportStatusLabel.text =
-                    "Wallet authority changed while the review was open. No names were imported."
+                self.nameImportStatusLabel.text = WalletCopy.text(
+                    "wallet_action_busy"
+                )
                 return
             }
             self.beginMultipleHnsNameImport(names: names, authority: authority)
@@ -5555,15 +6034,15 @@ final class WalletViewController: UIViewController {
         guard walletNameImportMayStart(expected: authority, current: current),
               let wallet,
               let lease = storageLease else {
-            nameImportStatusLabel.text =
-                "Wallet authority changed before multiple-name import began. No names were imported."
+            nameImportStatusLabel.text = WalletCopy.text("wallet_action_busy")
             return
         }
         isOperating = true
         readGeneration &+= 1
         let generation = readGeneration
-        nameImportStatusLabel.text =
-            "Importing \(names.count) exact HNS names atomically and refreshing synchronized wallet rows…"
+        nameImportStatusLabel.text = WalletCopy.format(
+            "wallet_name_bulk_import_importing", names.count
+        )
         refreshButtonStates()
         let keychain = keychain
 
@@ -5622,22 +6101,27 @@ final class WalletViewController: UIViewController {
                 switch outcome {
                 case .success(let count, let snapshot):
                     self.publish(snapshot)
-                    self.nameImportStatusLabel.text =
-                        "Imported and refreshed \(count) exact HNS names."
-                case .successRefreshFailed(let detail):
+                    self.nameImportStatusLabel.text = WalletCopy.format(
+                        "wallet_name_bulk_import_success", count
+                    )
+                case .successRefreshFailed:
                     self.refreshState()
-                    self.readStatusLabel.text =
-                        "The required post-import refresh failed closed. Reopen and unlock before retrying."
+                    self.readStatusLabel.text = WalletCopy.format(
+                        "wallet_name_bulk_import_refresh_pending", names.count
+                    )
                     self.clearReadProjection()
-                    self.nameImportStatusLabel.text =
-                        "The bulk import result could not be confirmed in fresh wallet rows. The wallet was locked and no imported rows were published. \(detail)"
+                    self.nameImportStatusLabel.text = WalletCopy.format(
+                        "wallet_name_bulk_import_refresh_pending", names.count
+                    )
                 case .invalidInput:
-                    self.nameImportStatusLabel.text =
-                        "The reviewed text is not a unique list of canonical Handshake names. Nothing was imported and the wallet remains usable."
-                case .failure(let detail):
+                    self.nameImportStatusLabel.text = WalletCopy.text(
+                        "wallet_name_multiple_import_invalid"
+                    )
+                case .failure:
                     self.refreshState()
-                    self.nameImportStatusLabel.text =
-                        "Multiple-name import failed closed. Reopen and unlock the wallet before retrying. \(detail)"
+                    self.nameImportStatusLabel.text = WalletCopy.text(
+                        "wallet_name_import_failed"
+                    )
                 }
                 self.refreshButtonStates()
             }
@@ -5655,16 +6139,20 @@ final class WalletViewController: UIViewController {
         do {
             let authority = try currentConfirmedDeletionAuthority()
             let alert = UIAlertController(
-                title: "Delete \(network.title) wallet?",
-                message: """
-                \(walletDeletionIdentitySummary(authority))
-
-                This permanently deletes this device's confirmed wallet, including its protected recovery-phrase copy. Without a separately saved recovery phrase, the wallet cannot be recovered. This action is irreversible.
-                """,
+                title: WalletCopy.text("wallet_delete_first_title"),
+                message: WalletCopy.format(
+                    "wallet_delete_first_message",
+                    authority.network.title,
+                    authority.network.rawValue,
+                    authority.accountID
+                ),
                 preferredStyle: .alert
             )
-            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-            alert.addAction(UIAlertAction(title: "Continue", style: .destructive) { [weak self] _ in
+            alert.addAction(UIAlertAction(
+                title: WalletCopy.text("wallet_action_cancel"),
+                style: .cancel
+            ))
+            alert.addAction(UIAlertAction(title: WalletCopy.text("action_continue_wallet_deletion"), style: .destructive) { [weak self] _ in
                 self?.presentTypedDeletionConfirmation(expected: authority)
             })
             walletPresentationHost.present(alert, animated: true)
@@ -5675,17 +6163,13 @@ final class WalletViewController: UIViewController {
 
     private func requestHnsSynchronizationCancellation() {
         let alert = UIAlertController(
-            title: "Stop synchronization?",
-            message: """
-            Stop the active HNS synchronization now? No additional synchronization batch will start. An atomic peer or database operation already in progress will unwind without discarding the last completed durable checkpoint. No wallet data will be deleted.
-
-            After the old controller releases protected storage, the normal wallet controls will return automatically. You can unlock, synchronize again, or delete the wallet normally.
-            """,
+            title: WalletCopy.text("wallet_stop_sync_title"),
+            message: WalletCopy.text("wallet_stop_sync_message"),
             preferredStyle: .alert
         )
-        alert.addAction(UIAlertAction(title: "Keep synchronizing", style: .cancel))
+        alert.addAction(UIAlertAction(title: WalletCopy.text("action_keep_synchronizing"), style: .cancel))
         alert.addAction(UIAlertAction(
-            title: "Stop sync",
+            title: WalletCopy.text("action_stop_sync"),
             style: .destructive
         ) { [weak self] _ in
             guard let self else { return }
@@ -5695,8 +6179,9 @@ final class WalletViewController: UIViewController {
                 WalletHnsSyncPresentationCache.pauseAutomaticSync(
                     networkID: self.network.rawValue
                 )
-                self.readStatusLabel.text =
-                    "HNS synchronization stopped at the last durable checkpoint."
+                self.readStatusLabel.text = WalletCopy.text(
+                    "wallet_reads_sync_stopped_checkpoint"
+                )
             } else {
                 WalletHnsSyncPresentationCache.requestCancellation(
                     networkID: self.network.rawValue
@@ -5718,12 +6203,13 @@ final class WalletViewController: UIViewController {
         }
 
         let alert = UIAlertController(
-            title: "Type DELETE to confirm",
-            message: """
-            \(walletDeletionIdentitySummary(authority))
-
-            Deletion is irreversible and erases the protected recovery-phrase copy on this device. Type DELETE exactly to continue.
-            """,
+            title: WalletCopy.text("wallet_delete_typed_title"),
+            message: WalletCopy.format(
+                "wallet_delete_typed_message",
+                authority.network.title,
+                authority.network.rawValue,
+                authority.accountID
+            ),
             preferredStyle: .alert
         )
         alert.addTextField { field in
@@ -5734,17 +6220,19 @@ final class WalletViewController: UIViewController {
             field.textContentType = nil
             field.accessibilityIdentifier = "wallet.delete-confirmation"
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak alert] _ in
+        alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_action_cancel"), style: .cancel) { [weak alert] _ in
             alert?.textFields?.first?.text = nil
         })
         alert.addAction(UIAlertAction(
-            title: "Delete forever",
+            title: WalletCopy.text("row_wallet_delete"),
             style: .destructive
         ) { [weak self, weak alert] _ in
             let typedValue = alert?.textFields?.first?.text
             alert?.textFields?.first?.text = nil
             guard walletDeletionConfirmationMatches(typedValue) else {
-                self?.showErrorMessage("Type DELETE exactly. The wallet was not deleted.")
+                self?.showErrorMessage(
+                    WalletCopy.text("wallet_delete_type_delete_error")
+                )
                 return
             }
             guard let self else { return }
@@ -5779,14 +6267,16 @@ final class WalletViewController: UIViewController {
               let wallet else {
             throw WalletProviderError(
                 code: "walletDeletionUnavailable",
-                message: "Only the current protected foreground owner can delete a confirmed wallet."
+                message: WalletCopy.text(
+                    "wallet_delete_requires_unlocked_confirmed_wallet"
+                )
             )
         }
         guard FileManager.default.fileExists(atPath: path),
               try keychain.hasDatabaseKey() else {
             throw WalletProviderError(
                 code: "walletDeletionStorageMismatch",
-                message: "Confirmed wallet storage is incomplete. Reopen the wallet screen to reconcile it before retrying."
+                message: WalletCopy.text("wallet_status_delete_cleanup_pending")
             )
         }
 
@@ -5801,7 +6291,9 @@ final class WalletViewController: UIViewController {
               status.activeWallet?.isEmpty == false else {
             throw WalletProviderError(
                 code: "walletDeletionLocked",
-                message: "Unlock the local Handshake wallet before deleting it."
+                message: WalletCopy.text(
+                    "wallet_delete_requires_unlocked_confirmed_wallet"
+                )
             )
         }
         let accounts = try wallet.accounts()
@@ -5834,7 +6326,7 @@ final class WalletViewController: UIViewController {
            ) {
             throw WalletProviderError(
                 code: "walletDeletionAuthorityChanged",
-                message: "Wallet ownership changed during confirmation. The wallet was not deleted."
+                message: WalletCopy.text("wallet_delete_context_changed")
             )
         }
         return current
@@ -5858,7 +6350,7 @@ final class WalletViewController: UIViewController {
               !retirementInFlight,
               !Self.screenCaptureProtectionActive,
               WalletStorageLeaseRegistry.isCurrent(authority.lease) else {
-            showErrorMessage("Wallet ownership changed. The wallet was not deleted.")
+            showErrorMessage(WalletCopy.text("wallet_delete_context_changed"))
             return
         }
 
@@ -5930,13 +6422,21 @@ final class WalletViewController: UIViewController {
             case .deleted:
                 break
             case .controllerCloseFailed:
-                self.showErrorMessage("The native wallet could not be retired, so its key and files were not deleted. Reopen the wallet screen before retrying.")
+                self.showErrorMessage(
+                    WalletCopy.text("wallet_status_delete_close_failed")
+                )
             case .keyDeletionFailed:
-                self.showErrorMessage("The wallet key could not be deleted, so no wallet files were removed. Unlock and retry deletion.")
+                self.showErrorMessage(
+                    WalletCopy.text("wallet_status_delete_key_failed")
+                )
             case .authorityRevoked:
-                self.showErrorMessage("Wallet ownership changed before deletion. No wallet key or files were removed.")
+                self.showErrorMessage(
+                    WalletCopy.text("wallet_delete_context_changed")
+                )
             case .encryptedOrphanCleanupPending where encryptedOrphanRemains:
-                self.showErrorMessage("The wallet key was deleted, but encrypted wallet files still need cleanup. Use Refresh status or return to this screen to retry.")
+                self.showErrorMessage(
+                    WalletCopy.text("wallet_status_delete_cleanup_pending")
+                )
             case .encryptedOrphanCleanupPending:
                 break
             }
@@ -5977,18 +6477,34 @@ final class WalletViewController: UIViewController {
         if swapReserved > 0 {
             let spendable = UInt64(balance.spendableBaseUnits) ?? 0
             let available = spendable >= swapReserved ? spendable - swapReserved : 0
-            var balanceLines = [
-                WalletCopy.format("wallet_reads_balance_confirmed",
-                    WalletReadPresenter.formatHnsBaseUnits(balance.spendableBaseUnits)
-                ),
-                "\(WalletReadPresenter.formatHnsBaseUnits(String(swapReserved))) HNS reserved by active or unfunded swap commitments",
-                "\(WalletReadPresenter.formatHnsBaseUnits(String(available))) HNS available after swap reservations",
-            ]
+            var balanceLines = [WalletCopy.format(
+                "wallet_reads_swap_reserved",
+                WalletReadPresenter.formatHnsBaseUnits(String(swapReserved)),
+                WalletReadPresenter.formatHnsBaseUnits(String(available))
+            )]
             if balance.hasPendingOutgoing {
-                balanceLines.append(
-                    "\(WalletReadPresenter.formatHnsBaseUnits(balance.pendingOutgoingBaseUnits)) HNS pending outgoing"
+                balanceLines.insert(
+                    WalletCopy.format(
+                        "wallet_reads_balance_confirmed_with_pending",
+                        WalletReadPresenter.formatHnsBaseUnits(
+                            balance.spendableBaseUnits
+                        ),
+                        WalletReadPresenter.formatHnsBaseUnits(
+                            balance.pendingOutgoingBaseUnits
+                        )
+                    ),
+                    at: 0
                 )
-                balanceLines.append("Transaction Pending, please wait.")
+            } else {
+                balanceLines.insert(
+                    WalletCopy.format(
+                        "wallet_reads_balance_confirmed",
+                        WalletReadPresenter.formatHnsBaseUnits(
+                            balance.spendableBaseUnits
+                        )
+                    ),
+                    at: 0
+                )
             }
             balanceLabel.text = balanceLines.joined(separator: "\n")
         } else {
@@ -6034,7 +6550,7 @@ final class WalletViewController: UIViewController {
         let walletIdentity = ObjectIdentifier(wallet)
         let authorityGeneration = walletAuthorityGeneration
         readStatusLabel.text =
-            "Preparing the tracked pre-upgrade name purchase for its one final approval…"
+            WalletCopy.text("wallet_finalize_notice_preparing_legacy")
         refreshButtonStates()
 
         DispatchQueue.global(qos: .userInitiated).async { [wallet] in
@@ -6239,8 +6755,8 @@ final class WalletViewController: UIViewController {
         historyLabel.text = "Transaction history: unavailable."
         namesLabel.text = "Tracked names: unavailable."
         if pendingOutgoingSnapshotHeight != nil {
-            readStatusLabel.text = "Transaction pending. Synchronize after a new Handshake block so Shakescape can settle the outgoing transaction."
-            balanceLabel.text = "Transaction pending. The synchronized balance will return after the outgoing transaction is settled."
+            readStatusLabel.text = WalletCopy.text("wallet_pending_outgoing_recovery")
+            balanceLabel.text = WalletCopy.text("wallet_pending_outgoing_balance_unavailable")
         }
     }
 
@@ -6740,17 +7256,17 @@ final class WalletViewController: UIViewController {
         )
         switch (hnsCatchupRetryPending, syncPresentation) {
         case (true, _):
-            deleteButton.configuration?.title = "Stop synchronization"
+            deleteButton.configuration?.title = WalletCopy.text("action_stop_wallet_sync")
         case (false, .some(.preparing)) where canStopSynchronization:
-            deleteButton.configuration?.title = "Stop synchronization"
+            deleteButton.configuration?.title = WalletCopy.text("action_stop_wallet_sync")
         case (false, .some(.live(_))) where canStopSynchronization:
-            deleteButton.configuration?.title = "Stop synchronization"
+            deleteButton.configuration?.title = WalletCopy.text("action_stop_wallet_sync")
         case (false, .some(.cancelling)):
             deleteButton.configuration?.title = "Stopping synchronization…"
         case (false, .some(.terminal)):
             deleteButton.configuration?.title = "Waiting for wallet protection…"
         default:
-            deleteButton.configuration?.title = "Delete confirmed wallet"
+            deleteButton.configuration?.title = WalletCopy.text("row_wallet_delete")
         }
         deleteButton.isEnabled = canStopSynchronization || (ownsStorage &&
             protectedStorageIsAvailable &&
@@ -7639,7 +8155,7 @@ private final class WalletFormViewController: UIViewController {
         submit.addAction(UIAction { [weak self] _ in self?.submit() }, for: .touchUpInside)
         content.addArrangedSubview(submit)
 
-        let cancel = button(title: "Cancel", style: .standard, emphasized: false)
+        let cancel = button(title: WalletCopy.text("wallet_action_cancel"), style: .standard, emphasized: false)
         cancel.addAction(UIAction { [weak self] _ in self?.cancel() }, for: .touchUpInside)
         content.addArrangedSubview(cancel)
 
@@ -7834,19 +8350,30 @@ enum WalletReadPresenter {
         let page = transactions.dropFirst(offset).prefix(pageSize)
         let text: String
         if page.isEmpty {
-            text = "No wallet transactions were found in the synchronized snapshot."
+            text = WalletCopy.text("wallet_reads_history_empty")
         } else {
             let entries = page.map { transaction in
                 let chainPosition = transaction.blockHeight.map {
-                    "Block \($0) · \(transaction.confirmationCount) confirmations"
-                } ?? "Unconfirmed"
-                return [
-                    "\(transactionStatusLabel(transaction.status)) · \(displayAmount(transaction))",
+                    WalletCopy.format(
+                        "wallet_reads_transaction_confirmed",
+                        Int($0),
+                        Int(transaction.confirmationCount)
+                    )
+                } ?? WalletCopy.text("wallet_reads_transaction_unconfirmed")
+                return WalletCopy.format(
+                    "wallet_reads_transaction",
+                    transactionStatusLabel(transaction.status),
+                    displayAmount(transaction),
                     lowerHex(transaction.txid),
-                    chainPosition,
-                ].joined(separator: "\n")
+                    chainPosition
+                )
             }.joined(separator: "\n\n")
-            text = "Showing activity \(offset + 1)–\(offset + page.count) of \(transactions.count).\n\n\(entries)"
+            text = WalletCopy.format(
+                "wallet_activity_page_position",
+                offset + 1,
+                offset + page.count,
+                transactions.count
+            ) + "\n\n" + entries
         }
         return WalletTransactionPagePresentation(
             text: text,
@@ -7867,17 +8394,23 @@ enum WalletReadPresenter {
 
         let history: String
         if transactions.isEmpty {
-            history = "No wallet transactions were found in the synchronized snapshot."
+            history = WalletCopy.text("wallet_reads_history_empty")
         } else {
             let entries = transactions.map { transaction in
                 let chainPosition = transaction.blockHeight.map {
-                    "Block \($0) · \(transaction.confirmationCount) confirmations"
-                } ?? "Unconfirmed"
-                return [
-                    "\(transactionStatusLabel(transaction.status)) · \(displayAmount(transaction))",
+                    WalletCopy.format(
+                        "wallet_reads_transaction_confirmed",
+                        Int($0),
+                        Int(transaction.confirmationCount)
+                    )
+                } ?? WalletCopy.text("wallet_reads_transaction_unconfirmed")
+                return WalletCopy.format(
+                    "wallet_reads_transaction",
+                    transactionStatusLabel(transaction.status),
+                    displayAmount(transaction),
                     lowerHex(transaction.txid),
-                    chainPosition,
-                ].joined(separator: "\n")
+                    chainPosition
+                )
             }.joined(separator: "\n\n")
             history = appendRemainingCount(
                 entries,
@@ -7887,7 +8420,7 @@ enum WalletReadPresenter {
 
         let trackedNames: String
         if names.isEmpty {
-            trackedNames = "No names are tracked by this wallet yet."
+            trackedNames = WalletCopy.text("wallet_reads_names_empty")
         } else {
             let entries = names.map { presentName($0) }.joined(separator: "\n\n")
             trackedNames = appendRemainingCount(
@@ -7899,13 +8432,11 @@ enum WalletReadPresenter {
         let balance = WalletHnsBalancePresenter.present(snapshot)
         let balanceText: String
         if balance.hasPendingOutgoing {
-            balanceText = [
-                WalletCopy.format("wallet_reads_balance_confirmed",
-                    formatHnsBaseUnits(balance.spendableBaseUnits)
-                ),
-                "\(formatHnsBaseUnits(balance.pendingOutgoingBaseUnits)) HNS pending outgoing",
-                "Transaction Pending, please wait.",
-            ].joined(separator: "\n")
+            balanceText = WalletCopy.format(
+                "wallet_reads_balance_confirmed_with_pending",
+                formatHnsBaseUnits(balance.spendableBaseUnits),
+                formatHnsBaseUnits(balance.pendingOutgoingBaseUnits)
+            )
         } else {
             balanceText = WalletCopy.format("wallet_reads_balance_confirmed",
                 formatHnsBaseUnits(balance.spendableBaseUnits)
@@ -7972,13 +8503,19 @@ enum WalletReadPresenter {
             codeLabel(name.resourceStatus),
         ]
         if let registered = name.registered {
-            states.append(registered ? "registered" : "not registered")
+            states.append(WalletCopy.text(
+                registered
+                    ? "wallet_reads_name_registered"
+                    : "wallet_reads_name_not_registered"
+            ))
         }
-        return [
-            "\(displayHandshakeNameText(name.name)) · proof height \(name.proofHeight)",
+        return WalletCopy.format(
+            "wallet_reads_name",
+            displayHandshakeNameText(name.name),
+            Int(name.proofHeight),
             states.joined(separator: " · "),
-            name.nameHash,
-        ].joined(separator: "\n")
+            name.nameHash
+        )
     }
 
     private static func displayAmount(_ transaction: NativeHnsReadSnapshot.Transaction) -> String {
@@ -7992,7 +8529,7 @@ enum WalletReadPresenter {
 
     private static func appendRemainingCount(_ entries: String, remaining: Int) -> String {
         guard remaining > 0 else { return entries }
-        return "\(entries)\n\n\(remaining) more items are present in this synchronized snapshot."
+        return entries + "\n\n" + WalletCopy.format("wallet_reads_more", remaining)
     }
 }
 
@@ -8710,7 +9247,7 @@ private final class NameRecordsEditorViewController: UIViewController, UITextVie
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Set records"
+        title = WalletCopy.text("row_wallet_set_records")
         view.backgroundColor = .systemGroupedBackground
         navigationItem.leftBarButtonItem = UIBarButtonItem(
             barButtonSystemItem: .cancel,
@@ -8718,15 +9255,23 @@ private final class NameRecordsEditorViewController: UIViewController, UITextVie
             action: #selector(cancel)
         )
         navigationItem.rightBarButtonItem = UIBarButtonItem(
-            title: "Review",
+            title: WalletCopy.text("wallet_action_review_transaction"),
             style: .done,
             target: self,
             action: #selector(review)
         )
 
-        configure(nameField, placeholder: "Exact name", keyboard: .asciiCapable)
+        configure(
+            nameField,
+            placeholder: WalletCopy.text("wallet_action_name_hint"),
+            keyboard: .asciiCapable
+        )
         nameField.accessibilityIdentifier = "wallet.name-records.name"
-        configure(feeField, placeholder: "Maximum fee cap in HNS", keyboard: .decimalPad)
+        configure(
+            feeField,
+            placeholder: WalletCopy.text("wallet_action_maximum_fee_hint"),
+            keyboard: .decimalPad
+        )
         feeField.text = defaultHnsMaximumFee
         feeField.accessibilityIdentifier = "wallet.name-records.maximum-fee"
 
@@ -8747,23 +9292,15 @@ private final class NameRecordsEditorViewController: UIViewController, UITextVie
         recordsView.layer.borderWidth = 1
         recordsView.layer.cornerRadius = 8
         recordsView.accessibilityIdentifier = "wallet.name-records.records"
-        recordsView.accessibilityLabel = "Raw Handshake resource records"
+        recordsView.accessibilityLabel = WalletCopy.text(
+            "wallet_action_resource_records_hint"
+        )
 
         let instructions = UILabel()
         instructions.numberOfLines = 0
         instructions.font = .preferredFont(forTextStyle: .footnote)
         instructions.textColor = .secondaryLabel
-        instructions.text = """
-        Enter one record per line. Supported forms:
-        NS ns1.example.
-        GLUE4 ns1.example. 192.0.2.1
-        GLUE6 ns1.example. 2001:db8::1
-        SYNTH4 192.0.2.2   or   SYNTH6 2001:db8::2
-        DS 12345 8 2 a1b2…
-        TXT "text with spaces"
-
-        Blank lines and lines beginning with # are ignored. Leave the records empty to clear the resource. Advanced users may enter hex: followed by the exact encoded resource bytes.
-        """
+        instructions.text = WalletCopy.text("wallet_action_resource_records_hint")
 
         characterCountLabel.font = .preferredFont(forTextStyle: .caption1)
         characterCountLabel.textColor = .secondaryLabel
@@ -8771,9 +9308,10 @@ private final class NameRecordsEditorViewController: UIViewController, UITextVie
         updateCharacterCount()
 
         let stack = UIStackView(arrangedSubviews: [
-            fieldLabel("Name"), nameField,
-            fieldLabel("Resource records"), instructions, recordsView, characterCountLabel,
-            fieldLabel("Fee limit"), feeField,
+            fieldLabel(WalletCopy.text("wallet_action_name_hint")), nameField,
+            fieldLabel(WalletCopy.text("wallet_action_resource_records_hint")),
+            instructions, recordsView, characterCountLabel,
+            fieldLabel(WalletCopy.text("wallet_action_maximum_fee_hint")), feeField,
         ])
         stack.axis = .vertical
         stack.spacing = 10
@@ -8863,11 +9401,14 @@ private final class NameRecordsEditorViewController: UIViewController, UITextVie
         let fee = feeField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !name.isEmpty, !fee.isEmpty else {
             let alert = UIAlertController(
-                title: "Missing fields",
-                message: "Enter the exact name and a maximum fee. Records may be empty when you intend to clear them.",
+                title: WalletCopy.text("row_wallet_set_records"),
+                message: WalletCopy.text("wallet_value_actions_invalid"),
                 preferredStyle: .alert
             )
-            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            alert.addAction(UIAlertAction(
+                title: WalletCopy.text("wallet_action_ok"),
+                style: .default
+            ))
             present(alert, animated: true)
             return
         }
@@ -8899,7 +9440,7 @@ private final class WalletMultipleNameImportEditorViewController: UIViewControll
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Import multiple names"
+        title = WalletCopy.text("action_import_multiple_wallet_names")
         view.backgroundColor = .systemGroupedBackground
         navigationItem.leftBarButtonItem = UIBarButtonItem(
             barButtonSystemItem: .cancel,
@@ -8907,7 +9448,7 @@ private final class WalletMultipleNameImportEditorViewController: UIViewControll
             action: #selector(cancel)
         )
         navigationItem.rightBarButtonItem = UIBarButtonItem(
-            title: "Review",
+            title: WalletCopy.text("action_review_wallet_names"),
             style: .done,
             target: self,
             action: #selector(review)
@@ -8916,8 +9457,7 @@ private final class WalletMultipleNameImportEditorViewController: UIViewControll
         let instructions = UILabel()
         instructions.numberOfLines = 0
         instructions.font = .preferredFont(forTextStyle: .body)
-        instructions.text =
-            "Enter Unicode or canonical ASCII Handshake names separated by spaces only. Up to 10,000 unique on-chain names may be imported at once. Commas, tabs, line breaks, trailing dots, and duplicate identities are rejected."
+        instructions.text = WalletCopy.text("wallet_name_multiple_import_hint")
 
         namesView.delegate = self
         namesView.font = AppAccessibility.scaledMonospacedFont(
@@ -8937,7 +9477,7 @@ private final class WalletMultipleNameImportEditorViewController: UIViewControll
         namesView.layer.borderWidth = 1
         namesView.layer.cornerRadius = 8
         namesView.accessibilityIdentifier = "wallet.import-multiple-hns-names.text"
-        namesView.accessibilityLabel = "Space-separated Handshake names"
+        namesView.accessibilityLabel = WalletCopy.text("wallet_name_multiple_import_hint")
 
         characterCountLabel.font = .preferredFont(forTextStyle: .caption1)
         characterCountLabel.textColor = .secondaryLabel
@@ -8996,11 +9536,14 @@ private final class WalletMultipleNameImportEditorViewController: UIViewControll
     @objc private func review() {
         guard let names = parseSpaceSeparatedWalletNames(namesView.text ?? "") else {
             let alert = UIAlertController(
-                title: "Check the name list",
-                message: "Use 1–10,000 unique Unicode or canonical ASCII Handshake names separated by ASCII spaces only. Each name must convert to one on-chain label of at most 63 bytes.",
+                title: WalletCopy.text("wallet_name_multiple_import_review_title"),
+                message: WalletCopy.text("wallet_name_multiple_import_invalid"),
                 preferredStyle: .alert
             )
-            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            alert.addAction(UIAlertAction(
+                title: WalletCopy.text("wallet_action_ok"),
+                style: .default
+            ))
             present(alert, animated: true)
             return
         }
@@ -9030,7 +9573,7 @@ private final class WalletMultipleNameImportReviewViewController: UIViewControll
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Review \(names.count) names"
+        title = WalletCopy.text("wallet_name_multiple_import_review_title")
         view.backgroundColor = .systemGroupedBackground
         navigationItem.leftBarButtonItem = UIBarButtonItem(
             barButtonSystemItem: .cancel,
@@ -9038,7 +9581,7 @@ private final class WalletMultipleNameImportReviewViewController: UIViewControll
             action: #selector(cancel)
         )
         navigationItem.rightBarButtonItem = UIBarButtonItem(
-            title: "Import",
+            title: WalletCopy.text("action_import_multiple_wallet_names"),
             style: .done,
             target: self,
             action: #selector(confirmImport)
@@ -9047,8 +9590,10 @@ private final class WalletMultipleNameImportReviewViewController: UIViewControll
         let summary = UILabel()
         summary.numberOfLines = 0
         summary.font = .preferredFont(forTextStyle: .body)
-        summary.text =
-            "Confirm the complete list below. All \(names.count) names will be imported atomically; if any name cannot be validated, none are added."
+        summary.text = WalletCopy.format(
+            "wallet_name_multiple_import_review_message",
+            names.count
+        )
 
         let list = UITextView()
         list.isEditable = false
@@ -9066,7 +9611,9 @@ private final class WalletMultipleNameImportReviewViewController: UIViewControll
         list.layer.borderWidth = 1
         list.layer.cornerRadius = 8
         list.accessibilityIdentifier = "wallet.import-multiple-hns-names.review"
-        list.accessibilityLabel = "Complete list of \(names.count) Handshake names to import"
+        list.accessibilityLabel = WalletCopy.text(
+            "wallet_name_multiple_import_review_list"
+        )
 
         let stack = UIStackView(arrangedSubviews: [summary, list])
         stack.axis = .vertical
@@ -9133,9 +9680,9 @@ final class HandshakeReceiveQrViewController: UIViewController {
         addressLabel.adjustsFontForContentSizeCategory = true
         addressLabel.numberOfLines = 0
         addressLabel.textAlignment = .center
-        let copy = button("Copy address", #selector(copyAddress))
+        let copy = button(WalletCopy.text("wallet_action_copy"), #selector(copyAddress))
         let share = button("Save or share QR code", #selector(shareQr))
-        let done = button("Done", #selector(done))
+        let done = button(WalletCopy.text("wallet_action_done"), #selector(done))
         let stack = UIStackView(arrangedSubviews: [imageView, addressLabel, copy, share, done])
         stack.axis = .vertical
         stack.spacing = 12
