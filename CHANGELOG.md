@@ -19,6 +19,22 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.0.10 - 2026-09-28
+
+Android `1.0.10` / code `62` and iOS `1.0.10` / build `73` retain the
+`hns-wallet-rs 0.2.6` release cohort.
+
+- Simplify native wallet onboarding, recovery backup, unlock, synchronization,
+  send, receive, offer, swap, deletion, and Handshake name-market flows.
+- Keep recovery words visible through brief screen sleep while protecting the
+  phrase when the app backgrounds or leaves the recovery flow.
+- Wait for initial HNS synchronization before assigning a new wallet birthday,
+  and distinguish fast header progress from the deeper wallet-index scan.
+- Add controlled Android and iOS wallet localization catalogs covering 602
+  canonical strings in English and 20 additional locales.
+- Clarify completed ShakeDex offers, Bitcoin synchronization progress, peer
+  connections, approvals, funding, recovery, and ambiguous broadcast outcomes.
+
 ## 1.0.9 - 2026-09-25
 
 Android `1.0.9` / code `61` and iOS `1.0.9` / build `72` retain the

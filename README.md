@@ -7,11 +7,11 @@ wallet, and direct peer-to-peer ShakeDex name and HNS/BTC swap workflows.
 
 - [Google Play](https://play.google.com/store/apps/details?id=com.denuoweb.hnsdane)
 - [Apple App Store](https://apps.apple.com/us/app/hns-dane-browser/id6791914326)
-- [GitHub release v1.0.9](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v1.0.9)
-- [Signed Android APK](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/download/v1.0.9/shakescape-v1.0.9-android-release.apk)
-- [SHA-256 checksums](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/download/v1.0.9/SHA256SUMS-v1.0.9.txt)
+- [GitHub release v1.0.10](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v1.0.10)
+- [Play-signed Android APK](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/download/v1.0.10/shakescape-v1.0.10-android-play-signed.apk)
+- [SHA-256 checksums](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/download/v1.0.10/SHA256SUMS-v1.0.10.txt)
 
-The 1.0.9 release source is Android code `61` and iOS build `72`. iOS
+The 1.0.10 release source is Android code `62` and iOS build `73`. iOS
 distribution follows Apple approval through the App Store. The repository’s
 embedded Rust workspace is private to the application and is not published as
 a crate.

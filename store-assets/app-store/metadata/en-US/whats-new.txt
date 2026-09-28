@@ -1,1 +1,1 @@
-Refreshes name-proof timing after peer discovery to improve Handshake name import reliability. iOS also refreshes direct HNS synchronization timing at each stage and adds protected signing support for explicitly selected archival wallet recovery.
+Streamlines wallet onboarding, recovery backup, synchronization, sends, swaps, and Handshake name actions. Adds clearer progress, approval, funding, and recovery guidance across 20 additional locales.

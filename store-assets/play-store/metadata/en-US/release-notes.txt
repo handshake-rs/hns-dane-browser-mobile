@@ -1,1 +1,1 @@
-1.0.9 refreshes name-proof timing after peer discovery to improve Handshake name import reliability in the native HNS wallet.
+1.0.10 streamlines wallet onboarding, synchronization, sends, swaps, and Handshake name actions, with localized guidance across 20 additional locales.

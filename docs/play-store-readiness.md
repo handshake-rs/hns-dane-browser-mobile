@@ -2,7 +2,7 @@
 
 Last audited: 2026-09-05
 
-Current pending Android candidate source is `1.0.9` (`versionCode 61`) and
+Current pending Android candidate source is `1.0.10` (`versionCode 62`) and
 supports Android 9 / API 28 or later. It has not yet been built, signed,
 uploaded, or qualified. The preceding code `56` was committed to the Google Play
 production track with status `completed` through Android Publisher edit
@@ -107,6 +107,22 @@ behavior against the exact signed candidate before upload.
 ## Release Signing
 
 Google Play requires an upload-signed Android App Bundle. Do not commit keystores or passwords.
+
+The upload certificate and Play app-signing certificate are deliberately
+different identities:
+
+- upload certificate SHA-256:
+  `D2:2F:F3:25:17:53:11:EB:E6:D6:E9:3D:A3:FD:F5:1D:84:89:22:A1:B8:1A:CB:B3:2F:22:39:CC:F9:4A:51:14`;
+- Play app-signing certificate SHA-256:
+  `CA:0F:1C:B4:27:2E:DB:53:3E:2F:FE:AE:2B:83:E5:9F:D3:CF:CD:BD:8D:AA:8F:C6:4E:8D:B0:BD:1D:C1:9F:98`.
+
+A locally built APK uses the upload certificate and therefore cannot update an
+installation delivered by Google Play. Any APK distributed through GitHub as
+a Play-compatible update must be the universal APK returned by the Google Play
+Generated APKs API after the upload-signed AAB is committed to a non-production
+draft or release track. Verify that downloaded APK's package, version code,
+cryptographic signature, and exact Play app-signing certificate before
+publication. Never relabel the local upload-signed APK as Play-signed.
 
 The code `47` APK and AAB were signed by upload certificate SHA-256
 `D2:2F:F3:25:17:53:11:EB:E6:D6:E9:3D:A3:FD:F5:1D:84:89:22:A1:B8:1A:CB:B3:2F:22:39:CC:F9:4A:51:14`.

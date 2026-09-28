@@ -2,8 +2,8 @@
 
 Last audited: 2026-09-07
 
-Current release source coordinates Android `1.0.9` / code `61`, the embedded
-non-publishable Rust workspace `1.0.2`, and iOS `1.0.9` / build `72`. It uses
+Current release source coordinates Android `1.0.10` / code `62`, the embedded
+non-publishable Rust workspace `1.0.2`, and iOS `1.0.10` / build `73`. It uses
 the reviewed `hns-rs 0.4.2` graph, exact public engine releases (including the
 coherent light-client and SQLite adapter `0.2.5` cohort), and the published
 `hns-wallet-rs 0.2.6` closure. Registry dependencies retain checksums after

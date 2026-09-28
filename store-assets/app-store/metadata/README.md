@@ -1,21 +1,21 @@
 # App Store metadata
 
-This directory contains the reviewed listing source for iOS `1.0.9` / build
-`72`, bundle ID `com.denuoweb.hnsdane.ios`. The preceding iOS release and its
+This directory contains the reviewed listing source for iOS `1.0.10` / build
+`73`, bundle ID `com.denuoweb.hnsdane.ios`. The preceding iOS release and its
 screenshots predate this candidate and are not evidence for it.
 
-- Version: `1.0.9`
-- Build: `72`
+- Version: `1.0.10`
+- Build: `73`
 
-This update refreshes name-proof timing after peer discovery, refreshes iOS
-direct HNS synchronization timing at each stage, and adds protected signing
-support for explicitly selected archival wallet recovery. The app registers
+This update streamlines wallet onboarding, recovery backup, synchronization,
+sends, swaps, and Handshake name actions, with localized wallet guidance in 20
+additional locales. The app registers
 `http` and `https` URL schemes, routes incoming URLs directly, and keeps exact
 `marketplace-kit` navigation in WebKit. The managed default-browser and
 MarketplaceKit app-installation entitlements remain absent pending Apple
 approval.
 
-Build 72 retains the protected, owner-only native-wallet storage boundary and
+Build 73 retains the protected, owner-only native-wallet storage boundary and
 uses one hsd/Bob-compatible account-zero receive chain for ordinary HNS and
 Handshake name ownership. The iOS shell, Apple C ABI, and native wallet all use
 that single receive contract.
