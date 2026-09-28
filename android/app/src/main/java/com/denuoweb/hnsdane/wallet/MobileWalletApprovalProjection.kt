@@ -83,7 +83,7 @@ internal sealed class WalletApprovalSummary(val kind: String) {
         val warnings: List<String>,
     ) : WalletApprovalSummary("directOffer")
 
-    data class DirectOfferTake(
+    data class DirectOfferAcceptance(
         val directOfferId: String,
         val swapSessionId: String,
         val offered: WalletApprovalAmount,
@@ -91,7 +91,7 @@ internal sealed class WalletApprovalSummary(val kind: String) {
         val refundTimeoutUnixMs: Long,
         val maximumFee: WalletApprovalAmount,
         val warnings: List<String>,
-    ) : WalletApprovalSummary("directOfferTake")
+    ) : WalletApprovalSummary("directOfferAcceptance")
 
     data class SwapRedeem(
         val swapSessionId: String,
@@ -182,7 +182,7 @@ internal object MobileWalletApprovalProjection {
             "nameMarket_acceptOffer", "nameMarket_finalizePurchase",
         ),
         "directOffer" to setOf("swap_publishDirectOffer", "swap_cancelDirectOffer"),
-        "directOfferTake" to setOf("swap_takeDirectOffer", "swap_acceptDirectOffer"),
+        "directOfferAcceptance" to setOf("swap_acceptDirectOffer"),
         "swapRedeem" to setOf("swap_redeem"),
         "swapRefund" to setOf("swap_refund"),
     )
@@ -323,7 +323,7 @@ internal object MobileWalletApprovalProjection {
                 addWarnings(summary.warnings)
                 "Approve direct offer"
             }
-            is WalletApprovalSummary.DirectOfferTake -> {
+            is WalletApprovalSummary.DirectOfferAcceptance -> {
                 add("Direct offer ID", summary.directOfferId)
                 add("Swap session ID", summary.swapSessionId)
                 addAmount("Offered", summary.offered)
@@ -331,7 +331,7 @@ internal object MobileWalletApprovalProjection {
                 add("Refund timeout", summary.refundTimeoutUnixMs)
                 addAmount("Maximum fee", summary.maximumFee)
                 addWarnings(summary.warnings)
-                "Approve direct-offer take"
+                "Approve direct-offer acceptance"
             }
             is WalletApprovalSummary.SwapRedeem -> {
                 add("Swap session ID", summary.swapSessionId)
@@ -372,7 +372,7 @@ internal object MobileWalletApprovalProjection {
             "nameMarketOffer" -> validateNameMarketOffer(candidate, method)
             "nameMarketPurchase" -> validateNameMarketPurchase(candidate)
             "directOffer" -> validateDirectOffer(candidate, method)
-            "directOfferTake" -> validateDirectOfferTake(candidate)
+            "directOfferAcceptance" -> validateDirectOfferAcceptance(candidate)
             "swapRedeem" -> validateSwapRedeem(candidate)
             "swapRefund" -> validateSwapRefund(candidate)
             else -> fail()
@@ -568,7 +568,7 @@ internal object MobileWalletApprovalProjection {
         )
     }
 
-    private fun validateDirectOfferTake(candidate: JSONObject): WalletApprovalSummary.DirectOfferTake {
+    private fun validateDirectOfferAcceptance(candidate: JSONObject): WalletApprovalSummary.DirectOfferAcceptance {
         requireExactFields(
             candidate,
             "kind", "directOfferId", "swapSessionId", "offered", "received",
@@ -578,7 +578,7 @@ internal object MobileWalletApprovalProjection {
         val received = amount(candidate.opt("received"), allowZero = false)
         val maximumFee = amount(candidate.opt("maximumFee"), allowZero = true)
         if (offered.asset == received.asset || maximumFee.asset != offered.asset) fail()
-        return WalletApprovalSummary.DirectOfferTake(
+        return WalletApprovalSummary.DirectOfferAcceptance(
             publicString(candidate.opt("directOfferId")),
             publicString(candidate.opt("swapSessionId")),
             offered,

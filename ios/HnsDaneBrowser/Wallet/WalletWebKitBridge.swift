@@ -250,8 +250,7 @@ final class WalletWebKitBridge: NSObject, WKScriptMessageHandlerWithReply {
         "hns_finalizeName", "hns_signTypedMessage", "asset_send",
         "nameMarket_createFixedPriceOffer", "nameMarket_cancelOffer",
         "nameMarket_acceptOffer", "nameMarket_finalizePurchase", "nameMarket_recoverName",
-        "swap_publishDirectOffer", "swap_cancelDirectOffer", "swap_takeDirectOffer",
-        "swap_acceptDirectOffer", "swap_redeem", "swap_refund",
+        "swap_publishDirectOffer", "swap_cancelDirectOffer",         "swap_acceptDirectOffer", "swap_redeem", "swap_refund",
     ]
     private static let providerScript = #"""
     (() => {

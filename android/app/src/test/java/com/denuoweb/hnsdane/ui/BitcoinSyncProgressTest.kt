@@ -59,7 +59,7 @@ class BitcoinSyncProgressTest {
     }
 
     @Test
-    fun direct_offer_take_funding_is_the_lock_that_includes_its_fee_reserve() {
+    fun direct_offer_acceptance_funding_is_the_lock_that_includes_its_fee_reserve() {
         assertEquals(100_000L, directOfferAcceptanceRequiredFunding(100_000L, 50_000L))
         assertNull(directOfferAcceptanceRequiredFunding(50_000L, 50_000L))
     }

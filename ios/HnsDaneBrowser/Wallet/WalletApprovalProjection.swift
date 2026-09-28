@@ -105,7 +105,7 @@ enum WalletApprovalSummaryV3: Equatable {
         maximumFee: WalletApprovalAmountV2,
         warnings: [WalletApprovalWarningV2]
     )
-    case directOfferTake(
+    case directOfferAcceptance(
         directOfferID: String,
         swapSessionID: String,
         offered: WalletApprovalAmountV2,
@@ -142,7 +142,7 @@ enum WalletApprovalSummaryV3: Equatable {
         case .nameMarketOffer: return "nameMarketOffer"
         case .nameMarketPurchase: return "nameMarketPurchase"
         case .directOffer: return "directOffer"
-        case .directOfferTake: return "directOfferTake"
+        case .directOfferAcceptance: return "directOfferAcceptance"
         case .swapRedeem: return "swapRedeem"
         case .swapRefund: return "swapRefund"
         }
@@ -312,8 +312,8 @@ enum WalletApprovalProjectionV3 {
             addAmount("Received", received)
             addAmount("Maximum fee", maximumFee)
             addWarnings(warnings)
-        case let .directOfferTake(directOfferID, swapSessionID, offered, received, refundTimeout, maximumFee, warnings):
-            title = "Approve direct-offer take"
+        case let .directOfferAcceptance(directOfferID, swapSessionID, offered, received, refundTimeout, maximumFee, warnings):
+            title = "Approve direct-offer acceptance"
             add("Direct offer ID", directOfferID)
             add("Swap session ID", swapSessionID)
             addAmount("Offered", offered)
@@ -501,8 +501,8 @@ enum WalletApprovalProjectionV3 {
                 maximumFee: maximumFee,
                 warnings: try warnings(value["warnings"])
             )
-        case "directOfferTake":
-            try requireMethod(method, ["swap_takeDirectOffer", "swap_acceptDirectOffer"])
+        case "directOfferAcceptance":
+            try requireMethod(method, ["swap_acceptDirectOffer"])
             try requireExactFields(
                 value,
                 [
@@ -515,7 +515,7 @@ enum WalletApprovalProjectionV3 {
             let maximumFee = try amount(value["maximumFee"], allowZero: true)
             guard offered.asset != received.asset,
                   maximumFee.asset == offered.asset else { throw invalidApproval() }
-            return .directOfferTake(
+            return .directOfferAcceptance(
                 directOfferID: try publicString(value["directOfferId"]),
                 swapSessionID: try publicString(value["swapSessionId"]),
                 offered: offered,

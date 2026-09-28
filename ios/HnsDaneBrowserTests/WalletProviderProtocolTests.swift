@@ -26,12 +26,12 @@ final class WalletProviderProtocolTests: XCTestCase {
             "nameMarket_acceptOffer", "nameMarket_getSession", "nameMarket_finalizePurchase",
             "nameMarket_recoverName", "swap_getSupportedPairs",
             "swap_listDirectOffers", "swap_publishDirectOffer", "swap_cancelDirectOffer",
-            "swap_takeDirectOffer", "swap_acceptDirectOffer", "swap_getSession", "swap_redeem", "swap_refund",
+            "swap_acceptDirectOffer", "swap_getSession", "swap_redeem", "swap_refund",
         ]
         XCTAssertEqual(WalletProviderProtocolV1.methods, expectedMethods)
         XCTAssertEqual(WalletProviderProtocolV1.noApprovalMethods.count, 22)
         XCTAssertEqual(WalletProviderProtocolV1.approvalOnlyMethods.count, 5)
-        XCTAssertEqual(WalletProviderProtocolV1.approvalAndValueMethods.count, 15)
+        XCTAssertEqual(WalletProviderProtocolV1.approvalAndValueMethods.count, 14)
         XCTAssertTrue(
             WalletProviderProtocolV1.noApprovalMethods.isDisjoint(
                 with: WalletProviderProtocolV1.approvalOnlyMethods
@@ -527,7 +527,7 @@ final class WalletProviderProtocolTests: XCTestCase {
                 "swap_acceptDirectOffer",
                 nil,
                 [
-                    "kind": "directOfferTake", "directOfferId": "offer-1", "swapSessionId": "session-1",
+                    "kind": "directOfferAcceptance", "directOfferId": "offer-1", "swapSessionId": "session-1",
                     "offered": amount("HNS", "1000"), "received": amount("BTC", "2000"),
                     "refundTimeoutUnixMs": NSNumber(value: now + 600_000),
                     "maximumFee": amount("HNS", "25"),
@@ -615,8 +615,8 @@ final class WalletProviderProtocolTests: XCTestCase {
                     "settlementCanBeDelayed",
                 ]
             ),
-            "directOfferTake": (
-                "Approve direct-offer take",
+            "directOfferAcceptance": (
+                "Approve direct-offer acceptance",
                 [
                     "Direct offer ID", "Swap session ID", "Offered", "Received",
                     "Refund timeout", "Maximum fee", "Warnings",

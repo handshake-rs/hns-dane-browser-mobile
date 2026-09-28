@@ -121,24 +121,24 @@ class NativeBitcoinSyncProgressTest {
 
     @Test
     fun parses_only_exact_direct_offer_insufficient_funding_results() {
-        val hns = NativeBitcoinWalletBundle.directOfferTakePreparation(bundle(
+        val hns = NativeBitcoinWalletBundle.directOfferAcceptancePreparation(bundle(
             """{"failure":"insufficientHns","receivedAsset":"hns","confirmedAmount":226400}""",
         )) as? NativeDirectOfferAcceptancePreparation.InsufficientFunds
         requireNotNull(hns)
         assertEquals("hns", hns.receivedAsset)
         assertEquals(226_400L, hns.confirmedAmount)
 
-        val bitcoin = NativeBitcoinWalletBundle.directOfferTakePreparation(bundle(
+        val bitcoin = NativeBitcoinWalletBundle.directOfferAcceptancePreparation(bundle(
             """{"failure":"insufficientBitcoin","receivedAsset":"btc","confirmedAmount":0}""",
         )) as? NativeDirectOfferAcceptancePreparation.InsufficientFunds
         requireNotNull(bitcoin)
         assertEquals("btc", bitcoin.receivedAsset)
         assertEquals(0L, bitcoin.confirmedAmount)
 
-        assertNull(NativeBitcoinWalletBundle.directOfferTakePreparation(bundle(
+        assertNull(NativeBitcoinWalletBundle.directOfferAcceptancePreparation(bundle(
             """{"failure":"insufficientHns","receivedAsset":"btc","confirmedAmount":226400}""",
         )))
-        assertNull(NativeBitcoinWalletBundle.directOfferTakePreparation(bundle(
+        assertNull(NativeBitcoinWalletBundle.directOfferAcceptancePreparation(bundle(
             """{"failure":"insufficientHns","receivedAsset":"hns","confirmedAmount":226400,"detail":"untrusted"}""",
         )))
     }
@@ -180,12 +180,12 @@ class NativeBitcoinSyncProgressTest {
         hnsApproval.close()
 
         val offer = """{"offerId":"${"12".repeat(32)}","sessionId":"${"34".repeat(32)}","offerSetterSellsHns":false,"offeredAsset":"btc","offeredAmount":1330,"receivedAsset":"hns","receivedAmount":100546,"btcAmountSats":1330,"hnsAmountDollarydoos":100546,"offeredFeeReserve":1000,"local":false,"createdAtUnix":1000,"expiresAtUnix":2000}"""
-        val take = NativeBitcoinWalletBundle.directOfferTakePreparation(bundle(
-            """{"actionToken":"${"ef".repeat(32)}","offer":$offer,"receivedFeeReserve":100000,"totalReceivedAssetCommitment":100546,"takeExpiresAtUnix":2000,"approvalExpiresAtUnix":1100}""",
+        val acceptance = NativeBitcoinWalletBundle.directOfferAcceptancePreparation(bundle(
+            """{"actionToken":"${"ef".repeat(32)}","offer":$offer,"receivedFeeReserve":100000,"totalReceivedAssetCommitment":100546,"acceptanceExpiresAtUnix":2000,"approvalExpiresAtUnix":1100}""",
         )) as? NativeDirectOfferAcceptancePreparation.Approval
-        requireNotNull(take)
-        assertEquals(100_546L, take.value.totalReceivedAssetCommitment)
-        take.value.close()
+        requireNotNull(acceptance)
+        assertEquals(100_546L, acceptance.value.totalReceivedAssetCommitment)
+        acceptance.value.close()
 
         assertNull(NativeBitcoinWalletBundle.hnsForBtcApproval(bundle(
             """{"actionToken":"${"cd".repeat(32)}","hnsAmountDollarydoos":100546,"btcAmountSats":1330,"hnsFeeReserveDollarydoos":100000,"totalHnsCommitmentDollarydoos":200546,"offerExpiresAtUnix":2000,"approvalExpiresAtUnix":1100,"connectedPeerRequiredForAnnouncement":true}""",

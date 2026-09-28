@@ -1318,7 +1318,7 @@ impl AndroidWalletController {
         bundle
     }
 
-    fn prepare_direct_offer_take(
+    fn prepare_direct_offer_acceptance(
         &mut self,
         offer_id: &str,
         confirmed_btc_sats: u64,
@@ -1335,14 +1335,16 @@ impl AndroidWalletController {
             return None;
         };
         if !promote_direct_shakescape_primary(shakescape_peer, shakescape_replication_peers) {
-            android_log_error("direct-offer take preparation has no authenticated board peer");
+            android_log_error(
+                "direct-offer acceptance preparation has no authenticated board peer",
+            );
             return None;
         }
         let synchronized = match controller.synchronize() {
             Ok(synchronized) => synchronized,
             Err(error) => {
                 android_log_error(&format!(
-                    "direct-offer take HNS synchronization failed: {error}"
+                    "direct-offer acceptance HNS synchronization failed: {error}"
                 ));
                 return None;
             }
@@ -1350,18 +1352,20 @@ impl AndroidWalletController {
         let confirmed_hns_dollarydoos = match u64::try_from(synchronized.balance.base_units.get()) {
             Ok(balance) => balance,
             Err(_) => {
-                android_log_error("direct-offer take HNS balance is outside the supported range");
+                android_log_error(
+                    "direct-offer acceptance HNS balance is outside the supported range",
+                );
                 return None;
             }
         };
         let now_unix = match HnsReadSystemClock.now_unix() {
             Ok(now_unix) => now_unix,
             Err(error) => {
-                android_log_error(&format!("direct-offer take clock failed: {error}"));
+                android_log_error(&format!("direct-offer acceptance clock failed: {error}"));
                 return None;
             }
         };
-        let approval = match shakescape_sessions.prepare_direct_offer_take(
+        let approval = match shakescape_sessions.prepare_direct_offer_acceptance(
             offer_id,
             confirmed_btc_sats,
             confirmed_hns_dollarydoos,
@@ -1371,7 +1375,7 @@ impl AndroidWalletController {
             Ok(approval) => approval,
             Err(error) => {
                 android_log_error(&format!(
-                    "direct-offer take policy rejected preparation: {error}; confirmed_btc_sats={confirmed_btc_sats} confirmed_hns_dollarydoos={confirmed_hns_dollarydoos} received_fee_reserve={received_fee_reserve}"
+                    "direct-offer acceptance policy rejected preparation: {error}; confirmed_btc_sats={confirmed_btc_sats} confirmed_hns_dollarydoos={confirmed_hns_dollarydoos} received_fee_reserve={received_fee_reserve}"
                 ));
                 let (failure, received_asset, confirmed_amount) = match error {
                     MobileWalletError::InsufficientBitcoinForDirectOffer => {
@@ -1399,7 +1403,7 @@ impl AndroidWalletController {
         bundle
     }
 
-    fn approve_direct_offer_take(&mut self, action_token: &str) -> Option<Vec<u8>> {
+    fn approve_direct_offer_acceptance(&mut self, action_token: &str) -> Option<Vec<u8>> {
         let Self::DirectValue {
             shakescape_sessions,
             shakescape_peer,
@@ -1410,17 +1414,17 @@ impl AndroidWalletController {
             return None;
         };
         if !promote_direct_shakescape_primary(shakescape_peer, shakescape_replication_peers) {
-            android_log_error("direct-offer take approval has no authenticated board peer");
+            android_log_error("direct-offer acceptance approval has no authenticated board peer");
             return None;
         }
-        let summary = match shakescape_sessions.approve_direct_offer_take(
+        let summary = match shakescape_sessions.approve_direct_offer_acceptance(
             action_token,
             shakescape_peer.as_mut()?,
             HnsReadSystemClock.now_unix().ok()?,
         ) {
             Ok(summary) => summary,
             Err(error) => {
-                android_log_error(&format!("direct-offer take approval failed: {error}"));
+                android_log_error(&format!("direct-offer acceptance approval failed: {error}"));
                 return None;
             }
         };
@@ -1430,7 +1434,7 @@ impl AndroidWalletController {
         bundle
     }
 
-    fn reject_direct_offer_take(&mut self, action_token: &str) -> bool {
+    fn reject_direct_offer_acceptance(&mut self, action_token: &str) -> bool {
         let Self::DirectValue {
             shakescape_sessions,
             ..
@@ -1439,7 +1443,7 @@ impl AndroidWalletController {
             return false;
         };
         shakescape_sessions
-            .reject_direct_offer_take(action_token)
+            .reject_direct_offer_acceptance(action_token)
             .is_ok()
     }
 
@@ -1560,7 +1564,7 @@ impl AndroidWalletController {
         true
     }
 
-    fn abandon_pending_direct_offer_take(&mut self, session_id: &str) -> bool {
+    fn abandon_pending_direct_offer_acceptance(&mut self, session_id: &str) -> bool {
         let Self::DirectValue {
             shakescape_sessions,
             ..
@@ -1572,7 +1576,7 @@ impl AndroidWalletController {
             return false;
         };
         shakescape_sessions
-            .abandon_pending_direct_offer_take(session_id, now_unix)
+            .abandon_pending_direct_offer_acceptance(session_id, now_unix)
             .is_ok()
     }
 
@@ -7728,7 +7732,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativePrepareDirectOfferTake(
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativePrepareDirectOfferAcceptance(
     mut env: JNIEnv<'_>,
     _class: JClass<'_>,
     handle: jlong,
@@ -7755,7 +7759,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             bitcoin.as_ref()?.snapshot().ok()?.confirmed_sats
         };
         let mut controller = record.controller_if_active()?;
-        let mut bundle = controller.prepare_direct_offer_take(
+        let mut bundle = controller.prepare_direct_offer_acceptance(
             offer_id.as_str(),
             confirmed_btc_sats,
             received_fee_reserve,
@@ -7770,7 +7774,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeApproveDirectOfferTake(
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeApproveDirectOfferAcceptance(
     mut env: JNIEnv<'_>,
     _class: JClass<'_>,
     handle: jlong,
@@ -7784,7 +7788,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         )?)?;
         let record = wallet_from_handle(handle)?;
         let mut controller = record.controller_if_active()?;
-        let mut bundle = controller.approve_direct_offer_take(token.0.as_str())?;
+        let mut bundle = controller.approve_direct_offer_acceptance(token.0.as_str())?;
         let array = env.byte_array_from_slice(bundle.as_slice()).ok();
         bundle.fill(0);
         array.map(JByteArray::into_raw)
@@ -7795,7 +7799,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeRejectDirectOfferTake(
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeRejectDirectOfferAcceptance(
     mut env: JNIEnv<'_>,
     _class: JClass<'_>,
     handle: jlong,
@@ -7815,7 +7819,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let Some(mut controller) = record.controller_if_active() else {
             return false;
         };
-        controller.reject_direct_offer_take(token.0.as_str())
+        controller.reject_direct_offer_acceptance(token.0.as_str())
     }))
     .unwrap_or(false)
     .into()
@@ -7960,7 +7964,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeAbandonPendingDirectOfferTake(
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeAbandonPendingDirectOfferAcceptance(
     mut env: JNIEnv<'_>,
     _class: JClass<'_>,
     handle: jlong,
@@ -7984,7 +7988,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let Some(mut controller) = record.controller_if_active() else {
             return false;
         };
-        controller.abandon_pending_direct_offer_take(&session_id)
+        controller.abandon_pending_direct_offer_acceptance(&session_id)
     }))
     .unwrap_or(false)
     .into()

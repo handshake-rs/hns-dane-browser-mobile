@@ -509,7 +509,7 @@ struct NativeDirectOfferAcceptanceApproval {
     let offer: NativeDirectOfferSummary
     let receivedFeeReserve: UInt64
     let totalReceivedAssetCommitment: UInt64
-    let takeExpiresAtUnix: UInt64
+    let acceptanceExpiresAtUnix: UInt64
     let approvalExpiresAtUnix: UInt64
 }
 
@@ -641,8 +641,7 @@ struct NativeShakescapeExecutionSummary: Decodable, Equatable, Sendable {
         lastVerifiedAtUnix = try container.decode(UInt64.self, forKey: .lastVerifiedAtUnix)
         failureReason = try container.decodeIfPresent(String.self, forKey: .failureReason)
         let validStates: Set<String> = [
-            "offer_published", "offer_acceptance_received", "offer_take_received",
-            "offer_reserved", "terms_frozen",
+            "offer_published", "offer_acceptance_received",             "offer_reserved", "terms_frozen",
             "refunds_prepared", "first_funding_pending", "first_funded",
             "second_funding_pending", "both_funded", "first_redeemed", "secret_observed",
             "second_redeemed", "completed", "refund_eligible", "refund_broadcast",
@@ -2686,12 +2685,12 @@ private struct NativeDirectOfferAcceptanceApprovalPayload: Decodable {
     let offer: NativeDirectOfferSummary
     let receivedFeeReserve: UInt64
     let totalReceivedAssetCommitment: UInt64
-    let takeExpiresAtUnix: UInt64
+    let acceptanceExpiresAtUnix: UInt64
     let approvalExpiresAtUnix: UInt64
 
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case actionToken, offer, receivedFeeReserve, totalReceivedAssetCommitment
-        case takeExpiresAtUnix, approvalExpiresAtUnix
+        case acceptanceExpiresAtUnix, approvalExpiresAtUnix
     }
 
     init(from decoder: Decoder) throws {
@@ -2700,12 +2699,12 @@ private struct NativeDirectOfferAcceptanceApprovalPayload: Decodable {
         offer = try container.decode(NativeDirectOfferSummary.self, forKey: .offer)
         receivedFeeReserve = try container.decode(UInt64.self, forKey: .receivedFeeReserve)
         totalReceivedAssetCommitment = try container.decode(UInt64.self, forKey: .totalReceivedAssetCommitment)
-        takeExpiresAtUnix = try container.decode(UInt64.self, forKey: .takeExpiresAtUnix)
+        acceptanceExpiresAtUnix = try container.decode(UInt64.self, forKey: .acceptanceExpiresAtUnix)
         approvalExpiresAtUnix = try container.decode(UInt64.self, forKey: .approvalExpiresAtUnix)
         guard receivedFeeReserve > 0,
               offer.receivedAmount > receivedFeeReserve,
               offer.receivedAmount == totalReceivedAssetCommitment,
-              takeExpiresAtUnix > 0, approvalExpiresAtUnix > 0 else {
+              acceptanceExpiresAtUnix > 0, approvalExpiresAtUnix > 0 else {
             throw NativeWalletBridgeError.invalidOutput("invalid direct offer acceptance approval")
         }
     }
@@ -2762,7 +2761,7 @@ extension NativeDirectOfferAcceptancePreparation {
             offer: decoded.offer,
             receivedFeeReserve: decoded.receivedFeeReserve,
             totalReceivedAssetCommitment: decoded.totalReceivedAssetCommitment,
-            takeExpiresAtUnix: decoded.takeExpiresAtUnix,
+            acceptanceExpiresAtUnix: decoded.acceptanceExpiresAtUnix,
             approvalExpiresAtUnix: decoded.approvalExpiresAtUnix
         ))
     }
@@ -3946,7 +3945,7 @@ final class RustNativeWallet: @unchecked Sendable {
         return result.offers
     }
 
-    func prepareDirectOfferTake(
+    func prepareDirectOfferAcceptance(
         offerId: String,
         receivedFeeReserve: UInt64
     ) throws -> NativeDirectOfferAcceptancePreparation {
@@ -3954,7 +3953,7 @@ final class RustNativeWallet: @unchecked Sendable {
         defer { WalletSecretBytes.wipe(&offer) }
         var output = HnsBrowserBuffer()
         let result = try offer.withUnsafeBufferPointer { bytes in
-            hns_browser_wallet_prepare_direct_offer_take(
+            hns_browser_wallet_prepare_direct_offer_acceptance(
                 try liveHandle(),
                 HnsBrowserSlice(ptr: bytes.baseAddress, len: UInt64(bytes.count)),
                 receivedFeeReserve,
@@ -3962,39 +3961,39 @@ final class RustNativeWallet: @unchecked Sendable {
             )
         }
         defer { NativeWalletBridge.free(output) }
-        try NativeWalletBridge.check(result, operation: "direct offer take preparation")
+        try NativeWalletBridge.check(result, operation: "direct offer acceptance preparation")
         var bundle = try NativeWalletBridge.bytes(copying: output)
         defer { WalletSecretBytes.wipe(&bundle) }
         return try NativeDirectOfferAcceptancePreparation.decode(bundle: bundle)
     }
 
-    func approveDirectOfferTake(
+    func approveDirectOfferAcceptance(
         _ actionToken: NativeHnsSendActionToken
     ) throws -> NativeDirectOfferAcceptanceSummary {
         try actionToken.consume { token in
             var output = HnsBrowserBuffer()
             let result = try token.withUnsafeBufferPointer { bytes in
-                hns_browser_wallet_approve_direct_offer_take(
+                hns_browser_wallet_approve_direct_offer_acceptance(
                     try liveHandle(),
                     HnsBrowserSlice(ptr: bytes.baseAddress, len: UInt64(bytes.count)),
                     &output
                 )
             }
             defer { NativeWalletBridge.free(output) }
-            try NativeWalletBridge.check(result, operation: "direct offer take approval")
+            try NativeWalletBridge.check(result, operation: "direct offer acceptance approval")
             return try decodeBitcoinOutput(output, as: NativeDirectOfferAcceptanceSummary.self)
         }
     }
 
-    func rejectDirectOfferTake(_ actionToken: NativeHnsSendActionToken) throws {
+    func rejectDirectOfferAcceptance(_ actionToken: NativeHnsSendActionToken) throws {
         try actionToken.consume { token in
             let result = try token.withUnsafeBufferPointer { bytes in
-                hns_browser_wallet_reject_direct_offer_take(
+                hns_browser_wallet_reject_direct_offer_acceptance(
                     try liveHandle(),
                     HnsBrowserSlice(ptr: bytes.baseAddress, len: UInt64(bytes.count))
                 )
             }
-            try NativeWalletBridge.check(result, operation: "direct offer take rejection")
+            try NativeWalletBridge.check(result, operation: "direct offer acceptance rejection")
         }
     }
 
@@ -4006,11 +4005,11 @@ final class RustNativeWallet: @unchecked Sendable {
         }
     }
 
-    func abandonPendingDirectOfferTake(sessionId: String) throws {
+    func abandonPendingDirectOfferAcceptance(sessionId: String) throws {
         var session = Array(sessionId.utf8)
         defer { WalletSecretBytes.wipe(&session) }
         let result = try session.withUnsafeBufferPointer { bytes in
-            hns_browser_wallet_abandon_pending_direct_offer_take(
+            hns_browser_wallet_abandon_pending_direct_offer_acceptance(
                 try liveHandle(),
                 HnsBrowserSlice(ptr: bytes.baseAddress, len: UInt64(bytes.count))
             )

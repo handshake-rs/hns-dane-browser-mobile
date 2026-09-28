@@ -7153,7 +7153,7 @@
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Maak verbinding met de maker van de aanbieding. De aanbiedingen openen automatisch. Er wordt geen geld verplaatst."
+            "value": "Maak verbinding met de opsteller van de aanbieding. De aanbiedingen openen automatisch. Er wordt geen geld verplaatst."
           }
         },
         "pl": {
@@ -27458,7 +27458,7 @@
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "%2$@\n\nMaak verbinding met een maker van aanbiedingen om door aanbiedingen te bladeren. Hosting is optioneel.\n\nGeavanceerd: luisteren op TCP-poort %1$d. %3$@"
+            "value": "%2$@\n\nMaak verbinding met de opsteller van een aanbieding om aanbiedingen te bekijken. Hosting is optioneel.\n\nGeavanceerd: luisteren op TCP-poort %1$d. %3$@"
           }
         },
         "pl": {
@@ -27982,7 +27982,7 @@
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Inkomende verbindingen zijn niet beschikbaar op poort %1$d. U kunt nog steeds verbinding maken met een maker van een aanbieding.\n%2$@\n\nGeavanceerd: %3$@"
+            "value": "Inkomende verbindingen zijn niet beschikbaar op poort %1$d. U kunt nog steeds verbinding maken met de opsteller van een aanbieding.\n%2$@\n\nGeavanceerd: %3$@"
           }
         },
         "pl": {
@@ -28244,7 +28244,7 @@
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Geen peers gevonden. Plak hierboven het adres van de maker."
+            "value": "Geen peers gevonden. Plak hierboven het adres van de opsteller van de aanbieding."
           }
         },
         "pl": {
@@ -30913,6 +30913,268 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$@：已確認並追蹤轉帳。目前區塊%2$d； FINALIZE 在區塊 %3$d 處可用。轉帳交易%4$@。"
+          }
+        }
+      }
+    },
+    "wallet_hns_received_notification_detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تم تأكيد استلام %1$@ HNS"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ HNS bestätigt"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ HNS confirmed"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ HNS confirmados"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "دریافت %1$@ HNS تأیید شد"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réception de %1$@ HNS confirmée"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "קבלת %1$@ HNS אושרה"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ HNS की प्राप्ति की पुष्टि हुई"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ HNS dikonfirmasi"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ricezione di %1$@ HNS confermata"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ HNSの受取を確認しました"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ HNS 수신이 확인되었습니다"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ HNS bevestigd"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Potwierdzono otrzymanie %1$@ HNS"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recebimento de %1$@ HNS confirmado"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Получение %1$@ HNS подтверждено"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ HNS alımı onaylandı"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отримання %1$@ HNS підтверджено"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã xác nhận nhận %1$@ HNS"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已确认收到 %1$@ HNS"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已確認收到 %1$@ HNS"
+          }
+        }
+      }
+    },
+    "wallet_hns_received_notification_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تم استلام HNS"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS empfangen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS received"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS recibidos"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS دریافت شد"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS reçus"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "התקבל HNS"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS प्राप्त हुआ"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS diterima"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS ricevuti"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNSを受け取りました"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS 수신됨"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS ontvangen"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otrzymano HNS"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS recebidos"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS получены"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS alındı"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS отримано"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã nhận HNS"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已收到 HNS"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已收到 HNS"
           }
         }
       }
@@ -55545,6 +55807,1971 @@
         }
       }
     },
+    "wallet_swap_acceptance_approval_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "العرض: %1$@\n\nالقفل: %2$@\nالحد الأقصى للرسوم: %3$@\nالإجمالي: %4$@\n\nيبدأ القبول التفاوض. تتم الموافقة على التمويل بشكل منفصل."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Angebot: %1$@\n\nSperrbetrag: %2$@\nMaximale Gebühr: %3$@\nGesamt: %4$@\n\nDie Annahme startet die Verhandlung. Die Finanzierung wird separat bestätigt."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Offer: %1$@\n\nLock: %2$@\nMaximum fee: %3$@\nTotal: %4$@\n\nAccepting starts negotiation. Funding is approved separately."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oferta: %1$@\n\nBloqueo: %2$@\nComisión máxima: %3$@\nTotal: %4$@\n\nAceptar inicia la negociación. La financiación se aprueba por separado."
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "پیشنهاد: %1$@\n\nقفل: %2$@\nحداکثر کارمزد: %3$@\nمجموع: %4$@\n\nپذیرش، مذاکره را آغاز می‌کند. تأمین وجه جداگانه تأیید می‌شود."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Offre : %1$@\n\nVerrouillage : %2$@\nFrais maximum : %3$@\nTotal : %4$@\n\nL’acceptation lance la négociation. Le financement est approuvé séparément."
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "הצעה: %1$@\n\nנעילה: %2$@\nעמלה מרבית: %3$@\nסה״כ: %4$@\n\nהקבלה מתחילה משא ומתן. המימון מאושר בנפרד."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ऑफ़र: %1$@\n\nलॉक: %2$@\nअधिकतम शुल्क: %3$@\nकुल: %4$@\n\nस्वीकार करने पर बातचीत शुरू होती है। फंडिंग की मंज़ूरी अलग से दी जाती है।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Penawaran: %1$@\n\nKunci: %2$@\nBiaya maksimum: %3$@\nTotal: %4$@\n\nPenerimaan memulai negosiasi. Pendanaan disetujui secara terpisah."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Offerta: %1$@\n\nBlocco: %2$@\nCommissione massima: %3$@\nTotale: %4$@\n\nL’accettazione avvia la negoziazione. Il finanziamento viene approvato separatamente."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オファー：%1$@\n\nロック：%2$@\n最大手数料：%3$@\n合計：%4$@\n\n承認すると交渉が始まります。資金供給は別途承認します。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "제안: %1$@\n\n잠금: %2$@\n최대 수수료: %3$@\n합계: %4$@\n\n수락하면 협상이 시작됩니다. 자금 공급은 별도로 승인합니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aanbieding: %1$@\n\nVergrendeling: %2$@\nMaximale kosten: %3$@\nTotaal: %4$@\n\nAcceptatie start de onderhandeling. Financiering wordt apart goedgekeurd."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oferta: %1$@\n\nBlokada: %2$@\nMaksymalna opłata: %3$@\nRazem: %4$@\n\nPrzyjęcie rozpoczyna negocjacje. Finansowanie zatwierdza się osobno."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oferta: %1$@\n\nBloqueio: %2$@\nTaxa máxima: %3$@\nTotal: %4$@\n\nA aceitação inicia a negociação. O financiamento é aprovado separadamente."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Предложение: %1$@\n\nБлокировка: %2$@\nМаксимальная комиссия: %3$@\nИтого: %4$@\n\nПринятие запускает переговоры. Финансирование подтверждается отдельно."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teklif: %1$@\n\nKilit: %2$@\nAzami ücret: %3$@\nToplam: %4$@\n\nKabul, görüşmeyi başlatır. Fonlama ayrıca onaylanır."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пропозиція: %1$@\n\nБлокування: %2$@\nМаксимальна комісія: %3$@\nРазом: %4$@\n\nПрийняття починає переговори. Фінансування підтверджується окремо."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chào giá: %1$@\n\nKhóa: %2$@\nPhí tối đa: %3$@\nTổng: %4$@\n\nChấp nhận sẽ bắt đầu thương lượng. Việc cấp vốn được phê duyệt riêng."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "报价：%1$@\n\n锁定：%2$@\n最高费用：%3$@\n总计：%4$@\n\n接受后开始协商。资金操作需另行批准。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "報價：%1$@\n\n鎖定：%2$@\n最高費用：%3$@\n總計：%4$@\n\n接受後開始協商。資金操作需另行核准。"
+          }
+        }
+      }
+    },
+    "wallet_swap_acceptance_approval_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "قبول عرض المبادلة هذا؟"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Tauschangebot annehmen?"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accept this swap offer?"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Aceptar esta oferta de intercambio?"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "این پیشنهاد مبادله پذیرفته شود؟"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accepter cette offre d’échange ?"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "לקבל את הצעת ההחלפה הזו?"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "यह स्वैप ऑफ़र स्वीकार करें?"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terima penawaran pertukaran ini?"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accettare questa offerta di scambio?"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このスワップオファーを承認しますか？"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 스왑 제안을 수락할까요?"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deze ruilaanbieding accepteren?"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Przyjąć tę ofertę wymiany?"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aceitar esta oferta de troca?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Принять это предложение обмена?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu takas teklifi kabul edilsin mi?"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прийняти цю пропозицію обміну?"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chấp nhận chào giá hoán đổi này?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接受此兑换报价？"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接受此兌換報價？"
+          }
+        }
+      }
+    },
+    "wallet_swap_acceptance_btc_fee_reserve_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "احتياطي رسوم Bitcoin (sats، الحد الأدنى 1000)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitcoin Gebührenreserve (sats, mindestens 1000)"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitcoin fee reserve (sats, minimum 1000)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reserva de tarifa Bitcoin (sats, mínimo 1000)"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ذخیره هزینه Bitcoin (sats، حداقل 1000)"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réserve de frais Bitcoin (sats, minimum 1 000)"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "עתודת עמלה Bitcoin (sats, מינימום 1000)"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitcoin शुल्क आरक्षित (sats, न्यूनतम 1000)"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cadangan biaya Bitcoin (sats, minimal 1000)"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitcoin riserva tariffa (sats, minimo 1000)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitcoin 手数料引当金 (sats、最低 1000)"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitcoin 수수료 적립금 (sats, 최소 1000)"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitcoin vergoedingsreserve (sats, minimaal 1000)"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitcoin rezerwa na opłaty (sats, minimum 1000)"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reserva de taxa Bitcoin (sats, mínimo 1.000)"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Резерв комиссии Bitcoin (sats, минимум 1000)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitcoin ücret rezervi (sats, minimum 1000)"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Резерв комісії Bitcoin (sats, мінімум 1000)"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dự trữ phí Bitcoin (sats, tối thiểu 1000)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitcoin 手续费储备金（sats，最低1000）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitcoin 手續費儲備金（sats，最低1000）"
+          }
+        }
+      }
+    },
+    "wallet_swap_acceptance_confirm": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "قبول العرض"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Angebot annehmen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accept offer"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aceptar oferta"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "پذیرش پیشنهاد"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accepter l’offre"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "קבלת הצעה"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ऑफ़र स्वीकार करें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terima penawaran"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accetta offerta"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オファーを承認"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "제안 수락"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aanbieding accepteren"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Przyjmij ofertę"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aceitar oferta"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Принять предложение"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teklifi kabul et"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прийняти пропозицію"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chấp nhận chào giá"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接受报价"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接受報價"
+          }
+        }
+      }
+    },
+    "wallet_swap_acceptance_failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لم يتم إرسال القبول الموقع. ربما تم قطع اتصال النظير أو ربما انتهت صلاحية العرض."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die unterschriebene Annahmeerklärung wurde nicht verschickt. Der Peer hat möglicherweise die Verbindung getrennt oder das Angebot ist abgelaufen."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The signed acceptance was not sent. The peer may have disconnected or the offer may have expired."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La aceptación firmada no fue enviada. Es posible que el par se haya desconectado o que la oferta haya caducado."
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "پذیرش امضا شده ارسال نشد. ممکن است ارتباط همتا قطع شده باشد یا پیشنهاد منقضی شده باشد."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L'acceptation signée n'a pas été envoyée. L'homologue s'est peut-être déconnecté ou l'offre a peut-être expiré."
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "הקבלה החתומה לא נשלחה. ייתכן שהעמית התנתק או שההצעה פג."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "हस्ताक्षरित स्वीकृति नहीं भेजी गई. हो सकता है कि सहकर्मी ने डिस्कनेक्ट कर दिया हो या ऑफ़र समाप्त हो गया हो।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Penerimaan yang ditandatangani tidak dikirim. Rekan tersebut mungkin telah terputus atau penawarannya mungkin telah kedaluwarsa."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L'accettazione firmata non è stata inviata. Il peer potrebbe essersi disconnesso o l'offerta potrebbe essere scaduta."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "署名された承諾書は送信されませんでした。ピアが切断されたか、オファーの有効期限が切れた可能性があります。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "서명된 수락이 전송되지 않았습니다. 피어의 연결이 끊어졌거나 제안이 만료되었을 수 있습니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "De ondertekende aanvaarding is niet verzonden. Mogelijk is de verbinding met de peer verbroken of is de aanbieding verlopen."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Podpisana akceptacja nie została wysłana. Partner mógł się rozłączyć lub oferta mogła wygasnąć."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A aceitação assinada não foi enviada. O peer pode ter se desconectado ou a oferta pode ter expirado."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подписанный акцепт не был отправлен. Возможно, одноранговый узел отключился или срок действия предложения истек."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İmzalı kabul gönderilmedi. Eşin bağlantısı kesilmiş olabilir veya teklifin süresi dolmuş olabilir."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Підписане прийняття не було надіслано. Можливо, вузол від’єднався або термін дії пропозиції закінчився."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sự chấp nhận đã ký không được gửi. Thiết bị ngang hàng có thể đã bị ngắt kết nối hoặc ưu đãi có thể đã hết hạn."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "签署的接受书未发送。对等方可能已断开连接或优惠可能已过期。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "簽署的接受書未發送。對等方可能已斷線或優惠可能已過期。"
+          }
+        }
+      }
+    },
+    "wallet_swap_acceptance_hns_fee_reserve_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "احتياطي الرسوم HNS"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS Gebührenreserve"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS fee reserve"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reserva de tarifa HNS"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ذخیره هزینه HNS"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réserve de frais HNS"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "עתודת עמלה HNS"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS शुल्क आरक्षित"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cadangan biaya HNS"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS riserva tariffaria"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS 手数料引当金"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS 수수료 예비"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS kostenreservering"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS rezerwa na opłaty"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reserva de taxa HNS"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS резерв комиссии"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS ücret rezervi"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS Резерв комісії"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dự trữ phí HNS"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS 费用储备金"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS 費用儲備金"
+          }
+        }
+      }
+    },
+    "wallet_swap_acceptance_insufficient_btc": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يتطلب هذا العرض قفل %1$d بما في ذلك احتياطي رسوم %2$d Bitcoin (إجمالي %3$d sats)، ولكن هذه المحفظة تحتوي على %4$d المؤكدة sats."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Für dieses Angebot ist ein %1$d-Sat-Schloss einschließlich einer %2$d-Sat-Bitcoin-Gebührenreserve (%3$d sats insgesamt) erforderlich, aber für diese Brieftasche ist %4$d sats bestätigt."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This offer requires a %1$d sat lock including a %2$d sat Bitcoin fee reserve (%3$d sats total), but this wallet has %4$d confirmed sats."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta oferta requiere un candado sat %1$d que incluye una reserva de tarifa %2$d sat Bitcoin (%3$d sats en total), pero esta billetera tiene %4$d confirmado sats."
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "این پیشنهاد به %1$d قفل مستلزم شامل %2$d ذخیره کارمزد بیت کوین (%3$d در مجموع) نیاز دارد، اما این کیف دارای %4$d نشست تأیید شده است."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette offre nécessite un verrou sat %1$d comprenant une réserve de frais sat %2$d Bitcoin (total %3$d sats), mais ce portefeuille a %4$d confirmé sats."
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "הצעה זו מחייבת מנעול לשבת %1$d כולל רזרבת עמלה %2$d sat Bitcoin (סה\"כ %3$d sats), אך לארנק הזה יש %4$d מאושרת sats."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस ऑफ़र के लिए %2$d sat Bitcoin शुल्क आरक्षित (%3$d sats कुल) सहित %1$d sat लॉक की आवश्यकता है, लेकिन इस वॉलेट में %4$d की पुष्टि sats है।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Penawaran ini memerlukan kunci sat %1$d termasuk cadangan biaya %2$d sat Bitcoin (total %3$d sats), tetapi dompet ini memiliki %4$d yang dikonfirmasi sats."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questa offerta richiede un blocco satellitare %1$d che includa una riserva tariffaria %2$d sat Bitcoin (%3$d sats totale), ma questo portafoglio ha %4$d confermato sats."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このオファーには、%2$d sat Bitcoin 手数料準備金 (%3$d sats 合計) を含む %1$d sat ロックが必要ですが、このウォレットには %4$d 確認済み sats があります。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 제안에는 %2$d sat Bitcoin 수수료 예비금(%3$d sats 총계)을 포함한 %1$d sat 잠금 장치가 필요하지만 이 지갑에는 %4$d에서 sats가 확인되었습니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voor deze aanbieding is een %1$d satellietslot inclusief een %2$d sat Bitcoin kostenreserve vereist (%3$d sats totaal), maar deze portemonnee heeft een %4$d bevestigde sats."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ta oferta wymaga blokady sat %1$d, w tym rezerwy opłat %2$d sat Bitcoin (łącznie %3$d sats), ale ten portfel ma potwierdzone %4$d sats."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta oferta requer um bloqueio de satélite %1$d incluindo uma reserva de taxa de satélite %2$d Bitcoin (total %3$d sats), mas esta carteira tem %4$d sats confirmado."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для этого предложения требуется спутниковый замок %1$d, включая резерв комиссии %2$d sat Bitcoin (всего %3$d sats), но в этом кошельке есть подтвержденный %4$d sats."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu teklif, %2$d uydu Bitcoin ücret rezervi (toplam %3$d sats toplam) içeren bir %1$d uydu kilidi gerektirir, ancak bu cüzdanda %4$d onaylı sats vardır."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для цієї пропозиції потрібен %1$d sat lock, включаючи %2$d sat Bitcoin резерв комісії (загалом %3$d sats), але цей гаманець має %4$d підтверджений sats."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ưu đãi này yêu cầu khóa sat %1$d bao gồm dự trữ phí sat %2$d Bitcoin (tổng cộng %3$d sats), nhưng ví này có %4$d đã xác nhận sats."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此优惠需要 %1$d sat 锁，包括 %2$d sat Bitcoin 费用储备（%3$d sats 总计），但此钱包有 %4$d 确认 sats。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此優惠需要 %1$d sat 鎖，包括 %2$d sat Bitcoin 費用儲備（%3$d sats 總計），但此錢包有 %4$d 確認 ZQQPH007777。"
+          }
+        }
+      }
+    },
+    "wallet_swap_acceptance_insufficient_hns": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يتطلب هذا العرض قفل %1$@ HNS يتضمن احتياطي رسوم %2$@ HNS (إجمالي %3$@ HNS)، ولكن هذه المحفظة بها %4$@ HNS قابلة للإنفاق."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Für dieses Angebot ist ein %1$@ HNS-Schloss inklusive einer %2$@ HNS-Gebührenreserve (%3$@ HNS insgesamt) erforderlich, aber diese Geldbörse hat %4$@ HNS auszahlbar."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This offer requires a %1$@ HNS lock including a %2$@ HNS fee reserve (%3$@ HNS total), but this wallet has %4$@ HNS spendable."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta oferta requiere un candado %1$@ HNS que incluye una reserva de tarifa %2$@ HNS (%3$@ HNS en total), pero esta billetera tiene %4$@ HNS para gastar."
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "این پیشنهاد به قفل %1$@ HNS از جمله ذخیره کارمزد %2$@ HNS (%3$@ HNS کل) نیاز دارد، اما این کیف دارای %4$@ HNS قابل خرج است."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette offre nécessite un verrou %1$@ HNS comprenant une réserve de frais %2$@ HNS (%3$@ HNS total), mais ce portefeuille a %4$@ HNS dépensable."
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "הצעה זו דורשת מנעול HNS %1$@ כולל רזרבת עמלת HNS %2$@ (סה\"כ %3$@ HNS), אך בארנק זה יש %4$@ HNS שניתן לבזבז."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस ऑफ़र के लिए %2$@ HNS शुल्क आरक्षित (%3$@ HNS कुल) सहित एक %1$@ HNS लॉक की आवश्यकता है, लेकिन इस वॉलेट में %4$@ HNS खर्च करने योग्य है।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Penawaran ini memerlukan kunci %1$@ HNS termasuk cadangan biaya %2$@ HNS (total %3$@ HNS), namun dompet ini memiliki %4$@ HNS yang dapat dibelanjakan."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questa offerta richiede un lucchetto %1$@ HNS che includa una riserva tariffaria %2$@ HNS (%3$@ HNS totale), ma questo portafoglio ha %4$@ HNS spendibili."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このオファーには、%2$@ HNS の手数料準備金 (合計 %3$@ HNS) を含む %1$@ HNS ロックが必要ですが、このウォレットには %4$@ HNS が使用可能です。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 제안에는 %2$@ HNS 수수료 적립금(총 %3$@ HNS)을 포함한 %1$@ HNS 잠금 장치가 필요하지만 이 지갑에는 %4$@ HNS를 사용할 수 있습니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voor deze aanbieding is een %1$@ HNS-slot inclusief een %2$@ HNS-kostenreserve vereist (%3$@ HNS in totaal), maar deze portemonnee kan %4$@ HNS uitgeven."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ta oferta wymaga blokady %1$@ HNS zawierającej rezerwę opłat %2$@ HNS (łącznie %3$@ HNS), ale w tym portfelu można wydać %4$@ HNS."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta oferta requer um bloqueio %1$@ HNS incluindo uma reserva de taxa %2$@ HNS (total %3$@ HNS), mas esta carteira tem %4$@ HNS gastável."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для этого предложения требуется замок %1$@ HNS, включая резерв комиссии %2$@ HNS (всего %3$@ HNS), но в этом кошельке есть возможность расходования %4$@ HNS."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu teklif, %2$@ HNS ücret rezervi (toplam %3$@ HNS toplam) içeren bir %1$@ HNS kilidi gerektirir, ancak bu cüzdanda harcanabilir %4$@ HNS bulunur."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для цієї пропозиції потрібен замок %1$@ HNS із резервом комісії %2$@ HNS (загалом %3$@ HNS), але цей гаманець має %4$@ HNS, який можна витратити."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ưu đãi này yêu cầu khóa %1$@ HNS bao gồm dự trữ phí %2$@ HNS (tổng cộng %3$@ HNS), nhưng ví này có %4$@ HNS có thể chi tiêu."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此优惠需要 %1$@ HNS 锁定，包括 %2$@ HNS 费用准备金（总计 %3$@ HNS），但此钱包有 %4$@ HNS 可支出。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此優惠需要%1$@ HNS鎖定，包括%2$@ HNS費用儲備（總計%3$@ HNS ），但此錢包有%4$@ HNS可花費。"
+          }
+        }
+      }
+    },
+    "wallet_swap_acceptance_offer": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "قبول العرض"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Angebot annehmen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accept offer"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aceptar oferta"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "قبول پیشنهاد"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accepter l'offre"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "קבל הצעה"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "प्रस्ताव स्वीकार करें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terima tawaran"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accetta l'offerta"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オファーを受け入れる"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "제안 수락"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accepteer aanbod"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zaakceptuj ofertę"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aceitar oferta"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Принять предложение"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teklifi kabul et"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прийняти пропозицію"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chấp nhận lời đề nghị"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接受报价"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接受報價"
+          }
+        }
+      }
+    },
+    "wallet_swap_acceptance_prepare_failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لا يمكن إعداد قبول العرض. تحقق من النظير المتصل والرصيد المتزامن واحتياطي الرسوم."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Angebotsannahme konnte nicht vorbereitet werden. Überprüfen Sie den verbundenen Peer, den synchronisierten Kontostand und die Gebührenreserve."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The offer acceptance could not be prepared. Check the connected peer, synchronized balance, and fee reserve."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo preparar la aceptación de la oferta. Verifique el par conectado, el saldo sincronizado y la reserva de tarifas."
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "پذیرش پیشنهاد آماده نشد. همتا متصل، موجودی همگام، و ذخیره هزینه را بررسی کنید."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L'acceptation de l'offre n'a pas pu être préparée. Vérifiez le pair connecté, le solde synchronisé et la réserve de frais."
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "לא ניתן היה להכין את קבלת ההצעה. בדוק את העמית המחוברת, היתרה המסונכרנת ועתודות העמלות."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "प्रस्ताव स्वीकृति तैयार नहीं हो सकी। कनेक्टेड पीयर, सिंक्रोनाइज्ड बैलेंस और शुल्क रिजर्व की जांच करें।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Penerimaan tawaran tidak dapat disiapkan. Periksa rekan yang terhubung, saldo tersinkronisasi, dan cadangan biaya."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non è stato possibile preparare l'accettazione dell'offerta. Controlla il peer connesso, il saldo sincronizzato e la riserva tariffaria."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オファー承諾を準備できませんでした。接続相手、同期残高、料金リザーブを確認します。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "제안 수락을 준비할 수 없습니다. 연결된 Peer, 동기화 잔액, 수수료 보유량을 확인하세요."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "De aanvaarding van het bod kon niet worden voorbereid. Controleer de verbonden peer, het gesynchroniseerde saldo en de kostenreservering."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie można było przygotować akceptacji oferty. Sprawdź podłączonego partnera, zsynchronizowane saldo i rezerwę opłat."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A aceitação da oferta não pôde ser preparada. Verifique o peer conectado, o saldo sincronizado e a reserva de taxas."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Акцепт оферты подготовить не удалось. Проверьте подключенного узла, синхронизированный баланс и резерв комиссии."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teklif kabulü hazırlanamadı. Bağlı eşleri, senkronize bakiyeyi ve ücret rezervini kontrol edin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не вдалося підготувати акцепт пропозиції. Перевірте підключений вузол, синхронізований баланс і резерв комісії."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Việc chấp nhận lời đề nghị không thể được chuẩn bị. Kiểm tra ngang hàng được kết nối, số dư được đồng bộ hóa và dự trữ phí."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法准备要约接受。检查连接的对等点、同步余额和费用储备。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法準備要約接受。檢查連接的對等點、同步餘額和費用儲備。"
+          }
+        }
+      }
+    },
+    "wallet_swap_acceptance_preparing": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "جارٍ إعداد مراجعة العرض…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Angebotsprüfung wird vorbereitet…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparing offer review…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparando revisión de oferta..."
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "در حال آماده سازی بررسی پیشنهاد…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Préparation de la revue des offres…"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "מכין סקירת הצעה..."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ऑफ़र समीक्षा तैयार की जा रही है…"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mempersiapkan tinjauan penawaran…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparazione della revisione dell'offerta…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オファーのレビューを準備しています…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "제안 검토 준비 중…"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beoordeling van aanbieding voorbereiden…"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Przygotowuję recenzję oferty…"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparando revisão da oferta…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подготовка обзора предложения…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teklif incelemesi hazırlanıyor…"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Підготовка розгляду пропозиції…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang chuẩn bị xem xét đề nghị…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在准备报价审核..."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在準備報價審核..."
+          }
+        }
+      }
+    },
+    "wallet_swap_acceptance_reserved_btc": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يحتاج هذا العرض إلى %1$d sats؛ تم تأكيد المحفظة %2$d، لكن المقايضات الأخرى تحتفظ كثيرًا. قم بتحرير قبول غير ممول، أو إنهاء المبادلة أو استردادها، أو إضافة Bitcoin."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Angebot erfordert %1$d sats; Das Wallet hat %2$d bestätigt, aber andere Swaps reservieren zu viel. Geben Sie eine nicht finanzierte Annahme frei, beenden oder erstatten Sie einen Tausch oder fügen Sie Bitcoin hinzu."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This offer needs %1$d sats; the wallet has %2$d confirmed, but other swaps reserve too much. Release an unfunded acceptance, finish or refund a swap, or add Bitcoin."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta oferta necesita %1$d sats; la billetera tiene confirmado %2$d, pero otros swaps reservan demasiado. Libere una aceptación no financiada, finalice o reembolse un intercambio, o agregue Bitcoin."
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "این پیشنهاد به %1$d sats نیاز دارد. کیف پول دارای %2$d تایید شده است، اما سایر مبادلات بیش از حد ذخیره می کنند. یک پذیرش بدون بودجه را منتشر کنید، یک مبادله را تکمیل یا بازپرداخت کنید، یا Bitcoin را اضافه کنید."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette offre nécessite %1$d sats ; le portefeuille a confirmé %2$d, mais d'autres swaps réservent trop. Libérez une acceptation non financée, terminez ou remboursez un échange, ou ajoutez Bitcoin."
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "הצעה זו צריכה %1$d sats; לארנק יש אישור %2$d, אבל החלפות אחרות שומרות יותר מדי. שחרר קבלה ללא מימון, סיים או החזר החלפה, או הוסף Bitcoin."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस ऑफर के लिए %1$d sats की आवश्यकता है; वॉलेट में %2$d की पुष्टि की गई है, लेकिन अन्य स्वैप बहुत अधिक आरक्षित हैं। एक अनिधिकृत स्वीकृति जारी करें, एक स्वैप समाप्त करें या वापस करें, या Bitcoin जोड़ें।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Penawaran ini membutuhkan %1$d sats; dompet telah mengkonfirmasi %2$d, tetapi swap lainnya memiliki terlalu banyak cadangan. Lepaskan penerimaan yang tidak didanai, selesaikan atau kembalikan dana swap, atau tambahkan Bitcoin."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questa offerta richiede %1$d sats; il portafoglio ha %2$d confermato, ma altri scambi riservano troppo. Rilascia un'accettazione non finanziata, completa o rimborsa uno scambio oppure aggiungi Bitcoin."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このオファーには %1$d sats が必要です。ウォレットには%2$dが確認されていますが、他のスワップの予約が多すぎます。未入金の受け入れを解除するか、スワップを終了または返金するか、Bitcoin を追加します。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 제안에는 %1$d sats가 필요합니다. 지갑에 %2$d가 확인되었지만 다른 스왑은 너무 많이 보유하고 있습니다. 자금이 지원되지 않은 수락을 해제하거나, 스왑을 완료 또는 환불하거나, Bitcoin를 추가하세요."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voor deze aanbieding is %1$d sats nodig; de portemonnee heeft %2$d bevestigd, maar andere swaps reserveren te veel. Geef een niet-gefinancierde acceptatie vrij, voltooi een ruil of betaal deze terug, of voeg Bitcoin toe."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ta oferta wymaga %1$d sats; portfel ma potwierdzone %2$d, ale inne swapy rezerwują za dużo. Zwolnij akceptację bez środków, zakończ wymianę lub zwróć pieniądze albo dodaj Bitcoin."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta oferta precisa de %1$d sats; a carteira tem %2$d confirmado, mas outros swaps reservam muito. Libere uma aceitação sem financiamento, finalize ou reembolse uma troca ou adicione Bitcoin."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для этого предложения требуется %1$d sats; в кошельке подтвержден %2$d, но другие свопы резервируют слишком много. Отпустите необеспеченный акцепт, завершите или возместите своп или добавьте Bitcoin."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu teklifin %1$d sats'ye ihtiyacı vardır; cüzdanda %2$d onaylandı ancak diğer swaplar çok fazla rezerve ediyor. Finanse edilmemiş bir kabulü iptal edin, takas işlemini tamamlayın veya iade edin ya da Bitcoin ekleyin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для цієї пропозиції потрібен %1$d sats; гаманець підтвердив %2$d, але інші свопи резервують занадто багато. Відпустіть нефінансований акцепт, завершіть або відшкодуйте обмін або додайте Bitcoin."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ưu đãi này cần %1$d sats; ví đã xác nhận %2$d nhưng các giao dịch hoán đổi khác dự trữ quá nhiều. Phát hành chấp nhận không được cấp vốn, hoàn thành hoặc hoàn lại tiền hoán đổi hoặc thêm Bitcoin."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此报价需要%1$d sats；钱包已确认%2$d，但其他掉期储备太多。释放无资金支持的承兑，完成或退款掉期，或添加 Bitcoin。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此報價需要%1$d sats；皮夾已確認%2$d，但其他掉期儲備太多。釋放無資金支持的承兌，完成或退款掉期，或增加 Bitcoin。"
+          }
+        }
+      }
+    },
+    "wallet_swap_acceptance_reserved_hns": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يحتاج هذا العرض إلى %1$@ HNS؛ تم تأكيد المحفظة %2$@، لكن المقايضات الأخرى تحتفظ كثيرًا. قم بتحرير قبول غير ممول، أو إنهاء المبادلة أو استردادها، أو إضافة HNS."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Angebot erfordert %1$@ HNS; Das Wallet hat %2$@ bestätigt, aber andere Swaps reservieren zu viel. Geben Sie eine nicht finanzierte Annahme frei, beenden oder erstatten Sie einen Tausch oder fügen Sie HNS hinzu."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This offer needs %1$@ HNS; the wallet has %2$@ confirmed, but other swaps reserve too much. Release an unfunded acceptance, finish or refund a swap, or add HNS."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta oferta necesita %1$@ HNS; la billetera tiene confirmado %2$@, pero otros swaps reservan demasiado. Libere una aceptación no financiada, finalice o reembolse un intercambio, o agregue HNS."
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "این پیشنهاد به %1$@ HNS نیاز دارد. کیف پول دارای %2$@ تایید شده است، اما سایر مبادلات بیش از حد ذخیره می کنند. یک پذیرش بدون بودجه را منتشر کنید، یک مبادله را تکمیل یا بازپرداخت کنید، یا HNS را اضافه کنید."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette offre nécessite %1$@ HNS ; le portefeuille a confirmé %2$@, mais d'autres swaps réservent trop. Libérez une acceptation non financée, terminez ou remboursez un échange, ou ajoutez HNS."
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "הצעה זו צריכה %1$@ HNS; לארנק יש אישור %2$@, אבל החלפות אחרות שומרות יותר מדי. שחרר קבלה ללא מימון, סיים או החזר החלפה, או הוסף HNS."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस ऑफर के लिए %1$@ HNS की आवश्यकता है; वॉलेट में %2$@ की पुष्टि की गई है, लेकिन अन्य स्वैप बहुत अधिक आरक्षित हैं। एक अनिधिक स्वीकृति जारी करें, एक स्वैप समाप्त करें या वापस करें, या HNS जोड़ें।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Penawaran ini membutuhkan %1$@ HNS; dompet telah mengkonfirmasi %2$@, tetapi swap lainnya memiliki terlalu banyak cadangan. Lepaskan penerimaan yang tidak didanai, selesaikan atau kembalikan dana swap, atau tambahkan HNS."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questa offerta richiede %1$@ HNS; il portafoglio ha %2$@ confermato, ma altri scambi riservano troppo. Rilascia un'accettazione non finanziata, completa o rimborsa uno scambio oppure aggiungi HNS."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このオファーには %1$@ HNS が必要です。ウォレットには%2$@が確認されていますが、他のスワップの予約が多すぎます。未入金の受け入れを解除するか、スワップを終了または返金するか、HNS を追加します。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 제안에는 %1$@ HNS가 필요합니다. 지갑에 %2$@가 확인되었지만 다른 스왑은 너무 많이 보유하고 있습니다. 자금이 없는 승인을 해제하거나, 스왑을 완료 또는 환불하거나, HNS를 추가하세요."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voor deze aanbieding is %1$@ HNS nodig; de portemonnee heeft %2$@ bevestigd, maar andere swaps reserveren te veel. Geef een niet-gefinancierde acceptatie vrij, voltooi een ruil of betaal deze terug, of voeg HNS toe."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ta oferta wymaga %1$@ HNS; portfel ma potwierdzone %2$@, ale inne swapy rezerwują za dużo. Zwolnij akceptację bez środków, zakończ wymianę lub zwróć pieniądze albo dodaj HNS."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta oferta precisa de %1$@ HNS; a carteira tem %2$@ confirmado, mas outros swaps reservam muito. Libere uma aceitação sem financiamento, finalize ou reembolse uma troca ou adicione HNS."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для этого предложения требуется %1$@ HNS; в кошельке подтвержден %2$@, но другие свопы резервируют слишком много. Отпустите необеспеченный акцепт, завершите или возместите своп или добавьте HNS."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu teklifin %1$@ HNS'ye ihtiyacı vardır; cüzdanda %2$@ onaylandı ancak diğer swaplar çok fazla rezerve ediyor. Finanse edilmemiş bir kabulü iptal edin, takas işlemini tamamlayın veya iade edin ya da HNS ekleyin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для цієї пропозиції потрібен %1$@ HNS; гаманець підтвердив %2$@, але інші свопи резервують занадто багато. Відпустіть нефінансований акцепт, завершіть або відшкодуйте обмін або додайте HNS."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ưu đãi này cần %1$@ HNS; ví đã xác nhận %2$@ nhưng các giao dịch hoán đổi khác dự trữ quá nhiều. Phát hành chấp nhận không được cấp vốn, hoàn thành hoặc hoàn lại tiền hoán đổi hoặc thêm HNS."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此报价需要%1$@ HNS；钱包已确认%2$@，但其他掉期储备太多。释放无资金支持的承兑，完成或退款掉期，或添加 HNS。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此報價需要%1$@ HNS；皮夾已確認%2$@，但其他掉期儲備太多。釋放無資金支持的承兌，完成或退款掉期，或增加 HNS。"
+          }
+        }
+      }
+    },
+    "wallet_swap_acceptance_review": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "مراجعة العرض"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Angebot prüfen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review offer"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revisar oferta"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "بررسی پیشنهاد"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vérifier l’offre"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "בדיקת הצעה"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ऑफ़र की समीक्षा करें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tinjau penawaran"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rivedi offerta"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オファーを確認"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "제안 검토"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aanbieding controleren"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sprawdź ofertę"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rever oferta"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверить предложение"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teklifi incele"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перевірити пропозицію"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xem lại chào giá"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看报价"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檢視報價"
+          }
+        }
+      }
+    },
+    "wallet_swap_acceptance_sent": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "بدأت المبادلة %1$@… بانتظار توقيع المحفظة الأخرى."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swap %1$@… gestartet. Warten auf die Signatur der anderen Wallet."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swap %1$@… started. Waiting for the other wallet to sign."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intercambio %1$@… iniciado. Esperando que firme la otra cartera."
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "مبادله %1$@… آغاز شد. در انتظار امضای کیف پول دیگر."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Échange %1$@… lancé. En attente de la signature de l’autre portefeuille."
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ההחלפה %1$@… התחילה. ממתינים לחתימת הארנק האחר."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "स्वैप %1$@… शुरू हुआ। दूसरे वॉलेट के हस्ताक्षर की प्रतीक्षा है।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swap %1$@… dimulai. Menunggu dompet lain menandatangani."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scambio %1$@… avviato. In attesa della firma dell’altro portafoglio."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "スワップ %1$@… を開始しました。相手のウォレットの署名を待っています。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "스왑 %1$@…이 시작되었습니다. 다른 지갑의 서명을 기다리는 중입니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swap %1$@… gestart. Wachten op de handtekening van de andere wallet."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wymiana %1$@… rozpoczęta. Oczekiwanie na podpis drugiego portfela."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Troca %1$@… iniciada. Aguardando a assinatura da outra carteira."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обмен %1$@… начат. Ожидание подписи другого кошелька."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Takas %1$@… başladı. Diğer cüzdanın imzası bekleniyor."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обмін %1$@… розпочато. Очікування підпису іншого гаманця."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hoán đổi %1$@… đã bắt đầu. Đang chờ ví kia ký."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "交换 %1$@… 已开始。正在等待另一个钱包签名。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "交換 %1$@… 已開始。正在等待另一個錢包簽名。"
+          }
+        }
+      }
+    },
     "wallet_swap_active_offers": {
       "extractionState": "manual",
       "localizations": {
@@ -64846,108 +67073,266 @@
         }
       }
     },
-    "wallet_hns_received_notification_detail": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": { "stringUnit": { "state": "translated", "value": "تم تأكيد استلام %1$@ HNS" } },
-        "de": { "stringUnit": { "state": "translated", "value": "%1$@ HNS bestätigt" } },
-        "en": { "stringUnit": { "state": "translated", "value": "%1$@ HNS confirmed" } },
-        "es": { "stringUnit": { "state": "translated", "value": "%1$@ HNS confirmados" } },
-        "fa": { "stringUnit": { "state": "translated", "value": "دریافت %1$@ HNS تأیید شد" } },
-        "fr": { "stringUnit": { "state": "translated", "value": "Réception de %1$@ HNS confirmée" } },
-        "he": { "stringUnit": { "state": "translated", "value": "קבלת %1$@ HNS אושרה" } },
-        "hi": { "stringUnit": { "state": "translated", "value": "%1$@ HNS की प्राप्ति की पुष्टि हुई" } },
-        "id": { "stringUnit": { "state": "translated", "value": "%1$@ HNS dikonfirmasi" } },
-        "it": { "stringUnit": { "state": "translated", "value": "Ricezione di %1$@ HNS confermata" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "%1$@ HNSの受取を確認しました" } },
-        "ko": { "stringUnit": { "state": "translated", "value": "%1$@ HNS 수신이 확인되었습니다" } },
-        "nl": { "stringUnit": { "state": "translated", "value": "%1$@ HNS bevestigd" } },
-        "pl": { "stringUnit": { "state": "translated", "value": "Potwierdzono otrzymanie %1$@ HNS" } },
-        "pt": { "stringUnit": { "state": "translated", "value": "Recebimento de %1$@ HNS confirmado" } },
-        "ru": { "stringUnit": { "state": "translated", "value": "Получение %1$@ HNS подтверждено" } },
-        "tr": { "stringUnit": { "state": "translated", "value": "%1$@ HNS alımı onaylandı" } },
-        "uk": { "stringUnit": { "state": "translated", "value": "Отримання %1$@ HNS підтверджено" } },
-        "vi": { "stringUnit": { "state": "translated", "value": "Đã xác nhận nhận %1$@ HNS" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已确认收到 %1$@ HNS" } },
-        "zh-Hant": { "stringUnit": { "state": "translated", "value": "已確認收到 %1$@ HNS" } }
-      }
-    },
-    "wallet_hns_received_notification_title": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": { "stringUnit": { "state": "translated", "value": "تم استلام HNS" } },
-        "de": { "stringUnit": { "state": "translated", "value": "HNS empfangen" } },
-        "en": { "stringUnit": { "state": "translated", "value": "HNS received" } },
-        "es": { "stringUnit": { "state": "translated", "value": "HNS recibidos" } },
-        "fa": { "stringUnit": { "state": "translated", "value": "HNS دریافت شد" } },
-        "fr": { "stringUnit": { "state": "translated", "value": "HNS reçus" } },
-        "he": { "stringUnit": { "state": "translated", "value": "התקבל HNS" } },
-        "hi": { "stringUnit": { "state": "translated", "value": "HNS प्राप्त हुआ" } },
-        "id": { "stringUnit": { "state": "translated", "value": "HNS diterima" } },
-        "it": { "stringUnit": { "state": "translated", "value": "HNS ricevuti" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "HNSを受け取りました" } },
-        "ko": { "stringUnit": { "state": "translated", "value": "HNS 수신됨" } },
-        "nl": { "stringUnit": { "state": "translated", "value": "HNS ontvangen" } },
-        "pl": { "stringUnit": { "state": "translated", "value": "Otrzymano HNS" } },
-        "pt": { "stringUnit": { "state": "translated", "value": "HNS recebidos" } },
-        "ru": { "stringUnit": { "state": "translated", "value": "HNS получены" } },
-        "tr": { "stringUnit": { "state": "translated", "value": "HNS alındı" } },
-        "uk": { "stringUnit": { "state": "translated", "value": "HNS отримано" } },
-        "vi": { "stringUnit": { "state": "translated", "value": "Đã nhận HNS" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已收到 HNS" } },
-        "zh-Hant": { "stringUnit": { "state": "translated", "value": "已收到 HNS" } }
-      }
-    },
     "wallet_swap_notification_offer_accepted": {
       "extractionState": "manual",
       "localizations": {
-        "ar": { "stringUnit": { "state": "translated", "value": "تم قبول عرضك" } },
-        "de": { "stringUnit": { "state": "translated", "value": "Dein Angebot wurde angenommen" } },
-        "en": { "stringUnit": { "state": "translated", "value": "Your offer was accepted" } },
-        "es": { "stringUnit": { "state": "translated", "value": "Tu oferta fue aceptada" } },
-        "fa": { "stringUnit": { "state": "translated", "value": "پیشنهاد شما پذیرفته شد" } },
-        "fr": { "stringUnit": { "state": "translated", "value": "Votre offre a été acceptée" } },
-        "he": { "stringUnit": { "state": "translated", "value": "ההצעה שלך התקבלה" } },
-        "hi": { "stringUnit": { "state": "translated", "value": "आपका ऑफ़र स्वीकार कर लिया गया" } },
-        "id": { "stringUnit": { "state": "translated", "value": "Penawaran Anda diterima" } },
-        "it": { "stringUnit": { "state": "translated", "value": "La tua offerta è stata accettata" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "あなたのオファーが承認されました" } },
-        "ko": { "stringUnit": { "state": "translated", "value": "내 제안이 수락되었습니다" } },
-        "nl": { "stringUnit": { "state": "translated", "value": "Je aanbod is geaccepteerd" } },
-        "pl": { "stringUnit": { "state": "translated", "value": "Twoja oferta została przyjęta" } },
-        "pt": { "stringUnit": { "state": "translated", "value": "Sua oferta foi aceita" } },
-        "ru": { "stringUnit": { "state": "translated", "value": "Ваше предложение принято" } },
-        "tr": { "stringUnit": { "state": "translated", "value": "Teklifiniz kabul edildi" } },
-        "uk": { "stringUnit": { "state": "translated", "value": "Вашу пропозицію прийнято" } },
-        "vi": { "stringUnit": { "state": "translated", "value": "Đề nghị của bạn đã được chấp nhận" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "你的报价已被接受" } },
-        "zh-Hant": { "stringUnit": { "state": "translated", "value": "你的報價已被接受" } }
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تم قبول عرضك"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dein Angebot wurde angenommen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your offer was accepted"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu oferta fue aceptada"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "پیشنهاد شما پذیرفته شد"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre offre a été acceptée"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ההצעה שלך התקבלה"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "आपका ऑफ़र स्वीकार कर लिया गया"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Penawaran Anda diterima"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La tua offerta è stata accettata"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "あなたのオファーが承認されました"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "내 제안이 수락되었습니다"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Je aanbod is geaccepteerd"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Twoja oferta została przyjęta"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sua oferta foi aceita"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ваше предложение принято"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teklifiniz kabul edildi"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вашу пропозицію прийнято"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đề nghị của bạn đã được chấp nhận"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的报价已被接受"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的報價已被接受"
+          }
+        }
       }
     },
     "wallet_swap_notification_offer_accepted_detail": {
       "extractionState": "manual",
       "localizations": {
-        "ar": { "stringUnit": { "state": "translated", "value": "بدأت محفظة أخرى المبادلة · في انتظار الشروط الموقعة · الجلسة %1$@…" } },
-        "de": { "stringUnit": { "state": "translated", "value": "Eine andere Wallet hat den Tausch gestartet · Warten auf signierte Bedingungen · Sitzung %1$@…" } },
-        "en": { "stringUnit": { "state": "translated", "value": "Another wallet started the swap · waiting for signed terms · Session %1$@…" } },
-        "es": { "stringUnit": { "state": "translated", "value": "Otra cartera inició el intercambio · esperando las condiciones firmadas · Sesión %1$@…" } },
-        "fa": { "stringUnit": { "state": "translated", "value": "کیف پول دیگری مبادله را آغاز کرد · در انتظار شرایط امضاشده · جلسه %1$@…" } },
-        "fr": { "stringUnit": { "state": "translated", "value": "Un autre portefeuille a lancé l’échange · en attente des conditions signées · Session %1$@…" } },
-        "he": { "stringUnit": { "state": "translated", "value": "ארנק אחר התחיל את ההחלפה · ממתין לתנאים החתומים · הפעלה %1$@…" } },
-        "hi": { "stringUnit": { "state": "translated", "value": "दूसरे वॉलेट ने स्वैप शुरू किया · हस्ताक्षरित शर्तों की प्रतीक्षा · सत्र %1$@…" } },
-        "id": { "stringUnit": { "state": "translated", "value": "Dompet lain memulai pertukaran · menunggu ketentuan yang ditandatangani · Sesi %1$@…" } },
-        "it": { "stringUnit": { "state": "translated", "value": "Un altro portafoglio ha avviato lo scambio · in attesa dei termini firmati · Sessione %1$@…" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "別のウォレットがスワップを開始しました · 署名済み条件を待機中 · セッション %1$@…" } },
-        "ko": { "stringUnit": { "state": "translated", "value": "다른 지갑이 스왑을 시작했습니다 · 서명된 조건을 기다리는 중 · 세션 %1$@…" } },
-        "nl": { "stringUnit": { "state": "translated", "value": "Een andere wallet heeft de swap gestart · wachten op ondertekende voorwaarden · Sessie %1$@…" } },
-        "pl": { "stringUnit": { "state": "translated", "value": "Inny portfel rozpoczął wymianę · oczekiwanie na podpisane warunki · Sesja %1$@…" } },
-        "pt": { "stringUnit": { "state": "translated", "value": "Outra carteira iniciou a troca · aguardando os termos assinados · Sessão %1$@…" } },
-        "ru": { "stringUnit": { "state": "translated", "value": "Другой кошелек начал обмен · ожидание подписанных условий · Сеанс %1$@…" } },
-        "tr": { "stringUnit": { "state": "translated", "value": "Başka bir cüzdan takası başlattı · imzalı koşullar bekleniyor · Oturum %1$@…" } },
-        "uk": { "stringUnit": { "state": "translated", "value": "Інший гаманець розпочав обмін · очікування підписаних умов · Сесія %1$@…" } },
-        "vi": { "stringUnit": { "state": "translated", "value": "Ví khác đã bắt đầu hoán đổi · đang chờ các điều khoản đã ký · Phiên %1$@…" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "另一个钱包已启动交换 · 正在等待签名条款 · 会话 %1$@…" } },
-        "zh-Hant": { "stringUnit": { "state": "translated", "value": "另一個錢包已啟動交換 · 正在等待簽署條款 · 工作階段 %1$@…" } }
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "بدأت محفظة أخرى المبادلة · في انتظار الشروط الموقعة · الجلسة %1$@…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine andere Wallet hat den Tausch gestartet · Warten auf signierte Bedingungen · Sitzung %1$@…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Another wallet started the swap · waiting for signed terms · Session %1$@…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otra cartera inició el intercambio · esperando las condiciones firmadas · Sesión %1$@…"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "کیف پول دیگری مبادله را آغاز کرد · در انتظار شرایط امضاشده · جلسه %1$@…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un autre portefeuille a lancé l’échange · en attente des conditions signées · Session %1$@…"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ארנק אחר התחיל את ההחלפה · ממתין לתנאים החתומים · הפעלה %1$@…"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "दूसरे वॉलेट ने स्वैप शुरू किया · हस्ताक्षरित शर्तों की प्रतीक्षा · सत्र %1$@…"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dompet lain memulai pertukaran · menunggu ketentuan yang ditandatangani · Sesi %1$@…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un altro portafoglio ha avviato lo scambio · in attesa dei termini firmati · Sessione %1$@…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "別のウォレットがスワップを開始しました · 署名済み条件を待機中 · セッション %1$@…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다른 지갑이 스왑을 시작했습니다 · 서명된 조건을 기다리는 중 · 세션 %1$@…"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Een andere wallet heeft de swap gestart · wachten op ondertekende voorwaarden · Sessie %1$@…"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inny portfel rozpoczął wymianę · oczekiwanie na podpisane warunki · Sesja %1$@…"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Outra carteira iniciou a troca · aguardando os termos assinados · Sessão %1$@…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Другой кошелек начал обмен · ожидание подписанных условий · Сеанс %1$@…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Başka bir cüzdan takası başlattı · imzalı koşullar bekleniyor · Oturum %1$@…"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Інший гаманець розпочав обмін · очікування підписаних умов · Сесія %1$@…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ví khác đã bắt đầu hoán đổi · đang chờ các điều khoản đã ký · Phiên %1$@…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "另一个钱包已启动交换 · 正在等待签名条款 · 会话 %1$@…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "另一個錢包已啟動交換 · 正在等待簽署條款 · 工作階段 %1$@…"
+          }
+        }
       }
     },
     "wallet_swap_notification_refunded": {
@@ -65343,138 +67728,7 @@
         }
       }
     },
-    "wallet_swap_offer_maker_label": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "أنت تعرض %1$@ ← وتطلب %2$@ · %3$@…"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Du bietest %1$@ → Du verlangst %2$@ · %3$@…"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "You offer %1$@ → You request %2$@ · %3$@…"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ofreces %1$@ → Solicitas %2$@ · %3$@…"
-          }
-        },
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "شما %1$@ پیشنهاد می‌دهید ← %2$@ درخواست می‌کنید · %3$@…"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vous offrez %1$@ → Vous demandez %2$@ · %3$@…"
-          }
-        },
-        "he": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "אתם מציעים %1$@ ← ומבקשים %2$@ · %3$@…"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "आप %1$@ देते हैं → आप %2$@ माँगते हैं · %3$@…"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Anda menawarkan %1$@ → Anda meminta %2$@ · %3$@…"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Offri %1$@ → Richiedi %2$@ · %3$@…"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@を提示 → %2$@を要求 · %3$@…"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ 제공 → %2$@ 요청 · %3$@…"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Je biedt %1$@ → Je vraagt %2$@ · %3$@…"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Oferujesz %1$@ → Oczekujesz %2$@ · %3$@…"
-          }
-        },
-        "pt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Oferece %1$@ → Pede %2$@ · %3$@…"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Вы предлагаете %1$@ → Вы запрашиваете %2$@ · %3$@…"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ sunuyorsunuz → %2$@ istiyorsunuz · %3$@…"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ви пропонуєте %1$@ → Ви запитуєте %2$@ · %3$@…"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bạn chào %1$@ → Bạn yêu cầu %2$@ · %3$@…"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "你提供 %1$@ → 你要求 %2$@ · %3$@…"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "你提供 %1$@ → 你要求 %2$@ · %3$@…"
-          }
-        }
-      }
-    },
-    "wallet_swap_offer_taker_label": {
+    "wallet_swap_offer_acceptance_label": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
@@ -65601,6 +67855,137 @@
           "stringUnit": {
             "state": "translated",
             "value": "你支付 %1$@ → 你收到 %2$@ · %3$@…"
+          }
+        }
+      }
+    },
+    "wallet_swap_offer_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "أنت تعرض %1$@ ← وتطلب %2$@ · %3$@…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Du bietest %1$@ → Du verlangst %2$@ · %3$@…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You offer %1$@ → You request %2$@ · %3$@…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ofreces %1$@ → Solicitas %2$@ · %3$@…"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "شما %1$@ پیشنهاد می‌دهید ← %2$@ درخواست می‌کنید · %3$@…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vous offrez %1$@ → Vous demandez %2$@ · %3$@…"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "אתם מציעים %1$@ ← ומבקשים %2$@ · %3$@…"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "आप %1$@ देते हैं → आप %2$@ माँगते हैं · %3$@…"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anda menawarkan %1$@ → Anda meminta %2$@ · %3$@…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Offri %1$@ → Richiedi %2$@ · %3$@…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@を提示 → %2$@を要求 · %3$@…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ 제공 → %2$@ 요청 · %3$@…"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Je biedt %1$@ → Je vraagt %2$@ · %3$@…"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oferujesz %1$@ → Oczekujesz %2$@ · %3$@…"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oferece %1$@ → Pede %2$@ · %3$@…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вы предлагаете %1$@ → Вы запрашиваете %2$@ · %3$@…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ sunuyorsunuz → %2$@ istiyorsunuz · %3$@…"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ви пропонуєте %1$@ → Ви запитуєте %2$@ · %3$@…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn chào %1$@ → Bạn yêu cầu %2$@ · %3$@…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你提供 %1$@ → 你要求 %2$@ · %3$@…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你提供 %1$@ → 你要求 %2$@ · %3$@…"
           }
         }
       }
@@ -72675,1971 +75060,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "當錢包處於非活動狀態時，原子交換進度不可用。"
-          }
-        }
-      }
-    },
-    "wallet_swap_take_approval_message": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "العرض: %1$@\n\nالقفل: %2$@\nالحد الأقصى للرسوم: %3$@\nالإجمالي: %4$@\n\nيبدأ القبول التفاوض. تتم الموافقة على التمويل بشكل منفصل."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Angebot: %1$@\n\nSperrbetrag: %2$@\nMaximale Gebühr: %3$@\nGesamt: %4$@\n\nDie Annahme startet die Verhandlung. Die Finanzierung wird separat bestätigt."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Offer: %1$@\n\nLock: %2$@\nMaximum fee: %3$@\nTotal: %4$@\n\nAccepting starts negotiation. Funding is approved separately."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Oferta: %1$@\n\nBloqueo: %2$@\nComisión máxima: %3$@\nTotal: %4$@\n\nAceptar inicia la negociación. La financiación se aprueba por separado."
-          }
-        },
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "پیشنهاد: %1$@\n\nقفل: %2$@\nحداکثر کارمزد: %3$@\nمجموع: %4$@\n\nپذیرش، مذاکره را آغاز می‌کند. تأمین وجه جداگانه تأیید می‌شود."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Offre : %1$@\n\nVerrouillage : %2$@\nFrais maximum : %3$@\nTotal : %4$@\n\nL’acceptation lance la négociation. Le financement est approuvé séparément."
-          }
-        },
-        "he": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "הצעה: %1$@\n\nנעילה: %2$@\nעמלה מרבית: %3$@\nסה״כ: %4$@\n\nהקבלה מתחילה משא ומתן. המימון מאושר בנפרד."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ऑफ़र: %1$@\n\nलॉक: %2$@\nअधिकतम शुल्क: %3$@\nकुल: %4$@\n\nस्वीकार करने पर बातचीत शुरू होती है। फंडिंग की मंज़ूरी अलग से दी जाती है।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Penawaran: %1$@\n\nKunci: %2$@\nBiaya maksimum: %3$@\nTotal: %4$@\n\nPenerimaan memulai negosiasi. Pendanaan disetujui secara terpisah."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Offerta: %1$@\n\nBlocco: %2$@\nCommissione massima: %3$@\nTotale: %4$@\n\nL’accettazione avvia la negoziazione. Il finanziamento viene approvato separatamente."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "オファー：%1$@\n\nロック：%2$@\n最大手数料：%3$@\n合計：%4$@\n\n承認すると交渉が始まります。資金供給は別途承認します。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "제안: %1$@\n\n잠금: %2$@\n최대 수수료: %3$@\n합계: %4$@\n\n수락하면 협상이 시작됩니다. 자금 공급은 별도로 승인합니다."
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aanbieding: %1$@\n\nVergrendeling: %2$@\nMaximale kosten: %3$@\nTotaal: %4$@\n\nAcceptatie start de onderhandeling. Financiering wordt apart goedgekeurd."
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Oferta: %1$@\n\nBlokada: %2$@\nMaksymalna opłata: %3$@\nRazem: %4$@\n\nPrzyjęcie rozpoczyna negocjacje. Finansowanie zatwierdza się osobno."
-          }
-        },
-        "pt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Oferta: %1$@\n\nBloqueio: %2$@\nTaxa máxima: %3$@\nTotal: %4$@\n\nA aceitação inicia a negociação. O financiamento é aprovado separadamente."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Предложение: %1$@\n\nБлокировка: %2$@\nМаксимальная комиссия: %3$@\nИтого: %4$@\n\nПринятие запускает переговоры. Финансирование подтверждается отдельно."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Teklif: %1$@\n\nKilit: %2$@\nAzami ücret: %3$@\nToplam: %4$@\n\nKabul, görüşmeyi başlatır. Fonlama ayrıca onaylanır."
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Пропозиція: %1$@\n\nБлокування: %2$@\nМаксимальна комісія: %3$@\nРазом: %4$@\n\nПрийняття починає переговори. Фінансування підтверджується окремо."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Chào giá: %1$@\n\nKhóa: %2$@\nPhí tối đa: %3$@\nTổng: %4$@\n\nChấp nhận sẽ bắt đầu thương lượng. Việc cấp vốn được phê duyệt riêng."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "报价：%1$@\n\n锁定：%2$@\n最高费用：%3$@\n总计：%4$@\n\n接受后开始协商。资金操作需另行批准。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "報價：%1$@\n\n鎖定：%2$@\n最高費用：%3$@\n總計：%4$@\n\n接受後開始協商。資金操作需另行核准。"
-          }
-        }
-      }
-    },
-    "wallet_swap_take_approval_title": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "قبول عرض المبادلة هذا؟"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dieses Tauschangebot annehmen?"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Accept this swap offer?"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "¿Aceptar esta oferta de intercambio?"
-          }
-        },
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "این پیشنهاد مبادله پذیرفته شود؟"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Accepter cette offre d’échange ?"
-          }
-        },
-        "he": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "לקבל את הצעת ההחלפה הזו?"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "यह स्वैप ऑफ़र स्वीकार करें?"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Terima penawaran pertukaran ini?"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Accettare questa offerta di scambio?"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "このスワップオファーを承認しますか？"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이 스왑 제안을 수락할까요?"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Deze ruilaanbieding accepteren?"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Przyjąć tę ofertę wymiany?"
-          }
-        },
-        "pt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aceitar esta oferta de troca?"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Принять это предложение обмена?"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bu takas teklifi kabul edilsin mi?"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Прийняти цю пропозицію обміну?"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Chấp nhận chào giá hoán đổi này?"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "接受此兑换报价？"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "接受此兌換報價？"
-          }
-        }
-      }
-    },
-    "wallet_swap_take_btc_fee_reserve_hint": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "احتياطي رسوم Bitcoin (sats، الحد الأدنى 1000)"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bitcoin Gebührenreserve (sats, mindestens 1000)"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bitcoin fee reserve (sats, minimum 1000)"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reserva de tarifa Bitcoin (sats, mínimo 1000)"
-          }
-        },
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ذخیره هزینه Bitcoin (sats، حداقل 1000)"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Réserve de frais Bitcoin (sats, minimum 1 000)"
-          }
-        },
-        "he": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "עתודת עמלה Bitcoin (sats, מינימום 1000)"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bitcoin शुल्क आरक्षित (sats, न्यूनतम 1000)"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cadangan biaya Bitcoin (sats, minimal 1000)"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bitcoin riserva tariffa (sats, minimo 1000)"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bitcoin 手数料引当金 (sats、最低 1000)"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bitcoin 수수료 적립금 (sats, 최소 1000)"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bitcoin vergoedingsreserve (sats, minimaal 1000)"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bitcoin rezerwa na opłaty (sats, minimum 1000)"
-          }
-        },
-        "pt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reserva de taxa Bitcoin (sats, mínimo 1.000)"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Резерв комиссии Bitcoin (sats, минимум 1000)"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bitcoin ücret rezervi (sats, minimum 1000)"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Резерв комісії Bitcoin (sats, мінімум 1000)"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dự trữ phí Bitcoin (sats, tối thiểu 1000)"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bitcoin 手续费储备金（sats，最低1000）"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bitcoin 手續費儲備金（sats，最低1000）"
-          }
-        }
-      }
-    },
-    "wallet_swap_take_confirm": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "قبول العرض"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Angebot annehmen"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Accept offer"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aceptar oferta"
-          }
-        },
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "پذیرش پیشنهاد"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Accepter l’offre"
-          }
-        },
-        "he": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "קבלת הצעה"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ऑफ़र स्वीकार करें"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Terima penawaran"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Accetta offerta"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "オファーを承認"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "제안 수락"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aanbieding accepteren"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Przyjmij ofertę"
-          }
-        },
-        "pt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aceitar oferta"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Принять предложение"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Teklifi kabul et"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Прийняти пропозицію"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Chấp nhận chào giá"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "接受报价"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "接受報價"
-          }
-        }
-      }
-    },
-    "wallet_swap_take_failed": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "لم يتم إرسال القبول الموقع. ربما تم قطع اتصال النظير أو ربما انتهت صلاحية العرض."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Die unterschriebene Annahmeerklärung wurde nicht verschickt. Der Peer hat möglicherweise die Verbindung getrennt oder das Angebot ist abgelaufen."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The signed acceptance was not sent. The peer may have disconnected or the offer may have expired."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La aceptación firmada no fue enviada. Es posible que el par se haya desconectado o que la oferta haya caducado."
-          }
-        },
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "پذیرش امضا شده ارسال نشد. ممکن است ارتباط همتا قطع شده باشد یا پیشنهاد منقضی شده باشد."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "L'acceptation signée n'a pas été envoyée. L'homologue s'est peut-être déconnecté ou l'offre a peut-être expiré."
-          }
-        },
-        "he": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "הקבלה החתומה לא נשלחה. ייתכן שהעמית התנתק או שההצעה פג."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "हस्ताक्षरित स्वीकृति नहीं भेजी गई. हो सकता है कि सहकर्मी ने डिस्कनेक्ट कर दिया हो या ऑफ़र समाप्त हो गया हो।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Penerimaan yang ditandatangani tidak dikirim. Rekan tersebut mungkin telah terputus atau penawarannya mungkin telah kedaluwarsa."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "L'accettazione firmata non è stata inviata. Il peer potrebbe essersi disconnesso o l'offerta potrebbe essere scaduta."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "署名された承諾書は送信されませんでした。ピアが切断されたか、オファーの有効期限が切れた可能性があります。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "서명된 수락이 전송되지 않았습니다. 피어의 연결이 끊어졌거나 제안이 만료되었을 수 있습니다."
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "De ondertekende aanvaarding is niet verzonden. Mogelijk is de verbinding met de peer verbroken of is de aanbieding verlopen."
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Podpisana akceptacja nie została wysłana. Partner mógł się rozłączyć lub oferta mogła wygasnąć."
-          }
-        },
-        "pt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A aceitação assinada não foi enviada. O peer pode ter se desconectado ou a oferta pode ter expirado."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Подписанный акцепт не был отправлен. Возможно, одноранговый узел отключился или срок действия предложения истек."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "İmzalı kabul gönderilmedi. Eşin bağlantısı kesilmiş olabilir veya teklifin süresi dolmuş olabilir."
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Підписане прийняття не було надіслано. Можливо, вузол від’єднався або термін дії пропозиції закінчився."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sự chấp nhận đã ký không được gửi. Thiết bị ngang hàng có thể đã bị ngắt kết nối hoặc ưu đãi có thể đã hết hạn."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "签署的接受书未发送。对等方可能已断开连接或优惠可能已过期。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "簽署的接受書未發送。對等方可能已斷線或優惠可能已過期。"
-          }
-        }
-      }
-    },
-    "wallet_swap_take_hns_fee_reserve_hint": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "احتياطي الرسوم HNS"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "HNS Gebührenreserve"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "HNS fee reserve"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reserva de tarifa HNS"
-          }
-        },
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ذخیره هزینه HNS"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Réserve de frais HNS"
-          }
-        },
-        "he": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "עתודת עמלה HNS"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "HNS शुल्क आरक्षित"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cadangan biaya HNS"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "HNS riserva tariffaria"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "HNS 手数料引当金"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "HNS 수수료 예비"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "HNS kostenreservering"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "HNS rezerwa na opłaty"
-          }
-        },
-        "pt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reserva de taxa HNS"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "HNS резерв комиссии"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "HNS ücret rezervi"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "HNS Резерв комісії"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dự trữ phí HNS"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "HNS 费用储备金"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "HNS 費用儲備金"
-          }
-        }
-      }
-    },
-    "wallet_swap_take_insufficient_btc": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "يتطلب هذا العرض قفل %1$d بما في ذلك احتياطي رسوم %2$d Bitcoin (إجمالي %3$d sats)، ولكن هذه المحفظة تحتوي على %4$d المؤكدة sats."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Für dieses Angebot ist ein %1$d-Sat-Schloss einschließlich einer %2$d-Sat-Bitcoin-Gebührenreserve (%3$d sats insgesamt) erforderlich, aber für diese Brieftasche ist %4$d sats bestätigt."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This offer requires a %1$d sat lock including a %2$d sat Bitcoin fee reserve (%3$d sats total), but this wallet has %4$d confirmed sats."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esta oferta requiere un candado sat %1$d que incluye una reserva de tarifa %2$d sat Bitcoin (%3$d sats en total), pero esta billetera tiene %4$d confirmado sats."
-          }
-        },
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "این پیشنهاد به %1$d قفل مستلزم شامل %2$d ذخیره کارمزد بیت کوین (%3$d در مجموع) نیاز دارد، اما این کیف دارای %4$d نشست تأیید شده است."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cette offre nécessite un verrou sat %1$d comprenant une réserve de frais sat %2$d Bitcoin (total %3$d sats), mais ce portefeuille a %4$d confirmé sats."
-          }
-        },
-        "he": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "הצעה זו מחייבת מנעול לשבת %1$d כולל רזרבת עמלה %2$d sat Bitcoin (סה\"כ %3$d sats), אך לארנק הזה יש %4$d מאושרת sats."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "इस ऑफ़र के लिए %2$d sat Bitcoin शुल्क आरक्षित (%3$d sats कुल) सहित %1$d sat लॉक की आवश्यकता है, लेकिन इस वॉलेट में %4$d की पुष्टि sats है।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Penawaran ini memerlukan kunci sat %1$d termasuk cadangan biaya %2$d sat Bitcoin (total %3$d sats), tetapi dompet ini memiliki %4$d yang dikonfirmasi sats."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Questa offerta richiede un blocco satellitare %1$d che includa una riserva tariffaria %2$d sat Bitcoin (%3$d sats totale), ma questo portafoglio ha %4$d confermato sats."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "このオファーには、%2$d sat Bitcoin 手数料準備金 (%3$d sats 合計) を含む %1$d sat ロックが必要ですが、このウォレットには %4$d 確認済み sats があります。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이 제안에는 %2$d sat Bitcoin 수수료 예비금(%3$d sats 총계)을 포함한 %1$d sat 잠금 장치가 필요하지만 이 지갑에는 %4$d에서 sats가 확인되었습니다."
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Voor deze aanbieding is een %1$d satellietslot inclusief een %2$d sat Bitcoin kostenreserve vereist (%3$d sats totaal), maar deze portemonnee heeft een %4$d bevestigde sats."
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ta oferta wymaga blokady sat %1$d, w tym rezerwy opłat %2$d sat Bitcoin (łącznie %3$d sats), ale ten portfel ma potwierdzone %4$d sats."
-          }
-        },
-        "pt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esta oferta requer um bloqueio de satélite %1$d incluindo uma reserva de taxa de satélite %2$d Bitcoin (total %3$d sats), mas esta carteira tem %4$d sats confirmado."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Для этого предложения требуется спутниковый замок %1$d, включая резерв комиссии %2$d sat Bitcoin (всего %3$d sats), но в этом кошельке есть подтвержденный %4$d sats."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bu teklif, %2$d uydu Bitcoin ücret rezervi (toplam %3$d sats toplam) içeren bir %1$d uydu kilidi gerektirir, ancak bu cüzdanda %4$d onaylı sats vardır."
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Для цієї пропозиції потрібен %1$d sat lock, включаючи %2$d sat Bitcoin резерв комісії (загалом %3$d sats), але цей гаманець має %4$d підтверджений sats."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ưu đãi này yêu cầu khóa sat %1$d bao gồm dự trữ phí sat %2$d Bitcoin (tổng cộng %3$d sats), nhưng ví này có %4$d đã xác nhận sats."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "此优惠需要 %1$d sat 锁，包括 %2$d sat Bitcoin 费用储备（%3$d sats 总计），但此钱包有 %4$d 确认 sats。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "此優惠需要 %1$d sat 鎖，包括 %2$d sat Bitcoin 費用儲備（%3$d sats 總計），但此錢包有 %4$d 確認 ZQQPH007777。"
-          }
-        }
-      }
-    },
-    "wallet_swap_take_insufficient_hns": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "يتطلب هذا العرض قفل %1$@ HNS يتضمن احتياطي رسوم %2$@ HNS (إجمالي %3$@ HNS)، ولكن هذه المحفظة بها %4$@ HNS قابلة للإنفاق."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Für dieses Angebot ist ein %1$@ HNS-Schloss inklusive einer %2$@ HNS-Gebührenreserve (%3$@ HNS insgesamt) erforderlich, aber diese Geldbörse hat %4$@ HNS auszahlbar."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This offer requires a %1$@ HNS lock including a %2$@ HNS fee reserve (%3$@ HNS total), but this wallet has %4$@ HNS spendable."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esta oferta requiere un candado %1$@ HNS que incluye una reserva de tarifa %2$@ HNS (%3$@ HNS en total), pero esta billetera tiene %4$@ HNS para gastar."
-          }
-        },
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "این پیشنهاد به قفل %1$@ HNS از جمله ذخیره کارمزد %2$@ HNS (%3$@ HNS کل) نیاز دارد، اما این کیف دارای %4$@ HNS قابل خرج است."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cette offre nécessite un verrou %1$@ HNS comprenant une réserve de frais %2$@ HNS (%3$@ HNS total), mais ce portefeuille a %4$@ HNS dépensable."
-          }
-        },
-        "he": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "הצעה זו דורשת מנעול HNS %1$@ כולל רזרבת עמלת HNS %2$@ (סה\"כ %3$@ HNS), אך בארנק זה יש %4$@ HNS שניתן לבזבז."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "इस ऑफ़र के लिए %2$@ HNS शुल्क आरक्षित (%3$@ HNS कुल) सहित एक %1$@ HNS लॉक की आवश्यकता है, लेकिन इस वॉलेट में %4$@ HNS खर्च करने योग्य है।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Penawaran ini memerlukan kunci %1$@ HNS termasuk cadangan biaya %2$@ HNS (total %3$@ HNS), namun dompet ini memiliki %4$@ HNS yang dapat dibelanjakan."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Questa offerta richiede un lucchetto %1$@ HNS che includa una riserva tariffaria %2$@ HNS (%3$@ HNS totale), ma questo portafoglio ha %4$@ HNS spendibili."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "このオファーには、%2$@ HNS の手数料準備金 (合計 %3$@ HNS) を含む %1$@ HNS ロックが必要ですが、このウォレットには %4$@ HNS が使用可能です。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이 제안에는 %2$@ HNS 수수료 적립금(총 %3$@ HNS)을 포함한 %1$@ HNS 잠금 장치가 필요하지만 이 지갑에는 %4$@ HNS를 사용할 수 있습니다."
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Voor deze aanbieding is een %1$@ HNS-slot inclusief een %2$@ HNS-kostenreserve vereist (%3$@ HNS in totaal), maar deze portemonnee kan %4$@ HNS uitgeven."
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ta oferta wymaga blokady %1$@ HNS zawierającej rezerwę opłat %2$@ HNS (łącznie %3$@ HNS), ale w tym portfelu można wydać %4$@ HNS."
-          }
-        },
-        "pt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esta oferta requer um bloqueio %1$@ HNS incluindo uma reserva de taxa %2$@ HNS (total %3$@ HNS), mas esta carteira tem %4$@ HNS gastável."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Для этого предложения требуется замок %1$@ HNS, включая резерв комиссии %2$@ HNS (всего %3$@ HNS), но в этом кошельке есть возможность расходования %4$@ HNS."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bu teklif, %2$@ HNS ücret rezervi (toplam %3$@ HNS toplam) içeren bir %1$@ HNS kilidi gerektirir, ancak bu cüzdanda harcanabilir %4$@ HNS bulunur."
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Для цієї пропозиції потрібен замок %1$@ HNS із резервом комісії %2$@ HNS (загалом %3$@ HNS), але цей гаманець має %4$@ HNS, який можна витратити."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ưu đãi này yêu cầu khóa %1$@ HNS bao gồm dự trữ phí %2$@ HNS (tổng cộng %3$@ HNS), nhưng ví này có %4$@ HNS có thể chi tiêu."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "此优惠需要 %1$@ HNS 锁定，包括 %2$@ HNS 费用准备金（总计 %3$@ HNS），但此钱包有 %4$@ HNS 可支出。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "此優惠需要%1$@ HNS鎖定，包括%2$@ HNS費用儲備（總計%3$@ HNS ），但此錢包有%4$@ HNS可花費。"
-          }
-        }
-      }
-    },
-    "wallet_swap_take_offer": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "قبول العرض"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Angebot annehmen"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Accept offer"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aceptar oferta"
-          }
-        },
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "قبول پیشنهاد"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Accepter l'offre"
-          }
-        },
-        "he": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "קבל הצעה"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "प्रस्ताव स्वीकार करें"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Terima tawaran"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Accetta l'offerta"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "オファーを受け入れる"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "제안 수락"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Accepteer aanbod"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zaakceptuj ofertę"
-          }
-        },
-        "pt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aceitar oferta"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Принять предложение"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Teklifi kabul et"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Прийняти пропозицію"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Chấp nhận lời đề nghị"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "接受报价"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "接受報價"
-          }
-        }
-      }
-    },
-    "wallet_swap_take_prepare_failed": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "لا يمكن إعداد قبول العرض. تحقق من النظير المتصل والرصيد المتزامن واحتياطي الرسوم."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Die Angebotsannahme konnte nicht vorbereitet werden. Überprüfen Sie den verbundenen Peer, den synchronisierten Kontostand und die Gebührenreserve."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The offer acceptance could not be prepared. Check the connected peer, synchronized balance, and fee reserve."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No se pudo preparar la aceptación de la oferta. Verifique el par conectado, el saldo sincronizado y la reserva de tarifas."
-          }
-        },
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "پذیرش پیشنهاد آماده نشد. همتا متصل، موجودی همگام، و ذخیره هزینه را بررسی کنید."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "L'acceptation de l'offre n'a pas pu être préparée. Vérifiez le pair connecté, le solde synchronisé et la réserve de frais."
-          }
-        },
-        "he": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "לא ניתן היה להכין את קבלת ההצעה. בדוק את העמית המחוברת, היתרה המסונכרנת ועתודות העמלות."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "प्रस्ताव स्वीकृति तैयार नहीं हो सकी। कनेक्टेड पीयर, सिंक्रोनाइज्ड बैलेंस और शुल्क रिजर्व की जांच करें।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Penerimaan tawaran tidak dapat disiapkan. Periksa rekan yang terhubung, saldo tersinkronisasi, dan cadangan biaya."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Non è stato possibile preparare l'accettazione dell'offerta. Controlla il peer connesso, il saldo sincronizzato e la riserva tariffaria."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "オファー承諾を準備できませんでした。接続相手、同期残高、料金リザーブを確認します。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "제안 수락을 준비할 수 없습니다. 연결된 Peer, 동기화 잔액, 수수료 보유량을 확인하세요."
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "De aanvaarding van het bod kon niet worden voorbereid. Controleer de verbonden peer, het gesynchroniseerde saldo en de kostenreservering."
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nie można było przygotować akceptacji oferty. Sprawdź podłączonego partnera, zsynchronizowane saldo i rezerwę opłat."
-          }
-        },
-        "pt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A aceitação da oferta não pôde ser preparada. Verifique o peer conectado, o saldo sincronizado e a reserva de taxas."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Акцепт оферты подготовить не удалось. Проверьте подключенного узла, синхронизированный баланс и резерв комиссии."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Teklif kabulü hazırlanamadı. Bağlı eşleri, senkronize bakiyeyi ve ücret rezervini kontrol edin."
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Не вдалося підготувати акцепт пропозиції. Перевірте підключений вузол, синхронізований баланс і резерв комісії."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Việc chấp nhận lời đề nghị không thể được chuẩn bị. Kiểm tra ngang hàng được kết nối, số dư được đồng bộ hóa và dự trữ phí."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无法准备要约接受。检查连接的对等点、同步余额和费用储备。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "無法準備要約接受。檢查連接的對等點、同步餘額和費用儲備。"
-          }
-        }
-      }
-    },
-    "wallet_swap_take_preparing": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "جارٍ إعداد مراجعة العرض…"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Angebotsprüfung wird vorbereitet…"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Preparing offer review…"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Preparando revisión de oferta..."
-          }
-        },
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "در حال آماده سازی بررسی پیشنهاد…"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Préparation de la revue des offres…"
-          }
-        },
-        "he": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "מכין סקירת הצעה..."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ऑफ़र समीक्षा तैयार की जा रही है…"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mempersiapkan tinjauan penawaran…"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Preparazione della revisione dell'offerta…"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "オファーのレビューを準備しています…"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "제안 검토 준비 중…"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Beoordeling van aanbieding voorbereiden…"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Przygotowuję recenzję oferty…"
-          }
-        },
-        "pt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Preparando revisão da oferta…"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Подготовка обзора предложения…"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Teklif incelemesi hazırlanıyor…"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Підготовка розгляду пропозиції…"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Đang chuẩn bị xem xét đề nghị…"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在准备报价审核..."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在準備報價審核..."
-          }
-        }
-      }
-    },
-    "wallet_swap_take_reserved_btc": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "يحتاج هذا العرض إلى %1$d sats؛ تم تأكيد المحفظة %2$d، لكن المقايضات الأخرى تحتفظ كثيرًا. قم بتحرير قبول غير ممول، أو إنهاء المبادلة أو استردادها، أو إضافة Bitcoin."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dieses Angebot erfordert %1$d sats; Das Wallet hat %2$d bestätigt, aber andere Swaps reservieren zu viel. Geben Sie eine nicht finanzierte Annahme frei, beenden oder erstatten Sie einen Tausch oder fügen Sie Bitcoin hinzu."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This offer needs %1$d sats; the wallet has %2$d confirmed, but other swaps reserve too much. Release an unfunded acceptance, finish or refund a swap, or add Bitcoin."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esta oferta necesita %1$d sats; la billetera tiene confirmado %2$d, pero otros swaps reservan demasiado. Libere una aceptación no financiada, finalice o reembolse un intercambio, o agregue Bitcoin."
-          }
-        },
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "این پیشنهاد به %1$d sats نیاز دارد. کیف پول دارای %2$d تایید شده است، اما سایر مبادلات بیش از حد ذخیره می کنند. یک پذیرش بدون بودجه را منتشر کنید، یک مبادله را تکمیل یا بازپرداخت کنید، یا Bitcoin را اضافه کنید."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cette offre nécessite %1$d sats ; le portefeuille a confirmé %2$d, mais d'autres swaps réservent trop. Libérez une acceptation non financée, terminez ou remboursez un échange, ou ajoutez Bitcoin."
-          }
-        },
-        "he": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "הצעה זו צריכה %1$d sats; לארנק יש אישור %2$d, אבל החלפות אחרות שומרות יותר מדי. שחרר קבלה ללא מימון, סיים או החזר החלפה, או הוסף Bitcoin."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "इस ऑफर के लिए %1$d sats की आवश्यकता है; वॉलेट में %2$d की पुष्टि की गई है, लेकिन अन्य स्वैप बहुत अधिक आरक्षित हैं। एक अनिधिकृत स्वीकृति जारी करें, एक स्वैप समाप्त करें या वापस करें, या Bitcoin जोड़ें।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Penawaran ini membutuhkan %1$d sats; dompet telah mengkonfirmasi %2$d, tetapi swap lainnya memiliki terlalu banyak cadangan. Lepaskan penerimaan yang tidak didanai, selesaikan atau kembalikan dana swap, atau tambahkan Bitcoin."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Questa offerta richiede %1$d sats; il portafoglio ha %2$d confermato, ma altri scambi riservano troppo. Rilascia un'accettazione non finanziata, completa o rimborsa uno scambio oppure aggiungi Bitcoin."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "このオファーには %1$d sats が必要です。ウォレットには%2$dが確認されていますが、他のスワップの予約が多すぎます。未入金の受け入れを解除するか、スワップを終了または返金するか、Bitcoin を追加します。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이 제안에는 %1$d sats가 필요합니다. 지갑에 %2$d가 확인되었지만 다른 스왑은 너무 많이 보유하고 있습니다. 자금이 지원되지 않은 수락을 해제하거나, 스왑을 완료 또는 환불하거나, Bitcoin를 추가하세요."
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Voor deze aanbieding is %1$d sats nodig; de portemonnee heeft %2$d bevestigd, maar andere swaps reserveren te veel. Geef een niet-gefinancierde acceptatie vrij, voltooi een ruil of betaal deze terug, of voeg Bitcoin toe."
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ta oferta wymaga %1$d sats; portfel ma potwierdzone %2$d, ale inne swapy rezerwują za dużo. Zwolnij akceptację bez środków, zakończ wymianę lub zwróć pieniądze albo dodaj Bitcoin."
-          }
-        },
-        "pt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esta oferta precisa de %1$d sats; a carteira tem %2$d confirmado, mas outros swaps reservam muito. Libere uma aceitação sem financiamento, finalize ou reembolse uma troca ou adicione Bitcoin."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Для этого предложения требуется %1$d sats; в кошельке подтвержден %2$d, но другие свопы резервируют слишком много. Отпустите необеспеченный акцепт, завершите или возместите своп или добавьте Bitcoin."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bu teklifin %1$d sats'ye ihtiyacı vardır; cüzdanda %2$d onaylandı ancak diğer swaplar çok fazla rezerve ediyor. Finanse edilmemiş bir kabulü iptal edin, takas işlemini tamamlayın veya iade edin ya da Bitcoin ekleyin."
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Для цієї пропозиції потрібен %1$d sats; гаманець підтвердив %2$d, але інші свопи резервують занадто багато. Відпустіть нефінансований акцепт, завершіть або відшкодуйте обмін або додайте Bitcoin."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ưu đãi này cần %1$d sats; ví đã xác nhận %2$d nhưng các giao dịch hoán đổi khác dự trữ quá nhiều. Phát hành chấp nhận không được cấp vốn, hoàn thành hoặc hoàn lại tiền hoán đổi hoặc thêm Bitcoin."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "此报价需要%1$d sats；钱包已确认%2$d，但其他掉期储备太多。释放无资金支持的承兑，完成或退款掉期，或添加 Bitcoin。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "此報價需要%1$d sats；皮夾已確認%2$d，但其他掉期儲備太多。釋放無資金支持的承兌，完成或退款掉期，或增加 Bitcoin。"
-          }
-        }
-      }
-    },
-    "wallet_swap_take_reserved_hns": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "يحتاج هذا العرض إلى %1$@ HNS؛ تم تأكيد المحفظة %2$@، لكن المقايضات الأخرى تحتفظ كثيرًا. قم بتحرير قبول غير ممول، أو إنهاء المبادلة أو استردادها، أو إضافة HNS."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dieses Angebot erfordert %1$@ HNS; Das Wallet hat %2$@ bestätigt, aber andere Swaps reservieren zu viel. Geben Sie eine nicht finanzierte Annahme frei, beenden oder erstatten Sie einen Tausch oder fügen Sie HNS hinzu."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This offer needs %1$@ HNS; the wallet has %2$@ confirmed, but other swaps reserve too much. Release an unfunded acceptance, finish or refund a swap, or add HNS."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esta oferta necesita %1$@ HNS; la billetera tiene confirmado %2$@, pero otros swaps reservan demasiado. Libere una aceptación no financiada, finalice o reembolse un intercambio, o agregue HNS."
-          }
-        },
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "این پیشنهاد به %1$@ HNS نیاز دارد. کیف پول دارای %2$@ تایید شده است، اما سایر مبادلات بیش از حد ذخیره می کنند. یک پذیرش بدون بودجه را منتشر کنید، یک مبادله را تکمیل یا بازپرداخت کنید، یا HNS را اضافه کنید."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cette offre nécessite %1$@ HNS ; le portefeuille a confirmé %2$@, mais d'autres swaps réservent trop. Libérez une acceptation non financée, terminez ou remboursez un échange, ou ajoutez HNS."
-          }
-        },
-        "he": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "הצעה זו צריכה %1$@ HNS; לארנק יש אישור %2$@, אבל החלפות אחרות שומרות יותר מדי. שחרר קבלה ללא מימון, סיים או החזר החלפה, או הוסף HNS."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "इस ऑफर के लिए %1$@ HNS की आवश्यकता है; वॉलेट में %2$@ की पुष्टि की गई है, लेकिन अन्य स्वैप बहुत अधिक आरक्षित हैं। एक अनिधिक स्वीकृति जारी करें, एक स्वैप समाप्त करें या वापस करें, या HNS जोड़ें।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Penawaran ini membutuhkan %1$@ HNS; dompet telah mengkonfirmasi %2$@, tetapi swap lainnya memiliki terlalu banyak cadangan. Lepaskan penerimaan yang tidak didanai, selesaikan atau kembalikan dana swap, atau tambahkan HNS."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Questa offerta richiede %1$@ HNS; il portafoglio ha %2$@ confermato, ma altri scambi riservano troppo. Rilascia un'accettazione non finanziata, completa o rimborsa uno scambio oppure aggiungi HNS."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "このオファーには %1$@ HNS が必要です。ウォレットには%2$@が確認されていますが、他のスワップの予約が多すぎます。未入金の受け入れを解除するか、スワップを終了または返金するか、HNS を追加します。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이 제안에는 %1$@ HNS가 필요합니다. 지갑에 %2$@가 확인되었지만 다른 스왑은 너무 많이 보유하고 있습니다. 자금이 없는 승인을 해제하거나, 스왑을 완료 또는 환불하거나, HNS를 추가하세요."
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Voor deze aanbieding is %1$@ HNS nodig; de portemonnee heeft %2$@ bevestigd, maar andere swaps reserveren te veel. Geef een niet-gefinancierde acceptatie vrij, voltooi een ruil of betaal deze terug, of voeg HNS toe."
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ta oferta wymaga %1$@ HNS; portfel ma potwierdzone %2$@, ale inne swapy rezerwują za dużo. Zwolnij akceptację bez środków, zakończ wymianę lub zwróć pieniądze albo dodaj HNS."
-          }
-        },
-        "pt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esta oferta precisa de %1$@ HNS; a carteira tem %2$@ confirmado, mas outros swaps reservam muito. Libere uma aceitação sem financiamento, finalize ou reembolse uma troca ou adicione HNS."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Для этого предложения требуется %1$@ HNS; в кошельке подтвержден %2$@, но другие свопы резервируют слишком много. Отпустите необеспеченный акцепт, завершите или возместите своп или добавьте HNS."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bu teklifin %1$@ HNS'ye ihtiyacı vardır; cüzdanda %2$@ onaylandı ancak diğer swaplar çok fazla rezerve ediyor. Finanse edilmemiş bir kabulü iptal edin, takas işlemini tamamlayın veya iade edin ya da HNS ekleyin."
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Для цієї пропозиції потрібен %1$@ HNS; гаманець підтвердив %2$@, але інші свопи резервують занадто багато. Відпустіть нефінансований акцепт, завершіть або відшкодуйте обмін або додайте HNS."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ưu đãi này cần %1$@ HNS; ví đã xác nhận %2$@ nhưng các giao dịch hoán đổi khác dự trữ quá nhiều. Phát hành chấp nhận không được cấp vốn, hoàn thành hoặc hoàn lại tiền hoán đổi hoặc thêm HNS."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "此报价需要%1$@ HNS；钱包已确认%2$@，但其他掉期储备太多。释放无资金支持的承兑，完成或退款掉期，或添加 HNS。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "此報價需要%1$@ HNS；皮夾已確認%2$@，但其他掉期儲備太多。釋放無資金支持的承兌，完成或退款掉期，或增加 HNS。"
-          }
-        }
-      }
-    },
-    "wallet_swap_take_review": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "مراجعة العرض"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Angebot prüfen"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Review offer"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Revisar oferta"
-          }
-        },
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "بررسی پیشنهاد"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vérifier l’offre"
-          }
-        },
-        "he": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "בדיקת הצעה"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ऑफ़र की समीक्षा करें"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tinjau penawaran"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rivedi offerta"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "オファーを確認"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "제안 검토"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aanbieding controleren"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sprawdź ofertę"
-          }
-        },
-        "pt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rever oferta"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Проверить предложение"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Teklifi incele"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Перевірити пропозицію"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Xem lại chào giá"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "查看报价"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "檢視報價"
-          }
-        }
-      }
-    },
-    "wallet_swap_take_sent": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "بدأت المبادلة %1$@… بانتظار توقيع المحفظة الأخرى."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Swap %1$@… gestartet. Warte auf die Signatur der anderen Wallet."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Swap %1$@… started. Waiting for the other wallet to sign."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Intercambio %1$@… iniciado. Esperando la firma de la otra cartera."
-          }
-        },
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "مبادله %1$@… آغاز شد. در انتظار امضای کیف پول دیگر."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Échange %1$@… lancé. En attente de la signature de l’autre portefeuille."
-          }
-        },
-        "he": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "החלפה %1$@… התחילה. ממתין לחתימת הארנק האחר."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "स्वैप %1$@… शुरू हुआ। दूसरे वॉलेट के हस्ताक्षर की प्रतीक्षा है।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pertukaran %1$@… dimulai. Menunggu tanda tangan dompet lain."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Scambio %1$@… avviato. In attesa della firma dell’altro portafoglio."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "スワップ %1$@… を開始しました。もう一方のウォレットの署名を待っています。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "스왑 %1$@… 시작됨. 다른 지갑의 서명을 기다리는 중입니다."
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Swap %1$@… gestart. Wachten op ondertekening door de andere wallet."
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rozpoczęto wymianę %1$@… Oczekiwanie na podpis drugiego portfela."
-          }
-        },
-        "pt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Troca %1$@… iniciada. Aguardando a assinatura da outra carteira."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Обмен %1$@… начат. Ожидание подписи другого кошелька."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Takas %1$@… başlatıldı. Diğer cüzdanın imzası bekleniyor."
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Обмін %1$@… розпочато. Очікування підпису іншого гаманця."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Đã bắt đầu hoán đổi %1$@… Đang chờ ví kia ký."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "交换 %1$@… 已启动。正在等待另一个钱包签名。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "交換 %1$@… 已啟動。正在等待另一個錢包簽署。"
           }
         }
       }

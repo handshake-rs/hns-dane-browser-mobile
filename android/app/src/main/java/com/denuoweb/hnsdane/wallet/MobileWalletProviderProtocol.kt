@@ -112,7 +112,7 @@ internal object MobileWalletProviderProtocol {
         "nameMarket_acceptOffer", "nameMarket_getSession", "nameMarket_finalizePurchase",
         "nameMarket_recoverName", "swap_getSupportedPairs",
         "swap_listDirectOffers", "swap_publishDirectOffer", "swap_cancelDirectOffer",
-        "swap_takeDirectOffer", "swap_acceptDirectOffer", "swap_getSession", "swap_redeem", "swap_refund",
+        "swap_acceptDirectOffer", "swap_getSession", "swap_redeem", "swap_refund",
     )
 
     val events: Set<String> = setOf(
@@ -233,8 +233,7 @@ internal object MobileWalletProviderProtocol {
         "hns_send", "hns_transferName", "hns_finalizeName", "asset_send",
         "nameMarket_createFixedPriceOffer", "nameMarket_cancelOffer",
         "nameMarket_acceptOffer", "nameMarket_finalizePurchase", "nameMarket_recoverName",
-        "swap_publishDirectOffer", "swap_cancelDirectOffer", "swap_takeDirectOffer",
-        "swap_acceptDirectOffer", "swap_redeem", "swap_refund" ->
+        "swap_publishDirectOffer", "swap_cancelDirectOffer",         "swap_acceptDirectOffer", "swap_redeem", "swap_refund" ->
             WalletMethodReleaseClass.ApprovalAndValue
 
         else -> fail("unsupportedMethod", "Unsupported wallet provider method")

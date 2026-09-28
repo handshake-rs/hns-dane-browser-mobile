@@ -15,7 +15,7 @@ class MobileWalletProviderProtocolTest {
         assertEquals(1, MobileWalletProviderProtocol.SCHEMA_VERSION)
         assertEquals(2, MobileWalletProviderProtocol.WALLET_NATIVE_ABI_VERSION)
         assertEquals(allMethods, MobileWalletProviderProtocol.methods)
-        assertEquals(42, allMethods.size)
+        assertEquals(41, allMethods.size)
         assertEquals(
             noApprovalMethods,
             allMethods.filter {
@@ -39,7 +39,7 @@ class MobileWalletProviderProtocolTest {
         )
         assertEquals(22, noApprovalMethods.size)
         assertEquals(5, approvalOnlyMethods.size)
-        assertEquals(15, approvalAndValueMethods.size)
+        assertEquals(14, approvalAndValueMethods.size)
         assertEquals(12, MobileWalletProviderProtocol.events.size)
         val request = MobileWalletProviderProtocol.parseRequest(
             """{"schemaVersion":1,"kind":"request","requestId":"r-1","sequence":1,"method":"asset_getBalance","params":{"module":"bitcoin"}}""",
@@ -378,8 +378,8 @@ class MobileWalletProviderProtocolTest {
             "hns_send", "hns_transferName", "hns_finalizeName", "asset_send",
             "nameMarket_createFixedPriceOffer", "nameMarket_cancelOffer",
             "nameMarket_acceptOffer", "nameMarket_finalizePurchase", "nameMarket_recoverName",
-            "swap_publishDirectOffer", "swap_cancelDirectOffer", "swap_takeDirectOffer",
-            "swap_acceptDirectOffer", "swap_redeem", "swap_refund",
+            "swap_publishDirectOffer", "swap_cancelDirectOffer", "swap_acceptDirectOffer",
+            "swap_redeem", "swap_refund",
         )
         val allMethods = noApprovalMethods + approvalOnlyMethods + approvalAndValueMethods
     }

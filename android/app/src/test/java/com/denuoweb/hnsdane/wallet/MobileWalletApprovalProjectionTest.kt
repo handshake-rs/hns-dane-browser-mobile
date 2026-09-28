@@ -17,7 +17,7 @@ class MobileWalletApprovalProjectionTest {
             setOf(
                 "permissions", "moduleEnablement", "send", "nameTransfer", "nameFinalize",
                 "typedSignature", "nameMarketOffer", "nameMarketPurchase", "directOffer",
-                "directOfferTake", "swapRedeem", "swapRefund",
+                "directOfferAcceptance", "swapRedeem", "swapRefund",
             ),
             prompts.map { it.summary.kind }.toSet(),
         )
@@ -365,7 +365,7 @@ class MobileWalletApprovalProjectionTest {
         fixture(
             providerRequest("swap_acceptDirectOffer"),
             JSONObject()
-                .put("kind", "directOfferTake")
+                .put("kind", "directOfferAcceptance")
                 .put("directOfferId", "offer-1")
                 .put("swapSessionId", "session-1")
                 .put("offered", amount("HNS", "100"))
@@ -484,8 +484,8 @@ class MobileWalletApprovalProjectionTest {
                 "Approve direct offer" to
                     listOf("Action", "Offered", "Received", "Maximum fee")
                 ),
-            "directOfferTake" to (
-                "Approve direct-offer take" to listOf(
+            "directOfferAcceptance" to (
+                "Approve direct-offer acceptance" to listOf(
                     "Direct offer ID", "Swap session ID", "Offered", "Received",
                     "Refund timeout", "Maximum fee", "Warnings",
                 )

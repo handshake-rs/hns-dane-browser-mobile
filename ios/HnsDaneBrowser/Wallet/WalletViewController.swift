@@ -461,8 +461,8 @@ final class WalletViewController: UIViewController {
     private var pendingBtcForHnsOfferApproval: NativeBtcForHnsOfferApproval?
     private weak var hnsForBtcOfferApprovalAlert: UIAlertController?
     private var pendingHnsForBtcOfferApproval: NativeHnsForBtcOfferApproval?
-    private weak var directOfferTakeApprovalAlert: UIAlertController?
-    private var pendingDirectOfferTakeApproval: NativeDirectOfferAcceptanceApproval?
+    private weak var directOfferAcceptanceApprovalAlert: UIAlertController?
+    private var pendingDirectOfferAcceptanceApproval: NativeDirectOfferAcceptanceApproval?
     private weak var btcForHnsFundingApprovalAlert: UIAlertController?
     private var pendingBtcForHnsFundingApproval: NativeBitcoinHtlcFundingApproval?
     private weak var hnsForBtcFundingApprovalAlert: UIAlertController?
@@ -649,8 +649,8 @@ final class WalletViewController: UIViewController {
         pendingBtcForHnsOfferApproval = nil
         pendingHnsForBtcOfferApproval?.actionToken.discard()
         pendingHnsForBtcOfferApproval = nil
-        pendingDirectOfferTakeApproval?.actionToken.discard()
-        pendingDirectOfferTakeApproval = nil
+        pendingDirectOfferAcceptanceApproval?.actionToken.discard()
+        pendingDirectOfferAcceptanceApproval = nil
         pendingBtcForHnsFundingApproval?.actionToken.discard()
         pendingBtcForHnsFundingApproval = nil
         pendingHnsForBtcFundingApproval?.actionToken.discard()
@@ -2134,16 +2134,16 @@ final class WalletViewController: UIViewController {
         walletPresentationHost.present(alert, animated: true)
     }
 
-    private func directOfferMakerLabel(_ offer: NativeDirectOfferSummary) -> String {
-        WalletCopy.format("wallet_swap_offer_maker_label",
+    private func directOfferLabel(_ offer: NativeDirectOfferSummary) -> String {
+        WalletCopy.format("wallet_swap_offer_label",
             swapAmount(offer.offeredAmount, asset: offer.offeredAsset),
             swapAmount(offer.receivedAmount, asset: offer.receivedAsset),
             String(offer.offerId.prefix(12))
         )
     }
 
-    private func directOfferTakeLabel(_ offer: NativeDirectOfferSummary) -> String {
-        WalletCopy.format("wallet_swap_offer_taker_label",
+    private func directOfferAcceptanceLabel(_ offer: NativeDirectOfferSummary) -> String {
+        WalletCopy.format("wallet_swap_offer_acceptance_label",
             swapAmount(offer.receivedAmount, asset: offer.receivedAsset),
             swapAmount(offer.offeredAmount, asset: offer.offeredAsset),
             String(offer.offerId.prefix(12))
@@ -2167,7 +2167,7 @@ final class WalletViewController: UIViewController {
                         title: WalletCopy.text("wallet_swap_my_offers"),
                         rows: [],
                         actions: offers.map { offer in
-                            WalletMenuAction(title: self.directOfferMakerLabel(offer)) { [weak self, weak wallet] in
+                            WalletMenuAction(title: self.directOfferLabel(offer)) { [weak self, weak wallet] in
                                 guard let self, let wallet, self.wallet === wallet else { return }
                                 self.confirmCancelDirectOffer(offer, wallet: wallet)
                             }
@@ -2191,7 +2191,7 @@ final class WalletViewController: UIViewController {
             title: WalletCopy.text("wallet_swap_cancel_title"),
             message: WalletCopy.format(
                 "wallet_swap_cancel_direct_message",
-                directOfferMakerLabel(offer),
+                directOfferLabel(offer),
                 offer.offerId
             ),
             preferredStyle: .alert
@@ -2247,8 +2247,8 @@ final class WalletViewController: UIViewController {
                         title: WalletCopy.text("wallet_swap_available_offers"),
                         rows: [],
                         actions: offers.map { offer in
-                            WalletMenuAction(title: self.directOfferTakeLabel(offer)) { [weak self] in
-                                self?.showDirectOfferTakeForm(offer)
+                            WalletMenuAction(title: self.directOfferAcceptanceLabel(offer)) { [weak self] in
+                                self?.showDirectOfferAcceptanceForm(offer)
                             }
                         }
                     )
@@ -2262,16 +2262,16 @@ final class WalletViewController: UIViewController {
         }
     }
 
-    private func showDirectOfferTakeForm(_ offer: NativeDirectOfferSummary) {
+    private func showDirectOfferAcceptanceForm(_ offer: NativeDirectOfferSummary) {
         let reserveIsBitcoin = offer.receivedAsset == "btc"
         presentWalletForm(
-            title: WalletCopy.text("wallet_swap_take_review"),
-            message: directOfferTakeLabel(offer),
+            title: WalletCopy.text("wallet_swap_acceptance_review"),
+            message: directOfferAcceptanceLabel(offer),
             fields: [WalletSheetFormField(
                 label: WalletCopy.text(
                     reserveIsBitcoin
-                        ? "wallet_swap_take_btc_fee_reserve_hint"
-                        : "wallet_swap_take_hns_fee_reserve_hint"
+                        ? "wallet_swap_acceptance_btc_fee_reserve_hint"
+                        : "wallet_swap_acceptance_hns_fee_reserve_hint"
                 ),
                 placeholder: WalletCopy.text(
                     reserveIsBitcoin
@@ -2281,7 +2281,7 @@ final class WalletViewController: UIViewController {
                 keyboardType: reserveIsBitcoin ? .numberPad : .decimalPad,
                 initialValue: reserveIsBitcoin ? String(minimumBitcoinFeeReserveSats) : defaultHnsMaximumFee
             )],
-            primaryTitle: WalletCopy.text("wallet_swap_take_review")
+            primaryTitle: WalletCopy.text("wallet_swap_acceptance_review")
         ) { [weak self] fields in
             guard let self, let value = fields.first else { return }
             let reserve = reserveIsBitcoin
@@ -2297,26 +2297,26 @@ final class WalletViewController: UIViewController {
                   offer.receivedAmount >= reserve,
                   offer.receivedAmount - reserve >= receiverDust else {
                 self.showErrorMessage(WalletCopy.text(
-                    "wallet_swap_take_prepare_failed"
+                    "wallet_swap_acceptance_prepare_failed"
                 ))
                 return
             }
             self.authenticateWalletAction(
                 reason: WalletCopy.text("wallet_auth_transaction_message")
             ) {
-                [weak self] in self?.prepareDirectOfferTake(offer, feeReserve: reserve)
+                [weak self] in self?.prepareDirectOfferAcceptance(offer, feeReserve: reserve)
             }
         }
     }
 
-    private func prepareDirectOfferTake(_ offer: NativeDirectOfferSummary, feeReserve: UInt64) {
+    private func prepareDirectOfferAcceptance(_ offer: NativeDirectOfferSummary, feeReserve: UInt64) {
         guard let wallet, shakedexActionMayStart else { return }
         isOperating = true
-        bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_take_preparing")
+        bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_acceptance_preparing")
         refreshButtonStates()
         DispatchQueue.global(qos: .userInitiated).async { [wallet] in
             let outcome = Result {
-                try wallet.prepareDirectOfferTake(
+                try wallet.prepareDirectOfferAcceptance(
                     offerId: offer.offerId, receivedFeeReserve: feeReserve
                 )
             }
@@ -2326,11 +2326,11 @@ final class WalletViewController: UIViewController {
                 switch outcome {
                 case .success(.approval(let approval)) where
                     approval.offer.offerId == offer.offerId:
-                    self.presentDirectOfferTakeApproval(approval, wallet: wallet)
+                    self.presentDirectOfferAcceptanceApproval(approval, wallet: wallet)
                 case .success(.approval(let approval)):
-                    try? wallet.rejectDirectOfferTake(approval.actionToken)
+                    try? wallet.rejectDirectOfferAcceptance(approval.actionToken)
                     self.showErrorMessage(
-                        WalletCopy.text("wallet_swap_take_prepare_failed")
+                        WalletCopy.text("wallet_swap_acceptance_prepare_failed")
                     )
                 case .success(.insufficientFunds(let receivedAsset, let confirmedAmount)):
                     let required = offer.receivedAmount
@@ -2338,14 +2338,14 @@ final class WalletViewController: UIViewController {
                     if receivedAsset == "btc" {
                         message = required > confirmedAmount
                             ? WalletCopy.format(
-                                "wallet_swap_take_insufficient_btc",
+                                "wallet_swap_acceptance_insufficient_btc",
                                 Int(required - min(required, feeReserve)),
                                 Int(feeReserve),
                                 Int(required),
                                 Int(confirmedAmount)
                             )
                             : WalletCopy.format(
-                                "wallet_swap_take_reserved_btc",
+                                "wallet_swap_acceptance_reserved_btc",
                                 Int(required),
                                 Int(confirmedAmount)
                             )
@@ -2358,7 +2358,7 @@ final class WalletViewController: UIViewController {
                         )
                         message = required > confirmedAmount
                             ? WalletCopy.format(
-                                "wallet_swap_take_insufficient_hns",
+                                "wallet_swap_acceptance_insufficient_hns",
                                 lock, reserve,
                                 WalletReadPresenter.formatHnsBaseUnits(String(required)),
                                 WalletReadPresenter.formatHnsBaseUnits(
@@ -2366,7 +2366,7 @@ final class WalletViewController: UIViewController {
                                 )
                             )
                             : WalletCopy.format(
-                                "wallet_swap_take_reserved_hns",
+                                "wallet_swap_acceptance_reserved_hns",
                                 WalletReadPresenter.formatHnsBaseUnits(String(required)),
                                 WalletReadPresenter.formatHnsBaseUnits(
                                     String(confirmedAmount)
@@ -2377,7 +2377,7 @@ final class WalletViewController: UIViewController {
                     self.showErrorMessage(message)
                 case .failure(let error):
                     self.bitcoinStatusLabel.text = WalletCopy.text(
-                        "wallet_swap_take_prepare_failed"
+                        "wallet_swap_acceptance_prepare_failed"
                     )
                     self.showError(error)
                 }
@@ -2386,15 +2386,15 @@ final class WalletViewController: UIViewController {
         }
     }
 
-    private func presentDirectOfferTakeApproval(
+    private func presentDirectOfferAcceptanceApproval(
         _ approval: NativeDirectOfferAcceptanceApproval,
         wallet: RustNativeWallet
     ) {
-        pendingDirectOfferTakeApproval?.actionToken.discard()
-        pendingDirectOfferTakeApproval = approval
+        pendingDirectOfferAcceptanceApproval?.actionToken.discard()
+        pendingDirectOfferAcceptanceApproval = approval
         let message = WalletCopy.format(
-            "wallet_swap_take_approval_message",
-            directOfferTakeLabel(approval.offer),
+            "wallet_swap_acceptance_approval_message",
+            directOfferAcceptanceLabel(approval.offer),
             swapAmount(approval.offer.receivedAmount, asset: approval.offer.receivedAsset),
             swapAmount(approval.receivedFeeReserve, asset: approval.offer.receivedAsset),
             swapAmount(
@@ -2403,41 +2403,41 @@ final class WalletViewController: UIViewController {
             )
         )
         let alert = UIAlertController(
-            title: WalletCopy.text("wallet_swap_take_approval_title"),
+            title: WalletCopy.text("wallet_swap_acceptance_approval_title"),
             message: message,
             preferredStyle: .alert
         )
-        directOfferTakeApprovalAlert = alert
+        directOfferAcceptanceApprovalAlert = alert
         alert.addAction(UIAlertAction(title: WalletCopy.text("action_reject"), style: .cancel) {
             [weak self, weak wallet] _ in
             guard let self, let wallet, self.wallet === wallet,
-                  let pending = self.pendingDirectOfferTakeApproval else { return }
-            self.pendingDirectOfferTakeApproval = nil
+                  let pending = self.pendingDirectOfferAcceptanceApproval else { return }
+            self.pendingDirectOfferAcceptanceApproval = nil
             DispatchQueue.global(qos: .userInitiated).async {
-                try? wallet.rejectDirectOfferTake(pending.actionToken)
+                try? wallet.rejectDirectOfferAcceptance(pending.actionToken)
             }
         })
-        alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_swap_take_confirm"), style: .destructive) {
+        alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_swap_acceptance_confirm"), style: .destructive) {
             [weak self, weak wallet] _ in
             guard let self, let wallet, self.wallet === wallet,
-                  let pending = self.pendingDirectOfferTakeApproval else { return }
-            self.pendingDirectOfferTakeApproval = nil
+                  let pending = self.pendingDirectOfferAcceptanceApproval else { return }
+            self.pendingDirectOfferAcceptanceApproval = nil
             self.isOperating = true
             self.refreshButtonStates()
             DispatchQueue.global(qos: .userInitiated).async { [wallet] in
-                let outcome = Result { try wallet.approveDirectOfferTake(pending.actionToken) }
+                let outcome = Result { try wallet.approveDirectOfferAcceptance(pending.actionToken) }
                 DispatchQueue.main.async { [weak self] in
                     guard let self, self.wallet === wallet else { return }
                     self.isOperating = false
                     switch outcome {
                     case .success(let summary):
                         self.bitcoinStatusLabel.text = WalletCopy.format(
-                            "wallet_swap_take_sent",
+                            "wallet_swap_acceptance_sent",
                             String(summary.sessionId.prefix(12))
                         )
                     case .failure(let error):
                         self.bitcoinStatusLabel.text = WalletCopy.text(
-                            "wallet_swap_take_failed"
+                            "wallet_swap_acceptance_failed"
                         )
                         self.showError(error)
                     }
@@ -2511,24 +2511,30 @@ final class WalletViewController: UIViewController {
                             style: .default
                         ))
                     }
-                    for take in status.pendingAcceptances {
-                        let offered = self.swapAmount(take.offeredAmount, asset: take.offeredAsset)
-                        let received = self.swapAmount(take.receivedAmount, asset: take.receivedAsset)
+                    for acceptance in status.pendingAcceptances {
+                        let offered = self.swapAmount(
+                            acceptance.offeredAmount,
+                            asset: acceptance.offeredAsset
+                        )
+                        let received = self.swapAmount(
+                            acceptance.receivedAmount,
+                            asset: acceptance.receivedAsset
+                        )
                         alert.addAction(UIAlertAction(
                             title: WalletCopy.format(
                                 "wallet_swap_pending_acceptance",
                                 offered,
                                 received,
                                 self.swapAmount(
-                                    take.receivedFeeReserve,
-                                    asset: take.receivedAsset
+                                    acceptance.receivedFeeReserve,
+                                    asset: acceptance.receivedAsset
                                 ),
-                                String(take.sessionId.prefix(12))
+                                String(acceptance.sessionId.prefix(12))
                             ),
                             style: .default
                         ) { [weak self, weak wallet] _ in
                             guard let self, let wallet, self.wallet === wallet else { return }
-                            self.confirmAbandonPendingAcceptance(take, wallet: wallet)
+                            self.confirmAbandonPendingAcceptance(acceptance, wallet: wallet)
                         })
                     }
                     for execution in orderedExecutions {
@@ -2561,15 +2567,15 @@ final class WalletViewController: UIViewController {
     }
 
     private func confirmAbandonPendingAcceptance(
-        _ take: NativeDirectOfferAcceptanceSummary,
+        _ acceptance: NativeDirectOfferAcceptanceSummary,
         wallet: RustNativeWallet
     ) {
         let alert = UIAlertController(
             title: WalletCopy.text("wallet_swap_abandon_acceptance_title"),
             message: WalletCopy.format(
                 "wallet_swap_abandon_acceptance_message",
-                swapAmount(take.receivedAmount, asset: take.receivedAsset),
-                take.sessionId
+                swapAmount(acceptance.receivedAmount, asset: acceptance.receivedAsset),
+                acceptance.sessionId
             ),
             preferredStyle: .alert
         )
@@ -2582,7 +2588,9 @@ final class WalletViewController: UIViewController {
             guard let self, let wallet, self.wallet === wallet else { return }
             DispatchQueue.global(qos: .userInitiated).async { [wallet] in
                 let outcome = Result {
-                    try wallet.abandonPendingDirectOfferTake(sessionId: take.sessionId)
+                    try wallet.abandonPendingDirectOfferAcceptance(
+                        sessionId: acceptance.sessionId
+                    )
                 }
                 DispatchQueue.main.async { [weak self] in
                     guard let self, self.wallet === wallet else { return }
@@ -4253,7 +4261,7 @@ final class WalletViewController: UIViewController {
 
     private func showAcceptOfferForm(selectedOffer: NativeShakedexNameOffer) {
         collectHnsValueForm(
-            title: WalletCopy.text("wallet_swap_take_offer"),
+            title: WalletCopy.text("wallet_swap_acceptance_offer"),
             fields: [
                 .init(
                     label: WalletCopy.text("wallet_action_listing_hint"),
@@ -6983,9 +6991,9 @@ final class WalletViewController: UIViewController {
         pendingHnsForBtcOfferApproval?.actionToken.discard()
         pendingHnsForBtcOfferApproval = nil
         hnsForBtcOfferApprovalAlert?.dismiss(animated: false)
-        pendingDirectOfferTakeApproval?.actionToken.discard()
-        pendingDirectOfferTakeApproval = nil
-        directOfferTakeApprovalAlert?.dismiss(animated: false)
+        pendingDirectOfferAcceptanceApproval?.actionToken.discard()
+        pendingDirectOfferAcceptanceApproval = nil
+        directOfferAcceptanceApprovalAlert?.dismiss(animated: false)
         pendingBtcForHnsFundingApproval?.actionToken.discard()
         pendingBtcForHnsFundingApproval = nil
         btcForHnsFundingApprovalAlert?.dismiss(animated: false)

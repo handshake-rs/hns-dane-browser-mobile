@@ -15,7 +15,7 @@
     <string name="row_wallet_read_balance">Bevestigd beschikbaar saldo</string>
     <string name="row_wallet_read_receive">Ontvangstadres</string>
     <string name="row_wallet_pair_direct_shakescape">Verbinden met aanbiedingspeer</string>
-    <string name="row_wallet_pair_direct_shakescape_summary">Maak verbinding met de maker van de aanbieding. De aanbiedingen openen automatisch. Er wordt geen geld verplaatst.</string>
+    <string name="row_wallet_pair_direct_shakescape_summary">Maak verbinding met de opsteller van de aanbieding. De aanbiedingen openen automatisch. Er wordt geen geld verplaatst.</string>
     <string name="wallet_restore_phrase_hint">Herstelzin van 24 woorden</string>
     <string name="wallet_restore_birthday_hint">HNS-geboorteblok (optioneel; standaard 0)</string>
     <string name="wallet_restore_phrase_required">Voer de volledige herstelzin van 24 woorden in.</string>
@@ -40,7 +40,7 @@
     <string name="wallet_direct_shakescape_recent_peers">Recente aanbiedingspeers</string>
     <string name="wallet_direct_shakescape_discovered_peers">Gevonden aanbiedingspeers</string>
     <string name="wallet_direct_shakescape_no_recent_peers">Geen recente aanbiedingspeers.</string>
-    <string name="wallet_direct_shakescape_no_discovered_peers">Geen peers gevonden. Plak hierboven het adres van de maker.</string>
+    <string name="wallet_direct_shakescape_no_discovered_peers">Geen peers gevonden. Plak hierboven het adres van de opsteller van de aanbieding.</string>
     <string name="wallet_direct_shakescape_peer_none">Nog geen aanbiedingspeer verbonden.</string>
     <string name="wallet_direct_shakescape_peer_connected">Verbonden met %1$s.</string>
     <string name="wallet_shakedex_connection_help">Een peer is de wallet die de ruil aanbiedt. Maak verbinding om de aanbiedingen te bekijken. Verbinden accepteert geen aanbieding en verplaatst geen geld. Voor HNS → BTC begint Bitcoin-bewaking na acceptatie.</string>
@@ -60,12 +60,12 @@
     <string name="wallet_swap_available_offers">Aanbiedingen bekijken</string>
     <string name="wallet_swap_loading_available_offers">Aanbiedingen laden…</string>
     <string name="wallet_swap_no_available_offers">Geen aanbiedingen van deze peer.</string>
-    <string name="wallet_swap_offer_maker_label">Je biedt %1$s → Je vraagt %2$s · %3$s…</string>
-    <string name="wallet_swap_offer_taker_label">Je betaalt %1$s → Je ontvangt %2$s · %3$s…</string>
-    <string name="wallet_swap_take_review">Aanbieding controleren</string>
-    <string name="wallet_swap_take_approval_title">Deze ruilaanbieding accepteren?</string>
-    <string name="wallet_swap_take_approval_message">Aanbieding: %1$s\n\nVergrendeling: %2$s\nMaximale kosten: %3$s\nTotaal: %4$s\n\nAcceptatie start de onderhandeling. Financiering wordt apart goedgekeurd.</string>
-    <string name="wallet_swap_take_confirm">Aanbieding accepteren</string>
+    <string name="wallet_swap_offer_label">Je biedt %1$s → Je vraagt %2$s · %3$s…</string>
+    <string name="wallet_swap_offer_acceptance_label">Je betaalt %1$s → Je ontvangt %2$s · %3$s…</string>
+    <string name="wallet_swap_acceptance_review">Aanbieding controleren</string>
+    <string name="wallet_swap_acceptance_approval_title">Deze ruilaanbieding accepteren?</string>
+    <string name="wallet_swap_acceptance_approval_message">Aanbieding: %1$s\n\nVergrendeling: %2$s\nMaximale kosten: %3$s\nTotaal: %4$s\n\nAcceptatie start de onderhandeling. Financiering wordt apart goedgekeurd.</string>
+    <string name="wallet_swap_acceptance_confirm">Aanbieding accepteren</string>
     <string name="wallet_swap_funding_approval_title">Bitcoin-financiering uitzenden?</string>
     <string name="wallet_swap_funding_approval_message">%1$d sats vergrendelen. Netwerkkosten: %2$d sats (maximaal %3$d).\n\nTransactie: %4$s\nSessie: %5$s\n\nUitzenden is onomkeerbaar. De ruil gaat verder nadat de Bitcoin-vergrendeling is bevestigd.</string>
     <string name="wallet_swap_broadcast_funding">Financiering uitzenden</string>

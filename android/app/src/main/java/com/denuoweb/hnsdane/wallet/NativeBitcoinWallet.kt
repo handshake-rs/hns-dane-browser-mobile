@@ -244,7 +244,7 @@ internal data class NativeDirectOfferAcceptanceApproval(
     val offer: NativeDirectOfferSummary,
     val receivedFeeReserve: Long,
     val totalReceivedAssetCommitment: Long,
-    val takeExpiresAtUnix: Long,
+    val acceptanceExpiresAtUnix: Long,
     val approvalExpiresAtUnix: Long,
 ) : AutoCloseable {
     override fun close() = actionToken.close()
@@ -759,7 +759,7 @@ internal object NativeBitcoinWalletBundle {
         parseDirectOffer(it)
     }
 
-    fun directOfferTakePreparation(bundle: ByteArray): NativeDirectOfferAcceptancePreparation? = parse(bundle) { json ->
+    fun directOfferAcceptancePreparation(bundle: ByteArray): NativeDirectOfferAcceptancePreparation? = parse(bundle) { json ->
         if (hasExactKeys(json, setOf("failure", "receivedAsset", "confirmedAmount"))) {
             val failure = json.optString("failure", "")
             val receivedAsset = json.optString("receivedAsset", "").takeIf {
@@ -774,7 +774,7 @@ internal object NativeBitcoinWalletBundle {
         }
         if (!hasExactKeys(json, setOf(
             "actionToken", "offer", "receivedFeeReserve", "totalReceivedAssetCommitment",
-            "takeExpiresAtUnix", "approvalExpiresAtUnix",
+            "acceptanceExpiresAtUnix", "approvalExpiresAtUnix",
         ))) return@parse null
         val token = NativeHnsValueActionToken.takeOwnership(
             json.optString("actionToken", "").toByteArray(Charsets.US_ASCII),
@@ -782,7 +782,7 @@ internal object NativeBitcoinWalletBundle {
         val offer = parseDirectOffer(json.optJSONObject("offer") ?: run { token.close(); return@parse null })
         val reserve = positiveLong(json, "receivedFeeReserve")
         val total = positiveLong(json, "totalReceivedAssetCommitment")
-        val takeExpiry = positiveLong(json, "takeExpiresAtUnix")
+        val takeExpiry = positiveLong(json, "acceptanceExpiresAtUnix")
         val approvalExpiry = positiveLong(json, "approvalExpiresAtUnix")
         if (offer == null || reserve == null || total == null || takeExpiry == null || approvalExpiry == null ||
             offer.receivedAmount <= reserve || offer.receivedAmount != total
@@ -795,11 +795,11 @@ internal object NativeBitcoinWalletBundle {
         )
     }
 
-    fun directOfferTakeSummary(bundle: ByteArray): NativeDirectOfferAcceptanceSummary? = parse(bundle) {
-        parseDirectOfferTakeSummary(it)
+    fun directOfferAcceptanceSummary(bundle: ByteArray): NativeDirectOfferAcceptanceSummary? = parse(bundle) {
+        parseDirectOfferAcceptanceSummary(it)
     }
 
-    private fun parseDirectOfferTakeSummary(json: JSONObject): NativeDirectOfferAcceptanceSummary? {
+    private fun parseDirectOfferAcceptanceSummary(json: JSONObject): NativeDirectOfferAcceptanceSummary? {
         if (!hasExactKeys(json, setOf(
             "offerId", "sessionId", "offeredAsset", "offeredAmount", "receivedAsset",
             "receivedAmount", "receivedFeeReserve", "createdAtUnix", "expiresAtUnix",
@@ -840,10 +840,10 @@ internal object NativeBitcoinWalletBundle {
         if (pendingArray.length() > 1_024) return@parse null
         val pending = buildList(pendingArray.length()) {
             for (index in 0 until pendingArray.length()) {
-                val take = parseDirectOfferTakeSummary(
+                val acceptance = parseDirectOfferAcceptanceSummary(
                     pendingArray.optJSONObject(index) ?: return@parse null,
                 ) ?: return@parse null
-                add(take)
+                add(acceptance)
             }
         }
         val responseArray = json.optJSONArray("pendingOfferResponses") ?: return@parse null
@@ -1153,8 +1153,7 @@ internal object NativeBitcoinWalletBundle {
     private val SHAKESCAPE_ASSETS = setOf("btc", "hns")
     private val SHAKESCAPE_FUNDING_STATES = setOf("broadcast", "seen", "confirmed", "reorged")
     private val SHAKESCAPE_EXECUTION_STATES = setOf(
-        "offer_published", "offer_acceptance_received", "offer_take_received",
-        "offer_reserved", "terms_frozen",
+        "offer_published", "offer_acceptance_received",         "offer_reserved", "terms_frozen",
         "refunds_prepared", "first_funding_pending", "first_funded", "second_funding_pending",
         "both_funded", "first_redeemed", "secret_observed", "second_redeemed", "completed",
         "refund_eligible", "refund_broadcast", "refunded", "failed",

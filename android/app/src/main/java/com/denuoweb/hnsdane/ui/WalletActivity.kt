@@ -5222,7 +5222,7 @@ class WalletActivity : ComponentActivity() {
                 } else if (offers.isEmpty()) {
                     bitcoinStatusView.text = getString(R.string.wallet_swap_no_active_offers)
                 } else {
-                    val labels = offers.map(::directOfferMakerLabel).toTypedArray()
+                    val labels = offers.map(::directOfferLabel).toTypedArray()
                     walletAlertDialogBuilder()
                         .setTitle(R.string.wallet_swap_my_offers)
                         .setItems(labels) { _, index -> confirmCancelDirectOffer(offers[index]) }
@@ -5258,8 +5258,8 @@ class WalletActivity : ComponentActivity() {
                 } else {
                     walletAlertDialogBuilder()
                         .setTitle(R.string.wallet_swap_available_offers)
-                        .setItems(offers.map(::directOfferTakeLabel).toTypedArray()) { _, index ->
-                            showDirectOfferTakeForm(offers[index])
+                        .setItems(offers.map(::directOfferAcceptanceLabel).toTypedArray()) { _, index ->
+                            showDirectOfferAcceptanceForm(offers[index])
                         }
                         .setNegativeButton(R.string.action_cancel, null)
                         .show()
@@ -5268,33 +5268,33 @@ class WalletActivity : ComponentActivity() {
         }
     }
 
-    private fun directOfferMakerLabel(offer: NativeDirectOfferSummary): String = getString(
-        R.string.wallet_swap_offer_maker_label,
+    private fun directOfferLabel(offer: NativeDirectOfferSummary): String = getString(
+        R.string.wallet_swap_offer_label,
         formatSwapAmount(offer.offeredAsset, offer.offeredAmount),
         formatSwapAmount(offer.receivedAsset, offer.receivedAmount),
         offer.offerId.take(12),
     )
 
-    private fun directOfferTakeLabel(offer: NativeDirectOfferSummary): String = getString(
-        R.string.wallet_swap_offer_taker_label,
+    private fun directOfferAcceptanceLabel(offer: NativeDirectOfferSummary): String = getString(
+        R.string.wallet_swap_offer_acceptance_label,
         formatSwapAmount(offer.receivedAsset, offer.receivedAmount),
         formatSwapAmount(offer.offeredAsset, offer.offeredAmount),
         offer.offerId.take(12),
     )
 
-    private fun showDirectOfferTakeForm(offer: NativeDirectOfferSummary) {
+    private fun showDirectOfferAcceptanceForm(offer: NativeDirectOfferSummary) {
         val bitcoin = offer.receivedAsset == "btc"
         showWalletActionForm(
-            R.string.wallet_swap_take_offer,
+            R.string.wallet_swap_acceptance_offer,
             listOf(WalletActionInput(
-                if (bitcoin) R.string.wallet_swap_take_btc_fee_reserve_hint
-                else R.string.wallet_swap_take_hns_fee_reserve_hint,
+                if (bitcoin) R.string.wallet_swap_acceptance_btc_fee_reserve_hint
+                else R.string.wallet_swap_acceptance_hns_fee_reserve_hint,
                 numeric = bitcoin,
                 initial = if (bitcoin) NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS.toString()
                 else DEFAULT_HNS_MAXIMUM_FEE,
             )),
-            summary = directOfferTakeLabel(offer),
-            primaryLabel = R.string.wallet_swap_take_review,
+            summary = directOfferAcceptanceLabel(offer),
+            primaryLabel = R.string.wallet_swap_acceptance_review,
         ) { values ->
             val reserve = if (bitcoin) values.single().toLongOrNull()
             else parsePositiveHnsToBaseUnits(values.single())?.toLongOrNull()
@@ -5310,7 +5310,7 @@ class WalletActivity : ComponentActivity() {
                 bitcoin && reserve < NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS ||
                 !bitcoin && reserve < NativeWalletBridge.MINIMUM_HNS_FEE_RESERVE_DOLLARYDOOS
             ) {
-                bitcoinStatusView.text = getString(R.string.wallet_swap_take_prepare_failed)
+                bitcoinStatusView.text = getString(R.string.wallet_swap_acceptance_prepare_failed)
             } else {
                 val available = if (bitcoin) {
                     bitcoinSnapshot?.confirmedSats
@@ -5329,7 +5329,7 @@ class WalletActivity : ComponentActivity() {
                 if (required != null && available != null && required > available) {
                     val message = if (bitcoin) {
                         getString(
-                            R.string.wallet_swap_take_insufficient_btc,
+                            R.string.wallet_swap_acceptance_insufficient_btc,
                             offer.receivedAmount,
                             reserve,
                             required,
@@ -5337,7 +5337,7 @@ class WalletActivity : ComponentActivity() {
                         )
                     } else {
                         getString(
-                            R.string.wallet_swap_take_insufficient_hns,
+                            R.string.wallet_swap_acceptance_insufficient_hns,
                             formatHnsBaseUnits(offer.receivedAmount.toString()),
                             formatHnsBaseUnits(reserve.toString()),
                             formatHnsBaseUnits(required.toString()),
@@ -5346,12 +5346,12 @@ class WalletActivity : ComponentActivity() {
                     }
                     bitcoinStatusView.text = message
                     walletAlertDialogBuilder()
-                        .setTitle(R.string.wallet_swap_take_offer)
+                        .setTitle(R.string.wallet_swap_acceptance_offer)
                         .setMessage(message)
                         .setPositiveButton(android.R.string.ok, null)
                         .show()
                 } else {
-                    prepareDirectOfferTake(offer, reserve)
+                    prepareDirectOfferAcceptance(offer, reserve)
                 }
             }
         }
@@ -5508,24 +5508,26 @@ class WalletActivity : ComponentActivity() {
             "$amount sats"
         }
 
-    private fun confirmAbandonPendingAcceptance(take: com.denuoweb.hnsdane.wallet.NativeDirectOfferAcceptanceSummary) {
+    private fun confirmAbandonPendingAcceptance(
+        acceptance: com.denuoweb.hnsdane.wallet.NativeDirectOfferAcceptanceSummary,
+    ) {
         walletAlertDialogBuilder()
             .setTitle(R.string.wallet_swap_abandon_acceptance_title)
             .setMessage(getString(
                 R.string.wallet_swap_abandon_acceptance_message,
                 formatSwapAmount(
-                    take.receivedAsset,
-                    take.receivedAmount,
+                    acceptance.receivedAsset,
+                    acceptance.receivedAmount,
                 ),
-                take.sessionId,
+                acceptance.sessionId,
             ))
             .setNegativeButton(R.string.action_cancel, null)
             .setPositiveButton(R.string.wallet_swap_abandon_acceptance) { _, _ ->
                 val handle = walletHandle
-                thread(name = "direct-take-abandon") {
-                    val abandoned = NativeWalletBridge.abandonPendingDirectOfferTake(
+                thread(name = "direct-acceptance-abandon") {
+                    val abandoned = NativeWalletBridge.abandonPendingDirectOfferAcceptance(
                         handle,
-                        take.sessionId,
+                        acceptance.sessionId,
                     )
                     runOnUiThread {
                         if (walletHandle != handle) return@runOnUiThread
@@ -6013,7 +6015,7 @@ class WalletActivity : ComponentActivity() {
             .setTitle(R.string.wallet_swap_cancel_title)
             .setMessage(getString(
                 R.string.wallet_swap_cancel_direct_message,
-                directOfferMakerLabel(offer),
+                directOfferLabel(offer),
                 offer.offerId,
             ))
             .setNegativeButton(R.string.action_cancel, null)
@@ -6134,29 +6136,29 @@ class WalletActivity : ComponentActivity() {
             .show()
     }
 
-    private fun prepareDirectOfferTake(offer: NativeDirectOfferSummary, feeReserve: Long) {
+    private fun prepareDirectOfferAcceptance(offer: NativeDirectOfferSummary, feeReserve: Long) {
         requireWalletAuthentication(
             getString(R.string.wallet_auth_transaction_title),
             getString(R.string.wallet_auth_transaction_message),
             action = {
                 val lease = currentStorageLease() ?: return@requireWalletAuthentication
                 val handle = walletHandle
-                if (!beginOperation(lease, getString(R.string.wallet_swap_take_preparing), resetReads = false)) return@requireWalletAuthentication
+                if (!beginOperation(lease, getString(R.string.wallet_swap_acceptance_preparing), resetReads = false)) return@requireWalletAuthentication
                 val epoch = lifecycleEpoch
-                thread(name = "direct-offer-take-prepare") {
-                    val preparation = NativeWalletBridge.prepareDirectOfferTake(
+                thread(name = "direct-offer-acceptance-prepare") {
+                    val preparation = NativeWalletBridge.prepareDirectOfferAcceptance(
                         handle, offer.offerId, feeReserve,
                     )
                     runOnUiThread {
                         if (!operationIsCurrent(epoch, lease) || walletHandle != handle) {
                             (preparation as? NativeDirectOfferAcceptancePreparation.Approval)?.value?.let {
-                                NativeWalletBridge.rejectDirectOfferTake(handle, it.actionToken)
+                                NativeWalletBridge.rejectDirectOfferAcceptance(handle, it.actionToken)
                                 it.close()
                             }
                             releaseStorageLeaseAfterOperation(lease)
                         } else if (preparation is NativeDirectOfferAcceptancePreparation.InsufficientFunds) {
                             busy = false
-                            val message = directOfferTakeInsufficientFundsMessage(
+                            val message = directOfferAcceptanceInsufficientFundsMessage(
                                 offer,
                                 feeReserve,
                                 preparation,
@@ -6165,7 +6167,7 @@ class WalletActivity : ComponentActivity() {
                             statusView.text = getString(R.string.wallet_status_unlocked)
                             renderWalletDashboard()
                             walletAlertDialogBuilder()
-                                .setTitle(R.string.wallet_swap_take_offer)
+                                .setTitle(R.string.wallet_swap_acceptance_offer)
                                 .setMessage(message)
                                 .setPositiveButton(android.R.string.ok, null)
                                 .show()
@@ -6175,16 +6177,16 @@ class WalletActivity : ComponentActivity() {
                                 (preparation as? NativeDirectOfferAcceptancePreparation.Approval)?.value
                             if (approval == null || approval.offer.offerId != offer.offerId) {
                                 approval?.let {
-                                    NativeWalletBridge.rejectDirectOfferTake(handle, it.actionToken)
+                                    NativeWalletBridge.rejectDirectOfferAcceptance(handle, it.actionToken)
                                     it.close()
                                 }
                                 busy = false
-                                bitcoinStatusView.text = getString(R.string.wallet_swap_take_prepare_failed)
+                                bitcoinStatusView.text = getString(R.string.wallet_swap_acceptance_prepare_failed)
                                 statusView.text = getString(R.string.wallet_status_unlocked)
                                 renderWalletDashboard()
                                 releaseStorageLeaseAfterOperation(lease)
                             } else {
-                                showDirectOfferTakeApproval(approval, lease, epoch)
+                                showDirectOfferAcceptanceApproval(approval, lease, epoch)
                             }
                         }
                     }
@@ -6193,20 +6195,20 @@ class WalletActivity : ComponentActivity() {
         )
     }
 
-    private fun directOfferTakeInsufficientFundsMessage(
+    private fun directOfferAcceptanceInsufficientFundsMessage(
         offer: NativeDirectOfferSummary,
         feeReserve: Long,
         failure: NativeDirectOfferAcceptancePreparation.InsufficientFunds,
     ): String {
         if (failure.receivedAsset != offer.receivedAsset) {
-            return getString(R.string.wallet_swap_take_prepare_failed)
+            return getString(R.string.wallet_swap_acceptance_prepare_failed)
         }
         val required = directOfferAcceptanceRequiredFunding(offer.receivedAmount, feeReserve)
-            ?: return getString(R.string.wallet_swap_take_prepare_failed)
+            ?: return getString(R.string.wallet_swap_acceptance_prepare_failed)
         return if (failure.receivedAsset == "btc") {
             if (required > failure.confirmedAmount) {
                 getString(
-                    R.string.wallet_swap_take_insufficient_btc,
+                    R.string.wallet_swap_acceptance_insufficient_btc,
                     offer.receivedAmount,
                     feeReserve,
                     required,
@@ -6214,14 +6216,14 @@ class WalletActivity : ComponentActivity() {
                 )
             } else {
                 getString(
-                    R.string.wallet_swap_take_reserved_btc,
+                    R.string.wallet_swap_acceptance_reserved_btc,
                     required,
                     failure.confirmedAmount,
                 )
             }
         } else if (required > failure.confirmedAmount) {
             getString(
-                R.string.wallet_swap_take_insufficient_hns,
+                R.string.wallet_swap_acceptance_insufficient_hns,
                 formatHnsBaseUnits(offer.receivedAmount.toString()),
                 formatHnsBaseUnits(feeReserve.toString()),
                 formatHnsBaseUnits(required.toString()),
@@ -6229,14 +6231,14 @@ class WalletActivity : ComponentActivity() {
             )
         } else {
             getString(
-                R.string.wallet_swap_take_reserved_hns,
+                R.string.wallet_swap_acceptance_reserved_hns,
                 formatHnsBaseUnits(required.toString()),
                 formatHnsBaseUnits(failure.confirmedAmount.toString()),
             )
         }
     }
 
-    private fun showDirectOfferTakeApproval(
+    private fun showDirectOfferAcceptanceApproval(
         approval: NativeDirectOfferAcceptanceApproval,
         lease: WalletStorageOwnershipGate.Lease,
         epoch: Long,
@@ -6246,8 +6248,8 @@ class WalletActivity : ComponentActivity() {
         fun reject() {
             if (settled) return
             settled = true
-            thread(name = "direct-offer-take-reject") {
-                NativeWalletBridge.rejectDirectOfferTake(handle, approval.actionToken)
+            thread(name = "direct-offer-acceptance-reject") {
+                NativeWalletBridge.rejectDirectOfferAcceptance(handle, approval.actionToken)
                 runOnUiThread {
                     if (operationIsCurrent(epoch, lease) && walletHandle == handle) {
                         busy = false
@@ -6258,10 +6260,10 @@ class WalletActivity : ComponentActivity() {
             }
         }
         walletAlertDialogBuilder()
-            .setTitle(R.string.wallet_swap_take_approval_title)
+            .setTitle(R.string.wallet_swap_acceptance_approval_title)
             .setMessage(getString(
-                R.string.wallet_swap_take_approval_message,
-                directOfferTakeLabel(approval.offer),
+                R.string.wallet_swap_acceptance_approval_message,
+                directOfferAcceptanceLabel(approval.offer),
                 formatSwapAmount(
                     approval.offer.receivedAsset,
                     approval.offer.receivedAmount,
@@ -6276,11 +6278,11 @@ class WalletActivity : ComponentActivity() {
                 ),
             ))
             .setNegativeButton(R.string.action_reject) { _, _ -> reject() }
-            .setPositiveButton(R.string.wallet_swap_take_confirm) { _, _ ->
+            .setPositiveButton(R.string.wallet_swap_acceptance_confirm) { _, _ ->
                 if (settled) return@setPositiveButton
                 settled = true
-                thread(name = "direct-offer-take-approve") {
-                    val accepted = NativeWalletBridge.approveDirectOfferTake(
+                thread(name = "direct-offer-acceptance-approve") {
+                    val accepted = NativeWalletBridge.approveDirectOfferAcceptance(
                         handle, approval.actionToken,
                     )
                     runOnUiThread {
@@ -6288,9 +6290,9 @@ class WalletActivity : ComponentActivity() {
                             busy = false
                             refreshControllerState(resetReads = false)
                             bitcoinStatusView.text = if (accepted == null) {
-                                getString(R.string.wallet_swap_take_failed)
+                                getString(R.string.wallet_swap_acceptance_failed)
                             } else {
-                                getString(R.string.wallet_swap_take_sent, accepted.sessionId.take(12))
+                                getString(R.string.wallet_swap_acceptance_sent, accepted.sessionId.take(12))
                             }
                         }
                         releaseStorageLeaseAfterOperation(lease)

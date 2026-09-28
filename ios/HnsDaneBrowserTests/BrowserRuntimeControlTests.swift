@@ -4638,12 +4638,12 @@ final class BrowserRuntimeControlTests: XCTestCase {
             bundle: hnsValueBundle(
                 magic: "HNBW",
                 json: """
-                {"actionToken":"\(token)","offer":{"offerId":"\(directOffer)","sessionId":"\(session)","offerSetterSellsHns":false,"offeredAsset":"btc","offeredAmount":10000,"receivedAsset":"hns","receivedAmount":2000000,"btcAmountSats":10000,"hnsAmountDollarydoos":2000000,"offeredFeeReserve":null,"local":false,"createdAtUnix":1000,"expiresAtUnix":5000},"receivedFeeReserve":100000,"totalReceivedAssetCommitment":2000000,"takeExpiresAtUnix":5000,"approvalExpiresAtUnix":2000}
+                {"actionToken":"\(token)","offer":{"offerId":"\(directOffer)","sessionId":"\(session)","offerSetterSellsHns":false,"offeredAsset":"btc","offeredAmount":10000,"receivedAsset":"hns","receivedAmount":2000000,"btcAmountSats":10000,"hnsAmountDollarydoos":2000000,"offeredFeeReserve":null,"local":false,"createdAtUnix":1000,"expiresAtUnix":5000},"receivedFeeReserve":100000,"totalReceivedAssetCommitment":2000000,"acceptanceExpiresAtUnix":5000,"approvalExpiresAtUnix":2000}
                 """
             )
         )
         guard case .approval(let takeApproval) = approvedTake else {
-            return XCTFail("expected an exact direct-offer take approval")
+            return XCTFail("expected an exact direct-offer acceptance approval")
         }
         XCTAssertEqual(takeApproval.offer.offerId, directOffer)
         XCTAssertEqual(takeApproval.totalReceivedAssetCommitment, 2_000_000)

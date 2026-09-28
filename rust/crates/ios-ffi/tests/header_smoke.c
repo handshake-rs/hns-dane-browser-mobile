@@ -69,7 +69,7 @@ static void typecheck_api(void) {
         hns_browser_wallet_available_direct_offers;
     HnsBrowserResult (*wallet_prepare_direct_take)(
         HnsBrowserWalletHandle, HnsBrowserSlice, uint64_t,
-        HnsBrowserBuffer *) = hns_browser_wallet_prepare_direct_offer_take;
+        HnsBrowserBuffer *) = hns_browser_wallet_prepare_direct_offer_acceptance;
     HnsBrowserResult (*wallet_unlock)(HnsBrowserWalletHandle, HnsBrowserSlice) =
         hns_browser_wallet_unlock;
     HnsBrowserResult (*wallet_lock)(HnsBrowserWalletHandle) = hns_browser_wallet_lock;

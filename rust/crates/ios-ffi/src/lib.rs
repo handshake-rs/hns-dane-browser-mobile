@@ -1461,12 +1461,13 @@ impl NativeWalletController {
         shakescape_sessions.available_direct_offers(HnsReadSystemClock.now_unix()?)
     }
 
-    fn prepare_direct_offer_take(
+    fn prepare_direct_offer_acceptance(
         &mut self,
         offer_id: &str,
         confirmed_btc_sats: u64,
         received_fee_reserve: u64,
-    ) -> Result<hns_wallet_mobile::MobileDirectOfferTakeApproval, (MobileWalletError, u64)> {
+    ) -> Result<hns_wallet_mobile::MobileDirectOfferAcceptanceApproval, (MobileWalletError, u64)>
+    {
         let Self::DirectHnsValue {
             controller,
             shakescape_sessions,
@@ -1489,7 +1490,7 @@ impl NativeWalletController {
         let confirmed_hns_dollarydoos = u64::try_from(confirmed_hns_dollarydoos)
             .map_err(|_| (MobileWalletError::ControllerFailed, 0))?;
         shakescape_sessions
-            .prepare_direct_offer_take(
+            .prepare_direct_offer_acceptance(
                 offer_id,
                 confirmed_btc_sats,
                 confirmed_hns_dollarydoos,
@@ -1501,10 +1502,10 @@ impl NativeWalletController {
             .map_err(|error| (error, confirmed_hns_dollarydoos))
     }
 
-    fn approve_direct_offer_take(
+    fn approve_direct_offer_acceptance(
         &mut self,
         action_token: &str,
-    ) -> Result<hns_wallet_mobile::MobileDirectOfferTakeSummary, MobileWalletError> {
+    ) -> Result<hns_wallet_mobile::MobileDirectOfferAcceptanceSummary, MobileWalletError> {
         let Self::DirectHnsValue {
             shakescape_sessions,
             shakescape_peer,
@@ -1517,7 +1518,7 @@ impl NativeWalletController {
         if !promote_direct_shakescape_primary(shakescape_peer, shakescape_replication_peers) {
             return Err(MobileWalletError::ControllerFailed);
         }
-        shakescape_sessions.approve_direct_offer_take(
+        shakescape_sessions.approve_direct_offer_acceptance(
             action_token,
             shakescape_peer
                 .as_mut()
@@ -1526,7 +1527,10 @@ impl NativeWalletController {
         )
     }
 
-    fn reject_direct_offer_take(&mut self, action_token: &str) -> Result<(), MobileWalletError> {
+    fn reject_direct_offer_acceptance(
+        &mut self,
+        action_token: &str,
+    ) -> Result<(), MobileWalletError> {
         let Self::DirectHnsValue {
             shakescape_sessions,
             ..
@@ -1534,7 +1538,7 @@ impl NativeWalletController {
         else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        shakescape_sessions.reject_direct_offer_take(action_token)
+        shakescape_sessions.reject_direct_offer_acceptance(action_token)
     }
 
     fn local_btc_for_hns_offers(
@@ -1805,7 +1809,7 @@ impl NativeWalletController {
         Ok(())
     }
 
-    fn abandon_pending_direct_offer_take(
+    fn abandon_pending_direct_offer_acceptance(
         &mut self,
         session_id: &str,
     ) -> Result<(), MobileWalletError> {
@@ -1817,7 +1821,7 @@ impl NativeWalletController {
             return Err(MobileWalletError::ControllerFailed);
         };
         shakescape_sessions
-            .abandon_pending_direct_offer_take(session_id, HnsReadSystemClock.now_unix()?)
+            .abandon_pending_direct_offer_acceptance(session_id, HnsReadSystemClock.now_unix()?)
             .map(|_| ())
     }
 
@@ -5849,7 +5853,7 @@ pub unsafe extern "C" fn hns_browser_wallet_available_direct_offers(
 /// # Safety
 /// `offer_id` must remain readable and `out_approval_bundle` writable.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn hns_browser_wallet_prepare_direct_offer_take(
+pub unsafe extern "C" fn hns_browser_wallet_prepare_direct_offer_acceptance(
     wallet: HnsBrowserWalletHandle,
     offer_id: HnsBrowserSlice,
     received_fee_reserve: u64,
@@ -5875,7 +5879,7 @@ pub unsafe extern "C" fn hns_browser_wallet_prepare_direct_offer_take(
         let entry = wallet_entry(wallet)?;
         let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
         ensure_wallet_active(&entry)?;
-        let preparation = entry.controller.prepare_direct_offer_take(
+        let preparation = entry.controller.prepare_direct_offer_acceptance(
             &offer_id,
             confirmed_btc_sats,
             received_fee_reserve,
@@ -5898,7 +5902,7 @@ pub unsafe extern "C" fn hns_browser_wallet_prepare_direct_offer_take(
             }
             Err(_) => {
                 return Err(wallet_runtime_failure(
-                    "direct offer take preparation failed",
+                    "direct offer acceptance preparation failed",
                 ));
             }
         };
@@ -5911,7 +5915,7 @@ pub unsafe extern "C" fn hns_browser_wallet_prepare_direct_offer_take(
 /// # Safety
 /// `action_token` must remain readable and `out_summary_bundle` writable.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn hns_browser_wallet_approve_direct_offer_take(
+pub unsafe extern "C" fn hns_browser_wallet_approve_direct_offer_acceptance(
     wallet: HnsBrowserWalletHandle,
     action_token: HnsBrowserSlice,
     out_summary_bundle: *mut HnsBrowserBuffer,
@@ -5925,8 +5929,8 @@ pub unsafe extern "C" fn hns_browser_wallet_approve_direct_offer_take(
         ensure_wallet_active(&entry)?;
         let summary = entry
             .controller
-            .approve_direct_offer_take(&action_token)
-            .map_err(|_| wallet_runtime_failure("direct offer take approval failed"))?;
+            .approve_direct_offer_acceptance(&action_token)
+            .map_err(|_| wallet_runtime_failure("direct offer acceptance approval failed"))?;
         let bundle = wallet_bitcoin_bundle(&summary)?;
         let output = allocate_output(&bundle.0, true)?;
         unsafe { write_output(out_summary_bundle, output) };
@@ -5937,7 +5941,7 @@ pub unsafe extern "C" fn hns_browser_wallet_approve_direct_offer_take(
 /// # Safety
 /// `action_token` must remain readable for its declared length.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn hns_browser_wallet_reject_direct_offer_take(
+pub unsafe extern "C" fn hns_browser_wallet_reject_direct_offer_acceptance(
     wallet: HnsBrowserWalletHandle,
     action_token: HnsBrowserSlice,
 ) -> HnsBrowserResult {
@@ -5948,8 +5952,8 @@ pub unsafe extern "C" fn hns_browser_wallet_reject_direct_offer_take(
         ensure_wallet_active(&entry)?;
         entry
             .controller
-            .reject_direct_offer_take(&action_token)
-            .map_err(|_| wallet_runtime_failure("direct offer take rejection failed"))
+            .reject_direct_offer_acceptance(&action_token)
+            .map_err(|_| wallet_runtime_failure("direct offer acceptance rejection failed"))
     })
 }
 
@@ -6142,7 +6146,7 @@ pub unsafe extern "C" fn hns_browser_wallet_cancel_btc_for_hns_offer(
 ///
 /// # Safety
 /// `session_id` must remain readable for its declared length.
-pub unsafe extern "C" fn hns_browser_wallet_abandon_pending_direct_offer_take(
+pub unsafe extern "C" fn hns_browser_wallet_abandon_pending_direct_offer_acceptance(
     wallet: HnsBrowserWalletHandle,
     session_id: HnsBrowserSlice,
 ) -> HnsBrowserResult {
@@ -6153,7 +6157,7 @@ pub unsafe extern "C" fn hns_browser_wallet_abandon_pending_direct_offer_take(
         ensure_wallet_active(&entry)?;
         entry
             .controller
-            .abandon_pending_direct_offer_take(&session_id)
+            .abandon_pending_direct_offer_acceptance(&session_id)
             .map_err(|_| wallet_runtime_failure("unfunded acceptance abandonment failed"))
     })
 }
@@ -8301,11 +8305,11 @@ mod tests {
             "hns_browser_wallet_reject_hns_for_btc_offer",
             "hns_browser_wallet_local_direct_offers",
             "hns_browser_wallet_available_direct_offers",
-            "hns_browser_wallet_prepare_direct_offer_take",
-            "hns_browser_wallet_approve_direct_offer_take",
-            "hns_browser_wallet_reject_direct_offer_take",
+            "hns_browser_wallet_prepare_direct_offer_acceptance",
+            "hns_browser_wallet_approve_direct_offer_acceptance",
+            "hns_browser_wallet_reject_direct_offer_acceptance",
             "hns_browser_wallet_shakescape_executions",
-            "hns_browser_wallet_abandon_pending_direct_offer_take",
+            "hns_browser_wallet_abandon_pending_direct_offer_acceptance",
             "hns_browser_wallet_reserved_hns_for_direct_offers",
             "hns_browser_wallet_unlock",
             "hns_browser_wallet_lock",

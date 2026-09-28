@@ -412,7 +412,7 @@ internal object NativeWalletBridge {
             finally { bundle.fill(0) }
         } else null
 
-    fun prepareDirectOfferTake(
+    fun prepareDirectOfferAcceptance(
         handle: Long,
         offerId: String,
         receivedFeeReserve: Long,
@@ -421,27 +421,27 @@ internal object NativeWalletBridge {
             offerId.length != 64 || offerId.any { it !in '0'..'9' && it !in 'a'..'f' }
         ) return null
         val bundle = runCatching {
-            nativePrepareDirectOfferTake(handle, offerId, receivedFeeReserve)
+            nativePrepareDirectOfferAcceptance(handle, offerId, receivedFeeReserve)
         }.getOrNull() ?: return null
-        return try { NativeBitcoinWalletBundle.directOfferTakePreparation(bundle) }
+        return try { NativeBitcoinWalletBundle.directOfferAcceptancePreparation(bundle) }
         finally { bundle.fill(0) }
     }
 
-    fun approveDirectOfferTake(
+    fun approveDirectOfferAcceptance(
         handle: Long,
         actionToken: NativeHnsValueActionToken,
     ): NativeDirectOfferAcceptanceSummary? = actionToken.consume { tokenAscii ->
         if (!isValidHandle(handle) || !isAvailable) return@consume null
-        val bundle = runCatching { nativeApproveDirectOfferTake(handle, tokenAscii) }.getOrNull()
+        val bundle = runCatching { nativeApproveDirectOfferAcceptance(handle, tokenAscii) }.getOrNull()
             ?: return@consume null
-        try { NativeBitcoinWalletBundle.directOfferTakeSummary(bundle) }
+        try { NativeBitcoinWalletBundle.directOfferAcceptanceSummary(bundle) }
         finally { bundle.fill(0) }
     }
 
-    fun rejectDirectOfferTake(handle: Long, actionToken: NativeHnsValueActionToken): Boolean =
+    fun rejectDirectOfferAcceptance(handle: Long, actionToken: NativeHnsValueActionToken): Boolean =
         actionToken.consume { tokenAscii ->
             isValidHandle(handle) && isAvailable &&
-                runCatching { nativeRejectDirectOfferTake(handle, tokenAscii) }.getOrDefault(false)
+                runCatching { nativeRejectDirectOfferAcceptance(handle, tokenAscii) }.getOrDefault(false)
         } ?: false
 
     fun rejectBtcForHnsOffer(handle: Long, actionToken: NativeHnsValueActionToken): Boolean =
@@ -492,11 +492,11 @@ internal object NativeWalletBridge {
             offerId.length == 64 && offerId.all { it in '0'..'9' || it in 'a'..'f' } &&
             runCatching { nativeCancelBtcForHnsOffer(handle, offerId) }.getOrDefault(false)
 
-    fun abandonPendingDirectOfferTake(handle: Long, sessionId: String): Boolean =
+    fun abandonPendingDirectOfferAcceptance(handle: Long, sessionId: String): Boolean =
         isValidHandle(handle) && isAvailable &&
             sessionId.length == 64 && sessionId.all { it in '0'..'9' || it in 'a'..'f' } &&
             runCatching {
-                nativeAbandonPendingDirectOfferTake(handle, sessionId)
+                nativeAbandonPendingDirectOfferAcceptance(handle, sessionId)
             }.getOrDefault(false)
 
     fun reservedHnsForDirectOffers(handle: Long): Long? =
@@ -1406,20 +1406,20 @@ internal object NativeWalletBridge {
     private external fun nativeAvailableDirectOffers(handle: Long): ByteArray?
 
     @JvmStatic
-    private external fun nativePrepareDirectOfferTake(
+    private external fun nativePrepareDirectOfferAcceptance(
         handle: Long,
         offerId: String,
         receivedFeeReserve: Long,
     ): ByteArray?
 
     @JvmStatic
-    private external fun nativeApproveDirectOfferTake(
+    private external fun nativeApproveDirectOfferAcceptance(
         handle: Long,
         actionTokenAscii: ByteArray,
     ): ByteArray?
 
     @JvmStatic
-    private external fun nativeRejectDirectOfferTake(
+    private external fun nativeRejectDirectOfferAcceptance(
         handle: Long,
         actionTokenAscii: ByteArray,
     ): Boolean
@@ -1431,7 +1431,7 @@ internal object NativeWalletBridge {
     private external fun nativeShakescapeExecutions(handle: Long): ByteArray?
 
     @JvmStatic
-    private external fun nativeAbandonPendingDirectOfferTake(
+    private external fun nativeAbandonPendingDirectOfferAcceptance(
         handle: Long,
         sessionId: String,
     ): Boolean
