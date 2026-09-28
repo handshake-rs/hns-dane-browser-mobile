@@ -7,9 +7,6 @@ wallet, and direct peer-to-peer ShakeDex name and HNS/BTC swap workflows.
 
 - [Google Play](https://play.google.com/store/apps/details?id=com.denuoweb.hnsdane)
 - [Apple App Store](https://apps.apple.com/us/app/hns-dane-browser/id6791914326)
-- [GitHub release v1.0.10](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v1.0.10)
-- [Play-signed Android APK](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/download/v1.0.10/shakescape-v1.0.10-android-play-signed.apk)
-- [SHA-256 checksums](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/download/v1.0.10/SHA256SUMS-v1.0.10.txt)
 
 The 1.0.10 release source is Android code `62` and iOS build `73`. iOS
 distribution follows Apple approval through the App Store. The repository’s
@@ -127,16 +124,13 @@ Repository layout:
 - `fixtures/` — bounded cross-language protocol fixtures.
 - `scripts/` — validation, native builds, store upload, and release helpers.
 
-The application consumes protocol code from
-[`hns-rs`](https://github.com/handshake-rs/hns-rs), browser/light-client code
-from [`hns-dane-engine`](https://github.com/handshake-rs/hns-dane-engine), and
-wallet code from
-[`hns-wallet-rs`](https://github.com/handshake-rs/hns-wallet-rs). Development
+The application consumes protocol code from `hns-rs`, browser/light-client
+code from `hns-dane-engine`, and wallet code from `hns-wallet-rs`. Development
 source currently targets the coherent `hns-rs 0.4.2`, engine mobile-wallet
 `0.2.5`, and wallet `0.2.6` cohorts. Adjacent path patches keep a single Rust
 type identity while those coordinated crates move through their crates.io
 release gates; shipping dependency provenance is recorded in
-[`docs/released-dependency-cohort.md`](docs/released-dependency-cohort.md).
+`docs/released-dependency-cohort.md`.
 
 ## Security boundaries
 
@@ -155,9 +149,8 @@ release gates; shipping dependency provenance is recorded in
   platform’s permitted background execution, but decrypted UI authority is
   not retained merely to keep a screen visible.
 
-See [`docs/security-model.md`](docs/security-model.md),
-[`docs/architecture.md`](docs/architecture.md), and the
-[`native wallet feature matrix`](docs/wallet-feature-matrix.md) for the full
+See `docs/security-model.md`, `docs/architecture.md`, and the native wallet
+feature matrix in `docs/wallet-feature-matrix.md` for the full
 boundary definitions.
 
 ## Build and validate
@@ -201,12 +194,10 @@ On macOS with the repository-supported Xcode, iOS SDK, and Apple Rust targets:
 The Apple gate verifies the ABI, creates
 `build/apple/HnsBrowserRuntime.xcframework`, runs the simulator tests, and
 links the arm64 device release slice. Simulator success is not a substitute
-for the signed physical-device matrix in
-[`docs/ios-device-validation.md`](docs/ios-device-validation.md).
+for the signed physical-device matrix in `docs/ios-device-validation.md`.
 
-Store release procedures are documented in
-[`docs/play-store-readiness.md`](docs/play-store-readiness.md) and
-[`docs/ios-app-store-release.md`](docs/ios-app-store-release.md).
+Store release procedures are documented in `docs/play-store-readiness.md` and
+`docs/ios-app-store-release.md`.
 
 ## Support and license
 
