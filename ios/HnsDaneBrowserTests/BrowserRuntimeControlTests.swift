@@ -832,9 +832,11 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertEqual(pendingBalance.pendingOutgoingBaseUnits, "100123")
         XCTAssertEqual(
             WalletReadPresenter.present(pendingOutgoingSnapshot).balance,
-            WalletCopy.format("wallet_reads_balance_confirmed", "12.345678") + "\n" +
-                "0.100123 HNS pending outgoing\n" +
-                "Transaction Pending, please wait."
+            WalletCopy.format(
+                "wallet_reads_balance_confirmed_with_pending",
+                "12.345678",
+                "0.100123"
+            )
         )
 
         XCTAssertNil(walletPendingOutgoingRefreshHeight(
@@ -4430,7 +4432,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
             bundle: hnsValueBundle(magic: "HNVP", json: approvalJSON)
         )
         XCTAssertEqual(approval.kind, .nameTransfer)
-        XCTAssertEqual(approval.title, "Transfer Handshake name")
+        XCTAssertEqual(approval.title, "Transfer name")
         XCTAssertTrue(approval.detailLines.contains("Maximum fee: 0.001 HNS"))
         approval.actionToken.discard()
 
@@ -4441,7 +4443,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
             bundle: hnsValueBundle(magic: "HNVP", json: updateApprovalJSON)
         )
         XCTAssertEqual(updateApproval.kind, .nameUpdate)
-        XCTAssertEqual(updateApproval.title, "Set Handshake resource records")
+        XCTAssertEqual(updateApproval.title, "Set records")
         XCTAssertTrue(updateApproval.detailLines.contains("Records: 1"))
         XCTAssertTrue(updateApproval.detailLines.contains("Exact resource hex: 0004c0000201"))
         updateApproval.actionToken.discard()
