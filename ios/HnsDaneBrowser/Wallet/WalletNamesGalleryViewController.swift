@@ -204,7 +204,8 @@ final class WalletNamesGalleryViewController: UIViewController,
         var configuration = UIButton.Configuration.tinted()
         configuration.title = title
         configuration.cornerStyle = .large
-        configuration.baseForegroundColor = primary ? .systemCyan : .label
+        configuration.baseForegroundColor = primary ? .systemCyan :
+            UIColor(red: 0.85, green: 0.91, blue: 0.97, alpha: 1)
         configuration.baseBackgroundColor = UIColor.clear
         configuration.contentInsets = NSDirectionalEdgeInsets(top: 5, leading: 2, bottom: 5, trailing: 2)
         button.configuration = configuration
