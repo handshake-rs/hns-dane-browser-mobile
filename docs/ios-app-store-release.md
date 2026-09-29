@@ -32,7 +32,7 @@ and aggregate Required CI. Earlier HNWR-v2 code-bearing source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed that complete Apple gate and
 aggregate Required CI in full run `31807520618`; CodeQL runs `31807519998` and
 `31807520229` also passed. That evidence predates the `2061a27` exact-name
-import tranche. Exact current application source
+import tranche. Earlier application source
 `adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed the complete manually
 dispatched CI matrix in run `31835813994`, including repository policy,
 Rust/supply-chain, Android build/unit, API 37 native-runtime instrumentation,
@@ -268,7 +268,7 @@ Build `72` is the configured candidate. Historical HNWR application-source CI,
 CodeQL, lockfile/notices, and the complete Apple app/simulator gate remain
 retained historical evidence. The earlier HNWR-v2 code-bearing source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed its own complete platform
-matrix in run `31807520618`. Exact current application source
+matrix in run `31807520618`. Earlier application source
 `adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed the complete manually
 dispatched Rust, Android, Apple, and Required CI matrix in run `31835813994`;
 CodeQL runs `31833858421` and `31833858650` also passed. This is exact-source

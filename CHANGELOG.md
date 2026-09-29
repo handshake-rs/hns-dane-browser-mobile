@@ -19,6 +19,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+- Prepare the embedded Rust dependency graph for `hns-rs 0.5.0`, the seven
+  `hns-dane-engine 0.2.6` mobile wallet crates, and `hns-wallet-rs 0.3.0`.
+  The app version and store artifacts remain on their existing release line
+  until a separately qualified mobile build is published.
+
 ## 1.0.10 - 2026-09-28
 
 Android `1.0.10` / code `62` and iOS `1.0.10` / build `73` retain the

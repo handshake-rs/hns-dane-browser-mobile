@@ -149,13 +149,13 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertEqual(manifest["workspace"]["package"]["version"], "1.0.2")
         self.assertFalse(manifest["workspace"]["package"]["publish"])
         wallet = manifest["workspace"]["dependencies"]["hns-wallet-mobile"]
-        self.assertEqual(wallet, "=0.2.6")
+        self.assertEqual(wallet, "=0.3.0")
 
         with (ROOT / "rust/Cargo.lock").open("rb") as source:
             locked_packages = tomllib.load(source)["package"]
         locked_by_name = {package["name"]: package for package in locked_packages}
         self.assertEqual(locked_by_name["rustls"]["version"], "0.23.45")
-        self.assertEqual(locked_by_name["hns-wallet-mobile"]["version"], "0.2.6")
+        self.assertEqual(locked_by_name["hns-wallet-mobile"]["version"], "0.3.0")
         self.assertEqual(
             locked_by_name["hns-wallet-mobile"]["source"],
             "registry+https://github.com/rust-lang/crates.io-index",
@@ -164,7 +164,7 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
 
         lockfile = (ROOT / "rust/Cargo.lock").read_text(encoding="utf-8")
         self.assertIn(
-            'name = "hns-header-consensus"\nversion = "0.4.2"\nsource = "registry+https://github.com/rust-lang/crates.io-index"',
+            'name = "hns-header-consensus"\nversion = "0.5.0"\nsource = "registry+https://github.com/rust-lang/crates.io-index"',
             lockfile,
         )
         for package in (
@@ -173,7 +173,7 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
             "hns-light-wallet",
         ):
             self.assertIn(
-                f'name = "{package}"\nversion = "0.2.5"\nsource = "registry+https://github.com/rust-lang/crates.io-index"',
+                f'name = "{package}"\nversion = "0.2.6"\nsource = "registry+https://github.com/rust-lang/crates.io-index"',
                 lockfile,
             )
         for package in (
@@ -182,7 +182,7 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
             "hns-browser-resolver",
             "hns-light-p2p",
         ):
-            self.assertEqual(locked_by_name[package]["version"], "0.2.5")
+            self.assertEqual(locked_by_name[package]["version"], "0.2.6")
             self.assertEqual(
                 locked_by_name[package]["source"],
                 "registry+https://github.com/rust-lang/crates.io-index",

@@ -132,12 +132,12 @@ Repository layout:
 - `scripts/` — validation, native builds, store upload, and release helpers.
 
 The application consumes protocol code from `hns-rs`, browser/light-client
-code from `hns-dane-engine`, and wallet code from `hns-wallet-rs`. Development
-source currently targets the coherent `hns-rs 0.4.2`, engine mobile-wallet
-`0.2.5`, and wallet `0.2.6` cohorts. Adjacent path patches keep a single Rust
-type identity while those coordinated crates move through their crates.io
-release gates; shipping dependency provenance is recorded in
-`docs/released-dependency-cohort.md`.
+code from `hns-dane-engine`, and wallet code from `hns-wallet-rs`. Current
+repository source pins the checksum-bearing registry cohorts `hns-rs 0.5.0`,
+engine mobile-wallet `0.2.6`, and wallet `0.3.0`. The app version remains
+`1.0.10`; these dependency updates are not a new signed store build. Exact
+source and checksum provenance is recorded in
+[the released dependency cohort](docs/released-dependency-cohort.md).
 
 ## Security boundaries
 

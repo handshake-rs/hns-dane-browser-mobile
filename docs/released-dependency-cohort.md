@@ -1,24 +1,24 @@
 # Rust Dependency Cohort
 
-Last reviewed: 2026-09-24.
+Last reviewed: 2026-09-28.
 
-The `1.0.2` embedded mobile workspace consumes exact, checksum-bearing crates.io
+The `1.0.10` application source consumes exact, checksum-bearing crates.io
 releases. No sibling checkout, Git dependency, or `[patch.crates-io]` override
 is part of the release graph.
 
 | Project | Mobile release line | Reviewed source | Release evidence |
 | --- | --- | --- | --- |
-| `hns-rs` | `0.4.2` | `1a4a937a8b8367b8b96d0445b9aa2b7e6fdd7c6b` | [v0.4.2 release](https://github.com/handshake-rs/hns-rs/releases/tag/v0.4.2); all 19 public crates published and registry readback verified |
-| `hns-dane-engine` mobile/wallet cohort | `0.2.5` | `77459f2ffbaa46d950fec95bd00013cc89d01007` | [mobile-wallet-v0.2.5 release](https://github.com/handshake-rs/hns-dane-engine/releases/tag/mobile-wallet-v0.2.5); the four light-client crates and three SQLite browser adapters published and registry readback verified |
+| `hns-rs` | `0.5.0` | `60eb912d615243a6bfb9741b17f16833c5a9181a` | [v0.5.0 release](https://github.com/handshake-rs/hns-rs/releases/tag/v0.5.0); all 19 public crates published and registry readback verified |
+| `hns-dane-engine` mobile/wallet cohort | `0.2.6` | `90a5dfeb5b7c00e8fea010e79f82076de4263fd6` | [mobile-wallet-v0.2.6 release](https://github.com/handshake-rs/hns-dane-engine/releases/tag/mobile-wallet-v0.2.6); the four light-client crates and three SQLite browser adapters published and registry readback verified |
 | `hns-dane-engine` unchanged contracts | exact `0.2.2`, `0.2.3`, or `0.3.0` releases | checksum-bound by `rust/Cargo.lock` | unchanged browser, policy, transport, and resolution packages remain on their already-published exact releases |
-| `hns-wallet-rs` | `0.2.6` | `f5a6a77841f34bf5a601df83de2900f76605df43` | all 16 crates published to crates.io, archive-verified against the tagged source, and registry readback verified |
+| `hns-wallet-rs` | `0.3.0` | `a76e9bad20bb0089f1eb8b8fb6429431e2b3955e` | all 16 crates published to crates.io, archive-verified against the tagged source, and registry readback verified |
 
 ## Mobile graph policy
 
 The root mobile manifest declares exact crates.io requirements, including
-`hns-header-consensus = "=0.4.2"`, the light-client and SQLite adapter cohort at
-`=0.2.5`, the unchanged engine packages at their exact published versions, and
-`hns-wallet-ffi`, `hns-wallet-mobile`, and `hns-wallet-types` at `=0.2.6`.
+`hns-header-consensus = "=0.5.0"`, the light-client and SQLite adapter cohort at
+`=0.2.6`, the unchanged engine packages at their exact published versions, and
+`hns-wallet-ffi`, `hns-wallet-mobile`, and `hns-wallet-types` at `=0.3.0`.
 The compatibility import names
 `hns-core`, `hns-chain`, `hns-p2p`, `hns-urkel`, and related names are Cargo
 aliases for the published `hns-browser-*` packages; they are not second

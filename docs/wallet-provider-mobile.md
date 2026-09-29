@@ -3,12 +3,12 @@
 This checkout contains two deliberately separate surfaces:
 
 - Android and iOS app-native wallet controls backed by the published,
-  checksum-bearing `hns-wallet-mobile 0.2.6` release; and
+  checksum-bearing `hns-wallet-mobile 0.3.0` release; and
 - a website-facing wallet-provider projection that remains dormant and cannot
   mutate WebView or WKWebView.
 
-That wallet release consumes the reviewed `hns-rs 0.4.2` graph and the coherent
-engine light-client `0.2.5` release cohort. The lockfile and generated
+That wallet release consumes the reviewed `hns-rs 0.5.0` graph and the coherent
+engine light-client `0.2.6` release cohort. The lockfile and generated
 notices bind the complete protocol → wallet chain;
 [released-dependency-cohort.md](released-dependency-cohort.md) records the
 published registry checksums.
@@ -30,7 +30,7 @@ Earlier HNWR-v2 code-bearing source
 `31807520618`, including repository policy, Rust/supply-chain, Android
 build/unit, API 37 native instrumentation, the complete Apple
 ABI/XCFramework/app/simulator gate, and Required CI. CodeQL runs `31807519998`
-and `31807520229` also passed. Exact current application source
+and `31807520229` also passed. Earlier application source
 `adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed the complete manually
 dispatched CI matrix in run `31835813994`: repository policy,
 Rust/supply-chain, Android build/unit, API 37 native-runtime instrumentation,
@@ -257,7 +257,7 @@ continues and the screen reconnects to its process-owned progress; after
 termination, the next operation resumes from the durable direct-HNS checkpoint
 and monotonic floor journal. Earlier source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed its exact Apple
-app/simulator CI in `31807520618`. Exact current application source
+app/simulator CI in `31807520618`. Earlier application source
 `adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed the complete manually
 dispatched CI matrix, including the full Apple gate and aggregate Required CI,
 in run `31835813994`; CodeQL runs `31833858421` and `31833858650` also passed.
@@ -494,7 +494,7 @@ and mainnet/testnet storage isolation. The exact historical `0.5.8`
 repin/version/metadata commit passed remote CI. The HNWR-v2 projection has
 focused Rust, Kotlin, and Swift coverage and its earlier source passed exact full
 CI `31807520618`. The HNWI-v1 consumer has focused Rust and Kotlin coverage, and
-exact current application source `adb9c506fe88c82b0317fd60c12fd6a9702753ed`
+earlier application source `adb9c506fe88c82b0317fd60c12fd6a9702753ed`
 passed the complete manually dispatched Rust, Android, Apple, and Required CI
 matrix in run `31835813994`; CodeQL runs `31833858421` and `31833858650` also
 passed. Historical HNWR-v1 exact debug APK evidence still covers only

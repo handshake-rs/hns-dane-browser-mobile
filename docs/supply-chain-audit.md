@@ -1,12 +1,12 @@
 # Build and Supply-Chain Audit
 
-Last audited: 2026-09-07
+Last audited: 2026-09-28
 
 Current release source coordinates Android `1.0.10` / code `62`, the embedded
 non-publishable Rust workspace `1.0.2`, and iOS `1.0.10` / build `73`. It uses
-the reviewed `hns-rs 0.4.2` graph, exact public engine releases (including the
-coherent light-client and SQLite adapter `0.2.5` cohort), and the published
-`hns-wallet-rs 0.2.6` closure. Registry dependencies retain checksums after
+the reviewed `hns-rs 0.5.0` graph, exact public engine releases (including the
+coherent light-client and SQLite adapter `0.2.6` cohort), and the published
+`hns-wallet-rs 0.3.0` closure. Registry dependencies retain checksums after
 the coordinated wallet publication
 throughout the lockfile, as
 documented in [released-dependency-cohort.md](released-dependency-cohort.md).
@@ -26,7 +26,7 @@ Earlier HNWR-v2/ECH-and-sync-telemetry code-bearing source
 build/unit, API 37 native instrumentation, the complete Apple
 ABI/XCFramework/app/simulator gate, and Required CI. CodeQL runs `31807519998`
 and `31807520229` also passed. That evidence predates the `2061a27` exact-name
-import tranche. Exact current application source
+import tranche. Earlier application source
 `adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed the complete manually
 dispatched CI matrix in run `31835813994`: repository policy,
 Rust/supply-chain, Android build/unit, API 37 native-runtime instrumentation,
@@ -189,9 +189,9 @@ with manual release after build `64` was withdrawn.
   edit `07330408575596336357`; `generatedApks/47` returned HTTP `200`. GitHub
   Release [`v0.5.6`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.6) publishes only the verified APK,
   not the Play AAB or unchanged iOS build.
-- Current source consumes reviewed `0.4.2` HNS, exact engine releases
-  (including the light-client and SQLite-backed adapter crates at `0.2.5`),
-  and the complete published wallet `0.2.6` cohort. Registry packages retain
+- Current source consumes reviewed `0.5.0` HNS, exact engine releases
+  (including the light-client and SQLite-backed adapter crates at `0.2.6`),
+  and the complete published wallet `0.3.0` cohort. Registry packages retain
   Cargo checksums; no sibling path patch or Git dependency is admitted. The
   standalone facade is not a mobile input.
   [released-dependency-cohort.md](released-dependency-cohort.md) records the
