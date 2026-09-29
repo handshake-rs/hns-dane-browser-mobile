@@ -1789,9 +1789,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-bdk-kyoto"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52fc098a5c98498368efbc15d194b23ead029af2c8b755d56b98ce94abf9d7ad"
+checksum = "7b39f8047db701ad8e0fd863c2115cfd8182149d43a29f574ac6dae55898e7e7"
 dependencies = [
  "bdk_wallet",
  "hns-wallet-bip157",
@@ -1799,9 +1799,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-bip157"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7850a5b1a42cfe840e546a6a13936a3e05071aa2664419d8569d79a7d553c39d"
+checksum = "5b4dd10fa615d42572c20c728eba8eaeefbc6e479485b3d91622539550e160e3"
 dependencies = [
  "bip324",
  "bitcoin",
@@ -1812,9 +1812,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-bitcoin-kyoto"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "261a86e8e696561c98632a265c70381b85901fe806f5137ff796d1f6ff1fe5c1"
+checksum = "87b0d4209093a576f48d1a0371b22b4c08dbce5ad5ddccbf8c5fb312da1236bd"
 dependencies = [
  "bdk_wallet",
  "bip39",
@@ -1835,9 +1835,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-chain-api"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b8614dd894dbdcbef56111a2b5857f117030dd2e218281c2ae41ea86926881b"
+checksum = "e9d88d977208e73ea248eb3d6949094eedb1b5d1e4065edf5dc9eda59fbe011a"
 dependencies = [
  "hns-wallet-types",
  "serde",
@@ -1847,9 +1847,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-ffi"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cfab215626922f26bf6a29199e9460413f014bd0f74f10dfbfd6c78592647168"
+checksum = "8ddf04b98c1eab78cd2004587d8bc91ef0e020ea3af26eb2d709940788dda6ba"
 dependencies = [
  "hns-covenants",
  "hns-wallet-types",
@@ -1861,9 +1861,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-hns"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f65868404dc4750e140bfbbda4d6c8b1afa36f80c9a72bf8fc4a494086e7a352"
+checksum = "edd643f16ef386d62dca31590bb348e93742ef169d28663286a3ada6200cb3ab"
 dependencies = [
  "bech32",
  "bip32",
@@ -1901,9 +1901,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-host"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e11b2fc426b0098d2ad76428d93698e0075ebd3cbfa95c6a29bf712b7e65937"
+checksum = "06eaceb7e099f5d3e09876e1f35e59f661525eeec12133ecc72d2420e43a1493"
 dependencies = [
  "getrandom 0.3.4",
  "hns-wallet-ffi",
@@ -1914,9 +1914,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-market"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6a9c0727c8040286870c8a681a3535fb306fdb027e729a92b1ac9bd58ce8024"
+checksum = "70855a8fb2c475b8c0ebe87c2dca9f0ef93dd00ff820843311612e04c0af2d51"
 dependencies = [
  "hex",
  "hkdf",
@@ -1936,9 +1936,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-mobile"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2fa2fb97e8f8ebc91c9577c69f873296e8d15179507bcfe8e7414e7d59062a5b"
+checksum = "36c11f5db1dbac573ae8bc1e2d349c7a63fca4c1f04facd596b9ace2899e4e45"
 dependencies = [
  "bdk_wallet",
  "getrandom 0.3.4",
@@ -1967,9 +1967,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-provider"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e886263f075aedff8458a132d89de67fa73b4e3b0ca94e166bd4021dca22cb7"
+checksum = "551c2a039549536278845da26bc939c25e9f44e21021d26810f4a0b8ff279d94"
 dependencies = [
  "hns-wallet-store",
  "hns-wallet-types",
@@ -1982,9 +1982,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-service"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "45125ad65bdf623796e029df8db0e1e6c726d32ddbed40fe90e3b1968a1ebedd"
+checksum = "d594b63c12dbff604827a1b3864949cb76ec49c180ca9b2e33c41ecff08927b5"
 dependencies = [
  "getrandom 0.3.4",
  "hns-covenants",
@@ -2006,9 +2006,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-shakedex"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5dfddec521f69474db839e4599298eacf4858f8e81c01af14f5c24c0e662282c"
+checksum = "9ebf140f9d83ca86177c193bf0c77e21a9c38a629260dc1508a840c1ece190b8"
 dependencies = [
  "hex",
  "hns-covenants",
@@ -2029,9 +2029,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-store"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cbcce3253574b19a0cc08d1fbafc5ebba51fdd5386769b61434e7eb6693dc199"
+checksum = "865e56587f99a2eee0507d5f84c89e562ccd40a8805d38a1bc79eae13bd45675"
 dependencies = [
  "argon2",
  "chacha20poly1305",
@@ -2049,9 +2049,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-types"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5ce617722b77160119741e96e61dd86c2a5d58a6e76be97bc7ba91fb8435a44"
+checksum = "9b9b08ef774088dc9ad66ac99b5cbdb5ea1d90972216f77a008d5970e3153541"
 dependencies = [
  "hex",
  "serde",

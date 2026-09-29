@@ -10,11 +10,11 @@ The committed application identity is:
 - Deployment floor: iOS 17.0
 - Previous submission: `1.0.9` (`72`), submitted with automatic release
   after approval on 2026-09-25
-- Current candidate: `1.0.10` (`73`), automatic release after approval
+- Current candidate: `1.0.11` (`74`), automatic release after approval
 - Device families: iPhone and iPad; compatible iOS-on-Apple-silicon-Mac use is
   permitted by the target
 
-Candidate build `73` includes the current native-only wallet screen for
+Candidate build `74` includes the current native-only wallet screen for
 create/restore/open/status/unlock/lock, one HNS account identity, and strict
 HNWR-v2 read-only fields for balance, one account-zero payment/name receive
 target, history, tracked names, and module status. The decoder retains
@@ -162,7 +162,7 @@ The workflow then:
 
 ## Apply metadata and submit through the API
 
-After the upload run succeeds and build `73` finishes processing, use the
+After the upload run succeeds and build `74` finishes processing, use the
 separate protected workflow. Its default `discover` mode performs authenticated
 GET requests only. Pin both the exact current `main` automation commit and the
 signed-artifact commit from the successful upload run. They may differ only by
@@ -205,8 +205,8 @@ gh workflow run ios-app-store-submit.yml \
   -f expected_upload_run_id="$upload_run_id" \
   -f mode=submit \
   -f review_contact_source_version=1.0.4 \
-  -f confirm_metadata=APPLY_METADATA_1.0.10_73 \
-  -f confirm_submit=SUBMIT_FOR_REVIEW_1.0.10_73 \
+  -f confirm_metadata=APPLY_METADATA_1.0.11_74 \
+  -f confirm_submit=SUBMIT_FOR_REVIEW_1.0.11_74 \
   -f confirm_account_readiness=true
 ```
 
@@ -222,7 +222,7 @@ gh workflow run ios-app-store-submit.yml \
   -f expected_upload_run_id="$upload_run_id" \
   -f mode=auto-release \
   -f review_contact_source_version=1.0.4 \
-  -f confirm_auto_release=SET_AUTO_RELEASE_1.0.10_73 \
+  -f confirm_auto_release=SET_AUTO_RELEASE_1.0.11_74 \
   -f confirm_account_readiness=true
 ```
 
@@ -232,7 +232,7 @@ downloads nor validates a replacement artifact. To replace it, first run the
 upload workflow with `-f capture_screenshots=true`; after visually reviewing its
 retained exact-artifact images, a metadata or submission run may replace only
 that version's `APP_IPHONE_65` set by adding the exact confirmation
-`-f confirm_screenshot_replacement=REPLACE_SCREENSHOTS_1.0.10_73`. Replacement
+`-f confirm_screenshot_replacement=REPLACE_SCREENSHOTS_1.0.11_74`. Replacement
 fails closed on any byte mismatch. Without that input the client performs no
 screenshot upload or deletion requests.
 
@@ -304,7 +304,7 @@ reconciled version metadata, selected build `65`, preserved the existing
 screenshots, and submitted the update after build `64` was withdrawn. The
 readback at that time reported `WAITING_FOR_REVIEW`, `releaseType=MANUAL`, and
 `reviewType=APP_STORE`; that is historical evidence and does not describe the
-current `1.0.10` / build `73` candidate.
+current `1.0.11` / build `74` candidate.
 
 The `0.5.5` version-managed metadata, current iPhone screenshots, App Review
 details, content-rights declaration, and build `57` were reconciled through

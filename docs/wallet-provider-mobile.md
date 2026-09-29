@@ -3,7 +3,7 @@
 This checkout contains two deliberately separate surfaces:
 
 - Android and iOS app-native wallet controls backed by the published,
-  checksum-bearing `hns-wallet-mobile 0.3.0` release; and
+  checksum-bearing `hns-wallet-mobile 0.3.1` release; and
 - a website-facing wallet-provider projection that remains dormant and cannot
   mutate WebView or WKWebView.
 
@@ -13,8 +13,8 @@ notices bind the complete protocol → wallet chain;
 [released-dependency-cohort.md](released-dependency-cohort.md) records the
 published registry checksums.
 
-The configured Android `1.0.10` candidate is code `62`, with embedded Rust `1.0.2`,
-and the configured iOS `1.0.10` candidate is build `73`. Historical `0.5.8` application source
+The configured Android `1.0.11` candidate is code `63`, with embedded Rust `1.0.2`,
+and the configured iOS `1.0.11` candidate is build `74`. Historical `0.5.8` application source
 `f21bee1c3afccd06604dc99fccb51528e2441055` passed exact Required CI run
 `31402758394`, including Android build/unit/native instrumentation,
 Rust/supply-chain, and the complete Apple

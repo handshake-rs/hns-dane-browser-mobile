@@ -1,1 +1,1 @@
-1.0.10 streamlines wallet onboarding, synchronization, sends, swaps, and Handshake name actions, with localized guidance across 20 additional locales.
+1.0.11 gives mobile wallet atomic swaps a 24-hour funding window, persistent stage and countdown details, one-hour warnings, safer late-funding checks, and exact refund timing.

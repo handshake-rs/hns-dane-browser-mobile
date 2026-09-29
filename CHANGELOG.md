@@ -17,7 +17,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.0.11 - 2026-09-29
 
 - Extend newly negotiated mobile atomic swaps to a 24-hour funding window,
   with 48-hour second-chain and 72-hour first-chain refund horizons. Android
@@ -25,10 +25,11 @@ All notable changes to this project will be documented in this file.
   deadline and live countdown in local time, block unsafe late first funding,
   schedule a one-hour warning, immediately surface confirmed first funding as
   action required, and keep exact refund recovery on the existing session.
-- Prepare the embedded Rust dependency graph for `hns-rs 0.5.0`, the seven
-  `hns-dane-engine 0.2.6` mobile wallet crates, and `hns-wallet-rs 0.3.0`.
-  The app version and store artifacts remain on their existing release line
-  until a separately qualified mobile build is published.
+- Consume the published `hns-rs 0.5.0`, seven-crate `hns-dane-engine 0.2.6`
+  mobile-wallet cohort, and complete `hns-wallet-rs 0.3.1` registry cohort.
+
+Android `1.0.11` / code `63` and iOS `1.0.11` / build `74` use this exact
+dependency graph.
 
 ## 1.0.10 - 2026-09-28
 
