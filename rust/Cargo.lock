@@ -87,7 +87,7 @@ dependencies = [
  "nom",
  "num-traits",
  "rusticata-macros",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "time",
 ]
 
@@ -681,7 +681,7 @@ dependencies = [
  "displaydoc",
  "num_enum",
  "rand 0.10.3",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "tokio",
 ]
 
@@ -1208,7 +1208,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "12579d20f6036b21016ca703197f69ba898a5a7d6db7fd7264d2cfcb3abd5dbb"
 dependencies = [
  "paste",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1319,7 +1319,7 @@ checksum = "7c83755e8966b1f4f317f83d31525791d7efeb7cc8bae94276fd77b98c83add1"
 dependencies = [
  "hns-browser-primitives",
  "rusqlite",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1332,7 +1332,7 @@ dependencies = [
  "hns-browser-primitives",
  "hns-browser-urkel",
  "sha2",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1348,7 +1348,7 @@ dependencies = [
  "ring",
  "sha1",
  "sha2",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1364,7 +1364,7 @@ dependencies = [
  "hns-icann-dane",
  "hns-namespace-resolution",
  "subtle",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1383,7 +1383,7 @@ dependencies = [
  "ring",
  "rustls",
  "subtle",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "time",
  "zeroize",
 ]
@@ -1398,7 +1398,7 @@ dependencies = [
  "hns-icann-dane",
  "hns-namespace-resolution",
  "hns-resolution-policy",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1411,7 +1411,7 @@ dependencies = [
  "hns-browser-primitives",
  "hns-browser-urkel",
  "rusqlite",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1426,7 +1426,7 @@ dependencies = [
  "num-traits",
  "serde",
  "sha3",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1441,7 +1441,7 @@ dependencies = [
  "hns-cache",
  "hns-namespace-resolution",
  "rusqlite",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1460,7 +1460,7 @@ dependencies = [
  "hns-browser-p2p",
  "hns-browser-primitives",
  "hns-browser-urkel",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1479,7 +1479,7 @@ dependencies = [
  "quinn",
  "rustls",
  "sha2",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "tokio",
  "tokio-rustls",
  "webpki-roots",
@@ -1492,7 +1492,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f0a9fdf6d94b31f5cf9defe3c958f72c923d4151672e755a93034f1c108ca61c"
 dependencies = [
  "hns-browser-primitives",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1503,7 +1503,7 @@ checksum = "b5b0ea892e4894f5312839d66370cac8e8e602aedea3fdad21cf669c6f1e7e33"
 dependencies = [
  "hns-dns-wire",
  "sha2",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1516,7 +1516,7 @@ dependencies = [
  "hns-encoding",
  "hns-primitives",
  "sha3",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1531,7 +1531,7 @@ version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7eea1012148aa8c4201782cdc9034e74d093c4e5fa1aba29f04b4e487379da94"
 dependencies = [
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1544,7 +1544,7 @@ dependencies = [
  "hns-encoding",
  "hns-primitives",
  "sha3",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1565,7 +1565,7 @@ dependencies = [
  "hns-header-consensus",
  "hns-primitives",
  "hns-urkel-proof",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1578,7 +1578,7 @@ dependencies = [
  "hns-p2p-wire",
  "hns-primitives",
  "hns-transaction",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1591,7 +1591,7 @@ dependencies = [
  "hns-light-chain",
  "hns-p2p-wire",
  "hns-primitives",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1607,7 +1607,7 @@ dependencies = [
  "hns-p2p-wire",
  "hns-primitives",
  "hns-transaction",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1623,7 +1623,7 @@ dependencies = [
  "hns-swap",
  "k256",
  "sha2",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "zeroize",
 ]
 
@@ -1639,7 +1639,7 @@ dependencies = [
  "hns-header-consensus",
  "hns-primitives",
  "hns-transaction",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1670,7 +1670,7 @@ dependencies = [
  "portmapper",
  "rusqlite",
  "sha2",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "tokio",
 ]
 
@@ -1691,7 +1691,7 @@ dependencies = [
  "hns-primitives",
  "serde",
  "sha2",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "toml",
 ]
 
@@ -1708,7 +1708,7 @@ dependencies = [
  "hns-primitives",
  "hns-transaction",
  "hns-urkel-proof",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1718,7 +1718,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4d8db963a6809487827f2cd79392feb2ec1ec415dc168a16af56f61740f1148d"
 dependencies = [
  "hex",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1742,7 +1742,7 @@ dependencies = [
  "sha1",
  "sha2",
  "sha3",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1760,7 +1760,7 @@ dependencies = [
  "k256",
  "sha2",
  "sha3",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1773,7 +1773,7 @@ dependencies = [
  "hns-covenants",
  "hns-encoding",
  "hns-primitives",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1784,7 +1784,7 @@ checksum = "992036775cae734534f6ccff3eccef868dc4e6ec68f14bcf9adb1798d6acbfff"
 dependencies = [
  "blake2",
  "hns-primitives",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1828,7 +1828,7 @@ dependencies = [
  "hns-wallet-types",
  "serde",
  "sha2",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "tokio",
  "zeroize",
 ]
@@ -1841,7 +1841,7 @@ checksum = "e9d88d977208e73ea248eb3d6949094eedb1b5d1e4065edf5dc9eda59fbe011a"
 dependencies = [
  "hns-wallet-types",
  "serde",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "zeroize",
 ]
 
@@ -1855,7 +1855,7 @@ dependencies = [
  "hns-wallet-types",
  "serde",
  "serde_json",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "zeroize",
 ]
 
@@ -1895,7 +1895,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "sha3",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "zeroize",
 ]
 
@@ -1909,7 +1909,7 @@ dependencies = [
  "hns-wallet-ffi",
  "hns-wallet-types",
  "serde_json",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1930,7 +1930,7 @@ dependencies = [
  "k256",
  "serde",
  "sha2",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "zeroize",
 ]
 
@@ -1960,7 +1960,7 @@ dependencies = [
  "hns-wallet-types",
  "serde",
  "serde_json",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "tokio",
  "zeroize",
 ]
@@ -1976,7 +1976,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "url",
 ]
 
@@ -2000,7 +2000,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "zeroize",
 ]
 
@@ -2024,7 +2024,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -2043,7 +2043,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "zeroize",
 ]
 
@@ -2055,7 +2055,7 @@ checksum = "9b9b08ef774088dc9ad66ac99b5cbdb5ea1d90972216f77a008d5970e3153541"
 dependencies = [
  "hex",
  "serde",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -2756,7 +2756,7 @@ dependencies = [
  "log",
  "netlink-packet-core 0.8.2",
  "netlink-sys 0.8.8",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -3260,7 +3260,7 @@ dependencies = [
  "rustc-hash",
  "rustls",
  "socket2",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "tokio",
  "tracing",
  "web-time",
@@ -3282,7 +3282,7 @@ dependencies = [
  "rustls",
  "rustls-pki-types",
  "slab",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "tinyvec",
  "tracing",
  "web-time",
@@ -3499,7 +3499,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c51c9ae4df8a7fba42103df5c621fa3c37eccf3a3c650879e90fc48b11cc192c"
 dependencies = [
  "hashbrown 0.16.1",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -3959,11 +3959,11 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "2.0.20"
+version = "2.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec86235f5fcc2a73650310756d2ac5b138a5780bbbdfae3eeccec992c435ba4f"
+checksum = "09e52cb86a36cede5cb101bf8908837b3e4c6e5e59fe7fd85c23fb56200d189e"
 dependencies = [
- "thiserror-impl 2.0.20",
+ "thiserror-impl 2.0.21",
 ]
 
 [[package]]
@@ -3979,9 +3979,9 @@ dependencies = [
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.20"
+version = "2.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc04cd3e1236dd4a98afca4569f2deb3f120e5422a4023be2cb683f8486292af"
+checksum = "fe5197923287db20a58125f0bc85c062f7f2c892de97b18c356f9efb14b28524"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4799,7 +4799,7 @@ dependencies = [
  "futures",
  "log",
  "serde",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "windows",
  "windows-core",
 ]
@@ -4824,7 +4824,7 @@ dependencies = [
  "oid-registry",
  "ring",
  "rusticata-macros",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
  "time",
 ]
 
