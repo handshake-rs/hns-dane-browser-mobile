@@ -682,6 +682,7 @@ final class WalletViewController: UIViewController {
     private var bitcoinSyncStopRequested = false
     private var bitcoinBirthdayResetInProgress = false
     private var bitcoinSyncTimer: Timer?
+    private let swapActionStatusLabel = UILabel()
     private var bitcoinSnapshot: NativeBitcoinWalletSnapshot?
     private var bitcoinValueAvailable = false
     private weak var bitcoinSendApprovalAlert: UIAlertController?
@@ -1215,15 +1216,10 @@ final class WalletViewController: UIViewController {
 
     private func renderUnlockedWalletDashboard() {
         addCellularDataWarningIfNeeded(walletUnlocked: true)
-        dashboardStack.addArrangedSubview(dashboardCard(
-            title: isOperating ? "● WORKING · \(network.title)" : "● UNLOCKED · \(network.title)",
-            body: walletStatusBody([statusLabel]),
-            accent: .systemCyan
-        ))
-
         let receive = dashboardButton(
             title: "Receive",
             action: #selector(showPaymentReceiveAddress),
+            primary: true,
             enabled: walletHnsPaymentActionsAvailable(
                 baseAvailable: receiveTargets != nil && directHnsValueAvailable && !isOperating,
                 hasPendingOutgoing: pendingOutgoingSnapshotHeight != nil
@@ -1232,7 +1228,6 @@ final class WalletViewController: UIViewController {
         let send = dashboardButton(
             title: "Send",
             action: #selector(showHnsSendForm),
-            accent: .systemIndigo,
             enabled: walletHnsPaymentActionsAvailable(
                 baseAvailable: synchronizedReadsAvailable && directHnsValueAvailable && !isOperating,
                 hasPendingOutgoing: pendingOutgoingSnapshotHeight != nil
@@ -1243,77 +1238,59 @@ final class WalletViewController: UIViewController {
             action: #selector(synchronizeWalletReadsFromUserAction),
             enabled: synchronizeButton.isEnabled
         )
+        var balanceBody: [UIView] = [balanceLabel, dashboardButtonRow([receive, send, sync])]
+        if isOperating { balanceBody += walletStatusBody([statusLabel]) }
+        if !synchronizedReadsAvailable || isOperating { balanceBody.append(readStatusLabel) }
         dashboardStack.addArrangedSubview(dashboardCard(
-            title: WalletCopy.text("wallet_dashboard_hns_balance"),
-            body: [balanceLabel, dashboardButtonRow([receive, send, sync])],
-            accent: .systemCyan
+            title: WalletCopy.text("wallet_dashboard_hns_balance") + " · " + network.title,
+            body: balanceBody, accent: .systemCyan
         ))
-
-        if !synchronizedReadsAvailable {
-            dashboardStack.addArrangedSubview(dashboardCard(
-                title: "Sync needed",
-                body: [readStatusLabel],
-                accent: .systemOrange
-            ))
-        }
-
-        if !finalizeNotices.isEmpty {
-            let notice = UILabel()
-            notice.numberOfLines = 0
-            notice.font = .preferredFont(forTextStyle: .body)
-            notice.adjustsFontForContentSizeCategory = true
-            notice.text = finalizeNotices.map(formatFinalizeNotice).joined(separator: "\n\n")
-            dashboardStack.addArrangedSubview(dashboardCard(
-                title: WalletCopy.text("wallet_dashboard_finalize_notice"),
-                body: [notice],
-                accent: finalizeNotices.contains(where: { $0.phase == "finalizeAvailable" })
-                    ? .systemOrange : .systemCyan
-            ))
-        }
 
         dashboardStack.addArrangedSubview(tileHeading("Explore"))
         let namesSummary = latestReadSnapshot.map { snapshot in
-            snapshot.knownNameCount == 1
-                ? "1 tracked name"
-                : "\(snapshot.knownNameCount) tracked names"
+            var summary = snapshot.knownNameCount == 0 ? WalletCopy.text("wallet_ux_names_empty") :
+                (snapshot.knownNameCount == 1 ? "1 tracked name" : "\(snapshot.knownNameCount) tracked names")
+            if !finalizeNotices.isEmpty {
+                summary += "\n" + WalletCopy.format("wallet_ux_names_attention", finalizeNotices.count)
+            }
+            return summary
         } ?? WalletCopy.text("wallet_dashboard_sync_required")
         let namesTile = dashboardTile(
             title: WalletCopy.text("wallet_dashboard_names"),
             summary: namesSummary,
-            enabled: !isOperating,
+            enabled: walletIsUnlocked,
             action: { [weak self] in self?.showNamesDashboard() }
         )
         let walletTile = dashboardTile(
-            title: "Wallet",
-            summary: "Security and lifecycle",
-            enabled: !isOperating,
+            title: WalletCopy.text("wallet_ux_wallet_settings"),
+            summary: WalletCopy.text("wallet_ux_wallet_settings_summary"),
+            enabled: walletIsUnlocked,
             action: { [weak self] in self?.showWalletManagement() }
         )
-        dashboardStack.addArrangedSubview(dashboardTileRow(namesTile, walletTile))
+        dashboardStack.addArrangedSubview(namesTile)
         let bitcoinTile = dashboardTile(
             title: "Bitcoin",
             summary: bitcoinSetupSummary(),
-            enabled: !isOperating,
+            enabled: walletIsUnlocked,
             action: { [weak self] in self?.showBitcoinDashboard() }
         )
         if showShakedexWalletCard {
-            let shakedexSummary = finalizeNotices.first.map(formatFinalizeNotice)
-                ?? (directShakescapeStatusSnapshot?.peerEndpoint == nil
-                    ? "No board peer connected"
-                    : "Board peer connected")
+            let shakedexSummary = shakedexOverviewSummary(includeHelp: false)
             let shakedexTile = dashboardTile(
                 title: WalletCopy.text("wallet_dashboard_shakedex"),
                 summary: shakedexSummary,
-                enabled: !isOperating,
+                enabled: walletIsUnlocked,
                 action: { [weak self] in self?.showShakedexDashboard() }
             )
-            dashboardStack.addArrangedSubview(dashboardTileRow(bitcoinTile, shakedexTile))
+            dashboardStack.addArrangedSubview(bitcoinTile)
+            dashboardStack.addArrangedSubview(shakedexTile)
         } else {
             dashboardStack.addArrangedSubview(bitcoinTile)
         }
+        dashboardStack.addArrangedSubview(walletTile)
         dashboardStack.addArrangedSubview(dashboardCard(
             title: "Recent activity",
-            body: [historyLabel, dashboardButton(
+            body: [dashboardButton(
                 title: "View activity",
                 action: #selector(showWalletActivity),
                 enabled: !isOperating
@@ -1379,7 +1356,7 @@ final class WalletViewController: UIViewController {
         configuration.titleAlignment = .leading
         configuration.cornerStyle = .medium
         configuration.baseForegroundColor = .label
-        configuration.baseBackgroundColor = .systemIndigo
+        configuration.baseBackgroundColor = .secondarySystemFill
         configuration.contentInsets = NSDirectionalEdgeInsets(top: 14, leading: 12, bottom: 14, trailing: 12)
         let button = UIButton(type: .system)
         button.configuration = configuration
@@ -1393,15 +1370,18 @@ final class WalletViewController: UIViewController {
         title: String,
         action: Selector,
         accent: UIColor = .systemCyan,
+        primary: Bool = false,
         enabled: Bool = true
     ) -> UIButton {
-        var configuration = UIButton.Configuration.filled()
+        var configuration = primary ? UIButton.Configuration.filled() : UIButton.Configuration.tinted()
         configuration.title = title
         configuration.cornerStyle = .medium
-        configuration.baseBackgroundColor = accent
-        configuration.baseForegroundColor = .black
+        configuration.baseBackgroundColor = primary ? accent : .secondarySystemFill
+        configuration.baseForegroundColor = primary ? .black : .label
         let button = UIButton(type: .system)
         button.configuration = configuration
+        button.titleLabel?.numberOfLines = 0
+        button.heightAnchor.constraint(greaterThanOrEqualToConstant: 48).isActive = true
         button.isEnabled = enabled
         button.addTarget(self, action: action, for: .touchUpInside)
         return button
@@ -1409,7 +1389,7 @@ final class WalletViewController: UIViewController {
 
     private func dashboardButtonRow(_ buttons: [UIButton]) -> UIStackView {
         let row = UIStackView(arrangedSubviews: buttons)
-        row.axis = .horizontal
+        row.axis = traitCollection.preferredContentSizeCategory.isAccessibilityCategory ? .vertical : .horizontal
         row.spacing = 8
         row.distribution = .fillEqually
         return row
@@ -2172,7 +2152,7 @@ final class WalletViewController: UIViewController {
                 return
             }
             self.isOperating = true
-            self.bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_preparing")
+            self.swapActionStatusLabel.text = WalletCopy.text("wallet_swap_preparing")
             self.refreshButtonStates()
             DispatchQueue.global(qos: .userInitiated).async { [wallet] in
                 let outcome = Result {
@@ -2190,7 +2170,7 @@ final class WalletViewController: UIViewController {
                     case .success(let approval):
                         self.presentBtcForHnsOfferApproval(approval, wallet: wallet)
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_prepare_failed")
+                        self.swapActionStatusLabel.text = WalletCopy.text("wallet_swap_prepare_failed")
                         self.showError(error)
                     }
                     self.refreshButtonStates()
@@ -2238,7 +2218,7 @@ final class WalletViewController: UIViewController {
                   let pending = self.pendingBtcForHnsOfferApproval else { return }
             self.pendingBtcForHnsOfferApproval = nil
             self.isOperating = true
-            self.bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_publishing")
+            self.swapActionStatusLabel.text = WalletCopy.text("wallet_swap_publishing")
             self.refreshButtonStates()
             DispatchQueue.global(qos: .userInitiated).async { [wallet] in
                 let outcome = Result { try wallet.approveBtcForHnsOffer(pending.actionToken) }
@@ -2247,12 +2227,12 @@ final class WalletViewController: UIViewController {
                     self.isOperating = false
                     switch outcome {
                     case .success(let summary):
-                        self.bitcoinStatusLabel.text = WalletCopy.format(
+                        self.swapActionStatusLabel.text = WalletCopy.format(
                             "wallet_swap_published",
                             String(summary.offerId.prefix(12))
                         )
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                        self.swapActionStatusLabel.text = WalletCopy.text(
                             "wallet_swap_publish_failed"
                         )
                         self.showError(error)
@@ -2266,14 +2246,14 @@ final class WalletViewController: UIViewController {
 
     @objc private func showActiveBtcForHnsOffers() {
         guard let wallet, walletIsUnlocked, bitcoinValueAvailable, !isOperating else { return }
-        bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_loading_offers")
+        swapActionStatusLabel.text = WalletCopy.text("wallet_swap_loading_offers")
         DispatchQueue.global(qos: .userInitiated).async { [wallet] in
             let outcome = Result { try wallet.localBtcForHnsOffers() }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.wallet === wallet else { return }
                 switch outcome {
                 case .success(let offers) where offers.isEmpty:
-                    self.bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_no_active_offers")
+                    self.swapActionStatusLabel.text = WalletCopy.text("wallet_swap_no_active_offers")
                 case .success(let offers):
                     let alert = UIAlertController(
                         title: WalletCopy.text("wallet_swap_active_offers"),
@@ -2298,7 +2278,7 @@ final class WalletViewController: UIViewController {
                     ))
                     self.walletPresentationHost.present(alert, animated: true)
                 case .failure(let error):
-                    self.bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_list_failed")
+                    self.swapActionStatusLabel.text = WalletCopy.text("wallet_swap_list_failed")
                     self.showError(error)
                 }
             }
@@ -2357,7 +2337,7 @@ final class WalletViewController: UIViewController {
                 return
             }
             self.isOperating = true
-            self.bitcoinStatusLabel.text = WalletCopy.text(
+            self.swapActionStatusLabel.text = WalletCopy.text(
                 "wallet_status_preparing_value_action"
             )
             self.refreshButtonStates()
@@ -2377,7 +2357,7 @@ final class WalletViewController: UIViewController {
                     case .success(let approval):
                         self.presentHnsForBtcOfferApproval(approval, wallet: wallet)
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                        self.swapActionStatusLabel.text = WalletCopy.text(
                             "wallet_swap_publish_failed"
                         )
                         self.showError(error)
@@ -2431,12 +2411,12 @@ final class WalletViewController: UIViewController {
                     self.isOperating = false
                     switch outcome {
                     case .success(let summary):
-                        self.bitcoinStatusLabel.text = WalletCopy.format(
+                        self.swapActionStatusLabel.text = WalletCopy.format(
                             "wallet_swap_hns_published",
                             String(summary.offerId.prefix(12))
                         )
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                        self.swapActionStatusLabel.text = WalletCopy.text(
                             "wallet_swap_publish_failed"
                         )
                         self.showError(error)
@@ -2466,14 +2446,14 @@ final class WalletViewController: UIViewController {
 
     private func showMyDirectOffers() {
         guard let wallet, shakedexActionMayStart else { return }
-        bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_loading_my_offers")
+        swapActionStatusLabel.text = WalletCopy.text("wallet_swap_loading_my_offers")
         DispatchQueue.global(qos: .userInitiated).async { [wallet] in
             let outcome = Result { try wallet.localDirectOffers() }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.wallet === wallet else { return }
                 switch outcome {
                 case .success(let offers) where offers.isEmpty:
-                    self.bitcoinStatusLabel.text = WalletCopy.text(
+                    self.swapActionStatusLabel.text = WalletCopy.text(
                         "wallet_swap_no_active_offers"
                     )
                 case .success(let offers):
@@ -2488,7 +2468,7 @@ final class WalletViewController: UIViewController {
                         }
                     )
                 case .failure(let error):
-                    self.bitcoinStatusLabel.text = WalletCopy.text(
+                    self.swapActionStatusLabel.text = WalletCopy.text(
                         "wallet_swap_available_failed"
                     )
                     self.showError(error)
@@ -2523,11 +2503,11 @@ final class WalletViewController: UIViewController {
                     guard let self, self.wallet === wallet else { return }
                     switch outcome {
                     case .success:
-                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                        self.swapActionStatusLabel.text = WalletCopy.text(
                             "wallet_swap_direct_cancelled"
                         )
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                        self.swapActionStatusLabel.text = WalletCopy.text(
                             "wallet_swap_direct_cancel_failed"
                         )
                         self.showError(error)
@@ -2540,14 +2520,14 @@ final class WalletViewController: UIViewController {
 
     private func showAvailableDirectOffers() {
         guard let wallet, shakedexActionMayStart else { return }
-        bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_loading_available_offers")
+        swapActionStatusLabel.text = WalletCopy.text("wallet_swap_loading_available_offers")
         DispatchQueue.global(qos: .userInitiated).async { [wallet] in
             let outcome = Result { try wallet.availableDirectOffers() }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.wallet === wallet else { return }
                 switch outcome {
                 case .success(let offers) where offers.isEmpty:
-                    self.bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_no_available_offers")
+                    self.swapActionStatusLabel.text = WalletCopy.text("wallet_swap_no_available_offers")
                     self.presentWalletMenu(
                         title: WalletCopy.text("wallet_swap_available_offers"),
                         rows: [WalletMenuRow(
@@ -2567,7 +2547,7 @@ final class WalletViewController: UIViewController {
                         }
                     )
                 case .failure(let error):
-                    self.bitcoinStatusLabel.text = WalletCopy.text(
+                    self.swapActionStatusLabel.text = WalletCopy.text(
                         "wallet_swap_available_failed"
                     )
                     self.showError(error)
@@ -2626,7 +2606,7 @@ final class WalletViewController: UIViewController {
     private func prepareDirectOfferAcceptance(_ offer: NativeDirectOfferSummary, feeReserve: UInt64) {
         guard let wallet, shakedexActionMayStart else { return }
         isOperating = true
-        bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_acceptance_preparing")
+        swapActionStatusLabel.text = WalletCopy.text("wallet_swap_acceptance_preparing")
         refreshButtonStates()
         DispatchQueue.global(qos: .userInitiated).async { [wallet] in
             let outcome = Result {
@@ -2687,10 +2667,10 @@ final class WalletViewController: UIViewController {
                                 )
                             )
                     }
-                    self.bitcoinStatusLabel.text = message
+                    self.swapActionStatusLabel.text = message
                     self.showErrorMessage(message)
                 case .failure(let error):
-                    self.bitcoinStatusLabel.text = WalletCopy.text(
+                    self.swapActionStatusLabel.text = WalletCopy.text(
                         "wallet_swap_acceptance_prepare_failed"
                     )
                     self.showError(error)
@@ -2747,19 +2727,19 @@ final class WalletViewController: UIViewController {
                     case .success(let summary):
                         if let deadline = summary.fundingDeadlineUnix {
                             let now = UInt64(Date().timeIntervalSince1970)
-                            self.bitcoinStatusLabel.text = WalletCopy.format(
+                            self.swapActionStatusLabel.text = WalletCopy.format(
                                 "wallet_swap_acceptance_sent",
                                 String(summary.sessionId.prefix(12)),
                                 self.formatAtomicSwapDeadline(deadline),
                                 self.formatAtomicSwapRemaining(deadline, now: now)
                             )
                         } else {
-                            self.bitcoinStatusLabel.text = WalletCopy.text(
+                            self.swapActionStatusLabel.text = WalletCopy.text(
                                 "wallet_swap_acceptance_failed"
                             )
                         }
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                        self.swapActionStatusLabel.text = WalletCopy.text(
                             "wallet_swap_acceptance_failed"
                         )
                         self.showError(error)
@@ -2773,7 +2753,7 @@ final class WalletViewController: UIViewController {
 
     @objc private func showShakescapeExecutions() {
         guard let wallet, walletIsUnlocked, bitcoinValueAvailable, !isOperating else { return }
-        bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_loading_executions")
+        swapActionStatusLabel.text = WalletCopy.text("wallet_swap_loading_executions")
         DispatchQueue.global(qos: .userInitiated).async { [wallet] in
             let outcome = Result { try wallet.shakescapeExecutions() }
             DispatchQueue.main.async { [weak self] in
@@ -2787,7 +2767,7 @@ final class WalletViewController: UIViewController {
                         + self.bitcoinBroadcastRecoveryText(
                             status.bitcoinBroadcastRecovery
                         )
-                    self.bitcoinStatusLabel.text = message
+                    self.swapActionStatusLabel.text = message
                     let alert = UIAlertController(
                         title: WalletCopy.text("wallet_swap_executions"),
                         message: message,
@@ -2799,7 +2779,7 @@ final class WalletViewController: UIViewController {
                     ))
                     self.walletPresentationHost.present(alert, animated: true)
                 case .success(let status):
-                    self.bitcoinStatusLabel.text = self.bitcoinBroadcastRecoveryText(
+                    self.swapActionStatusLabel.text = self.bitcoinBroadcastRecoveryText(
                         status.bitcoinBroadcastRecovery
                     )
                     let terminal: Set<String> = ["completed", "refunded", "failed"]
@@ -2875,7 +2855,7 @@ final class WalletViewController: UIViewController {
                     ))
                     self.walletPresentationHost.present(alert, animated: true)
                 case .failure(let error):
-                    self.bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_execution_list_failed")
+                    self.swapActionStatusLabel.text = WalletCopy.text("wallet_swap_execution_list_failed")
                     self.showError(error)
                 }
             }
@@ -2919,11 +2899,11 @@ final class WalletViewController: UIViewController {
                     guard let self, self.wallet === wallet else { return }
                     switch outcome {
                     case .success:
-                        self.bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_acceptance_abandoned")
+                        self.swapActionStatusLabel.text = WalletCopy.text("wallet_swap_acceptance_abandoned")
                         if let snapshot = self.latestReadSnapshot { self.publish(snapshot) }
                         self.showShakescapeExecutions()
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                        self.swapActionStatusLabel.text = WalletCopy.text(
                             "wallet_swap_acceptance_abandon_failed"
                         )
                         self.showError(error)
@@ -3189,7 +3169,7 @@ final class WalletViewController: UIViewController {
                             approval, bitcoin: bitcoin, wallet: wallet
                         )
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                        self.swapActionStatusLabel.text = WalletCopy.text(
                             "wallet_swap_settlement_prepare_failed"
                         )
                         self.showError(error)
@@ -3258,13 +3238,13 @@ final class WalletViewController: UIViewController {
                     self.isOperating = false
                     switch outcome {
                     case .success(let receipt):
-                        self.bitcoinStatusLabel.text = WalletCopy.format(
+                        self.swapActionStatusLabel.text = WalletCopy.format(
                             "wallet_swap_settlement_submitted",
                             receipt.action.rawValue,
                             String(receipt.transactionId.prefix(12))
                         )
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                        self.swapActionStatusLabel.text = WalletCopy.text(
                             "wallet_swap_settlement_broadcast_failed"
                         )
                         self.showError(error)
@@ -3334,7 +3314,7 @@ final class WalletViewController: UIViewController {
                     case .success(let approval):
                         self.presentHnsForBtcFundingApproval(approval, wallet: wallet)
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                        self.swapActionStatusLabel.text = WalletCopy.text(
                             "wallet_swap_hns_funding_prepare_failed"
                         )
                         self.showError(error)
@@ -3393,12 +3373,12 @@ final class WalletViewController: UIViewController {
                     self.isOperating = false
                     switch outcome {
                     case .success(let receipt):
-                        self.bitcoinStatusLabel.text = WalletCopy.format(
+                        self.swapActionStatusLabel.text = WalletCopy.format(
                             "wallet_swap_hns_funding_submitted",
                             String(receipt.transactionId.prefix(12))
                         )
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                        self.swapActionStatusLabel.text = WalletCopy.text(
                             "wallet_swap_hns_funding_broadcast_failed"
                         )
                         self.showError(error)
@@ -3467,7 +3447,7 @@ final class WalletViewController: UIViewController {
                     case .success(let approval):
                         self.presentBtcForHnsFundingApproval(approval, wallet: wallet)
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                        self.swapActionStatusLabel.text = WalletCopy.text(
                             "wallet_swap_funding_prepare_failed"
                         )
                         self.showError(error)
@@ -3521,12 +3501,12 @@ final class WalletViewController: UIViewController {
                     self.isOperating = false
                     switch outcome {
                     case .success(let receipt):
-                        self.bitcoinStatusLabel.text = WalletCopy.format(
+                        self.swapActionStatusLabel.text = WalletCopy.format(
                             "wallet_swap_funding_submitted",
                             String(receipt.txid.prefix(12))
                         )
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_funding_broadcast_failed")
+                        self.swapActionStatusLabel.text = WalletCopy.text("wallet_swap_funding_broadcast_failed")
                         self.showError(error)
                     }
                     self.refreshButtonStates()
@@ -3559,7 +3539,7 @@ final class WalletViewController: UIViewController {
             [weak self, weak wallet] _ in
             guard let self, let wallet, self.wallet === wallet else { return }
             self.isOperating = true
-            self.bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_cancelling")
+            self.swapActionStatusLabel.text = WalletCopy.text("wallet_swap_cancelling")
             self.refreshButtonStates()
             DispatchQueue.global(qos: .userInitiated).async { [wallet] in
                 let outcome = Result { try wallet.cancelBtcForHnsOffer(offerId: offer.offerId) }
@@ -3568,9 +3548,9 @@ final class WalletViewController: UIViewController {
                     self.isOperating = false
                     switch outcome {
                     case .success:
-                        self.bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_cancelled")
+                        self.swapActionStatusLabel.text = WalletCopy.text("wallet_swap_cancelled")
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = WalletCopy.text("wallet_swap_cancel_failed")
+                        self.swapActionStatusLabel.text = WalletCopy.text("wallet_swap_cancel_failed")
                         self.showError(error)
                     }
                     self.refreshButtonStates()
@@ -4266,9 +4246,119 @@ final class WalletViewController: UIViewController {
         )
     }
 
+    private func shakedexOverviewSummary(includeHelp: Bool = true) -> String {
+        let paired = directShakescapeStatusSnapshot?.peerEndpoint != nil
+        var lines: [String] = []
+        if let status = shakescapeExecutionStatusSnapshot {
+            let terminal: Set<String> = ["completed", "refunded", "failed"]
+            if let execution = status.executions.filter({ !terminal.contains($0.state) })
+                .max(by: { $0.lastVerifiedAtUnix < $1.lastVerifiedAtUnix }) {
+                lines.append(shakescapeExecutionStage(execution))
+            } else if !status.pendingAcceptances.isEmpty || !status.pendingOfferResponses.isEmpty {
+                lines.append(WalletCopy.text("wallet_dashboard_swap_negotiating"))
+            }
+        }
+        if lines.isEmpty {
+            lines.append(WalletCopy.text(paired ? "wallet_dashboard_connected" : "wallet_dashboard_not_connected"))
+        }
+        if includeHelp {
+            lines.append(WalletCopy.text(paired ? "wallet_ux_connected_help" : "wallet_ux_connect_help"))
+            if isOperating || bitcoinSyncInProgress { lines.append(WalletCopy.text("wallet_ux_busy")) }
+            if !synchronizedReadsAvailable { lines.append(WalletCopy.text("wallet_dashboard_sync_required")) }
+            if let update = swapActionStatusLabel.text, !update.isEmpty { lines.append(update) }
+        }
+        return lines.joined(separator: "\n\n")
+    }
+
+    private var hasActiveSwapOverview: Bool {
+        guard let status = shakescapeExecutionStatusSnapshot else { return false }
+        return !status.pendingAcceptances.isEmpty || !status.pendingOfferResponses.isEmpty ||
+            status.executions.contains { !["completed", "refunded", "failed"].contains($0.state) }
+    }
+
+    private func shakedexOverviewActions() -> [WalletMenuAction] {
+        let available = shakedexActionMayStart && !bitcoinSyncInProgress && !bitcoinBirthdayResetInProgress
+        let paired = directShakescapeStatusSnapshot?.peerEndpoint != nil
+        var actions: [WalletMenuAction] = []
+        if !paired {
+            actions.append(WalletMenuAction(title: WalletCopy.text("row_wallet_pair_direct_shakescape"),
+                enabled: available, dismissBeforeAction: true, primary: !hasActiveSwapOverview
+            ) { [weak self] in self?.showPairDirectShakescapeForm() })
+        }
+        actions.append(WalletMenuAction(title: WalletCopy.text("wallet_swap_executions"),
+            enabled: available, primary: hasActiveSwapOverview
+        ) { [weak self] in self?.showShakescapeExecutions() })
+        actions.append(WalletMenuAction(title: WalletCopy.text("wallet_swap_available_offers"),
+            enabled: available && paired, primary: paired && !hasActiveSwapOverview
+        ) { [weak self] in self?.showAvailableDirectOffers() })
+        actions.append(WalletMenuAction(title: WalletCopy.text("wallet_ux_coin_offers"),
+            enabled: available && paired
+        ) { [weak self] in self?.showCoinOfferMenu() })
+        actions.append(WalletMenuAction(title: WalletCopy.text("wallet_swap_my_offers"), enabled: available
+        ) { [weak self] in self?.showMyDirectOffers() })
+        actions.append(WalletMenuAction(title: WalletCopy.text("wallet_ux_name_market"), enabled: available
+        ) { [weak self] in self?.showNameMarketMenu() })
+        actions.append(WalletMenuAction(title: WalletCopy.text("wallet_ux_connection"),
+            section: WalletCopy.text("wallet_ux_details")
+        ) { [weak self] in self?.showShakedexConnectionDetails() })
+        return actions
+    }
+
     private func showShakedexDashboard() {
         guard walletCanPresentChild else { return }
-        let shakescapeStatus = shakedexActionMayStart ? directShakescapeStatusSnapshot : nil
+        presentWalletMenu(
+            title: WalletCopy.text("wallet_dashboard_shakedex"),
+            rows: [WalletMenuRow(title: WalletCopy.text("wallet_ux_overview"), detail: shakedexOverviewSummary(),
+                liveDetail: { [weak self] in self?.shakedexOverviewSummary() ?? "" })],
+            actions: shakedexOverviewActions(), retainForChildActions: true,
+            liveActions: { [weak self] in self?.shakedexOverviewActions() ?? [] }
+        )
+    }
+
+    private func showCoinOfferMenu() {
+        let ready = bitcoinStage == .sync
+        var actions: [WalletMenuAction] = []
+        if !ready {
+            actions.append(WalletMenuAction(title: WalletCopy.text("wallet_dashboard_bitcoin"), primary: true) {
+                [weak self] in self?.showBitcoinDashboard()
+            })
+        }
+        actions.append(WalletMenuAction(title: WalletCopy.text("wallet_swap_sell_btc"), enabled: ready) {
+            [weak self] in self?.showBtcForHnsOfferForm()
+        })
+        actions.append(WalletMenuAction(title: WalletCopy.text("wallet_swap_sell_hns"), enabled: ready) {
+            [weak self] in self?.showHnsForBtcOfferForm()
+        })
+        presentWalletMenu(title: WalletCopy.text("wallet_ux_coin_offers"),
+            rows: ready ? [] : [WalletMenuRow(title: WalletCopy.text("wallet_dashboard_bitcoin"),
+                detail: WalletCopy.text("wallet_ux_bitcoin_setup_trade"))],
+            actions: actions, retainForChildActions: true)
+    }
+
+    private func showNameMarketMenu() {
+        let paired = directShakescapeStatusSnapshot?.peerEndpoint != nil
+        presentWalletMenu(title: WalletCopy.text("wallet_ux_name_market"), rows: [], actions: [
+            WalletMenuAction(title: WalletCopy.text("row_wallet_list_offers"), enabled: paired, primary: true) {
+                [weak self] in self?.showListOffersForm()
+            },
+            WalletMenuAction(title: WalletCopy.text("row_wallet_create_offer"), enabled: paired) {
+                [weak self] in self?.showCreateOfferForm()
+            },
+            WalletMenuAction(title: WalletCopy.text("wallet_swap_cancel_offer"), section: WalletCopy.text("wallet_ux_manage_offers")) {
+                [weak self] in self?.showCancelOfferForm()
+            },
+            WalletMenuAction(title: WalletCopy.text("row_wallet_recover_name"), section: WalletCopy.text("wallet_ux_manage_offers")) {
+                [weak self] in self?.showRecoverNameForm()
+            },
+            WalletMenuAction(title: WalletCopy.text("row_wallet_get_session"), section: WalletCopy.text("wallet_ux_manage_offers")) {
+                [weak self] in self?.showGetSessionForm()
+            },
+        ], retainForChildActions: true)
+    }
+
+    private func showShakedexConnectionDetails() {
+        guard walletCanPresentChild else { return }
+        let shakescapeStatus = directShakescapeStatusSnapshot
         let transportLine: String
         if let shakescapeStatus {
             let listener = shakescapeStatus.listenerPort.map { "listening on \($0)" }
@@ -4306,71 +4396,23 @@ final class WalletViewController: UIViewController {
         } else {
             transportLine = "Unlock and sync to use swaps."
         }
-        let summary = shakedexActionMayStart
-            ? "Swaps stay in this wallet. Websites cannot start them."
-            : "Unlock and sync before using offers."
-        let paired = shakescapeStatus?.peerEndpoint != nil
-        var actions: [WalletMenuAction] = [
-            WalletMenuAction(title: WalletCopy.text("row_wallet_pair_direct_shakescape"), dismissBeforeAction: true) { [weak self] in
-                self?.showPairDirectShakescapeForm()
-            },
-            WalletMenuAction(title: WalletCopy.text("wallet_swap_sell_btc"), section: WalletCopy.text("wallet_swap_coin_actions"), enabled: paired) { [weak self] in
-                self?.showBtcForHnsOfferForm()
-            },
-            WalletMenuAction(title: WalletCopy.text("wallet_swap_sell_hns"), section: WalletCopy.text("wallet_swap_coin_actions"), enabled: paired) { [weak self] in
-                self?.showHnsForBtcOfferForm()
-            },
-            WalletMenuAction(title: WalletCopy.text("wallet_swap_available_offers"), section: WalletCopy.text("wallet_swap_coin_actions"), enabled: paired) { [weak self] in
-                self?.showAvailableDirectOffers()
-            },
-            WalletMenuAction(title: WalletCopy.text("wallet_swap_my_offers"), section: WalletCopy.text("wallet_swap_coin_actions"), enabled: paired) { [weak self] in
-                self?.showMyDirectOffers()
-            },
-            WalletMenuAction(title: WalletCopy.text("wallet_swap_executions"), section: WalletCopy.text("wallet_swap_coin_actions"), enabled: paired) { [weak self] in
-                self?.showShakescapeExecutions()
-            },
-            WalletMenuAction(title: WalletCopy.text("row_wallet_create_offer"), section: WalletCopy.text("wallet_swap_name_actions"), enabled: paired) { [weak self] in self?.showCreateOfferForm() },
-            WalletMenuAction(title: WalletCopy.text("wallet_swap_cancel_offer"), section: WalletCopy.text("wallet_swap_name_actions"), enabled: paired) { [weak self] in self?.showCancelOfferForm() },
-            WalletMenuAction(title: WalletCopy.text("row_wallet_recover_name"), section: WalletCopy.text("wallet_swap_name_actions"), enabled: paired) { [weak self] in self?.showRecoverNameForm() },
-            WalletMenuAction(title: WalletCopy.text("row_wallet_list_offers"), section: WalletCopy.text("wallet_swap_name_actions"), enabled: paired) { [weak self] in self?.showListOffersForm() },
-            WalletMenuAction(title: WalletCopy.text("row_wallet_get_session"), section: WalletCopy.text("wallet_swap_name_actions"), enabled: paired) { [weak self] in self?.showGetSessionForm() },
-        ]
-        if shakedexActionMayStart {
-            // No snapshot can mean the native non-blocking controller read was
-            // busy. Only an affirmative unlocked status with no bound port is
-            // evidence that listener recovery should be offered.
-            if let shakescapeStatus,
-               shakescapeStatus.unlocked,
-               shakescapeStatus.listenerPort == nil {
-                actions.insert(WalletMenuAction(title: WalletCopy.text("row_wallet_retry_direct_shakescape_host"), enabled: paired) { [weak self] in
-                    self?.retryDirectShakescapeListener()
-                }, at: 1)
-            }
-            if shakescapeStatus?.peerEndpoint != nil {
-                actions.insert(WalletMenuAction(title: WalletCopy.text("row_wallet_disconnect_direct_shakescape"), style: .destructive) { [weak self] in
-                    self?.disconnectDirectShakescapePeer()
-                }, at: 1)
-            }
+        let available = shakedexActionMayStart && !bitcoinSyncInProgress
+        var actions = [WalletMenuAction(title: WalletCopy.text("row_wallet_pair_direct_shakescape"),
+            enabled: available, dismissBeforeAction: true
+        ) { [weak self] in self?.showPairDirectShakescapeForm() }]
+        if let status = shakescapeStatus, status.unlocked, status.listenerPort == nil {
+            actions.append(WalletMenuAction(title: WalletCopy.text("row_wallet_retry_direct_shakescape_host"), enabled: available) {
+                [weak self] in self?.retryDirectShakescapeListener()
+            })
         }
-        presentWalletMenu(
-            title: WalletCopy.text("wallet_dashboard_shakedex"),
-            rows: [
-                WalletMenuRow(
-                    title: WalletCopy.text("row_wallet_direct_shakescape_host"),
-                    detail: summary
-                ),
-                WalletMenuRow(
-                    title: WalletCopy.text("row_wallet_pair_direct_shakescape"),
-                    detail: WalletCopy.text("row_wallet_pair_direct_shakescape_summary")
-                ),
-                WalletMenuRow(
-                    title: WalletCopy.text("row_wallet_direct_shakescape_host"),
-                    detail: transportLine
-                ),
-            ],
-            actions: actions,
-            retainForChildActions: true
-        )
+        if shakescapeStatus?.peerEndpoint != nil {
+            actions.append(WalletMenuAction(title: WalletCopy.text("row_wallet_disconnect_direct_shakescape"),
+                style: .destructive, enabled: available
+            ) { [weak self] in self?.disconnectDirectShakescapePeer() })
+        }
+        presentWalletMenu(title: WalletCopy.text("wallet_ux_connection"), rows: [
+            WalletMenuRow(title: WalletCopy.text("row_wallet_direct_shakescape_host"), detail: transportLine),
+        ], actions: actions, retainForChildActions: true)
     }
 
     private func presentWalletMenu(
@@ -5052,7 +5094,7 @@ final class WalletViewController: UIViewController {
         if let execution = status.executions
             .filter({ !terminal.contains($0.state) })
             .max(by: { $0.lastVerifiedAtUnix < $1.lastVerifiedAtUnix }) {
-            bitcoinStatusLabel.text = WalletCopy.format(
+            swapActionStatusLabel.text = WalletCopy.format(
                 "wallet_swap_notification_stage",
                 shakescapeExecutionStage(execution),
                 String(execution.sessionId.prefix(12))
@@ -5060,18 +5102,18 @@ final class WalletViewController: UIViewController {
         } else if let offer = status.pendingOfferResponses.max(by: {
             $0.createdAtUnix < $1.createdAtUnix
         }) {
-            bitcoinStatusLabel.text = WalletCopy.format(
+            swapActionStatusLabel.text = WalletCopy.format(
                 "wallet_swap_notification_offer_accepted_detail",
                 String(offer.sessionId.prefix(12))
             )
         } else if let pending = status.pendingAcceptances.max(by: {
             $0.createdAtUnix < $1.createdAtUnix
         }) {
-            bitcoinStatusLabel.text = pendingAcceptanceStage(pending)
+            swapActionStatusLabel.text = pendingAcceptanceStage(pending)
         } else if let latest = status.executions.max(by: {
             $0.lastVerifiedAtUnix < $1.lastVerifiedAtUnix
         }) {
-            bitcoinStatusLabel.text = WalletCopy.format(
+            swapActionStatusLabel.text = WalletCopy.format(
                 "wallet_swap_notification_stage",
                 shakescapeExecutionStage(latest),
                 String(latest.sessionId.prefix(12))
@@ -5787,6 +5829,7 @@ final class WalletViewController: UIViewController {
             rows: [
                 WalletMenuRow(title: "Status", detail: statusLabel.text ?? "Status unavailable."),
                 WalletMenuRow(title: "Account", detail: accountLabel.text ?? "Account unavailable."),
+                WalletMenuRow(title: WalletCopy.text("wallet_dashboard_sync"), detail: readStatusLabel.text ?? ""),
             ],
             actions: actions
         )
@@ -7515,6 +7558,7 @@ final class WalletViewController: UIViewController {
         bitcoinBirthdayResetInProgress = false
         bitcoinValueAvailable = false
         bitcoinSnapshot = nil
+        swapActionStatusLabel.text = nil
         bitcoinActivityPageOffset = 0
         bitcoinBirthdayButton.isHidden = true
         try? wallet?.lock()

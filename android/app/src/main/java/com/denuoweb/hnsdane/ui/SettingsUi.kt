@@ -179,7 +179,7 @@ internal fun Context.dashboardTile(
 ): LinearLayout =
     LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
-        minimumHeight = uiDp(108)
+        minimumHeight = uiDp(80)
         background = settingsSurfaceDrawable()
         setPadding(uiDp(14), uiDp(14), uiDp(14), uiDp(12))
         isClickable = true

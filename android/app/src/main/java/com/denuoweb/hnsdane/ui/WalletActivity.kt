@@ -431,6 +431,7 @@ class WalletActivity : ComponentActivity() {
     @Volatile
     private var walletHnsSyncInProgress = false
     private var walletBitcoinSyncInProgress = false
+    private lateinit var swapActionStatusView: TextView
     private var bitcoinSnapshot: com.denuoweb.hnsdane.wallet.NativeBitcoinWalletSnapshot? = null
     private var bitcoinSyncStopRequested = false
     private var bitcoinBirthdayResetInProgress = false
@@ -511,6 +512,7 @@ class WalletActivity : ComponentActivity() {
         nameImportStatusView = walletReadSummary(R.string.wallet_name_import_unavailable)
         sendStatusView = walletReadSummary(R.string.wallet_send_unavailable)
         bitcoinStatusView = walletReadSummary(R.string.wallet_bitcoin_unavailable)
+        swapActionStatusView = walletReadSummary(R.string.wallet_swap_status_none)
         bitcoinBalanceView = walletReadSummary(R.string.wallet_bitcoin_balance_unavailable)
         bitcoinReceiveView = walletReadSummary(R.string.wallet_bitcoin_receive_unavailable).apply {
             setTextIsSelectable(true)
@@ -1058,36 +1060,7 @@ class WalletActivity : ComponentActivity() {
         synchronizationInProgress: Boolean = false,
     ) {
         addCellularDataWarningIfNeeded(walletUnlocked = true)
-        dashboardContent.addView(statusCard(
-            label = getString(
-                if (synchronizationInProgress) {
-                    R.string.wallet_dashboard_synchronizing
-                } else {
-                    R.string.wallet_dashboard_unlocked
-                },
-                walletNetwork.displayName(this),
-            ),
-            detail = statusView,
-            inProgress = busy || synchronizationInProgress,
-        ))
         dashboardContent.addView(walletBalanceCard(actionsAvailable))
-        if (latestReadSnapshot == null || synchronizationInProgress) {
-            dashboardContent.addView(statusCard(
-                label = getString(R.string.wallet_dashboard_sync_attention),
-                detail = readStatusView,
-                healthy = false,
-            ))
-        }
-        latestReadSnapshot?.finalizeNotices?.takeIf { it.isNotEmpty() }?.let { notices ->
-            dashboardContent.addView(statusCard(
-                label = getString(R.string.wallet_dashboard_finalize_notice),
-                detail = preferenceSummary(
-                    text = notices.joinToString("\n\n", transform = ::formatFinalizeNotice),
-                    maxLines = Int.MAX_VALUE,
-                ),
-                healthy = notices.any { it.phase == "finalizeAvailable" },
-            ))
-        }
         addWalletTiles(locked = false, actionsAvailable = navigationAvailable)
         dashboardContent.addView(settingsGroup(getString(R.string.wallet_dashboard_recent_activity)) {
             addSettingsRow(navRow(
@@ -1233,14 +1206,14 @@ class WalletActivity : ComponentActivity() {
             background = settingsSurfaceDrawable(accent = themeColors().action)
             setPadding(uiDp(16), uiDp(15), uiDp(16), uiDp(14))
             addView(TextView(this@WalletActivity).apply {
-                text = getString(R.string.wallet_dashboard_hns_balance)
+                text = getString(R.string.wallet_dashboard_hns_balance) + " · " + walletNetwork.displayName(this)
                 textSize = 12f
                 typeface = Typeface.DEFAULT_BOLD
                 letterSpacing = 0.08f
                 setTextColor(themeColors().action)
             })
             balanceView.apply {
-                textSize = 24f
+                textSize = if (text.contains('\n')) 18f else 24f
                 typeface = Typeface.DEFAULT_BOLD
                 // Spendable value and pending outgoing value are intentionally
                 // separate rows while a send is unconfirmed.
@@ -1249,6 +1222,12 @@ class WalletActivity : ComponentActivity() {
                 setPadding(0, uiDp(10), 0, uiDp(12))
             }
             addView(balanceView)
+            if (busy || statusView.text.toString() != getString(R.string.wallet_status_unlocked)) {
+                addView(statusView)
+            }
+            if (latestReadSnapshot == null || hasActiveWalletHnsSynchronization()) {
+                addView(readStatusView)
+            }
             addView(LinearLayout(this@WalletActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = android.view.Gravity.CENTER_VERTICAL
@@ -1260,7 +1239,7 @@ class WalletActivity : ComponentActivity() {
                 }.disabledWhenWalletHandoff(!paymentActionsAvailable), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
                     leftMargin = uiDp(8)
                 })
-                addView(dashboardActionButton(getString(R.string.wallet_dashboard_sync)) {
+                addView(dashboardActionButton(getString(R.string.wallet_dashboard_sync), secondary = true) {
                     synchronizeWalletReads()
                 }.disabledWhenWalletHandoff(!actionsAvailable), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
                     leftMargin = uiDp(8)
@@ -1279,57 +1258,25 @@ class WalletActivity : ComponentActivity() {
         }
 
     private fun addWalletTiles(locked: Boolean, actionsAvailable: Boolean = true) {
-        dashboardContent.addView(TextView(this).apply {
-            text = getString(R.string.section_wallet)
-            textSize = 12f
-            typeface = Typeface.DEFAULT_BOLD
-            letterSpacing = 0.08f
-            setTextColor(themeColors().secondaryText)
-            setPadding(uiDp(4), uiDp(18), uiDp(4), uiDp(7))
+        if (!locked) {
+            fun feature(title: Int, summary: String, action: () -> Unit) {
+                dashboardContent.addView(dashboardTile(getString(title), summary, action)
+                    .disabledWhenWalletHandoff(!actionsAvailable), LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
+                    ).apply { topMargin = uiDp(8) })
+            }
+            feature(R.string.wallet_dashboard_names, namesSummary(), ::showNamesDashboard)
+            feature(R.string.wallet_dashboard_bitcoin, bitcoinSummary(), ::showBitcoinDashboard)
+            if (SHOW_SHAKEDEX_WALLET_CARD) {
+                feature(R.string.wallet_dashboard_shakedex, shakedexSummary(), ::showShakedexDashboard)
+            }
+        }
+        dashboardContent.addView(settingsGroup {
+            addSettingsRow(navRow(
+                title = getString(R.string.wallet_ux_wallet_settings),
+                summary = getString(R.string.wallet_ux_wallet_settings_summary),
+            ) { showWalletDetails() }.disabledWhenWalletHandoff(!actionsAvailable))
         })
-        val walletTile = dashboardTile(
-            title = getString(R.string.wallet_dashboard_wallet),
-            summary = if (locked) getString(R.string.wallet_dashboard_locked_short)
-            else getString(R.string.wallet_dashboard_unlocked_short),
-        ) { showWalletDetails() }.disabledWhenWalletHandoff(!actionsAvailable)
-        if (locked) {
-            dashboardContent.addView(
-                walletTile,
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                ).apply { bottomMargin = uiDp(8) },
-            )
-            return
-        }
-        dashboardContent.addView(walletTileRow(
-            dashboardTile(
-                title = getString(R.string.wallet_dashboard_names),
-                summary = namesSummary(),
-            ) { showNamesDashboard() }.disabledWhenWalletHandoff(!actionsAvailable),
-            walletTile,
-        ))
-        val bitcoinTile = dashboardTile(
-            title = getString(R.string.wallet_dashboard_bitcoin),
-            summary = bitcoinSummary(),
-        ) { showBitcoinDashboard() }.disabledWhenWalletHandoff(!actionsAvailable)
-        if (SHOW_SHAKEDEX_WALLET_CARD) {
-            dashboardContent.addView(walletTileRow(
-                bitcoinTile,
-                dashboardTile(
-                    title = getString(R.string.wallet_dashboard_shakedex),
-                    summary = shakedexSummary(),
-                ) { showShakedexDashboard() }.disabledWhenWalletHandoff(!actionsAvailable),
-            ))
-        } else {
-            dashboardContent.addView(
-                bitcoinTile,
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                ).apply { bottomMargin = uiDp(8) },
-            )
-        }
     }
 
     private fun <T : View> T.disabledWhenWalletHandoff(disabled: Boolean): T = apply {
@@ -1353,15 +1300,18 @@ class WalletActivity : ComponentActivity() {
             })
         }
 
-    private fun namesSummary(): String = latestReadSnapshot?.trackedNameCount?.let { count ->
-        resources.getQuantityString(R.plurals.wallet_dashboard_tracked_names, count, count)
+    private fun namesSummary(): String = latestReadSnapshot?.let { snapshot ->
+        val count = snapshot.trackedNameCount
+        val summary = if (count == 0) getString(R.string.wallet_ux_names_empty) else
+            resources.getQuantityString(R.plurals.wallet_dashboard_tracked_names, count, count)
+        if (snapshot.finalizeNotices.isEmpty()) summary else summary + "\n" +
+            getString(R.string.wallet_ux_names_attention, snapshot.finalizeNotices.size)
     } ?: getString(R.string.wallet_dashboard_sync_required)
 
     private fun bitcoinSummary(): String = bitcoinSetupSummary()
 
     private fun shakedexSummary(): String =
-        latestReadSnapshot?.finalizeNotices?.firstOrNull()?.let(::formatFinalizeNotice)
-            ?: activeShakescapeDashboardSummary ?: if (directShakescapePeerEndpoint != null) {
+        activeShakescapeDashboardSummary ?: if (directShakescapePeerEndpoint != null) {
             getString(R.string.wallet_dashboard_connected)
         } else {
             getString(R.string.wallet_dashboard_not_connected)
@@ -1680,6 +1630,7 @@ class WalletActivity : ComponentActivity() {
             rows = listOf(
                 getString(R.string.row_wallet_status) to statusView.text.toString(),
                 getString(R.string.row_wallet_account) to accountView.text.toString(),
+                getString(R.string.wallet_dashboard_sync) to readStatusView.text.toString(),
             ),
             actions = actions,
         )
@@ -2527,72 +2478,106 @@ class WalletActivity : ComponentActivity() {
         }
     }
 
+    private fun shakedexOverviewSummary(): String = buildList {
+        add(shakedexSummary())
+        add(getString(if (directShakescapePeerEndpoint == null)
+            R.string.wallet_ux_connect_help else R.string.wallet_ux_connected_help))
+        if (latestReadSnapshot == null) add(getString(R.string.wallet_dashboard_sync_required))
+        if (busy || walletBitcoinSyncInProgress) add(getString(R.string.wallet_ux_busy))
+        val feedback = swapActionStatusView.text.toString()
+        if (feedback.isNotBlank() && feedback != getString(R.string.wallet_swap_status_none)) add(feedback)
+    }.joinToString("\n\n")
+
     private fun showShakedexDashboard() {
         refreshDirectShakescapeStatus()
-        val transport = directShakescapeTransportStatus
-        val transportControls = directShakescapeControls(transport)
-        val paired = transport?.peerEndpoint != null
-        val connectionActions = mutableListOf(
-            WalletModalAction(
-                getString(R.string.row_wallet_pair_direct_shakescape),
-                action = ::showPairDirectShakescapeForm,
-                dismissParent = true,
-            ),
-        ).apply {
-            if (transportControls.retryListener) {
-                add(
-                    WalletModalAction(
-                        getString(R.string.row_wallet_retry_direct_shakescape_host),
-                        enabled = paired,
-                        action = ::retryWalletOwnedDirectShakescapeListener,
-                    ),
+        showWalletOverview(
+            title = getString(R.string.wallet_dashboard_shakedex),
+            summary = ::shakedexOverviewSummary,
+            sections = {
+                val available = overviewActionsAvailable() && latestReadSnapshot != null
+                val paired = directShakescapePeerEndpoint != null
+                val main = buildList {
+                    if (!paired) add(WalletModalAction(
+                        getString(R.string.row_wallet_pair_direct_shakescape), available,
+                        ::showPairDirectShakescapeForm, dismissParent = true, primary = true,
+                    ))
+                    add(WalletModalAction(getString(R.string.wallet_swap_executions), available,
+                        ::showShakescapeExecutions, primary = hasLiveAtomicSwap()))
+                    add(WalletModalAction(getString(R.string.wallet_swap_available_offers), available && paired,
+                        ::showAvailableDirectOffers, primary = paired && !hasLiveAtomicSwap()))
+                    add(WalletModalAction(getString(R.string.wallet_ux_coin_offers), available && paired,
+                        ::showCoinOfferMenu))
+                    add(WalletModalAction(getString(R.string.wallet_swap_my_offers), available, ::showMyDirectOffers))
+                    add(WalletModalAction(getString(R.string.wallet_ux_name_market), available, ::showNameMarketMenu))
+                }
+                listOf(
+                    WalletModalActionSection(getString(R.string.wallet_modal_actions), main),
+                    WalletModalActionSection(getString(R.string.wallet_ux_details), listOf(
+                        WalletModalAction(getString(R.string.wallet_ux_connection), action = ::showShakedexConnectionDetails),
+                    )),
                 )
-            }
-            if (transportControls.disconnectPeer) {
-                add(
-                    WalletModalAction(
-                        getString(R.string.row_wallet_disconnect_direct_shakescape),
-                        enabled = paired,
-                        action = ::disconnectWalletOwnedDirectShakescape,
-                    ),
-                )
-            }
+            },
+        )
+    }
+
+    private fun showCoinOfferMenu() {
+        val bitcoinReady = bitcoinStage() == BitcoinOverviewStage.Sync
+        walletDetailDialog(
+            title = getString(R.string.wallet_ux_coin_offers),
+            rows = if (bitcoinReady) emptyList() else listOf(
+                getString(R.string.wallet_dashboard_bitcoin) to getString(R.string.wallet_ux_bitcoin_setup_trade)),
+            actionSections = listOf(WalletModalActionSection(
+                getString(R.string.wallet_swap_coin_actions), buildList {
+                    if (!bitcoinReady) add(WalletModalAction(getString(R.string.wallet_dashboard_bitcoin), action = ::showBitcoinDashboard, primary = true))
+                    add(WalletModalAction(getString(R.string.wallet_swap_sell_btc), bitcoinReady, ::showBtcForHnsOfferForm))
+                    add(WalletModalAction(getString(R.string.wallet_swap_sell_hns), bitcoinReady, ::showHnsForBtcOfferForm))
+                },
+            )),
+            dismissOnAction = false,
+        )
+    }
+
+    private fun showNameMarketMenu() {
+        val paired = directShakescapePeerEndpoint != null
+        walletDetailDialog(
+            title = getString(R.string.wallet_ux_name_market),
+            rows = listOf(getString(R.string.wallet_ux_overview) to getString(R.string.wallet_name_actions_description)),
+            actionSections = listOf(
+                WalletModalActionSection(getString(R.string.wallet_swap_name_actions), listOf(
+                    WalletModalAction(getString(R.string.row_wallet_list_offers), paired, ::showListOffersForm, primary = true),
+                    WalletModalAction(getString(R.string.row_wallet_create_offer), paired, ::showCreateOfferForm),
+                )),
+                WalletModalActionSection(getString(R.string.wallet_ux_manage_offers), listOf(
+                    WalletModalAction(getString(R.string.wallet_swap_cancel_offer), action = ::showCancelOfferForm),
+                    WalletModalAction(getString(R.string.row_wallet_recover_name), action = ::showRecoverNameForm),
+                    WalletModalAction(getString(R.string.row_wallet_get_session), action = ::showGetSessionForm),
+                )),
+            ), dismissOnAction = false,
+        )
+    }
+
+    private fun showShakedexConnectionDetails() {
+        val controls = directShakescapeControls(directShakescapeTransportStatus)
+        val available = overviewActionsAvailable() && latestReadSnapshot != null
+        val actions = buildList {
+            add(WalletModalAction(getString(R.string.row_wallet_pair_direct_shakescape), available,
+                ::showPairDirectShakescapeForm, dismissParent = true))
+            if (controls.retryListener) add(WalletModalAction(
+                getString(R.string.row_wallet_retry_direct_shakescape_host), available,
+                ::retryWalletOwnedDirectShakescapeListener))
+            if (controls.disconnectPeer) add(WalletModalAction(
+                getString(R.string.row_wallet_disconnect_direct_shakescape), available,
+                ::disconnectWalletOwnedDirectShakescape))
         }
         walletDetailDialog(
-            title = getString(R.string.wallet_dashboard_shakedex),
+            title = getString(R.string.wallet_ux_connection),
             rows = listOf(
-                getString(R.string.wallet_modal_details) to
-                    getString(R.string.wallet_shakedex_connection_help),
+                getString(R.string.wallet_ux_overview) to getString(R.string.wallet_shakedex_connection_help),
                 getString(R.string.row_wallet_direct_shakescape_host) to directShakescapeStatusView.text.toString(),
                 getString(R.string.row_wallet_swap_progress) to shakedexExecutionStatusView.text.toString(),
                 getString(R.string.row_wallet_shakedex_status) to shakedexQueryStatusView.text.toString(),
             ),
-            actionSections = listOf(
-                WalletModalActionSection(
-                    getString(R.string.wallet_modal_actions),
-                    connectionActions,
-                ),
-                WalletModalActionSection(
-                    getString(R.string.wallet_swap_coin_actions),
-                    listOf(
-                        WalletModalAction(getString(R.string.wallet_swap_sell_btc), paired, ::showBtcForHnsOfferForm),
-                        WalletModalAction(getString(R.string.wallet_swap_sell_hns), paired, ::showHnsForBtcOfferForm),
-                        WalletModalAction(getString(R.string.wallet_swap_available_offers), paired, ::showAvailableDirectOffers),
-                        WalletModalAction(getString(R.string.wallet_swap_my_offers), paired, ::showMyDirectOffers),
-                        WalletModalAction(getString(R.string.wallet_swap_executions), paired, ::showShakescapeExecutions),
-                    ),
-                ),
-                WalletModalActionSection(
-                    getString(R.string.wallet_swap_name_actions),
-                    listOf(
-                        WalletModalAction(getString(R.string.row_wallet_create_offer), paired, ::showCreateOfferForm),
-                        WalletModalAction(getString(R.string.row_wallet_cancel_offer), paired, ::showCancelOfferForm),
-                        WalletModalAction(getString(R.string.row_wallet_recover_name), paired, ::showRecoverNameForm),
-                        WalletModalAction(getString(R.string.row_wallet_list_offers), paired, ::showListOffersForm),
-                        WalletModalAction(getString(R.string.row_wallet_get_session), paired, ::showGetSessionForm),
-                    ),
-                ),
-            ),
+            actionSections = listOf(WalletModalActionSection(getString(R.string.wallet_modal_actions), actions)),
             dismissOnAction = false,
         )
     }
@@ -4635,10 +4620,7 @@ class WalletActivity : ComponentActivity() {
             startWalletForegroundSyncService("atomic swap monitoring")
         }
         activeShakescapeDashboardSummary = when {
-            execution != null -> getString(
-                R.string.wallet_dashboard_swap_active,
-                execution.state.replace('_', ' '),
-            )
+            execution != null -> swapExecutionStage(execution)
             offerResponse != null -> getString(R.string.wallet_dashboard_swap_negotiating)
             pending != null -> getString(R.string.wallet_dashboard_swap_negotiating)
             else -> null
@@ -5014,6 +4996,7 @@ class WalletActivity : ComponentActivity() {
         directShakescapePeerEndpoint = null
         latestShakescapeExecutionStatus = null
         activeShakescapeDashboardSummary = null
+        if (::swapActionStatusView.isInitialized) swapActionStatusView.text = ""
         lastAutomaticSwapHnsSyncAtElapsedMillis = Long.MIN_VALUE
         lastAutomaticSwapHnsSyncFingerprint = null
         lastAutomaticSwapBitcoinSyncAtElapsedMillis = Long.MIN_VALUE
@@ -5354,7 +5337,7 @@ class WalletActivity : ComponentActivity() {
                 walletBitcoinSyncInProgress || bitcoinBirthdayResetInProgress,
             )
         ) {
-            bitcoinStatusView.text = getString(R.string.wallet_bitcoin_sync_operation_busy)
+            swapActionStatusView.text = getString(R.string.wallet_bitcoin_sync_operation_busy)
             return
         }
         showWalletActionForm(
@@ -5388,7 +5371,7 @@ class WalletActivity : ComponentActivity() {
                 btc - reserve < NativeWalletBridge.BITCOIN_HTLC_RECEIVER_DUST_SATS ||
                 lifetime == null
             ) {
-                bitcoinStatusView.text = getString(R.string.wallet_swap_prepare_failed)
+                swapActionStatusView.text = getString(R.string.wallet_swap_prepare_failed)
                 return@showWalletActionForm
             }
             prepareBtcForHnsOffer(btc, hns, reserve, lifetime)
@@ -5430,7 +5413,7 @@ class WalletActivity : ComponentActivity() {
                 hns - reserve < NativeWalletBridge.HNS_SWAP_RECEIVER_DUST_DOLLARYDOOS ||
                 lifetime == null
             ) {
-                bitcoinStatusView.text = getString(R.string.wallet_swap_hns_prepare_failed)
+                swapActionStatusView.text = getString(R.string.wallet_swap_hns_prepare_failed)
                 return@showWalletActionForm
             }
             prepareHnsForBtcOffer(hns, btc, reserve, lifetime)
@@ -5440,15 +5423,15 @@ class WalletActivity : ComponentActivity() {
     private fun showMyDirectOffers() {
         val handle = walletHandle
         if (handle == INVALID_HANDLE || busy) return
-        bitcoinStatusView.text = getString(R.string.wallet_swap_loading_my_offers)
+        swapActionStatusView.text = getString(R.string.wallet_swap_loading_my_offers)
         thread(name = "direct-offer-list") {
             val offers = NativeWalletBridge.localDirectOffers(handle)
             runOnUiThread {
                 if (walletHandle != handle) return@runOnUiThread
                 if (offers == null) {
-                    bitcoinStatusView.text = getString(R.string.wallet_swap_list_failed)
+                    swapActionStatusView.text = getString(R.string.wallet_swap_list_failed)
                 } else if (offers.isEmpty()) {
-                    bitcoinStatusView.text = getString(R.string.wallet_swap_no_active_offers)
+                    swapActionStatusView.text = getString(R.string.wallet_swap_no_active_offers)
                 } else {
                     val labels = offers.map(::directOfferLabel).toTypedArray()
                     walletAlertDialogBuilder()
@@ -5464,20 +5447,20 @@ class WalletActivity : ComponentActivity() {
     private fun showAvailableDirectOffers() {
         val handle = walletHandle
         if (handle == INVALID_HANDLE || busy) return
-        bitcoinStatusView.text = getString(R.string.wallet_swap_loading_available_offers)
+        swapActionStatusView.text = getString(R.string.wallet_swap_loading_available_offers)
         thread(name = "available-direct-offer-list") {
             val offers = NativeWalletBridge.availableDirectOffers(handle)
             runOnUiThread {
                 if (walletHandle != handle) return@runOnUiThread
                 if (offers == null) {
-                    bitcoinStatusView.text = getString(R.string.wallet_swap_available_failed)
+                    swapActionStatusView.text = getString(R.string.wallet_swap_available_failed)
                     walletAlertDialogBuilder()
                         .setTitle(R.string.wallet_swap_available_offers)
                         .setMessage(R.string.wallet_swap_available_failed)
                         .setPositiveButton(android.R.string.ok, null)
                         .show()
                 } else if (offers.isEmpty()) {
-                    bitcoinStatusView.text = getString(R.string.wallet_swap_no_available_offers)
+                    swapActionStatusView.text = getString(R.string.wallet_swap_no_available_offers)
                     walletAlertDialogBuilder()
                         .setTitle(R.string.wallet_swap_available_offers)
                         .setMessage(R.string.wallet_swap_no_available_offers)
@@ -5538,7 +5521,7 @@ class WalletActivity : ComponentActivity() {
                 bitcoin && reserve < NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS ||
                 !bitcoin && reserve < NativeWalletBridge.MINIMUM_HNS_FEE_RESERVE_DOLLARYDOOS
             ) {
-                bitcoinStatusView.text = getString(R.string.wallet_swap_acceptance_prepare_failed)
+                swapActionStatusView.text = getString(R.string.wallet_swap_acceptance_prepare_failed)
             } else {
                 val available = if (bitcoin) {
                     bitcoinSnapshot?.confirmedSats
@@ -5572,7 +5555,7 @@ class WalletActivity : ComponentActivity() {
                             formatHnsBaseUnits(available.toString()),
                         )
                     }
-                    bitcoinStatusView.text = message
+                    swapActionStatusView.text = message
                     walletAlertDialogBuilder()
                         .setTitle(R.string.wallet_swap_acceptance_offer)
                         .setMessage(message)
@@ -5588,17 +5571,17 @@ class WalletActivity : ComponentActivity() {
     private fun showActiveBtcForHnsOffers() {
         val handle = walletHandle
         if (handle == INVALID_HANDLE || busy) return
-        bitcoinStatusView.text = getString(R.string.wallet_swap_loading_offers)
+        swapActionStatusView.text = getString(R.string.wallet_swap_loading_offers)
         thread(name = "bitcoin-hns-offer-list") {
             val offers = NativeWalletBridge.localBtcForHnsOffers(handle)
             runOnUiThread {
                 if (walletHandle != handle) return@runOnUiThread
                 if (offers == null) {
-                    bitcoinStatusView.text = getString(R.string.wallet_swap_list_failed)
+                    swapActionStatusView.text = getString(R.string.wallet_swap_list_failed)
                     return@runOnUiThread
                 }
                 if (offers.isEmpty()) {
-                    bitcoinStatusView.text = getString(R.string.wallet_swap_no_active_offers)
+                    swapActionStatusView.text = getString(R.string.wallet_swap_no_active_offers)
                     return@runOnUiThread
                 }
                 val labels = offers.map {
@@ -5616,14 +5599,14 @@ class WalletActivity : ComponentActivity() {
     private fun showShakescapeExecutions() {
         val handle = walletHandle
         if (handle == INVALID_HANDLE || busy) return
-        bitcoinStatusView.text = getString(R.string.wallet_swap_loading_executions)
+        swapActionStatusView.text = getString(R.string.wallet_swap_loading_executions)
         thread(name = "denuo-execution-list") {
             val status = NativeWalletBridge.shakescapeExecutions(handle)
             runOnUiThread {
                 if (walletHandle != handle) return@runOnUiThread
                 if (status == null) {
                     val message = getString(R.string.wallet_swap_execution_list_failed)
-                    bitcoinStatusView.text = message
+                    swapActionStatusView.text = message
                     walletAlertDialogBuilder()
                         .setTitle(R.string.wallet_swap_executions)
                         .setMessage(message)
@@ -5635,14 +5618,14 @@ class WalletActivity : ComponentActivity() {
                 ) {
                     val message = getString(R.string.wallet_swap_no_executions_waiting) +
                         "\n\n" + bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery)
-                    bitcoinStatusView.text = message
+                    swapActionStatusView.text = message
                     walletAlertDialogBuilder()
                         .setTitle(R.string.wallet_swap_executions)
                         .setMessage(message)
                         .setPositiveButton(android.R.string.ok, null)
                         .show()
                 } else {
-                    bitcoinStatusView.text = bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery)
+                    swapActionStatusView.text = bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery)
                     val terminalStates = setOf("completed", "refunded", "failed")
                     val orderedExecutions = status.executions.sortedWith(
                         compareBy<NativeShakescapeExecutionSummary> {
@@ -5759,7 +5742,7 @@ class WalletActivity : ComponentActivity() {
                     )
                     runOnUiThread {
                         if (walletHandle != handle) return@runOnUiThread
-                        bitcoinStatusView.text = getString(
+                        swapActionStatusView.text = getString(
                             if (abandoned) R.string.wallet_swap_acceptance_abandoned
                             else R.string.wallet_swap_acceptance_abandon_failed,
                         )
@@ -5838,7 +5821,7 @@ class WalletActivity : ComponentActivity() {
                     listOf(WalletActionInput(R.string.wallet_swap_funding_fee_hint, numeric = true)),
                 ) { values ->
                     val fee = values.single().toLongOrNull()?.takeIf { it > 0L }
-                    if (fee == null) bitcoinStatusView.text = getString(R.string.wallet_swap_funding_prepare_failed)
+                    if (fee == null) swapActionStatusView.text = getString(R.string.wallet_swap_funding_prepare_failed)
                     else prepareBtcForHnsFunding(execution, fee)
                 }
             }
@@ -5853,7 +5836,7 @@ class WalletActivity : ComponentActivity() {
                     )),
                 ) { values ->
                     val fee = values.single().toLongOrNull()?.takeIf { it > 0L }
-                    if (fee == null) bitcoinStatusView.text = getString(R.string.wallet_swap_hns_funding_prepare_failed)
+                    if (fee == null) swapActionStatusView.text = getString(R.string.wallet_swap_hns_funding_prepare_failed)
                     else prepareHnsForBtcFunding(execution, fee)
                 }
             }
@@ -5928,7 +5911,7 @@ class WalletActivity : ComponentActivity() {
         ) { values ->
             val fee = values.single().toLongOrNull()?.takeIf { it > 0L }
             if (fee == null) {
-                bitcoinStatusView.text = getString(R.string.wallet_swap_settlement_prepare_failed)
+                swapActionStatusView.text = getString(R.string.wallet_swap_settlement_prepare_failed)
             } else {
                 prepareSwapSettlement(execution, action, bitcoin, fee)
             }
@@ -5982,7 +5965,7 @@ class WalletActivity : ComponentActivity() {
                     releaseStorageLeaseAfterOperation(lease)
                 } else if (approval == null) {
                     finishWalletOperationIfOwned(operationSerial)
-                    bitcoinStatusView.text = getString(R.string.wallet_swap_settlement_prepare_failed)
+                    swapActionStatusView.text = getString(R.string.wallet_swap_settlement_prepare_failed)
                     releaseStorageLeaseAfterOperation(lease)
                 } else {
                     showSwapSettlementApproval(
@@ -6034,7 +6017,7 @@ class WalletActivity : ComponentActivity() {
                         finishWalletOperationIfOwned(operationSerial)
                         if (current) {
                             refreshControllerState(resetReads = false)
-                            bitcoinStatusView.text = if (receipt == null) {
+                            swapActionStatusView.text = if (receipt == null) {
                                 getString(R.string.wallet_swap_settlement_broadcast_failed)
                             } else {
                                 getString(
@@ -6078,7 +6061,7 @@ class WalletActivity : ComponentActivity() {
                 } else if (approval == null) {
                     busy = false
                     statusView.text = getString(R.string.wallet_swap_funding_prepare_failed)
-                    bitcoinStatusView.text = getString(R.string.wallet_swap_funding_prepare_failed)
+                    swapActionStatusView.text = getString(R.string.wallet_swap_funding_prepare_failed)
                     releaseStorageLeaseAfterOperation(lease)
                 } else {
                     showBtcForHnsFundingApproval(approval, lease, epoch)
@@ -6125,7 +6108,7 @@ class WalletActivity : ComponentActivity() {
                                 getString(R.string.wallet_swap_funding_submitted, receipt.txid.take(12))
                             }
                             statusView.text = resultStatus
-                            bitcoinStatusView.text = resultStatus
+                            swapActionStatusView.text = resultStatus
                             renderWalletDashboard()
                         }
                         releaseStorageLeaseAfterOperation(lease)
@@ -6169,7 +6152,7 @@ class WalletActivity : ComponentActivity() {
                     busy = false
                     val failure = getString(R.string.wallet_swap_hns_funding_prepare_failed)
                     statusView.text = failure
-                    bitcoinStatusView.text = failure
+                    swapActionStatusView.text = failure
                     renderWalletDashboard()
                     releaseStorageLeaseAfterOperation(lease)
                 } else {
@@ -6219,7 +6202,7 @@ class WalletActivity : ComponentActivity() {
                                 getString(R.string.wallet_swap_hns_funding_submitted, receipt.transactionId.take(12))
                             }
                             statusView.text = resultStatus
-                            bitcoinStatusView.text = resultStatus
+                            swapActionStatusView.text = resultStatus
                             renderWalletDashboard()
                         }
                         releaseStorageLeaseAfterOperation(lease)
@@ -6244,12 +6227,12 @@ class WalletActivity : ComponentActivity() {
             .setNegativeButton(R.string.action_cancel, null)
             .setPositiveButton(R.string.wallet_swap_cancel_offer) { _, _ ->
                 val handle = walletHandle
-                bitcoinStatusView.text = getString(R.string.wallet_swap_cancelling)
+                swapActionStatusView.text = getString(R.string.wallet_swap_cancelling)
                 thread(name = "bitcoin-hns-offer-cancel") {
                     val cancelled = NativeWalletBridge.cancelBtcForHnsOffer(handle, offer.offerId)
                     runOnUiThread {
                         if (walletHandle == handle) {
-                            bitcoinStatusView.text = getString(
+                            swapActionStatusView.text = getString(
                                 if (cancelled) R.string.wallet_swap_cancelled
                                 else R.string.wallet_swap_cancel_failed,
                             )
@@ -6275,7 +6258,7 @@ class WalletActivity : ComponentActivity() {
                     val cancelled = NativeWalletBridge.cancelBtcForHnsOffer(handle, offer.offerId)
                     runOnUiThread {
                         if (walletHandle == handle) {
-                            bitcoinStatusView.text = getString(
+                            swapActionStatusView.text = getString(
                                 if (cancelled) R.string.wallet_swap_cancelled
                                 else R.string.wallet_swap_cancel_failed,
                             )
@@ -6315,8 +6298,8 @@ class WalletActivity : ComponentActivity() {
                         } else if (approval == null) {
                             busy = false
                             refreshControllerState(resetReads = false)
-                            bitcoinStatusView.text = getString(R.string.wallet_swap_hns_prepare_failed)
-                            statusView.text = bitcoinStatusView.text
+                            swapActionStatusView.text = getString(R.string.wallet_swap_hns_prepare_failed)
+                            statusView.text = swapActionStatusView.text
                             releaseStorageLeaseAfterOperation(lease)
                         } else {
                             showHnsForBtcOfferApproval(approval, lease, epoch)
@@ -6371,12 +6354,12 @@ class WalletActivity : ComponentActivity() {
                         if (operationIsCurrent(epoch, lease) && walletHandle == handle) {
                             busy = false
                             refreshControllerState(resetReads = false)
-                            bitcoinStatusView.text = if (published == null) {
+                            swapActionStatusView.text = if (published == null) {
                                 getString(R.string.wallet_swap_publish_failed)
                             } else {
                                 getString(R.string.wallet_swap_hns_published, published.offerId.take(12))
                             }
-                            statusView.text = bitcoinStatusView.text
+                            statusView.text = swapActionStatusView.text
                         }
                         releaseStorageLeaseAfterOperation(lease)
                     }
@@ -6413,7 +6396,7 @@ class WalletActivity : ComponentActivity() {
                                 feeReserve,
                                 preparation,
                             )
-                            bitcoinStatusView.text = message
+                            swapActionStatusView.text = message
                             statusView.text = getString(R.string.wallet_status_unlocked)
                             renderWalletDashboard()
                             walletAlertDialogBuilder()
@@ -6431,7 +6414,7 @@ class WalletActivity : ComponentActivity() {
                                     it.close()
                                 }
                                 busy = false
-                                bitcoinStatusView.text = getString(R.string.wallet_swap_acceptance_prepare_failed)
+                                swapActionStatusView.text = getString(R.string.wallet_swap_acceptance_prepare_failed)
                                 statusView.text = getString(R.string.wallet_status_unlocked)
                                 renderWalletDashboard()
                                 releaseStorageLeaseAfterOperation(lease)
@@ -6539,7 +6522,7 @@ class WalletActivity : ComponentActivity() {
                         if (operationIsCurrent(epoch, lease) && walletHandle == handle) {
                             busy = false
                             refreshControllerState(resetReads = false)
-                            bitcoinStatusView.text = if (accepted == null) {
+                            swapActionStatusView.text = if (accepted == null) {
                                 getString(R.string.wallet_swap_acceptance_failed)
                             } else {
                                 val deadline = accepted.fundingDeadlineUnix
@@ -6593,11 +6576,11 @@ class WalletActivity : ComponentActivity() {
         val lease = currentStorageLease() ?: return
         val handle = walletHandle
         if (handle == INVALID_HANDLE || !NativeWalletBridge.hasBitcoinValue(handle)) {
-            bitcoinStatusView.text = getString(R.string.wallet_bitcoin_send_unavailable)
+            swapActionStatusView.text = getString(R.string.wallet_bitcoin_send_unavailable)
             return
         }
         if (!beginOperation(lease, getString(R.string.wallet_swap_preparing), resetReads = false)) return
-        bitcoinStatusView.text = getString(R.string.wallet_swap_preparing)
+        swapActionStatusView.text = getString(R.string.wallet_swap_preparing)
         val epoch = lifecycleEpoch
         thread(name = "bitcoin-hns-offer-prepare") {
             val approval = NativeWalletBridge.prepareBtcForHnsOffer(
@@ -6627,8 +6610,8 @@ class WalletActivity : ComponentActivity() {
                 } else if (exact == null) {
                     busy = false
                     refreshControllerState(resetReads = false)
-                    bitcoinStatusView.text = getString(R.string.wallet_swap_prepare_failed)
-                    statusView.text = bitcoinStatusView.text
+                    swapActionStatusView.text = getString(R.string.wallet_swap_prepare_failed)
+                    statusView.text = swapActionStatusView.text
                     releaseStorageLeaseAfterOperation(lease)
                 } else {
                     showBtcForHnsOfferApproval(exact, lease, epoch)
@@ -6679,7 +6662,7 @@ class WalletActivity : ComponentActivity() {
                 if (settled) return@setPositiveButton
                 settled = true
                 statusView.text = getString(R.string.wallet_swap_publishing)
-                bitcoinStatusView.text = getString(R.string.wallet_swap_publishing)
+                swapActionStatusView.text = getString(R.string.wallet_swap_publishing)
                 thread(name = "bitcoin-hns-offer-publish") {
                     val published = NativeWalletBridge.approveBtcForHnsOffer(
                         handle,
@@ -6692,12 +6675,12 @@ class WalletActivity : ComponentActivity() {
                         }
                         busy = false
                         refreshControllerState(resetReads = false)
-                        bitcoinStatusView.text = if (published == null) {
+                        swapActionStatusView.text = if (published == null) {
                             getString(R.string.wallet_swap_publish_failed)
                         } else {
                             getString(R.string.wallet_swap_published, published.offerId.take(12))
                         }
-                        statusView.text = bitcoinStatusView.text
+                        statusView.text = swapActionStatusView.text
                         releaseStorageLeaseAfterOperation(lease)
                     }
                 }
