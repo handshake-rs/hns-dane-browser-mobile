@@ -172,6 +172,8 @@ def apple_catalog(
             "en": {"stringUnit": {"state": "translated", "value": apple_format(english[key])}}
         }
         for android_locale, apple_locale in ANDROID_TO_APPLE_LOCALE.items():
+            if key not in translations[android_locale]:
+                continue  # Explicit English fallback; never manufacture translations.
             localizations[apple_locale] = {
                 "stringUnit": {
                     "state": "translated",
@@ -208,6 +210,14 @@ def outputs() -> dict[Path, str]:
             generated[
                 ANDROID_RES / f"values-{locale}" / f"wallet_{cohort}.xml"
             ] = android_xml(keys, translations[locale])
+    # New UX copy shares canonical keys on both platforms while translation
+    # review is pending. Existing controlled cohorts remain complete.
+    for key, element in android_base_strings().items():
+        if key.startswith("wallet_ux_") and key not in all_english:
+            if element.attrib.get("translatable") != "false":
+                raise ValueError(f"{key}: add translated UX copy to a controlled cohort")
+            all_keys.append(key)
+            all_english[key] = resource_text(element).replace(r"\n", "\n")
     validate_apple_usage(all_keys)
     generated[APPLE_CATALOG] = apple_catalog(
         all_keys, all_english, all_translations

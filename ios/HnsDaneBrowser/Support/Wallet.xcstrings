@@ -76112,6 +76112,413 @@
         }
       }
     },
+    "wallet_ux_actions": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actions"
+          }
+        }
+      }
+    },
+    "wallet_ux_add_names": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add names"
+          }
+        }
+      }
+    },
+    "wallet_ux_balance_after_sync": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Balance will appear after the first scan."
+          }
+        }
+      }
+    },
+    "wallet_ux_bitcoin_setup_trade": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set up Bitcoin before creating a coin offer."
+          }
+        }
+      }
+    },
+    "wallet_ux_busy": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Another wallet operation is running. Actions will become available when it finishes."
+          }
+        }
+      }
+    },
+    "wallet_ux_coin_offers": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Coin offers"
+          }
+        }
+      }
+    },
+    "wallet_ux_confirmed_sats": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ sats confirmed"
+          }
+        }
+      }
+    },
+    "wallet_ux_connect_help": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect to a peer to browse and publish offers. Your saved offers and swaps stay in this wallet."
+          }
+        }
+      }
+    },
+    "wallet_ux_connected_help": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connected to an offer peer. Browse offers or choose what to sell."
+          }
+        }
+      }
+    },
+    "wallet_ux_connection": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection and diagnostics"
+          }
+        }
+      }
+    },
+    "wallet_ux_details": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Details and diagnostics"
+          }
+        }
+      }
+    },
+    "wallet_ux_done": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        }
+      }
+    },
+    "wallet_ux_first_sync": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sync to check your balance. New wallets set their Bitcoin start block automatically."
+          }
+        }
+      }
+    },
+    "wallet_ux_full_history": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan all Bitcoin history"
+          }
+        }
+      }
+    },
+    "wallet_ux_full_history_help": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This checks the full Bitcoin history for this restored wallet. It can take a long time and use substantial data. You can stop and resume the scan."
+          }
+        }
+      }
+    },
+    "wallet_ux_hns_current": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS · %1$@"
+          }
+        }
+      }
+    },
+    "wallet_ux_immature_sats": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ sats immature"
+          }
+        }
+      }
+    },
+    "wallet_ux_last_scanned": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last scanned block %1$d"
+          }
+        }
+      }
+    },
+    "wallet_ux_latest_update": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Latest update"
+          }
+        }
+      }
+    },
+    "wallet_ux_manage_names": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manage names"
+          }
+        }
+      }
+    },
+    "wallet_ux_manage_offers": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manage offers and sessions"
+          }
+        }
+      }
+    },
+    "wallet_ux_name_market": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name marketplace"
+          }
+        }
+      }
+    },
+    "wallet_ux_names_attention": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d name transfers to follow"
+          }
+        }
+      }
+    },
+    "wallet_ux_names_empty": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add a name to track its ownership, records, and transfer progress."
+          }
+        }
+      }
+    },
+    "wallet_ux_new_address": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Generate a new address"
+          }
+        }
+      }
+    },
+    "wallet_ux_overview": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Overview"
+          }
+        }
+      }
+    },
+    "wallet_ux_pending_sats": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ sats pending"
+          }
+        }
+      }
+    },
+    "wallet_ux_receive_bitcoin": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Receive Bitcoin"
+          }
+        }
+      }
+    },
+    "wallet_ux_receive_help": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy this address to receive Bitcoin. Use a new address for a new payment if needed."
+          }
+        }
+      }
+    },
+    "wallet_ux_recovery_help": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set the earliest possible Bitcoin block before scanning. If you do not know it, scan all history."
+          }
+        }
+      }
+    },
+    "wallet_ux_recovery_start": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose recovery start"
+          }
+        }
+      }
+    },
+    "wallet_ux_setup_required": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a recovery start before syncing."
+          }
+        }
+      }
+    },
+    "wallet_ux_stopping": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stopping sync…"
+          }
+        }
+      }
+    },
+    "wallet_ux_sync_required": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sync to check your balance."
+          }
+        }
+      }
+    },
+    "wallet_ux_validating_birthday": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saving recovery start…"
+          }
+        }
+      }
+    },
+    "wallet_ux_wallet_settings": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wallet settings"
+          }
+        }
+      }
+    },
+    "wallet_ux_wallet_settings_summary": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Security, recovery phrase, and account details"
+          }
+        }
+      }
+    },
     "wallet_value_actions_catchup": {
       "extractionState": "manual",
       "localizations": {

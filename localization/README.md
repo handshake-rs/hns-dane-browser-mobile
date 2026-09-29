@@ -40,3 +40,8 @@ native speaker must review each locale before release, with priority on
 transaction approvals, irreversible name transfers, swap funding/refunds, and
 wallet deletion. Remaining advanced diagnostic and system-lifecycle copy stays
 explicitly `translatable="false"` until a later reviewed cohort.
+
+New `wallet_ux_*` keys use canonical English in Android base resources and an
+English-only entry in the generated Apple catalog until translations are
+reviewed. They are explicitly `translatable="false"`, are not counted as
+translated, and do not alter the existing complete localization cohorts.

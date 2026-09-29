@@ -1358,4 +1358,42 @@
     <string name="proof_current_tip_text">height %1$s, tree %2$s</string>
     <string name="proof_markdown_dnssec_title"># DNSSEC Details</string>
     <string name="proof_markdown_hns_title"># HNS Proof Details</string>
+    <!-- Shared UX copy: English fallback until the next reviewed translation cohort. -->
+    <string name="wallet_ux_overview" translatable="false">Overview</string>
+    <string name="wallet_ux_details" translatable="false">Details and diagnostics</string>
+    <string name="wallet_ux_wallet_settings" translatable="false">Wallet settings</string>
+    <string name="wallet_ux_wallet_settings_summary" translatable="false">Security, recovery phrase, and account details</string>
+    <string name="wallet_ux_recovery_start" translatable="false">Choose recovery start</string>
+    <string name="wallet_ux_recovery_help" translatable="false">Set the earliest possible Bitcoin block before scanning. If you do not know it, scan all history.</string>
+    <string name="wallet_ux_full_history" translatable="false">Scan all Bitcoin history</string>
+    <string name="wallet_ux_full_history_help" translatable="false">This checks the full Bitcoin history for this restored wallet. It can take a long time and use substantial data. You can stop and resume the scan.</string>
+    <string name="wallet_ux_first_sync" translatable="false">Sync to check your balance. New wallets set their Bitcoin start block automatically.</string>
+    <string name="wallet_ux_sync_required" translatable="false">Sync to check your balance.</string>
+    <string name="wallet_ux_setup_required" translatable="false">Choose a recovery start before syncing.</string>
+    <string name="wallet_ux_validating_birthday" translatable="false">Saving recovery start…</string>
+    <string name="wallet_ux_stopping" translatable="false">Stopping sync…</string>
+    <string name="wallet_ux_confirmed_sats" translatable="false">%1$s sats confirmed</string>
+    <string name="wallet_ux_pending_sats" translatable="false">%1$s sats pending</string>
+    <string name="wallet_ux_immature_sats" translatable="false">%1$s sats immature</string>
+    <string name="wallet_ux_last_scanned" translatable="false">Last scanned block %1$d</string>
+    <string name="wallet_ux_balance_after_sync" translatable="false">Balance will appear after the first scan.</string>
+    <string name="wallet_ux_latest_update" translatable="false">Latest update</string>
+    <string name="wallet_ux_receive_bitcoin" translatable="false">Receive Bitcoin</string>
+    <string name="wallet_ux_new_address" translatable="false">Generate a new address</string>
+    <string name="wallet_ux_receive_help" translatable="false">Copy this address to receive Bitcoin. Use a new address for a new payment if needed.</string>
+    <string name="wallet_ux_add_names" translatable="false">Add names</string>
+    <string name="wallet_ux_names_empty" translatable="false">Add a name to track its ownership, records, and transfer progress.</string>
+    <string name="wallet_ux_manage_names" translatable="false">Manage names</string>
+    <string name="wallet_ux_names_attention" translatable="false">%1$d name transfers to follow</string>
+    <string name="wallet_ux_connection" translatable="false">Connection and diagnostics</string>
+    <string name="wallet_ux_connect_help" translatable="false">Connect to a peer to browse and publish offers. Your saved offers and swaps stay in this wallet.</string>
+    <string name="wallet_ux_connected_help" translatable="false">Connected to an offer peer. Browse offers or choose what to sell.</string>
+    <string name="wallet_ux_busy" translatable="false">Another wallet operation is running. Actions will become available when it finishes.</string>
+    <string name="wallet_ux_coin_offers" translatable="false">Coin offers</string>
+    <string name="wallet_ux_name_market" translatable="false">Name marketplace</string>
+    <string name="wallet_ux_manage_offers" translatable="false">Manage offers and sessions</string>
+    <string name="wallet_ux_bitcoin_setup_trade" translatable="false">Set up Bitcoin before creating a coin offer.</string>
+    <string name="wallet_ux_hns_current" translatable="false">HNS · %1$s</string>
+    <string name="wallet_ux_actions" translatable="false">Actions</string>
+    <string name="wallet_ux_done" translatable="false">Done</string>
 </resources>

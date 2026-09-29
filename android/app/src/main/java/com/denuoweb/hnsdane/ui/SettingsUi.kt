@@ -159,11 +159,11 @@ internal fun Context.dashboardActionButton(
         textSize = 12f
         typeface = Typeface.DEFAULT_BOLD
         gravity = Gravity.CENTER
-        minimumHeight = uiDp(42)
+        minimumHeight = uiDp(48)
         setPadding(uiDp(10), uiDp(6), uiDp(10), uiDp(6))
-        setTextColor(if (secondary) themeColors().secondaryAction else themeColors().action)
+        setTextColor(if (secondary) themeColors().primaryText else themeColors().action)
         background = settingsSurfaceDrawable(
-            accent = if (secondary) themeColors().secondaryAction else themeColors().action,
+            accent = if (secondary) themeColors().divider else themeColors().action,
             fill = themeColors().background,
             cornerRadius = 12,
         )
@@ -194,8 +194,6 @@ internal fun Context.dashboardTile(
         addView(TextView(this@dashboardTile).apply {
             text = summary
             textSize = 13f
-            maxLines = 2
-            ellipsize = TextUtils.TruncateAt.END
             setTextColor(themeColors().secondaryText)
             setPadding(0, uiDp(6), 0, 0)
         })

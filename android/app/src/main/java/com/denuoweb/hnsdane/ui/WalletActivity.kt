@@ -2650,6 +2650,8 @@ class WalletActivity : ComponentActivity() {
         actions: List<Pair<String, () -> Unit>>,
         actionSections: List<WalletModalActionSection> = emptyList(),
         dismissOnAction: Boolean = true,
+        liveActionSections: (() -> List<WalletModalActionSection>)? = null,
+        liveUpdate: (() -> Unit)? = null,
         onDismiss: () -> Unit = {},
     ) {
         lateinit var dialog: AlertDialog
@@ -2663,43 +2665,38 @@ class WalletActivity : ComponentActivity() {
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(themeColors().primaryText)
                 setPadding(uiDp(2), 0, uiDp(2), uiDp(14))
-                accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+                ViewCompat.setAccessibilityHeading(this, true)
             })
             rows.forEach { (label, detail) ->
-                addView(
-                    walletModalDetailCard(label, detail),
-                    LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                    ).apply { bottomMargin = uiDp(10) },
-                )
+                addView(walletModalDetailCard(label, detail), LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { bottomMargin = uiDp(10) })
             }
-            if (actions.isNotEmpty()) {
-                addView(walletModalSectionHeading(getString(R.string.wallet_modal_actions)))
+        }
+        val actionContent = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        content.addView(actionContent)
+        var previousActions: List<List<Any>>? = null
+        fun refreshActions() {
+            val sections = buildList {
+                if (actions.isNotEmpty()) add(WalletModalActionSection(
+                    getString(R.string.wallet_modal_actions),
+                    actions.map { (label, action) -> WalletModalAction(label, action = action) },
+                ))
+                addAll(liveActionSections?.invoke() ?: actionSections)
             }
-            var actionIndex = 0
-            actions.forEachIndexed { index, (label, action) ->
-                addView(
-                    dashboardActionButton(label, secondary = index != 0) {
-                        if (dismissOnAction) dialog.dismiss()
-                        action()
-                    }.apply {
-                        textSize = 14f
-                        minimumHeight = uiDp(48)
-                    },
-                    LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                    ).apply { bottomMargin = uiDp(8) },
-                )
-                actionIndex += 1
-            }
-            actionSections.forEach { section ->
-                if (section.actions.isEmpty()) return@forEach
-                addView(walletModalSectionHeading(section.title))
+            val signature = sections.flatMap { section -> section.actions.map {
+                listOf(section.title, it.label, it.enabled, it.primary, it.dismissParent)
+            } }
+            // Preserve scroll and accessibility focus while only live text changes.
+            if (signature == previousActions) return
+            previousActions = signature
+            actionContent.removeAllViews()
+            sections.filter { it.actions.isNotEmpty() }.forEach { section ->
+                actionContent.addView(walletModalSectionHeading(section.title))
                 section.actions.forEach { item ->
-                    addView(
-                        dashboardActionButton(item.label, secondary = actionIndex != 0) {
+                    actionContent.addView(
+                        dashboardActionButton(item.label, secondary = !item.primary) {
                             if (dismissOnAction || item.dismissParent) dialog.dismiss()
                             item.action()
                         }.disabledWhenWalletHandoff(!item.enabled).apply {
@@ -2711,42 +2708,62 @@ class WalletActivity : ComponentActivity() {
                             LinearLayout.LayoutParams.WRAP_CONTENT,
                         ).apply { bottomMargin = uiDp(8) },
                     )
-                    actionIndex += 1
                 }
             }
-            addView(
-                dashboardActionButton(
-                    getString(R.string.wallet_modal_done),
-                    secondary = true,
-                ) { dialog.dismiss() }.apply {
-                    textSize = 14f
-                    minimumHeight = uiDp(48)
-                },
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                ).apply { topMargin = uiDp(4) },
-            )
         }
-        val scroll = ScrollView(this).apply {
-            isFillViewport = true
-            addView(content)
-        }
+        refreshActions()
+        content.addView(dashboardActionButton(
+            getString(R.string.wallet_modal_done), secondary = true,
+        ) { dialog.dismiss() }, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = uiDp(8) })
         dialog = walletAlertDialogBuilder()
-            .setView(scroll)
+            .setView(ScrollView(this).apply { isFillViewport = true; addView(content) })
             .create()
-        dialog.setOnDismissListener { onDismiss() }
-        dialog.setOnShowListener {
-            dialog.window?.setBackgroundDrawable(
-                settingsSurfaceDrawable(
-                    accent = themeColors().secondaryAction,
-                    fill = themeColors().background,
-                    cornerRadius = 24,
-                ),
-            )
+        val updater = object : Runnable {
+            override fun run() {
+                if (!dialog.isShowing) return
+                liveUpdate?.invoke()
+                refreshActions()
+                content.postDelayed(this, 500L)
+            }
+        }
+        dialog.setOnDismissListener {
+            content.removeCallbacks(updater)
+            onDismiss()
         }
         dialog.show()
+        if (liveUpdate != null || liveActionSections != null) content.post(updater)
     }
+
+    private fun showWalletOverview(
+        title: String,
+        summary: () -> String,
+        sections: () -> List<WalletModalActionSection>,
+    ) {
+        val detail = TextView(this).apply {
+            text = summary()
+            textSize = 16f
+            setTextColor(themeColors().primaryText)
+            setTextIsSelectable(true)
+        }
+        showWalletModal(
+            title = title,
+            rows = listOf(getString(R.string.wallet_ux_overview) to detail),
+            actions = emptyList(),
+            dismissOnAction = false,
+            liveActionSections = sections,
+            liveUpdate = {
+                val updated = summary()
+                if (detail.text.toString() != updated) detail.text = updated
+            },
+        )
+    }
+
+    private fun overviewActionsAvailable(): Boolean =
+        !busy && !hasActiveWalletHnsSynchronization() && !walletBitcoinSyncInProgress &&
+            !bitcoinBirthdayResetInProgress && walletHandle != INVALID_HANDLE &&
+            walletHnsJourney.isConfirmedUnlocked()
 
     private fun walletModalDetailCard(label: String, detail: View): LinearLayout =
         LinearLayout(this).apply {
@@ -5051,6 +5068,7 @@ class WalletActivity : ComponentActivity() {
         val enabled: Boolean = true,
         val action: () -> Unit,
         val dismissParent: Boolean = false,
+        val primary: Boolean = false,
     )
 
     private data class WalletModalActionSection(

@@ -467,3 +467,21 @@ final class WalletHnsSyncProgressPoller: @unchecked Sendable {
         return running
     }
 }
+
+/// Presentation only; native authentication and approvals still gate execution.
+enum BitcoinOverviewStage: Equatable {
+    case unavailable, recoveryStart, savingRecoveryStart, firstSync, sync, syncing, stopping
+}
+
+func bitcoinOverviewStage(
+    birthdayState: String?, syncing: Bool, stopping: Bool, savingBirthday: Bool
+) -> BitcoinOverviewStage {
+    if syncing { return stopping ? .stopping : .syncing }
+    if savingBirthday { return .savingRecoveryStart }
+    switch birthdayState {
+    case "recoveryUnknown": return .recoveryStart
+    case "awaitingCreationTip": return .firstSync
+    case "recoveryPendingValidation", "validated": return .sync
+    default: return .unavailable
+    }
+}

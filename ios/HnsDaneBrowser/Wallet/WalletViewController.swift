@@ -4292,7 +4292,8 @@ final class WalletViewController: UIViewController {
         title: String,
         rows: [WalletMenuRow],
         actions: [WalletMenuAction],
-        retainForChildActions: Bool = false
+        retainForChildActions: Bool = false,
+        liveActions: (@MainActor () -> [WalletMenuAction])? = nil
     ) {
         let host = walletPresentationHost
         guard host === self || host is WalletMenuViewController else { return }
@@ -4300,7 +4301,8 @@ final class WalletViewController: UIViewController {
             title: title,
             rows: rows,
             actions: actions,
-            dismissBeforeAction: !retainForChildActions
+            dismissBeforeAction: !retainForChildActions,
+            liveActions: liveActions
         )
         menu.modalPresentationStyle = .pageSheet
         if let sheet = menu.sheetPresentationController {
@@ -8415,6 +8417,7 @@ private struct WalletMenuAction {
     let section: String?
     let enabled: Bool
     let dismissBeforeAction: Bool?
+    let primary: Bool
     let handler: @MainActor () -> Void
 
     init(
@@ -8423,6 +8426,7 @@ private struct WalletMenuAction {
         section: String? = nil,
         enabled: Bool = true,
         dismissBeforeAction: Bool? = nil,
+        primary: Bool = false,
         handler: @escaping @MainActor () -> Void
     ) {
         self.title = title
@@ -8430,6 +8434,7 @@ private struct WalletMenuAction {
         self.section = section
         self.enabled = enabled
         self.dismissBeforeAction = dismissBeforeAction
+        self.primary = primary
         self.handler = handler
     }
 }
@@ -8440,6 +8445,9 @@ private final class WalletMenuViewController: UIViewController {
     private let rows: [WalletMenuRow]
     private let actions: [WalletMenuAction]
     private let dismissBeforeAction: Bool
+    private let liveActions: (@MainActor () -> [WalletMenuAction])?
+    private let actionContent = UIStackView()
+    private var actionSignature: [String] = []
     private var liveDetails: [(UILabel, @MainActor () -> String)] = []
     private var liveDetailTimer: Timer?
 
@@ -8447,12 +8455,14 @@ private final class WalletMenuViewController: UIViewController {
         title: String,
         rows: [WalletMenuRow],
         actions: [WalletMenuAction],
-        dismissBeforeAction: Bool
+        dismissBeforeAction: Bool,
+        liveActions: (@MainActor () -> [WalletMenuAction])? = nil
     ) {
         menuTitle = title
         self.rows = rows
         self.actions = actions
         self.dismissBeforeAction = dismissBeforeAction
+        self.liveActions = liveActions
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -8494,32 +8504,24 @@ private final class WalletMenuViewController: UIViewController {
 
         rows.forEach { content.addArrangedSubview(detailCard(for: $0)) }
 
-        if !liveDetails.isEmpty {
+        actionContent.axis = .vertical
+        actionContent.spacing = 8
+        content.addArrangedSubview(actionContent)
+        refreshActions()
+        if !liveDetails.isEmpty || liveActions != nil {
             liveDetailTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) {
                 [weak self] _ in
                 guard let self else { return }
-                self.liveDetails.forEach { label, provider in label.text = provider() }
+                self.liveDetails.forEach { label, provider in
+                    let text = provider()
+                    if label.text != text { label.text = text }
+                }
+                self.refreshActions()
             }
-        }
-
-        var currentSection: String?
-        for (index, action) in actions.enumerated() {
-            let section = action.section ?? "Actions"
-            if section != currentSection {
-                let actionHeading = sectionHeading(section)
-                content.addArrangedSubview(actionHeading)
-                content.setCustomSpacing(8, after: actionHeading)
-                currentSection = section
-            }
-            content.addArrangedSubview(actionButton(
-                for: action,
-                emphasized: index == 0,
-                dismissBeforeAction: action.dismissBeforeAction ?? dismissBeforeAction
-            ))
         }
 
         let done = actionButton(
-            for: WalletMenuAction(title: "Done") { [weak self] in
+            for: WalletMenuAction(title: WalletCopy.text("wallet_ux_done")) { [weak self] in
                 self?.dismiss(animated: true)
             },
             emphasized: false,
@@ -8545,6 +8547,31 @@ private final class WalletMenuViewController: UIViewController {
 
     deinit {
         liveDetailTimer?.invalidate()
+    }
+
+    private func refreshActions() {
+        let current = liveActions?() ?? actions
+        let signature = current.map {
+            "\($0.section ?? "")|\($0.title)|\($0.enabled)|\($0.primary)|\($0.style)|\(String(describing: $0.dismissBeforeAction))"
+        }
+        guard signature != actionSignature else { return }
+        actionSignature = signature
+        actionContent.arrangedSubviews.forEach {
+            actionContent.removeArrangedSubview($0)
+            $0.removeFromSuperview()
+        }
+        var currentSection: String?
+        for action in current {
+            let section = action.section ?? WalletCopy.text("wallet_ux_actions")
+            if section != currentSection {
+                actionContent.addArrangedSubview(sectionHeading(section))
+                currentSection = section
+            }
+            actionContent.addArrangedSubview(actionButton(
+                for: action, emphasized: action.primary,
+                dismissBeforeAction: action.dismissBeforeAction ?? dismissBeforeAction
+            ))
+        }
     }
 
     private func detailCard(for row: WalletMenuRow) -> UIView {
@@ -8609,7 +8636,7 @@ private final class WalletMenuViewController: UIViewController {
         )
         switch action.style {
         case .standard:
-            configuration.baseBackgroundColor = emphasized ? .systemCyan : .systemIndigo
+            configuration.baseBackgroundColor = emphasized ? .systemCyan : .secondarySystemFill
             configuration.baseForegroundColor = emphasized ? .black : .label
         case .destructive:
             configuration.baseBackgroundColor = .systemRed
@@ -8832,7 +8859,7 @@ private final class WalletFormViewController: UIViewController {
         )
         switch style {
         case .standard:
-            configuration.baseBackgroundColor = emphasized ? .systemCyan : .systemIndigo
+            configuration.baseBackgroundColor = emphasized ? .systemCyan : .secondarySystemFill
             configuration.baseForegroundColor = emphasized ? .black : .label
         case .destructive:
             configuration.baseBackgroundColor = .systemRed
