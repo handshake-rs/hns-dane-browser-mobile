@@ -143,3 +143,39 @@ debug, and legacy-recovery installations were not replaced. Local screenshots
 and build/test logs are preserved in the Git-ignored
 `diagnostics/wallet-ux-2026-09-29/` directory; device logs were exported without
 clearing the on-device log stream.
+
+## Dead-code follow-up
+
+The cleanup traced Wallet controller references, menu callbacks, Objective-C
+selectors, shared UI helpers, tests, and resource-key consumers across the
+tracked repository. It removed:
+
+- Twelve unused or unreachable controller helpers, including the retired
+  Bitcoin-only offer list/cancel UI. The live My offers flow still handles both
+  trade directions and cancellation.
+- Eleven iOS button objects that were never placed in a view hierarchy. Three
+  availability values now live in explicit state instead of detached buttons;
+  Bitcoin recovery-start editing reads its actual prerequisites directly.
+- Five write-only labels and the obsolete flat Names-list presentation. Name
+  gallery rendering and the name-import confirmation formatter remain active.
+- Eighty-six unused resource keys, including obsolete settings-row descriptions,
+  old card/status labels, and unused new UX copy. The generator now projects 559
+  used keys from the two translation cohorts (66 critical, 493 operations),
+  preserving complete coverage for all 20 supported non-English locales.
+- The unused iOS companion-bootstrap property. The runtime-boundary check now
+  verifies installation of the active direct HNS controller and rejects the
+  obsolete property, matching the existing Android guard. Authority, storage
+  lease, credential, native bridge, and transaction checks remain in place.
+
+Compatibility and recovery paths with live callers, including tracked FINALIZE
+handling and the shared native wallet interfaces, were retained. This cleanup
+does not remove storage migrations or change the Rust/C/JNI ABI.
+
+Final validation passed: Android preview build, all 472 unit tests in 78 suites
+(no failures, errors, or skips), both localization projections, runtime-boundary
+checks, and whitespace checks. The changed Swift files have no new parser
+errors relative to the prior revision. Xcode validation remains unavailable on
+this Linux host, as documented above. Existing preview wallet data was not used
+as an instrumentation fixture now that the preview is in use. The updated APK
+was installed over the preview without clearing its data. Build evidence is in
+`diagnostics/wallet-cleanup-2026-09-29/`.
