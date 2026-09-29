@@ -617,8 +617,6 @@ final class WalletViewController: UIViewController {
     private let network: BrowserHandshakeNetwork
     private weak var browserProcess: BrowserProcess?
     private let keychain: WalletKeychainStore
-    private let readBootstrapSource: any WalletReadBootstrapSource =
-        UnavailableWalletReadBootstrapSource.shared
     private var wallet: RustNativeWallet?
     private var walletWasReopenedFromDurableStorage = false
     private var recoverySecret: WalletRecoverySecret?
@@ -688,6 +686,9 @@ final class WalletViewController: UIViewController {
     private var bitcoinLastSyncFailed = false
     private var bitcoinSnapshot: NativeBitcoinWalletSnapshot?
     private var bitcoinValueAvailable = false
+    private var bitcoinReceiveAddressAvailable = false
+    private var hnsSynchronizationAvailable = false
+    private var nameImportAvailable = false
     private weak var bitcoinSendApprovalAlert: UIAlertController?
     private var pendingBitcoinSendApproval: NativeBitcoinSendApproval?
     private weak var btcForHnsOfferApprovalAlert: UIAlertController?
@@ -733,29 +734,16 @@ final class WalletViewController: UIViewController {
     private let balanceLabel = UILabel()
     private let paymentReceiveLabel = UILabel()
     private let historyLabel = UILabel()
-    private let namesLabel = UILabel()
     private let nameImportStatusLabel = UILabel()
     private let bitcoinStatusLabel = UILabel()
     private let bitcoinBalanceLabel = UILabel()
-    private let bitcoinReceiveLabel = UILabel()
     private let recoveryTitle = UILabel()
     private let recoveryTextView = UITextView()
     private let createButton = UIButton(type: .system)
     private let restoreButton = UIButton(type: .system)
     private let openButton = UIButton(type: .system)
-    private let lockButton = UIButton(type: .system)
     private let confirmRecoveryButton = UIButton(type: .system)
-    private let refreshButton = UIButton(type: .system)
-    private let synchronizeButton = UIButton(type: .system)
-    private let importNameButton = UIButton(type: .system)
     private let deleteButton = UIButton(type: .system)
-    private let bitcoinReceiveButton = UIButton(type: .system)
-    private let bitcoinSyncButton = UIButton(type: .system)
-    private let bitcoinSendButton = UIButton(type: .system)
-    private let bitcoinBirthdayButton = UIButton(type: .system)
-    private let bitcoinSellForHnsButton = UIButton(type: .system)
-    private let bitcoinOffersButton = UIButton(type: .system)
-    private let bitcoinExecutionsButton = UIButton(type: .system)
     private let dashboardStack = UIStackView()
     private let walletRefreshControl = UIRefreshControl()
     private let walletOperationIndicator = UIActivityIndicatorView(style: .medium)
@@ -959,14 +947,11 @@ final class WalletViewController: UIViewController {
         configureSummaryLabel(balanceLabel, identifier: "wallet.balance")
         configureSummaryLabel(paymentReceiveLabel, identifier: "wallet.receive")
         configureSummaryLabel(historyLabel, identifier: "wallet.history")
-        configureSummaryLabel(namesLabel, identifier: "wallet.names")
         configureSummaryLabel(nameImportStatusLabel, identifier: "wallet.name-import-status")
         configureSummaryLabel(bitcoinStatusLabel, identifier: "wallet.bitcoin-status")
         configureSummaryLabel(bitcoinBalanceLabel, identifier: "wallet.bitcoin-balance")
-        configureSummaryLabel(bitcoinReceiveLabel, identifier: "wallet.bitcoin-receive")
         bitcoinStatusLabel.text = "Direct Bitcoin wallet is unavailable while locked."
         bitcoinBalanceLabel.text = "Bitcoin balance: unavailable."
-        bitcoinReceiveLabel.text = "BIP84 receive address: unavailable."
 
         recoveryTitle.font = .preferredFont(forTextStyle: .headline)
         recoveryTitle.adjustsFontForContentSizeCategory = true
@@ -1002,60 +987,11 @@ final class WalletViewController: UIViewController {
             title: WalletCopy.text("row_wallet_unlock"),
             action: #selector(openOrUnlockWallet)
         )
-        configureButton(lockButton, title: WalletCopy.text("action_lock_wallet"), action: #selector(lockWallet))
         configureButton(
             confirmRecoveryButton,
             title: WalletCopy.text("row_wallet_recovery_confirm"),
             action: #selector(confirmRecoverySaved)
         )
-        configureButton(refreshButton, title: "Refresh status", action: #selector(refreshWallet))
-        configureButton(
-            synchronizeButton,
-            title: WalletCopy.text("action_sync_wallet_reads"),
-            action: #selector(synchronizeWalletReadsFromUserAction)
-        )
-        configureButton(
-            bitcoinReceiveButton,
-            title: WalletCopy.text("action_wallet_bitcoin_receive"),
-            action: #selector(nextBitcoinReceiveAddress)
-        )
-        configureButton(
-            bitcoinSyncButton,
-            title: WalletCopy.text("row_wallet_bitcoin_sync"),
-            action: #selector(toggleBitcoinSynchronization)
-        )
-        configureButton(
-            bitcoinSendButton,
-            title: WalletCopy.text("wallet_dashboard_send_bitcoin"),
-            action: #selector(showBitcoinSendForm)
-        )
-        configureButton(
-            bitcoinBirthdayButton,
-            title: WalletCopy.text("wallet_bitcoin_birthday_title"),
-            action: #selector(showBitcoinBirthdayForm)
-        )
-        configureButton(
-            bitcoinSellForHnsButton,
-            title: WalletCopy.text("wallet_swap_sell_btc"),
-            action: #selector(showBtcForHnsOfferForm)
-        )
-        configureButton(
-            bitcoinOffersButton,
-            title: WalletCopy.text("wallet_swap_active_offers"),
-            action: #selector(showActiveBtcForHnsOffers)
-        )
-        configureButton(
-            bitcoinExecutionsButton,
-            title: WalletCopy.text("wallet_swap_executions"),
-            action: #selector(showShakescapeExecutions)
-        )
-        bitcoinBirthdayButton.isHidden = true
-        configureButton(
-            importNameButton,
-            title: WalletCopy.text("row_wallet_name_import"),
-            action: #selector(requestExactHnsNameImport)
-        )
-        importNameButton.accessibilityIdentifier = "wallet.import-hns-name"
         configureButton(
             deleteButton,
             title: WalletCopy.text("row_wallet_delete"),
@@ -1246,7 +1182,7 @@ final class WalletViewController: UIViewController {
         let sync = dashboardButton(
             title: "Sync",
             action: #selector(synchronizeWalletReadsFromUserAction),
-            enabled: synchronizeButton.isEnabled
+            enabled: hnsSynchronizationAvailable
         )
         var balanceBody: [UIView] = [balanceLabel, dashboardButtonRow([receive, send, sync])]
         if isOperating { balanceBody += walletStatusBody([statusLabel]) }
@@ -1511,9 +1447,15 @@ final class WalletViewController: UIViewController {
         )
     }
 
+    private var canEditBitcoinRecoveryStart: Bool {
+        storageLease != nil && wallet != nil && walletIsUnlocked && bitcoinValueAvailable &&
+            ["recoveryUnknown", "recoveryPendingValidation"].contains(bitcoinSnapshot?.birthdayState ?? "") &&
+            !bitcoinSyncInProgress && !bitcoinBirthdayResetInProgress
+    }
+
     private func showBitcoinDetails() {
         var actions: [WalletMenuAction] = []
-        if bitcoinBirthdayButton.isEnabled && !bitcoinBirthdayButton.isHidden {
+        if canEditBitcoinRecoveryStart {
             actions.append(WalletMenuAction(title: WalletCopy.text("action_wallet_bitcoin_birthday")) {
                 [weak self] in self?.showBitcoinBirthdayForm()
             })
@@ -1688,12 +1630,12 @@ final class WalletViewController: UIViewController {
     @objc private func nextBitcoinReceiveAddress() {
         guard let wallet, bitcoinValueAvailable, !bitcoinSyncInProgress,
               !bitcoinBirthdayResetInProgress else { return }
-        bitcoinReceiveButton.isEnabled = false
+        bitcoinReceiveAddressAvailable = false
         DispatchQueue.global(qos: .userInitiated).async { [wallet] in
             let outcome = Result { try wallet.nextBitcoinReceiveAddress() }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.wallet === wallet else { return }
-                self.bitcoinReceiveButton.isEnabled = true
+                self.bitcoinReceiveAddressAvailable = true
                 switch outcome {
                 case .success(let receive):
                     self.renderBitcoinSnapshot(receive.snapshot)
@@ -1720,32 +1662,11 @@ final class WalletViewController: UIViewController {
                         [[UTType.plainText.identifier: address]], options: [.localOnly: true]
                     )
                 },
-                WalletMenuAction(title: WalletCopy.text("wallet_ux_new_address"), enabled: bitcoinReceiveButton.isEnabled && !isOperating) { [weak self] in
+                WalletMenuAction(title: WalletCopy.text("wallet_ux_new_address"), enabled: bitcoinReceiveAddressAvailable && !isOperating) { [weak self] in
                     self?.nextBitcoinReceiveAddress()
                 },
             ]
         )
-    }
-
-    private func addFittingAddress(
-        _ address: String,
-        label: String,
-        to alert: UIAlertController
-    ) {
-        alert.addTextField { field in
-            field.text = address
-            field.font = AppAccessibility.scaledMonospacedFont(
-                size: 17,
-                weight: .regular,
-                textStyle: .body
-            )
-            field.adjustsFontSizeToFitWidth = true
-            field.minimumFontSize = 8
-            field.textAlignment = .center
-            field.borderStyle = .none
-            field.isUserInteractionEnabled = false
-            field.accessibilityLabel = label
-        }
     }
 
     @objc private func showBitcoinBirthdayForm() {
@@ -1808,14 +1729,6 @@ final class WalletViewController: UIViewController {
                 }
                 self.refreshButtonStates()
             }
-        }
-    }
-
-    @objc private func toggleBitcoinSynchronization() {
-        if bitcoinSyncInProgress {
-            stopBitcoinSynchronization()
-        } else {
-            startBitcoinSynchronization()
         }
     }
 
@@ -2259,47 +2172,6 @@ final class WalletViewController: UIViewController {
             }
         })
         walletPresentationHost.present(alert, animated: true)
-    }
-
-    @objc private func showActiveBtcForHnsOffers() {
-        guard let wallet, walletIsUnlocked, bitcoinValueAvailable, !isOperating else { return }
-        swapActionStatusLabel.text = WalletCopy.text("wallet_swap_loading_offers")
-        DispatchQueue.global(qos: .userInitiated).async { [wallet] in
-            let outcome = Result { try wallet.localBtcForHnsOffers() }
-            DispatchQueue.main.async { [weak self] in
-                guard let self, self.wallet === wallet else { return }
-                switch outcome {
-                case .success(let offers) where offers.isEmpty:
-                    self.swapActionStatusLabel.text = WalletCopy.text("wallet_swap_no_active_offers")
-                case .success(let offers):
-                    let alert = UIAlertController(
-                        title: WalletCopy.text("wallet_swap_active_offers"),
-                        message: nil,
-                        preferredStyle: .alert
-                    )
-                    for offer in offers {
-                        let hns = WalletReadPresenter.formatHnsBaseUnits(
-                            String(offer.hnsAmountDollarydoos)
-                        )
-                        alert.addAction(UIAlertAction(
-                            title: "\(offer.btcAmountSats) sats → \(hns) HNS · \(offer.offerId.prefix(12))…",
-                            style: .default
-                        ) { [weak self, weak wallet] _ in
-                            guard let self, let wallet, self.wallet === wallet else { return }
-                            self.confirmCancelBtcForHnsOffer(offer, wallet: wallet)
-                        })
-                    }
-                    alert.addAction(UIAlertAction(
-                        title: WalletCopy.text("wallet_action_done"),
-                        style: .cancel
-                    ))
-                    self.walletPresentationHost.present(alert, animated: true)
-                case .failure(let error):
-                    self.swapActionStatusLabel.text = WalletCopy.text("wallet_swap_list_failed")
-                    self.showError(error)
-                }
-            }
-        }
     }
 
     private func showHnsForBtcOfferForm() {
@@ -3533,50 +3405,6 @@ final class WalletViewController: UIViewController {
         walletPresentationHost.present(alert, animated: true)
     }
 
-    private func confirmCancelBtcForHnsOffer(
-        _ offer: NativeBtcForHnsOfferSummary,
-        wallet: RustNativeWallet
-    ) {
-        let hns = WalletReadPresenter.formatHnsBaseUnits(String(offer.hnsAmountDollarydoos))
-        let alert = UIAlertController(
-            title: WalletCopy.text("wallet_swap_cancel_title"),
-            message: WalletCopy.format(
-                "wallet_swap_cancel_message",
-                Int(offer.btcAmountSats),
-                hns,
-                offer.offerId
-            ),
-            preferredStyle: .alert
-        )
-        alert.addAction(UIAlertAction(
-            title: WalletCopy.text("wallet_swap_keep_offer"),
-            style: .cancel
-        ))
-        alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_swap_cancel_offer"), style: .destructive) {
-            [weak self, weak wallet] _ in
-            guard let self, let wallet, self.wallet === wallet else { return }
-            self.isOperating = true
-            self.swapActionStatusLabel.text = WalletCopy.text("wallet_swap_cancelling")
-            self.refreshButtonStates()
-            DispatchQueue.global(qos: .userInitiated).async { [wallet] in
-                let outcome = Result { try wallet.cancelBtcForHnsOffer(offerId: offer.offerId) }
-                DispatchQueue.main.async { [weak self] in
-                    guard let self, self.wallet === wallet else { return }
-                    self.isOperating = false
-                    switch outcome {
-                    case .success:
-                        self.swapActionStatusLabel.text = WalletCopy.text("wallet_swap_cancelled")
-                    case .failure(let error):
-                        self.swapActionStatusLabel.text = WalletCopy.text("wallet_swap_cancel_failed")
-                        self.showError(error)
-                    }
-                    self.refreshButtonStates()
-                }
-            }
-        })
-        walletPresentationHost.present(alert, animated: true)
-    }
-
     private func renderBitcoinSnapshot(_ snapshot: NativeBitcoinWalletSnapshot) {
         bitcoinSnapshot = snapshot
         bitcoinActivityPageOffset = 0
@@ -3606,12 +3434,6 @@ final class WalletViewController: UIViewController {
             Int(snapshot.totalSats),
             birthday,
             Int(snapshot.synchronizedHeight)
-        )
-        bitcoinBirthdayButton.isHidden = !["recoveryUnknown", "recoveryPendingValidation"]
-            .contains(snapshot.birthdayState)
-        bitcoinReceiveLabel.text = WalletCopy.format(
-            "wallet_bitcoin_receive",
-            snapshot.receiveAddress
         )
     }
 
@@ -4137,7 +3959,7 @@ final class WalletViewController: UIViewController {
             presentWalletMenu(title: WalletCopy.text("wallet_dashboard_names"), rows: [
                 WalletMenuRow(title: WalletCopy.text("wallet_ux_overview"), detail: WalletCopy.text("wallet_dashboard_sync_required")),
             ], actions: [WalletMenuAction(title: WalletCopy.text("wallet_dashboard_sync"),
-                enabled: synchronizeButton.isEnabled, primary: true
+                enabled: hnsSynchronizationAvailable, primary: true
             ) { [weak self] in self?.synchronizeWalletReadsFromUserAction() }])
             return
         }
@@ -4227,11 +4049,11 @@ final class WalletViewController: UIViewController {
     private func nameOverviewActions() -> [WalletMenuAction] {
         var actions: [WalletMenuAction] = [
             WalletMenuAction(title: WalletCopy.text("row_wallet_name_import"),
-                section: WalletCopy.text("wallet_ux_add_names"), enabled: importNameButton.isEnabled,
+                section: WalletCopy.text("wallet_ux_add_names"), enabled: nameImportAvailable,
                 primary: latestReadSnapshot?.knownNameCount == 0
             ) { [weak self] in self?.requestExactHnsNameImport() },
             WalletMenuAction(title: WalletCopy.text("action_import_multiple_wallet_names"),
-                section: WalletCopy.text("wallet_ux_add_names"), enabled: importNameButton.isEnabled
+                section: WalletCopy.text("wallet_ux_add_names"), enabled: nameImportAvailable
             ) { [weak self] in self?.requestMultipleHnsNameImport() },
         ]
         if !finalizeNotices.isEmpty {
@@ -5335,26 +5157,6 @@ final class WalletViewController: UIViewController {
         return WalletCopy.format("wallet_swap_duration_minutes", Int(minutes))
     }
 
-    private func pendingAcceptanceStage(
-        _ acceptance: NativeDirectOfferAcceptanceSummary
-    ) -> String {
-        if let deadline = acceptance.fundingDeadlineUnix {
-            let now = UInt64(Date().timeIntervalSince1970)
-            return WalletCopy.format(
-                "wallet_swap_acceptance_sent",
-                String(acceptance.sessionId.prefix(12)),
-                formatAtomicSwapDeadline(deadline),
-                formatAtomicSwapRemaining(deadline, now: now)
-            )
-        }
-        return WalletCopy.format(
-            "wallet_swap_status_negotiating",
-            swapAmount(acceptance.offeredAmount, asset: acceptance.offeredAsset),
-            swapAmount(acceptance.receivedAmount, asset: acceptance.receivedAsset),
-            String(acceptance.sessionId.prefix(12))
-        )
-    }
-
     private func shakescapeExecutionNotificationStage(
         _ execution: NativeShakescapeExecutionSummary
     ) -> String {
@@ -6276,14 +6078,6 @@ final class WalletViewController: UIViewController {
                 self.refreshButtonStates()
             }
         }
-    }
-
-    @objc private func refreshWallet() {
-        if storageLease != nil,
-           (encryptedOrphanCleanupPending || wallet == nil) {
-            refreshProtectedStorageState()
-        }
-        refreshState()
     }
 
     @objc private func pullToSynchronizeWalletReads() {
@@ -7262,7 +7056,6 @@ final class WalletViewController: UIViewController {
         }
         paymentReceiveLabel.text = presentation.paymentReceive
         historyLabel.text = presentation.history
-        namesLabel.text = presentation.names
         namesGalleryViewController?.update(
             names: snapshot.knownNames,
             totalNameCount: snapshot.knownNameCount,
@@ -7503,7 +7296,6 @@ final class WalletViewController: UIViewController {
         balanceLabel.text = WalletCopy.text("wallet_reads_balance_unavailable")
         paymentReceiveLabel.text = WalletCopy.text("wallet_reads_receive_unavailable")
         historyLabel.text = "Transaction history: unavailable."
-        namesLabel.text = "Tracked names: unavailable."
         if pendingOutgoingSnapshotHeight != nil {
             readStatusLabel.text = WalletCopy.text("wallet_pending_outgoing_recovery")
             balanceLabel.text = WalletCopy.text("wallet_pending_outgoing_balance_unavailable")
@@ -7575,7 +7367,6 @@ final class WalletViewController: UIViewController {
         bitcoinLastSyncFailed = false
         swapActionStatusLabel.text = nil
         bitcoinActivityPageOffset = 0
-        bitcoinBirthdayButton.isHidden = true
         try? wallet?.lock()
         wallet?.close()
         wallet = controller
@@ -7970,38 +7761,12 @@ final class WalletViewController: UIViewController {
             !persistentWalletExists && !isOperating && currentAuthenticatedNewWalletBirthdayHeight() != nil
         restoreButton.isEnabled = ownsStorage && protectedStorageIsAvailable && !hasWallet && !persistentWalletExists && !isOperating
         openButton.isEnabled = ownsStorage && protectedStorageIsAvailable && !hasIncompleteWallet && (hasWallet || persistentWalletExists) && !isOperating
-        lockButton.isEnabled = ownsStorage && protectedStorageIsAvailable && hasWallet &&
-            !hasIncompleteWallet && !isOperating && !bitcoinSyncInProgress &&
-            !bitcoinBirthdayResetInProgress
         confirmRecoveryButton.isEnabled = ownsStorage && hasIncompleteWallet && recoverySecret != nil && !isOperating
-        refreshButton.isEnabled = ownsStorage &&
-            (hasWallet || encryptedOrphanCleanupPending) &&
-            !hasIncompleteWallet &&
-            !isOperating
-        synchronizeButton.isEnabled = ownsStorage && hasWallet && !hasIncompleteWallet && synchronizedReadsAvailable && !isOperating
-        bitcoinReceiveButton.isEnabled = ownsStorage && hasWallet && walletIsUnlocked &&
+        hnsSynchronizationAvailable = ownsStorage && hasWallet && !hasIncompleteWallet && synchronizedReadsAvailable && !isOperating
+        bitcoinReceiveAddressAvailable = ownsStorage && hasWallet && walletIsUnlocked &&
             bitcoinValueAvailable && !bitcoinSyncInProgress && !bitcoinBirthdayResetInProgress
-        bitcoinSendButton.isEnabled = ownsStorage && hasWallet && walletIsUnlocked &&
-            bitcoinValueAvailable && !bitcoinSyncInProgress && !bitcoinBirthdayResetInProgress
-        bitcoinSellForHnsButton.isEnabled = ownsStorage && hasWallet && walletIsUnlocked &&
-            bitcoinValueAvailable && !bitcoinSyncInProgress && !bitcoinBirthdayResetInProgress &&
-            !isOperating
-        bitcoinOffersButton.isEnabled = ownsStorage && hasWallet && walletIsUnlocked &&
-            bitcoinValueAvailable && !bitcoinSyncInProgress && !isOperating
-        bitcoinExecutionsButton.isEnabled = ownsStorage && hasWallet && walletIsUnlocked &&
-            bitcoinValueAvailable && !bitcoinSyncInProgress && !isOperating
-        bitcoinSyncButton.isEnabled = bitcoinSyncInProgress
-            ? !bitcoinSyncStopRequested
-            : ownsStorage && hasWallet && walletIsUnlocked && bitcoinValueAvailable &&
-                !bitcoinBirthdayResetInProgress
-        let bitcoinRecoveryBirthdayAvailable = bitcoinSnapshot.map {
-            ["recoveryUnknown", "recoveryPendingValidation"].contains($0.birthdayState)
-        } ?? false
-        bitcoinBirthdayButton.isEnabled = ownsStorage && hasWallet && walletIsUnlocked &&
-            bitcoinValueAvailable && bitcoinRecoveryBirthdayAvailable &&
-            !bitcoinSyncInProgress && !bitcoinBirthdayResetInProgress
         let importState = currentWalletNameImportState()
-        importNameButton.isEnabled = importState.authority.map {
+        nameImportAvailable = importState.authority.map {
             walletNameImportMayStart(expected: $0, current: importState)
         } ?? false
         let canStopSynchronization = hnsCatchupRetryPending ||
@@ -9087,7 +8852,6 @@ struct WalletReadPresentation: Equatable, Sendable {
     let balance: String
     let paymentReceive: String
     let history: String
-    let names: String
 }
 
 struct WalletTransactionPagePresentation: Equatable, Sendable {
@@ -9170,7 +8934,6 @@ enum WalletReadPresenter {
     ) -> WalletReadPresentation {
         let visibleItemLimit = visibleItemLimit(requested: maximumVisibleItems)
         let transactions = snapshot.transactionHistory.prefix(visibleItemLimit)
-        let names = snapshot.knownNames.prefix(visibleItemLimit)
 
         let history: String
         if transactions.isEmpty {
@@ -9198,17 +8961,6 @@ enum WalletReadPresenter {
             )
         }
 
-        let trackedNames: String
-        if names.isEmpty {
-            trackedNames = WalletCopy.text("wallet_reads_names_empty")
-        } else {
-            let entries = names.map { presentName($0) }.joined(separator: "\n\n")
-            trackedNames = appendRemainingCount(
-                entries,
-                remaining: snapshot.knownNameCount - names.count
-            )
-        }
-
         let balance = WalletHnsBalancePresenter.present(snapshot)
         let balanceText: String
         if balance.hasPendingOutgoing {
@@ -9232,8 +8984,7 @@ enum WalletReadPresenter {
                 snapshot.receiveTarget.display,
                 Int(snapshot.receiveTarget.derivationIndex)
             ),
-            history: history,
-            names: trackedNames
+            history: history
         )
     }
 

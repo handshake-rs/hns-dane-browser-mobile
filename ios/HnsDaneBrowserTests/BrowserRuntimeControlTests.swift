@@ -785,18 +785,12 @@ final class BrowserRuntimeControlTests: XCTestCase {
             presentation.history,
             "confirmed · -0.25 HNS\n\(firstTransactionHex)\nBlock 40 · 3 confirmations\n\n1 more items are present in this synchronized snapshot."
         )
-        XCTAssertEqual(
-            presentation.names,
-            "alpha · proof height 42\nwallet owned · canonical decoded · registered\n\(firstHash)\n\n1 more items are present in this synchronized snapshot."
-        )
 
         let fullPresentation = WalletReadPresenter.present(snapshot, maximumVisibleItems: 2)
         XCTAssertTrue(fullPresentation.history.contains(
             "pending (local wallet) · 1 HNS\n\(secondTransactionHex)\nUnconfirmed"
         ))
-        XCTAssertTrue(fullPresentation.names.contains(
-            "second · proof height 41\nnot wallet owned · empty · not registered\n\(secondHash)"
-        ))
+
         XCTAssertFalse(fullPresentation.history.contains("more items"))
 
         let firstActivityPage = WalletReadPresenter.presentTransactionPage(

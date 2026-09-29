@@ -223,7 +223,6 @@ class WalletActivity : ComponentActivity() {
     private lateinit var balanceView: TextView
     private lateinit var paymentReceiveView: TextView
     private lateinit var historyView: TextView
-    private lateinit var trackedNamesView: TextView
     @Volatile
     private var directShakescapeWorkerHandle: Long = INVALID_HANDLE
     private var nameImportInput: EditText? = null
@@ -237,8 +236,6 @@ class WalletActivity : ComponentActivity() {
     private lateinit var sendStatusView: TextView
     private lateinit var bitcoinStatusView: TextView
     private lateinit var bitcoinBalanceView: TextView
-    private lateinit var bitcoinReceiveView: TextView
-    private lateinit var bitcoinActivityView: TextView
     private lateinit var valueActionStatusView: TextView
     private lateinit var shakedexQueryStatusView: TextView
     private lateinit var shakedexExecutionStatusView: TextView
@@ -511,16 +508,11 @@ class WalletActivity : ComponentActivity() {
             setTextIsSelectable(true)
         }
         historyView = walletReadSummary(R.string.wallet_reads_history_unavailable)
-        trackedNamesView = walletReadSummary(R.string.wallet_reads_names_unavailable)
         nameImportStatusView = walletReadSummary(R.string.wallet_name_import_unavailable)
         sendStatusView = walletReadSummary(R.string.wallet_send_unavailable)
         bitcoinStatusView = walletReadSummary(R.string.wallet_bitcoin_unavailable)
         swapActionStatusView = walletReadSummary(R.string.wallet_swap_status_none)
         bitcoinBalanceView = walletReadSummary(R.string.wallet_bitcoin_balance_unavailable)
-        bitcoinReceiveView = walletReadSummary(R.string.wallet_bitcoin_receive_unavailable).apply {
-            setTextIsSelectable(true)
-        }
-        bitcoinActivityView = walletReadSummary(R.string.wallet_bitcoin_activity_unavailable)
         valueActionStatusView = walletReadSummary(R.string.wallet_value_actions_unavailable)
         shakedexQueryStatusView = walletReadSummary(R.string.wallet_shakedex_queries_unavailable)
         shakedexExecutionStatusView = walletReadSummary(R.string.wallet_swap_status_unavailable)
@@ -1337,12 +1329,6 @@ class WalletActivity : ComponentActivity() {
         resources.getQuantityString(R.plurals.wallet_dashboard_transactions, count, count)
     } ?: getString(R.string.wallet_dashboard_no_synced_activity)
 
-    private fun bitcoinActivitySummary(): String = bitcoinSnapshot?.recentActivityTotal?.let { count ->
-        if (count == 0) getString(R.string.wallet_bitcoin_activity_empty) else {
-            resources.getQuantityString(R.plurals.wallet_bitcoin_transactions, count, count)
-        }
-    } ?: getString(R.string.wallet_bitcoin_activity_unavailable)
-
     private fun formatFinalizeNotice(notice: com.denuoweb.hnsdane.wallet.NativeHnsFinalizeNotice): String =
         when (notice.phase) {
             "transferPending" -> getString(
@@ -1794,7 +1780,6 @@ class WalletActivity : ComponentActivity() {
                 trackedNamePageOffset = page.offset
                 loadedTrackedNames = page.names
                 selectedTrackedNameIndex = index
-                renderLoadedTrackedNames(snapshot.trackedNameCount)
                 if (showingNamesPage) renderWalletDashboard()
             }
         }
@@ -2128,7 +2113,6 @@ class WalletActivity : ComponentActivity() {
                     loadedTrackedNames = matchedPage.names
                     selectedTrackedNameIndex = foundIndex
                     closeTrackedNameSearch()
-                    renderLoadedTrackedNames(snapshot.trackedNameCount)
                 }
                 renderWalletDashboard()
             }
@@ -4572,8 +4556,6 @@ class WalletActivity : ComponentActivity() {
         bitcoinLastSyncFailed = false
         bitcoinActivityPageOffset = 0
         bitcoinBalanceView.text = getString(R.string.wallet_bitcoin_balance_unavailable)
-        bitcoinReceiveView.text = getString(R.string.wallet_bitcoin_receive_unavailable)
-        bitcoinActivityView.text = getString(R.string.wallet_bitcoin_activity_unavailable)
         val status = NativeWalletBridge.status(walletHandle)
         if (status?.locked == false && NativeWalletBridge.hasBitcoinValue(walletHandle)) {
             NativeWalletBridge.bitcoinSnapshot(walletHandle)?.let { snapshot ->
@@ -5119,8 +5101,7 @@ class WalletActivity : ComponentActivity() {
             birthday,
             snapshot.synchronizedHeight,
         )
-        bitcoinReceiveView.text = getString(R.string.wallet_bitcoin_receive, snapshot.receiveAddress)
-        bitcoinActivityView.text = bitcoinActivitySummary()
+
         renderWalletDashboard()
     }
 
@@ -5253,14 +5234,6 @@ class WalletActivity : ComponentActivity() {
         val amountBaseUnits: String,
         val maximumFeeBaseUnits: String,
     )
-
-    private fun walletActionRow(title: Int, summary: Int, action: () -> Unit): View =
-        preferenceRow(
-            title = getString(title),
-            summary = getString(summary),
-            actionLabel = getString(R.string.action_open),
-            action = action,
-        )
 
     private fun showWalletActionForm(
         title: Int,
@@ -5645,34 +5618,6 @@ class WalletActivity : ComponentActivity() {
                 } else {
                     prepareDirectOfferAcceptance(offer, reserve)
                 }
-            }
-        }
-    }
-
-    private fun showActiveBtcForHnsOffers() {
-        val handle = walletHandle
-        if (handle == INVALID_HANDLE || busy) return
-        swapActionStatusView.text = getString(R.string.wallet_swap_loading_offers)
-        thread(name = "bitcoin-hns-offer-list") {
-            val offers = NativeWalletBridge.localBtcForHnsOffers(handle)
-            runOnUiThread {
-                if (walletHandle != handle) return@runOnUiThread
-                if (offers == null) {
-                    swapActionStatusView.text = getString(R.string.wallet_swap_list_failed)
-                    return@runOnUiThread
-                }
-                if (offers.isEmpty()) {
-                    swapActionStatusView.text = getString(R.string.wallet_swap_no_active_offers)
-                    return@runOnUiThread
-                }
-                val labels = offers.map {
-                    "${it.btcAmountSats} sats → ${formatHnsBaseUnits(it.hnsAmountDollarydoos.toString())} HNS · ${it.offerId.take(12)}…"
-                }.toTypedArray()
-                walletAlertDialogBuilder()
-                    .setTitle(R.string.wallet_swap_active_offers)
-                    .setItems(labels) { _, index -> confirmCancelBtcForHnsOffer(offers[index]) }
-                    .setNegativeButton(R.string.action_cancel, null)
-                    .show()
             }
         }
     }
@@ -6291,36 +6236,6 @@ class WalletActivity : ComponentActivity() {
                 }
             }
             .setOnCancelListener { reject() }
-            .show()
-    }
-
-    private fun confirmCancelBtcForHnsOffer(
-        offer: com.denuoweb.hnsdane.wallet.NativeBtcForHnsOfferSummary,
-    ) {
-        walletAlertDialogBuilder()
-            .setTitle(R.string.wallet_swap_cancel_title)
-            .setMessage(getString(
-                R.string.wallet_swap_cancel_message,
-                offer.btcAmountSats,
-                formatHnsBaseUnits(offer.hnsAmountDollarydoos.toString()),
-                offer.offerId,
-            ))
-            .setNegativeButton(R.string.action_cancel, null)
-            .setPositiveButton(R.string.wallet_swap_cancel_offer) { _, _ ->
-                val handle = walletHandle
-                swapActionStatusView.text = getString(R.string.wallet_swap_cancelling)
-                thread(name = "bitcoin-hns-offer-cancel") {
-                    val cancelled = NativeWalletBridge.cancelBtcForHnsOffer(handle, offer.offerId)
-                    runOnUiThread {
-                        if (walletHandle == handle) {
-                            swapActionStatusView.text = getString(
-                                if (cancelled) R.string.wallet_swap_cancelled
-                                else R.string.wallet_swap_cancel_failed,
-                            )
-                        }
-                    }
-                }
-            }
             .show()
     }
 
@@ -9231,7 +9146,6 @@ class WalletActivity : ComponentActivity() {
             localPaymentReceiveText(target)
         } ?: getString(R.string.wallet_reads_receive_unavailable)
         historyView.text = getString(R.string.wallet_reads_history_unavailable)
-        trackedNamesView.text = getString(R.string.wallet_reads_names_unavailable)
         if (pendingOutgoingSnapshotHeight != null) {
             readStatusView.text = getString(R.string.wallet_pending_outgoing_recovery)
             balanceView.text = getString(R.string.wallet_pending_outgoing_balance_unavailable)
@@ -9641,7 +9555,7 @@ class WalletActivity : ComponentActivity() {
             val entries = formatWalletTransactions(visibleTransactions)
             appendRemainingCount(entries, snapshot.transactions.size - visibleTransactions.size)
         }
-        renderLoadedTrackedNames(snapshot.trackedNameCount)
+
         sendStatusView.text = if (NativeWalletBridge.hasHnsValue(walletHandle)) {
             getString(R.string.wallet_send_ready, snapshot.height)
         } else {
@@ -9938,20 +9852,6 @@ class WalletActivity : ComponentActivity() {
         synchronizeWalletReads()
     }
 
-    private fun renderLoadedTrackedNames(total: Int) {
-        trackedNamesView.text = if (loadedTrackedNames.isEmpty()) {
-            getString(R.string.wallet_reads_names_empty)
-        } else {
-            val entries = loadedTrackedNames.joinToString("\n\n", transform = ::walletNameSummary)
-            entries + "\n\n" + getString(
-                R.string.wallet_name_page_position,
-                trackedNamePageOffset + 1,
-                trackedNamePageOffset + loadedTrackedNames.size,
-                total,
-            )
-        }
-    }
-
     private fun renderLocalPaymentReceiveTarget(target: NativeWalletPaymentReceiveTarget) {
         localPaymentReceiveTarget = target
         paymentReceiveView.text = localPaymentReceiveText(target)
@@ -9963,26 +9863,6 @@ class WalletActivity : ComponentActivity() {
             target.display,
             target.derivationIndex,
         )
-
-    private fun walletNameSummary(name: NativeWalletName): String {
-        val state = listOfNotNull(
-            walletReadCodeLabel(name.ownershipStatus),
-            walletReadCodeLabel(name.resourceStatus),
-            name.registered?.let { registered ->
-                getString(
-                    if (registered) R.string.wallet_reads_name_registered
-                    else R.string.wallet_reads_name_not_registered,
-                )
-            },
-        ).joinToString(" · ")
-        return getString(
-            R.string.wallet_reads_name,
-            displayHandshakeNameText(name.name),
-            name.proofHeight,
-            state,
-            name.nameHash,
-        )
-    }
 
     private fun appendRemainingCount(entries: String, remaining: Int): String =
         if (remaining <= 0) entries else "$entries\n\n${getString(R.string.wallet_reads_more, remaining)}"
