@@ -1389,7 +1389,7 @@
     <string name="wallet_ux_connect_help" translatable="false">Connect to a peer to browse and publish offers. Your saved offers and swaps stay in this wallet.</string>
     <string name="wallet_ux_connected_help" translatable="false">Connected to an offer peer. Browse offers or choose what to sell.</string>
     <string name="wallet_ux_busy" translatable="false">Another wallet operation is running. Actions will become available when it finishes.</string>
-    <string name="wallet_ux_coin_offers" translatable="false">Coin offers</string>
+    <string name="wallet_ux_coin_offers" translatable="false">Create coin offer</string>
     <string name="wallet_ux_name_market" translatable="false">Name marketplace</string>
     <string name="wallet_ux_manage_offers" translatable="false">Manage offers and sessions</string>
     <string name="wallet_ux_bitcoin_setup_trade" translatable="false">Set up Bitcoin before creating a coin offer.</string>
@@ -1398,4 +1398,5 @@
     <string name="wallet_ux_done" translatable="false">Done</string>
     <string name="wallet_ux_sync_progress" translatable="false">Syncing Bitcoin · %1$d%%</string>
     <string name="wallet_ux_bitcoin" translatable="false">Bitcoin</string>
+    <string name="wallet_ux_offer_query" translatable="false">Advanced offer search</string>
 </resources>

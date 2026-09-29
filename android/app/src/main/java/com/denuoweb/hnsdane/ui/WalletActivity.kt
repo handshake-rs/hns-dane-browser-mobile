@@ -1209,7 +1209,7 @@ class WalletActivity : ComponentActivity() {
             background = settingsSurfaceDrawable(accent = themeColors().action)
             setPadding(uiDp(16), uiDp(15), uiDp(16), uiDp(14))
             addView(TextView(this@WalletActivity).apply {
-                text = getString(R.string.wallet_dashboard_hns_balance) + " · " + walletNetwork.displayName(this)
+                text = getString(R.string.wallet_dashboard_hns_balance) + " · " + walletNetwork.displayName(this@WalletActivity)
                 textSize = 12f
                 typeface = Typeface.DEFAULT_BOLD
                 letterSpacing = 0.08f
@@ -2312,9 +2312,13 @@ class WalletActivity : ComponentActivity() {
                 ))
                 add(WalletModalAction(
                     getString(R.string.wallet_dashboard_send_bitcoin),
-                    available && stage == BitcoinOverviewStage.Sync && (bitcoinSnapshot?.confirmedSats ?: 0) > 0,
+                    available && stage == BitcoinOverviewStage.Sync &&
+                        (bitcoinSnapshot?.totalSats ?: 0) > (bitcoinSnapshot?.immatureSats ?: 0),
                     ::showBitcoinSendForm,
                 ))
+                if (stage == BitcoinOverviewStage.Sync && (bitcoinSnapshot?.synchronizedHeight ?: 0) > 0) {
+                    add(removeAt(0)) // Everyday payments first; manual refresh follows.
+                }
             }
             listOf(
                 WalletModalActionSection(getString(R.string.wallet_modal_actions), main),
@@ -2595,10 +2599,13 @@ class WalletActivity : ComponentActivity() {
             rows = listOf(getString(R.string.wallet_ux_overview) to getString(R.string.wallet_name_actions_description)),
             actionSections = listOf(
                 WalletModalActionSection(getString(R.string.wallet_swap_name_actions), listOf(
-                    WalletModalAction(getString(R.string.row_wallet_list_offers), paired, ::showListOffersForm, primary = true),
+                    WalletModalAction(getString(R.string.row_wallet_list_offers), paired, {
+                        queryWalletShakedex(NativeShakedexQuery.ListOffers(null, DEFAULT_OFFER_PAGE_SIZE))
+                    }, primary = true),
                     WalletModalAction(getString(R.string.row_wallet_create_offer), paired, ::showCreateOfferForm),
                 )),
                 WalletModalActionSection(getString(R.string.wallet_ux_manage_offers), listOf(
+                    WalletModalAction(getString(R.string.wallet_ux_offer_query), paired, ::showListOffersForm),
                     WalletModalAction(getString(R.string.wallet_swap_cancel_offer), action = ::showCancelOfferForm),
                     WalletModalAction(getString(R.string.row_wallet_recover_name), action = ::showRecoverNameForm),
                     WalletModalAction(getString(R.string.row_wallet_get_session), action = ::showGetSessionForm),

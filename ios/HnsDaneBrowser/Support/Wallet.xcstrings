@@ -76184,7 +76184,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Coin offers"
+            "value": "Create coin offer"
           }
         }
       }
@@ -76394,6 +76394,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Generate a new address"
+          }
+        }
+      }
+    },
+    "wallet_ux_offer_query": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Advanced offer search"
           }
         }
       }

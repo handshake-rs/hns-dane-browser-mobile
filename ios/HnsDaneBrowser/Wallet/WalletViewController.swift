@@ -1483,8 +1483,12 @@ final class WalletViewController: UIViewController {
         })
         actions.append(WalletMenuAction(
             title: WalletCopy.text("wallet_dashboard_send_bitcoin"),
-            enabled: available && bitcoinStage == .sync && (bitcoinSnapshot?.confirmedSats ?? 0) > 0
+            enabled: available && bitcoinStage == .sync &&
+                (bitcoinSnapshot?.totalSats ?? 0) > (bitcoinSnapshot?.immatureSats ?? 0)
         ) { [weak self] in self?.showBitcoinSendForm() })
+        if bitcoinStage == .sync && (bitcoinSnapshot?.synchronizedHeight ?? 0) > 0 {
+            actions.append(actions.removeFirst())
+        }
         actions.append(WalletMenuAction(
             title: WalletCopy.text("wallet_bitcoin_recent_activity"),
             section: WalletCopy.text("wallet_ux_details"), enabled: available
@@ -4288,6 +4292,8 @@ final class WalletViewController: UIViewController {
                 lines.append(shakescapeExecutionStage(execution))
             } else if !status.pendingAcceptances.isEmpty || !status.pendingOfferResponses.isEmpty {
                 lines.append(WalletCopy.text("wallet_dashboard_swap_negotiating"))
+            } else if let latest = status.executions.max(by: { $0.lastVerifiedAtUnix < $1.lastVerifiedAtUnix }) {
+                lines.append(shakescapeExecutionStage(latest))
             }
         }
         if lines.isEmpty {
@@ -4371,10 +4377,13 @@ final class WalletViewController: UIViewController {
         let paired = directShakescapeStatusSnapshot?.peerEndpoint != nil
         presentWalletMenu(title: WalletCopy.text("wallet_ux_name_market"), rows: [], actions: [
             WalletMenuAction(title: WalletCopy.text("row_wallet_list_offers"), enabled: paired, primary: true) {
-                [weak self] in self?.showListOffersForm()
+                [weak self] in self?.beginShakedexQuery(.listOffers(cursor: nil, limit: 32))
             },
             WalletMenuAction(title: WalletCopy.text("row_wallet_create_offer"), enabled: paired) {
                 [weak self] in self?.showCreateOfferForm()
+            },
+            WalletMenuAction(title: WalletCopy.text("wallet_ux_offer_query"), section: WalletCopy.text("wallet_ux_manage_offers"), enabled: paired) {
+                [weak self] in self?.showListOffersForm()
             },
             WalletMenuAction(title: WalletCopy.text("wallet_swap_cancel_offer"), section: WalletCopy.text("wallet_ux_manage_offers")) {
                 [weak self] in self?.showCancelOfferForm()
@@ -5005,7 +5014,6 @@ final class WalletViewController: UIViewController {
                     // the local funding countdown advances while the app is
                     // open. Notification fingerprints use semantic buckets,
                     // so this does not create minute-by-minute alerts.
-                    self.publishShakescapeExecutionStatus(executions)
                     if previous != executions {
                         self.renderWalletDashboard()
                     }
@@ -5119,38 +5127,6 @@ final class WalletViewController: UIViewController {
         lastAutomaticSwapBitcoinSyncAtUptime = now
         startBitcoinSynchronization()
         return bitcoinSyncInProgress
-    }
-
-    private func publishShakescapeExecutionStatus(_ status: NativeShakescapeExecutionStatus) {
-        let terminal: Set<String> = ["completed", "refunded", "failed"]
-        if let execution = status.executions
-            .filter({ !terminal.contains($0.state) })
-            .max(by: { $0.lastVerifiedAtUnix < $1.lastVerifiedAtUnix }) {
-            swapActionStatusLabel.text = WalletCopy.format(
-                "wallet_swap_notification_stage",
-                shakescapeExecutionStage(execution),
-                String(execution.sessionId.prefix(12))
-            )
-        } else if let offer = status.pendingOfferResponses.max(by: {
-            $0.createdAtUnix < $1.createdAtUnix
-        }) {
-            swapActionStatusLabel.text = WalletCopy.format(
-                "wallet_swap_notification_offer_accepted_detail",
-                String(offer.sessionId.prefix(12))
-            )
-        } else if let pending = status.pendingAcceptances.max(by: {
-            $0.createdAtUnix < $1.createdAtUnix
-        }) {
-            swapActionStatusLabel.text = pendingAcceptanceStage(pending)
-        } else if let latest = status.executions.max(by: {
-            $0.lastVerifiedAtUnix < $1.lastVerifiedAtUnix
-        }) {
-            swapActionStatusLabel.text = WalletCopy.format(
-                "wallet_swap_notification_stage",
-                shakescapeExecutionStage(latest),
-                String(latest.sessionId.prefix(12))
-            )
-        }
     }
 
     private func shakescapeExecutionStage(
