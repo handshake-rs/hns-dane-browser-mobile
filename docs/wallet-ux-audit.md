@@ -19,6 +19,12 @@ source audit; installed-device validation is recorded separately below.
 | Open sheets capture action availability once. | Sync/stop/setup controls become stale while status text updates. | Refresh overview action availability alongside live status without recreating unchanged controls. |
 | Long status is truncated in two-column home tiles. | Actionable progress is hidden behind ellipses. | Use full-width feature rows with concise summaries. |
 
+The device-review follow-up also found that Create wallet looked actionable
+while browser sync was still establishing a verified birthday. Create is now
+disabled until that prerequisite is satisfied, its copy explicitly describes
+the wait, and failed network checks have a separate Retry network check action.
+Restore remains a distinct option.
+
 ## Preservation requirements
 
 - Keep every existing operation reachable, including detailed balances, raw

@@ -759,9 +759,8 @@
     <string name="wallet_dashboard_get_started" translatable="false">Get started</string>
     <string name="wallet_dashboard_create_summary" translatable="false">Create a self-custodied Handshake wallet</string>
     <string name="wallet_dashboard_create_ready" translatable="false">Ready at block %1$d.</string>
-    <string name="wallet_dashboard_create_sync_progress" translatable="false">Checking network: block %1$d of %2$d. You can restore now.</string>
-    <string name="wallet_dashboard_create_sync_waiting" translatable="false">Checking the Handshake network. You can restore now.</string>
-    <string name="wallet_dashboard_create_sync_attention" translatable="false">Network check needs attention. Tap Create to retry, or restore a wallet.</string>
+    <string name="wallet_dashboard_create_sync_progress" translatable="false">Waiting for browser sync before wallet creation: block %1$d of %2$d.</string>
+    <string name="wallet_dashboard_create_sync_attention" translatable="false">Browser sync needs attention before wallet creation. Retry the network check.</string>
     <string name="wallet_dashboard_restore_summary" translatable="false">Restore a 24-word wallet</string>
     <string name="wallet_dashboard_restore_dialog_summary" translatable="false">Enter the complete 24-word recovery phrase and, if known, the earliest HNS block that can contain wallet activity.</string>
     <string name="wallet_dashboard_recovery_phrase" translatable="false">RECOVERY PHRASE</string>
@@ -1359,6 +1358,8 @@
     <string name="proof_markdown_dnssec_title"># DNSSEC Details</string>
     <string name="proof_markdown_hns_title"># HNS Proof Details</string>
     <!-- Shared UX copy: English fallback until the next reviewed translation cohort. -->
+    <string name="wallet_ux_create_waiting" translatable="false">Wallet creation is waiting for browser sync to finish.</string>
+    <string name="wallet_ux_retry_network" translatable="false">Retry network check</string>
     <string name="wallet_ux_overview" translatable="false">Overview</string>
     <string name="wallet_ux_details" translatable="false">Details and diagnostics</string>
     <string name="wallet_ux_wallet_settings" translatable="false">Wallet settings</string>

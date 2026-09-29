@@ -76233,6 +76233,17 @@
         }
       }
     },
+    "wallet_ux_create_waiting": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wallet creation is waiting for browser sync to finish."
+          }
+        }
+      }
+    },
     "wallet_ux_details": {
       "extractionState": "manual",
       "localizations": {
@@ -76471,6 +76482,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Choose recovery start"
+          }
+        }
+      }
+    },
+    "wallet_ux_retry_network": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retry network check"
           }
         }
       }

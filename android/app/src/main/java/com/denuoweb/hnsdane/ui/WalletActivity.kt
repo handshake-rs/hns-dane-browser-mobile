@@ -971,7 +971,14 @@ class WalletActivity : ComponentActivity() {
                 } else {
                     newWalletCreationProgressSummary()
                 },
-            ) { createWallet() }.disabledWhenWalletHandoff(busy))
+            ) { createWallet() }.disabledWhenWalletHandoff(busy || creationBirthday == null))
+            if (creationBirthday == null && latestObservedBrowserSyncProgress?.requiresAttention == true) {
+                addSettingsRow(actionRow(
+                    title = getString(R.string.wallet_ux_retry_network),
+                ) {
+                    (application as? HnsDaneApplication)?.requestForegroundSyncRefresh()
+                }.disabledWhenWalletHandoff(busy))
+            }
             addSettingsRow(navRow(
                 title = getString(R.string.row_wallet_restore),
                 summary = getString(R.string.wallet_dashboard_restore_summary),
@@ -9727,14 +9734,14 @@ class WalletActivity : ComponentActivity() {
         val progress = latestObservedBrowserSyncProgress
         val heights = progress?.gateHeights()
         return when {
+            progress?.requiresAttention == true ->
+                getString(R.string.wallet_dashboard_create_sync_attention)
             heights?.current != null && heights.target != null -> getString(
                 R.string.wallet_dashboard_create_sync_progress,
                 heights.current,
                 heights.target,
             )
-            progress?.requiresAttention == true ->
-                getString(R.string.wallet_dashboard_create_sync_attention)
-            else -> getString(R.string.wallet_dashboard_create_sync_waiting)
+            else -> getString(R.string.wallet_ux_create_waiting)
         }
     }
 

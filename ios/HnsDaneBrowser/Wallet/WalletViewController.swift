@@ -1170,6 +1170,13 @@ final class WalletViewController: UIViewController {
 
     private func renderNoWalletDashboard() {
         let creationHeight = currentAuthenticatedNewWalletBirthdayHeight()
+        var creationActions: [UIView] = [createButton, restoreButton]
+        if creationHeight == nil && latestObservedBrowserSyncSummary?.requiresRetry == true {
+            creationActions.append(dashboardButton(
+                title: WalletCopy.text("wallet_ux_retry_network"),
+                action: #selector(retryWalletCreationNetworkCheck), enabled: !isOperating
+            ))
+        }
         dashboardStack.addArrangedSubview(dashboardCard(
             title: isOperating ? "● WORKING · \(network.title)" : "NO WALLET · \(network.title)",
             body: walletStatusBody([statusLabel, accountLabel]),
@@ -1180,8 +1187,8 @@ final class WalletViewController: UIViewController {
                 WalletCopy.format("wallet_status_ready_to_create",
                     Int($0)
                 )
-            } ?? WalletCopy.text("wallet_status_waiting_for_initial_sync"),
-            body: [createButton, restoreButton]
+            } ?? WalletCopy.text("wallet_ux_create_waiting"),
+            body: creationActions
         ))
     }
 
@@ -5836,6 +5843,10 @@ final class WalletViewController: UIViewController {
         )
     }
 
+    @objc private func retryWalletCreationNetworkCheck() {
+        browserProcess?.syncNow { [weak self] _ in self?.refreshState() }
+    }
+
     @objc private func createWallet() {
         guard currentAuthenticatedNewWalletBirthdayHeight() != nil else {
             newWalletCreationRequested = true
@@ -7955,7 +7966,8 @@ final class WalletViewController: UIViewController {
         let ownsStorage = storageLease != nil
         let hasWallet = wallet != nil
         let hasIncompleteWallet = unconfirmedDatabaseKey != nil
-        createButton.isEnabled = ownsStorage && protectedStorageIsAvailable && !hasWallet && !persistentWalletExists && !isOperating
+        createButton.isEnabled = ownsStorage && protectedStorageIsAvailable && !hasWallet &&
+            !persistentWalletExists && !isOperating && currentAuthenticatedNewWalletBirthdayHeight() != nil
         restoreButton.isEnabled = ownsStorage && protectedStorageIsAvailable && !hasWallet && !persistentWalletExists && !isOperating
         openButton.isEnabled = ownsStorage && protectedStorageIsAvailable && !hasIncompleteWallet && (hasWallet || persistentWalletExists) && !isOperating
         lockButton.isEnabled = ownsStorage && protectedStorageIsAvailable && hasWallet &&
