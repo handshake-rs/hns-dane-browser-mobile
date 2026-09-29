@@ -1731,7 +1731,14 @@ class WalletActivity : ComponentActivity() {
 
     private fun showNamesDashboard() {
         if (latestReadSnapshot == null) {
-            Toast.makeText(this, R.string.wallet_dashboard_sync_required, Toast.LENGTH_SHORT).show()
+            showWalletOverview(
+                title = getString(R.string.wallet_dashboard_names),
+                summary = { getString(R.string.wallet_dashboard_sync_required) },
+                sections = { listOf(WalletModalActionSection(getString(R.string.wallet_modal_actions), listOf(
+                    WalletModalAction(getString(R.string.wallet_dashboard_sync), overviewActionsAvailable(),
+                        ::synchronizeWalletReads, dismissParent = true, primary = true),
+                ))) },
+            )
             return
         }
         showingNamesPage = true
@@ -2005,6 +2012,12 @@ class WalletActivity : ComponentActivity() {
             setTextColor(themeColors().secondaryText)
             setPadding(0, 0, 0, uiDp(5))
         })
+        if (total == 0) {
+            namesGalleryFooter.addView(dashboardActionButton(getString(R.string.wallet_ux_add_names)) {
+                showNameActionMenu()
+            }.disabledWhenWalletHandoff(!actionsAvailable))
+            return
+        }
         namesGalleryFooter.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             fun galleryButton(
@@ -2012,7 +2025,7 @@ class WalletActivity : ComponentActivity() {
                 secondary: Boolean = false,
                 action: () -> Unit,
             ) = dashboardActionButton(label, secondary, action).apply {
-                textSize = 9.5f
+                textSize = 12f
                 setPadding(uiDp(2), uiDp(6), uiDp(2), uiDp(6))
             }
             fun buttonLayout(first: Boolean = false) = LinearLayout.LayoutParams(
@@ -2175,24 +2188,53 @@ class WalletActivity : ComponentActivity() {
         )
     }
 
-    private fun showNameActionMenu() {
-        walletDetailDialog(
-            title = getString(R.string.wallet_dashboard_name_actions),
-            rows = listOf(
-                getString(R.string.wallet_modal_details) to
-                    getString(R.string.wallet_name_actions_description),
-                getString(R.string.row_wallet_name_import) to nameImportStatusView.text.toString(),
-            ),
-            actions = listOf(
-                getString(R.string.action_import_wallet_name) to ::showNameImportDialog,
-                getString(R.string.action_import_multiple_wallet_names) to ::showMultipleNameImportDialog,
-                getString(R.string.row_wallet_transfer_name) to ::showTransferNameForm,
-                getString(R.string.row_wallet_finalize_name) to ::showFinalizeNameForm,
-                getString(R.string.row_wallet_set_records) to ::showSetNameRecordsForm,
-            ),
-            dismissOnAction = false,
-        )
-    }
+    private fun selectedNameForAction(): String = if (showingNamesPage) {
+        loadedTrackedNames.getOrNull(selectedTrackedNameIndex - trackedNamePageOffset)?.name.orEmpty()
+    } else ""
+
+    private fun showNameActionMenu() = showWalletOverview(
+        title = getString(R.string.wallet_ux_manage_names),
+        summary = {
+            buildList {
+                add(namesSummary())
+                selectedNameForAction().takeIf { it.isNotBlank() }?.let { add(it) }
+                if (!overviewActionsAvailable()) add(getString(R.string.wallet_ux_busy))
+                if (nameImportStatusView.text.toString() != getString(R.string.wallet_name_import_ready)) {
+                    add(nameImportStatusView.text.toString())
+                }
+            }.joinToString("\n\n")
+        },
+        sections = {
+            val available = overviewActionsAvailable() && latestReadSnapshot != null
+            buildList {
+                add(WalletModalActionSection(getString(R.string.wallet_ux_add_names), listOf(
+                    WalletModalAction(getString(R.string.action_import_wallet_name), available,
+                        ::showNameImportDialog, primary = latestReadSnapshot?.trackedNameCount == 0),
+                    WalletModalAction(getString(R.string.action_import_multiple_wallet_names), available,
+                        ::showMultipleNameImportDialog),
+                )))
+                if (!latestReadSnapshot?.finalizeNotices.isNullOrEmpty()) add(WalletModalActionSection(
+                    getString(R.string.wallet_dashboard_finalize_notice), listOf(
+                        WalletModalAction(getString(R.string.wallet_dashboard_finalize_notice), action = ::showNameTransferProgress),
+                    ),
+                ))
+                add(WalletModalActionSection(getString(R.string.wallet_ux_manage_names), listOf(
+                    WalletModalAction(getString(R.string.row_wallet_transfer_name), available, ::showTransferNameForm),
+                    WalletModalAction(getString(R.string.row_wallet_finalize_name), available, ::showFinalizeNameForm),
+                    WalletModalAction(getString(R.string.row_wallet_set_records), available, ::showSetNameRecordsForm),
+                )))
+            }
+        },
+    )
+
+    private fun showNameTransferProgress() = walletDetailDialog(
+        title = getString(R.string.wallet_dashboard_finalize_notice),
+        rows = latestReadSnapshot?.finalizeNotices.orEmpty().map { it.name to formatFinalizeNotice(it) },
+        actionSections = listOf(WalletModalActionSection(getString(R.string.wallet_modal_actions), listOf(
+            WalletModalAction(getString(R.string.row_wallet_finalize_name), overviewActionsAvailable(), ::showFinalizeNameForm),
+        ))),
+        dismissOnAction = false,
+    )
 
     private fun bitcoinStage(): BitcoinOverviewStage = bitcoinOverviewStage(
         bitcoinSnapshot?.birthdayState, walletBitcoinSyncInProgress,
@@ -6843,7 +6885,7 @@ class WalletActivity : ComponentActivity() {
     private fun showTransferNameForm() = showWalletActionForm(
         R.string.row_wallet_transfer_name,
         listOf(
-            WalletActionInput(R.string.wallet_action_name_hint),
+            WalletActionInput(R.string.wallet_action_name_hint, initial = selectedNameForAction()),
             WalletActionInput(R.string.wallet_action_recipient_hint),
             WalletActionInput(
                 R.string.wallet_action_maximum_fee_hint,
@@ -6862,7 +6904,7 @@ class WalletActivity : ComponentActivity() {
     private fun showFinalizeNameForm() = showWalletActionForm(
         R.string.row_wallet_finalize_name,
         listOf(
-            WalletActionInput(R.string.wallet_action_name_hint),
+            WalletActionInput(R.string.wallet_action_name_hint, initial = selectedNameForAction()),
             WalletActionInput(R.string.wallet_action_expected_recipient_hint),
             WalletActionInput(
                 R.string.wallet_action_maximum_fee_hint,
@@ -6885,7 +6927,7 @@ class WalletActivity : ComponentActivity() {
     private fun showSetNameRecordsForm() = showWalletActionForm(
         R.string.row_wallet_set_records,
         listOf(
-            WalletActionInput(R.string.wallet_action_name_hint),
+            WalletActionInput(R.string.wallet_action_name_hint, initial = selectedNameForAction()),
             WalletActionInput(
                 R.string.wallet_action_resource_records_hint,
                 multiline = true,

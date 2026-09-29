@@ -4117,7 +4117,11 @@ final class WalletViewController: UIViewController {
 
     private func showNamesDashboard() {
         guard let snapshot = latestReadSnapshot else {
-            showErrorMessage(WalletCopy.text("wallet_reads_names_unavailable"))
+            presentWalletMenu(title: WalletCopy.text("wallet_dashboard_names"), rows: [
+                WalletMenuRow(title: WalletCopy.text("wallet_ux_overview"), detail: WalletCopy.text("wallet_dashboard_sync_required")),
+            ], actions: [WalletMenuAction(title: WalletCopy.text("wallet_dashboard_sync"),
+                enabled: synchronizeButton.isEnabled, primary: true
+            ) { [weak self] in self?.synchronizeWalletReadsFromUserAction() }])
             return
         }
         let gallery = WalletNamesGalleryViewController(
@@ -4187,33 +4191,7 @@ final class WalletViewController: UIViewController {
         }
     }
 
-    private func showTrackedNameOptionsMenu() {
-        guard walletCanPresentChild else { return }
-        var actions: [WalletMenuAction] = []
-        if importNameButton.isEnabled {
-            actions.append(WalletMenuAction(title: WalletCopy.text("row_wallet_name_import")) { [weak self] in
-                self?.requestExactHnsNameImport()
-            })
-            actions.append(WalletMenuAction(title: WalletCopy.text("action_import_multiple_wallet_names")) { [weak self] in
-                self?.requestMultipleHnsNameImport()
-            })
-        }
-        if hnsValueActionMayStart {
-            actions.append(WalletMenuAction(title: WalletCopy.text("wallet_dashboard_name_actions")) { [weak self] in
-                self?.showNameActionMenu()
-            })
-        }
-        presentWalletMenu(
-            title: WalletCopy.text("wallet_name_options"),
-            rows: [WalletMenuRow(
-                title: WalletCopy.text("row_wallet_read_names"),
-                detail: nameImportStatusLabel.text
-                    ?? WalletCopy.text("wallet_name_import_unavailable")
-            )],
-            actions: actions,
-            retainForChildActions: true
-        )
-    }
+    private func showTrackedNameOptionsMenu() { showNameActionMenu() }
 
     private var hnsValueActionMayStart: Bool {
         !isOperating &&
@@ -4229,21 +4207,61 @@ final class WalletViewController: UIViewController {
         hnsValueActionMayStart && shakedexAvailable
     }
 
+    private func nameOverviewActions() -> [WalletMenuAction] {
+        var actions: [WalletMenuAction] = [
+            WalletMenuAction(title: WalletCopy.text("row_wallet_name_import"),
+                section: WalletCopy.text("wallet_ux_add_names"), enabled: importNameButton.isEnabled,
+                primary: latestReadSnapshot?.knownNameCount == 0
+            ) { [weak self] in self?.requestExactHnsNameImport() },
+            WalletMenuAction(title: WalletCopy.text("action_import_multiple_wallet_names"),
+                section: WalletCopy.text("wallet_ux_add_names"), enabled: importNameButton.isEnabled
+            ) { [weak self] in self?.requestMultipleHnsNameImport() },
+        ]
+        if !finalizeNotices.isEmpty {
+            actions.append(WalletMenuAction(title: WalletCopy.text("wallet_dashboard_finalize_notice")) {
+                [weak self] in self?.showNameTransferProgress()
+            })
+        }
+        let available = hnsValueActionMayStart && !bitcoinSyncInProgress
+        actions += [
+            WalletMenuAction(title: WalletCopy.text("row_wallet_transfer_name"),
+                section: WalletCopy.text("wallet_ux_manage_names"), enabled: available
+            ) { [weak self] in self?.showTransferNameForm() },
+            WalletMenuAction(title: WalletCopy.text("row_wallet_finalize_name"),
+                section: WalletCopy.text("wallet_ux_manage_names"), enabled: available
+            ) { [weak self] in self?.showFinalizeNameForm() },
+            WalletMenuAction(title: WalletCopy.text("row_wallet_set_records"),
+                section: WalletCopy.text("wallet_ux_manage_names"), enabled: available
+            ) { [weak self] in self?.showSetNameRecordsForm() },
+        ]
+        return actions
+    }
+
+    private func nameOverviewSummary() -> String {
+        var lines = [namesGalleryViewController?.selectedNameForAction ?? WalletCopy.text("wallet_ux_names_empty")]
+        if isOperating || bitcoinSyncInProgress { lines.append(WalletCopy.text("wallet_ux_busy")) }
+        if let update = nameImportStatusLabel.text,
+           update != WalletCopy.text("wallet_name_import_ready") { lines.append(update) }
+        return lines.joined(separator: "\n\n")
+    }
+
     private func showNameActionMenu() {
-        guard hnsValueActionMayStart, walletCanPresentChild else { return }
+        guard walletCanPresentChild else { return }
         presentWalletMenu(
-            title: WalletCopy.text("wallet_dashboard_name_actions"),
-            rows: [WalletMenuRow(
-                title: WalletCopy.text("wallet_name_action_status_heading"),
-                detail: WalletCopy.text("wallet_name_actions_description")
-            )],
-            actions: [
-                WalletMenuAction(title: WalletCopy.text("row_wallet_transfer_name")) { [weak self] in self?.showTransferNameForm() },
-                WalletMenuAction(title: WalletCopy.text("row_wallet_finalize_name")) { [weak self] in self?.showFinalizeNameForm() },
-                WalletMenuAction(title: WalletCopy.text("row_wallet_set_records")) { [weak self] in self?.showSetNameRecordsForm() },
-            ],
-            retainForChildActions: true
+            title: WalletCopy.text("wallet_ux_manage_names"),
+            rows: [WalletMenuRow(title: WalletCopy.text("wallet_ux_overview"), detail: nameOverviewSummary(),
+                liveDetail: { [weak self] in self?.nameOverviewSummary() ?? "" })],
+            actions: nameOverviewActions(), retainForChildActions: true,
+            liveActions: { [weak self] in self?.nameOverviewActions() ?? [] }
         )
+    }
+
+    private func showNameTransferProgress() {
+        presentWalletMenu(title: WalletCopy.text("wallet_dashboard_finalize_notice"),
+            rows: finalizeNotices.map { WalletMenuRow(title: $0.name, detail: formatFinalizeNotice($0)) },
+            actions: [WalletMenuAction(title: WalletCopy.text("row_wallet_finalize_name"), enabled: hnsValueActionMayStart) {
+                [weak self] in self?.showFinalizeNameForm()
+            }], retainForChildActions: true)
     }
 
     private func shakedexOverviewSummary(includeHelp: Bool = true) -> String {
@@ -4536,7 +4554,7 @@ final class WalletViewController: UIViewController {
         collectHnsValueForm(
             title: WalletCopy.text("row_wallet_transfer_name"),
             fields: [
-                .init(label: WalletCopy.text("wallet_action_name_hint"), placeholder: WalletCopy.text("wallet_name_search_hint")),
+                .init(label: WalletCopy.text("wallet_action_name_hint"), placeholder: WalletCopy.text("wallet_name_search_hint"), initialValue: namesGalleryViewController?.selectedNameForAction),
                 .init(label: WalletCopy.text("wallet_action_recipient_hint"), placeholder: WalletCopy.text("wallet_send_recipient_label")),
                 .init(
                     label: WalletCopy.text("wallet_action_maximum_fee_hint"),
@@ -4562,7 +4580,7 @@ final class WalletViewController: UIViewController {
         collectHnsValueForm(
             title: WalletCopy.text("row_wallet_finalize_name"),
             fields: [
-                .init(label: WalletCopy.text("wallet_action_name_hint"), placeholder: WalletCopy.text("wallet_name_search_hint")),
+                .init(label: WalletCopy.text("wallet_action_name_hint"), placeholder: WalletCopy.text("wallet_name_search_hint"), initialValue: namesGalleryViewController?.selectedNameForAction),
                 .init(label: WalletCopy.text("wallet_action_expected_recipient_hint"), placeholder: WalletCopy.text("wallet_send_recipient_label")),
                 .init(
                     label: WalletCopy.text("wallet_action_maximum_fee_hint"),
@@ -4590,7 +4608,7 @@ final class WalletViewController: UIViewController {
 
     private func showSetNameRecordsForm() {
         guard walletCanPresentChild else { return }
-        let editor = NameRecordsEditorViewController { [weak self] name, records, feeText in
+        let editor = NameRecordsEditorViewController(initialName: namesGalleryViewController?.selectedNameForAction) { [weak self] name, records, feeText in
             guard let self,
                   let fee = Self.positiveHnsBaseUnits(feeText) else {
                 self?.showErrorMessage(WalletCopy.text("wallet_value_actions_invalid"))
@@ -9995,13 +10013,15 @@ enum HandshakePaymentURI {
 private final class NameRecordsEditorViewController: UIViewController, UITextViewDelegate {
     private static let maximumEditorCharacters = 4_096
 
+    private let initialName: String?
     private let onReview: (String, String, String) -> Void
     private let nameField = UITextField()
     private let recordsView = UITextView()
     private let feeField = UITextField()
     private let characterCountLabel = UILabel()
 
-    init(onReview: @escaping (String, String, String) -> Void) {
+    init(initialName: String? = nil, onReview: @escaping (String, String, String) -> Void) {
+        self.initialName = initialName
         self.onReview = onReview
         super.init(nibName: nil, bundle: nil)
     }
@@ -10030,6 +10050,7 @@ private final class NameRecordsEditorViewController: UIViewController, UITextVie
             placeholder: WalletCopy.text("wallet_action_name_hint"),
             keyboard: .asciiCapable
         )
+        nameField.text = initialName
         nameField.accessibilityIdentifier = "wallet.name-records.name"
         configure(
             feeField,

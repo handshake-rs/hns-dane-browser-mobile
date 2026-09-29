@@ -11,6 +11,9 @@ final class WalletNamesGalleryViewController: UIViewController,
     private var snapshotHeight: UInt64
     private var actionsAvailable: Bool
     private var selectedIndex = 0
+    var selectedNameForAction: String? {
+        names.indices.contains(selectedIndex) ? names[selectedIndex].name : nil
+    }
 
     private let searchContainer = UIView()
     private let searchField = UISearchTextField()
@@ -189,12 +192,12 @@ final class WalletNamesGalleryViewController: UIViewController,
         var configuration = UIButton.Configuration.tinted()
         configuration.title = title
         configuration.cornerStyle = .large
-        configuration.baseForegroundColor = primary ? .systemTeal : .systemIndigo
+        configuration.baseForegroundColor = primary ? .systemCyan : .label
         configuration.baseBackgroundColor = UIColor.clear
         configuration.contentInsets = NSDirectionalEdgeInsets(top: 5, leading: 2, bottom: 5, trailing: 2)
         button.configuration = configuration
         let titleFont = AppAccessibility.scaledSystemFont(
-            size: 10,
+            size: 12,
             weight: .bold,
             textStyle: .caption1
         )
@@ -208,7 +211,7 @@ final class WalletNamesGalleryViewController: UIViewController,
         button.titleLabel?.adjustsFontForContentSizeCategory = true
         button.titleLabel?.numberOfLines = 0
         button.layer.borderWidth = 1
-        button.layer.borderColor = (primary ? UIColor.systemTeal : UIColor.systemIndigo).cgColor
+        button.layer.borderColor = (primary ? UIColor.systemCyan : UIColor.separator).cgColor
         button.layer.cornerRadius = 14
         button.addTarget(self, action: action, for: .touchUpInside)
     }
@@ -238,6 +241,10 @@ final class WalletNamesGalleryViewController: UIViewController,
         nextButton.isEnabled = actionsAvailable && selectedIndex + 1 < names.count
         searchButton.isEnabled = actionsAvailable && !names.isEmpty
         optionsButton.isEnabled = actionsAvailable
+        optionsButton.configuration?.title = WalletCopy.text(names.isEmpty ? "wallet_ux_add_names" : "wallet_name_options")
+        previousButton.isHidden = names.isEmpty
+        nextButton.isHidden = names.isEmpty
+        searchButton.isHidden = names.isEmpty
         positionLabel.accessibilityLabel = positionLabel.text
     }
 
