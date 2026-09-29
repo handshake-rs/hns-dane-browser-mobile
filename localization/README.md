@@ -5,11 +5,11 @@ The shortened English strings in
 Two source files select controlled localization cohorts and store a keyed
 translation for every selected message and supported locale:
 
-- `wallet-critical.json`: 71 onboarding and first-transaction strings.
-- `wallet-operations.json`: 543 synchronization, send, swap, deletion,
+- `wallet-critical.json`: 66 onboarding and first-transaction strings.
+- `wallet-operations.json`: 493 synchronization, send, swap, deletion,
   activity, and name-market strings.
 
-Together they project 614 canonical keys to English and 20 additional locale
+Together they project 559 canonical keys to English and 20 additional locale
 groups on both Android and iOS.
 
 Run the generator after changing canonical English, the selected key list, or

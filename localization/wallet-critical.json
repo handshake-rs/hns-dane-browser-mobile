@@ -1,10 +1,7 @@
 {
   "schema": 1,
   "keys": [
-    "action_create_wallet",
     "action_restore_wallet",
-    "action_unlock_wallet",
-    "action_saved_wallet_recovery",
     "action_sync_wallet_reads",
     "action_reject",
     "action_prepare",
@@ -12,8 +9,6 @@
     "row_wallet_restore",
     "row_wallet_recovery_confirm",
     "row_wallet_unlock",
-    "row_wallet_read_balance",
-    "row_wallet_read_receive",
     "row_wallet_pair_direct_shakescape",
     "row_wallet_pair_direct_shakescape_summary",
     "wallet_restore_phrase_hint",
@@ -75,10 +70,7 @@
   ],
   "translations": {
     "ar": {
-      "action_create_wallet": "إنشاء",
       "action_restore_wallet": "استعادة",
-      "action_unlock_wallet": "فتح القفل",
-      "action_saved_wallet_recovery": "حفظتها",
       "action_sync_wallet_reads": "مزامنة",
       "action_reject": "رفض",
       "action_prepare": "مراجعة",
@@ -86,8 +78,6 @@
       "row_wallet_restore": "استعادة محفظة",
       "row_wallet_recovery_confirm": "تأكيد النسخة الاحتياطية غير المتصلة",
       "row_wallet_unlock": "فتح القفل",
-      "row_wallet_read_balance": "الرصيد المؤكد القابل للإنفاق",
-      "row_wallet_read_receive": "عنوان استلام الدفعات",
       "row_wallet_pair_direct_shakescape": "الاتصال بنظير العرض",
       "row_wallet_pair_direct_shakescape_summary": "اتصل بمنشئ العرض. ستفتح عروضه تلقائيًا. لن تُنقل أي أموال.",
       "wallet_restore_phrase_hint": "عبارة الاسترداد المكونة من 24 كلمة",
@@ -148,10 +138,7 @@
       "wallet_swap_broadcast_hns_funding": "بث تمويل HNS"
     },
     "b+he": {
-      "action_create_wallet": "יצירה",
       "action_restore_wallet": "שחזור",
-      "action_unlock_wallet": "ביטול נעילה",
-      "action_saved_wallet_recovery": "שמרתי",
       "action_sync_wallet_reads": "סנכרון",
       "action_reject": "דחייה",
       "action_prepare": "בדיקה",
@@ -159,8 +146,6 @@
       "row_wallet_restore": "שחזור ארנק",
       "row_wallet_recovery_confirm": "אישור גיבוי לא מקוון",
       "row_wallet_unlock": "ביטול נעילה",
-      "row_wallet_read_balance": "יתרה מאושרת הזמינה להוצאה",
-      "row_wallet_read_receive": "כתובת לקבלת תשלום",
       "row_wallet_pair_direct_shakescape": "התחברות לעמית ההצעה",
       "row_wallet_pair_direct_shakescape_summary": "התחברו ליוצר ההצעה. ההצעות שלו ייפתחו אוטומטית. לא יועברו כספים.",
       "wallet_restore_phrase_hint": "ביטוי שחזור בן 24 מילים",
@@ -221,10 +206,7 @@
       "wallet_swap_broadcast_hns_funding": "שידור מימון HNS"
     },
     "b+id": {
-      "action_create_wallet": "Buat",
       "action_restore_wallet": "Pulihkan",
-      "action_unlock_wallet": "Buka kunci",
-      "action_saved_wallet_recovery": "Sudah saya simpan",
       "action_sync_wallet_reads": "Sinkronkan",
       "action_reject": "Tolak",
       "action_prepare": "Tinjau",
@@ -232,8 +214,6 @@
       "row_wallet_restore": "Pulihkan dompet",
       "row_wallet_recovery_confirm": "Konfirmasi cadangan offline",
       "row_wallet_unlock": "Buka kunci",
-      "row_wallet_read_balance": "Saldo terkonfirmasi yang dapat digunakan",
-      "row_wallet_read_receive": "Alamat penerimaan pembayaran",
       "row_wallet_pair_direct_shakescape": "Hubungkan ke rekan penawaran",
       "row_wallet_pair_direct_shakescape_summary": "Hubungkan ke pembuat penawaran. Penawarannya terbuka otomatis. Tidak ada dana yang dipindahkan.",
       "wallet_restore_phrase_hint": "Frasa pemulihan 24 kata",
@@ -294,10 +274,7 @@
       "wallet_swap_broadcast_hns_funding": "Siarkan pendanaan HNS"
     },
     "b+zh+Hans": {
-      "action_create_wallet": "创建",
       "action_restore_wallet": "恢复",
-      "action_unlock_wallet": "解锁",
-      "action_saved_wallet_recovery": "我已保存",
       "action_sync_wallet_reads": "同步",
       "action_reject": "拒绝",
       "action_prepare": "查看",
@@ -305,8 +282,6 @@
       "row_wallet_restore": "恢复钱包",
       "row_wallet_recovery_confirm": "确认离线备份",
       "row_wallet_unlock": "解锁",
-      "row_wallet_read_balance": "已确认可用余额",
-      "row_wallet_read_receive": "收款地址",
       "row_wallet_pair_direct_shakescape": "连接报价方",
       "row_wallet_pair_direct_shakescape_summary": "连接报价创建者。其报价会自动打开，不会转移任何资金。",
       "wallet_restore_phrase_hint": "24 个单词的恢复短语",
@@ -367,10 +342,7 @@
       "wallet_swap_broadcast_hns_funding": "广播 HNS 资金交易"
     },
     "b+zh+Hant": {
-      "action_create_wallet": "建立",
       "action_restore_wallet": "復原",
-      "action_unlock_wallet": "解鎖",
-      "action_saved_wallet_recovery": "我已儲存",
       "action_sync_wallet_reads": "同步",
       "action_reject": "拒絕",
       "action_prepare": "檢視",
@@ -378,8 +350,6 @@
       "row_wallet_restore": "復原錢包",
       "row_wallet_recovery_confirm": "確認離線備份",
       "row_wallet_unlock": "解鎖",
-      "row_wallet_read_balance": "已確認可用餘額",
-      "row_wallet_read_receive": "收款地址",
       "row_wallet_pair_direct_shakescape": "連線至報價方",
       "row_wallet_pair_direct_shakescape_summary": "連線至報價建立者。其報價會自動開啟，不會移動任何資金。",
       "wallet_restore_phrase_hint": "24 個單字的復原短語",
@@ -440,10 +410,7 @@
       "wallet_swap_broadcast_hns_funding": "廣播 HNS 資金交易"
     },
     "de": {
-      "action_create_wallet": "Erstellen",
       "action_restore_wallet": "Wiederherstellen",
-      "action_unlock_wallet": "Entsperren",
-      "action_saved_wallet_recovery": "Ich habe sie gespeichert",
       "action_sync_wallet_reads": "Synchronisieren",
       "action_reject": "Ablehnen",
       "action_prepare": "Prüfen",
@@ -451,8 +418,6 @@
       "row_wallet_restore": "Wallet wiederherstellen",
       "row_wallet_recovery_confirm": "Offline-Sicherung bestätigen",
       "row_wallet_unlock": "Entsperren",
-      "row_wallet_read_balance": "Bestätigtes verfügbares Guthaben",
-      "row_wallet_read_receive": "Empfangsadresse",
       "row_wallet_pair_direct_shakescape": "Mit Angebots-Peer verbinden",
       "row_wallet_pair_direct_shakescape_summary": "Mit dem Ersteller des Angebots verbinden. Seine Angebote werden automatisch geöffnet. Es werden keine Gelder übertragen.",
       "wallet_restore_phrase_hint": "Wiederherstellungsphrase mit 24 Wörtern",
@@ -513,10 +478,7 @@
       "wallet_swap_broadcast_hns_funding": "HNS-Finanzierung senden"
     },
     "es": {
-      "action_create_wallet": "Crear",
       "action_restore_wallet": "Restaurar",
-      "action_unlock_wallet": "Desbloquear",
-      "action_saved_wallet_recovery": "Ya la guardé",
       "action_sync_wallet_reads": "Sincronizar",
       "action_reject": "Rechazar",
       "action_prepare": "Revisar",
@@ -524,8 +486,6 @@
       "row_wallet_restore": "Restaurar cartera",
       "row_wallet_recovery_confirm": "Confirmar copia sin conexión",
       "row_wallet_unlock": "Desbloquear",
-      "row_wallet_read_balance": "Saldo confirmado disponible",
-      "row_wallet_read_receive": "Dirección de recepción",
       "row_wallet_pair_direct_shakescape": "Conectar con el par de la oferta",
       "row_wallet_pair_direct_shakescape_summary": "Conéctate con el creador de la oferta. Sus ofertas se abrirán automáticamente. No se moverán fondos.",
       "wallet_restore_phrase_hint": "Frase de recuperación de 24 palabras",
@@ -586,10 +546,7 @@
       "wallet_swap_broadcast_hns_funding": "Transmitir financiación HNS"
     },
     "fr": {
-      "action_create_wallet": "Créer",
       "action_restore_wallet": "Restaurer",
-      "action_unlock_wallet": "Déverrouiller",
-      "action_saved_wallet_recovery": "Je l’ai enregistrée",
       "action_sync_wallet_reads": "Synchroniser",
       "action_reject": "Refuser",
       "action_prepare": "Vérifier",
@@ -597,8 +554,6 @@
       "row_wallet_restore": "Restaurer un portefeuille",
       "row_wallet_recovery_confirm": "Confirmer la sauvegarde hors ligne",
       "row_wallet_unlock": "Déverrouiller",
-      "row_wallet_read_balance": "Solde confirmé disponible",
-      "row_wallet_read_receive": "Adresse de réception",
       "row_wallet_pair_direct_shakescape": "Se connecter au pair de l’offre",
       "row_wallet_pair_direct_shakescape_summary": "Connectez-vous au créateur de l’offre. Ses offres s’ouvriront automatiquement. Aucun fonds ne sera déplacé.",
       "wallet_restore_phrase_hint": "Phrase de récupération de 24 mots",
@@ -659,10 +614,7 @@
       "wallet_swap_broadcast_hns_funding": "Diffuser le financement HNS"
     },
     "it": {
-      "action_create_wallet": "Crea",
       "action_restore_wallet": "Ripristina",
-      "action_unlock_wallet": "Sblocca",
-      "action_saved_wallet_recovery": "L’ho salvata",
       "action_sync_wallet_reads": "Sincronizza",
       "action_reject": "Rifiuta",
       "action_prepare": "Rivedi",
@@ -670,8 +622,6 @@
       "row_wallet_restore": "Ripristina portafoglio",
       "row_wallet_recovery_confirm": "Conferma backup offline",
       "row_wallet_unlock": "Sblocca",
-      "row_wallet_read_balance": "Saldo confermato disponibile",
-      "row_wallet_read_receive": "Indirizzo di ricezione",
       "row_wallet_pair_direct_shakescape": "Connetti al peer dell’offerta",
       "row_wallet_pair_direct_shakescape_summary": "Connettiti al creatore dell’offerta. Le sue offerte si apriranno automaticamente. Nessun fondo verrà spostato.",
       "wallet_restore_phrase_hint": "Frase di recupero di 24 parole",
@@ -732,10 +682,7 @@
       "wallet_swap_broadcast_hns_funding": "Trasmetti finanziamento HNS"
     },
     "pt": {
-      "action_create_wallet": "Criar",
       "action_restore_wallet": "Restaurar",
-      "action_unlock_wallet": "Desbloquear",
-      "action_saved_wallet_recovery": "Já guardei",
       "action_sync_wallet_reads": "Sincronizar",
       "action_reject": "Rejeitar",
       "action_prepare": "Rever",
@@ -743,8 +690,6 @@
       "row_wallet_restore": "Restaurar carteira",
       "row_wallet_recovery_confirm": "Confirmar cópia offline",
       "row_wallet_unlock": "Desbloquear",
-      "row_wallet_read_balance": "Saldo confirmado disponível",
-      "row_wallet_read_receive": "Endereço de recebimento",
       "row_wallet_pair_direct_shakescape": "Ligar ao par da oferta",
       "row_wallet_pair_direct_shakescape_summary": "Ligue-se ao criador da oferta. As ofertas serão abertas automaticamente. Nenhum fundo será movido.",
       "wallet_restore_phrase_hint": "Frase de recuperação de 24 palavras",
@@ -805,10 +750,7 @@
       "wallet_swap_broadcast_hns_funding": "Transmitir financiamento HNS"
     },
     "fa": {
-      "action_create_wallet": "ایجاد",
       "action_restore_wallet": "بازیابی",
-      "action_unlock_wallet": "باز کردن قفل",
-      "action_saved_wallet_recovery": "ذخیره کردم",
       "action_sync_wallet_reads": "همگام‌سازی",
       "action_reject": "رد کردن",
       "action_prepare": "بررسی",
@@ -816,8 +758,6 @@
       "row_wallet_restore": "بازیابی کیف پول",
       "row_wallet_recovery_confirm": "تأیید نسخه پشتیبان آفلاین",
       "row_wallet_unlock": "باز کردن قفل",
-      "row_wallet_read_balance": "موجودی تأییدشده قابل خرج",
-      "row_wallet_read_receive": "نشانی دریافت پرداخت",
       "row_wallet_pair_direct_shakescape": "اتصال به همتای پیشنهاد",
       "row_wallet_pair_direct_shakescape_summary": "به سازنده پیشنهاد متصل شوید. پیشنهادهای او خودکار باز می‌شوند. هیچ وجهی جابه‌جا نمی‌شود.",
       "wallet_restore_phrase_hint": "عبارت بازیابی ۲۴ کلمه‌ای",
@@ -878,10 +818,7 @@
       "wallet_swap_broadcast_hns_funding": "پخش تأمین وجه HNS"
     },
     "hi": {
-      "action_create_wallet": "बनाएँ",
       "action_restore_wallet": "पुनर्स्थापित करें",
-      "action_unlock_wallet": "अनलॉक करें",
-      "action_saved_wallet_recovery": "मैंने इसे सहेज लिया",
       "action_sync_wallet_reads": "सिंक करें",
       "action_reject": "अस्वीकार करें",
       "action_prepare": "समीक्षा करें",
@@ -889,8 +826,6 @@
       "row_wallet_restore": "वॉलेट पुनर्स्थापित करें",
       "row_wallet_recovery_confirm": "ऑफ़लाइन बैकअप की पुष्टि करें",
       "row_wallet_unlock": "अनलॉक करें",
-      "row_wallet_read_balance": "पुष्ट खर्च योग्य शेष",
-      "row_wallet_read_receive": "भुगतान प्राप्ति पता",
       "row_wallet_pair_direct_shakescape": "ऑफ़र पीयर से जुड़ें",
       "row_wallet_pair_direct_shakescape_summary": "ऑफ़र बनाने वाले से जुड़ें। उसके ऑफ़र अपने आप खुलेंगे। कोई धन नहीं भेजा जाएगा।",
       "wallet_restore_phrase_hint": "24 शब्दों का रिकवरी वाक्यांश",
@@ -951,10 +886,7 @@
       "wallet_swap_broadcast_hns_funding": "HNS फंडिंग प्रसारित करें"
     },
     "ja": {
-      "action_create_wallet": "作成",
       "action_restore_wallet": "復元",
-      "action_unlock_wallet": "ロック解除",
-      "action_saved_wallet_recovery": "保存しました",
       "action_sync_wallet_reads": "同期",
       "action_reject": "拒否",
       "action_prepare": "確認",
@@ -962,8 +894,6 @@
       "row_wallet_restore": "ウォレットを復元",
       "row_wallet_recovery_confirm": "オフラインバックアップを確認",
       "row_wallet_unlock": "ロック解除",
-      "row_wallet_read_balance": "使用可能な確定残高",
-      "row_wallet_read_receive": "受取アドレス",
       "row_wallet_pair_direct_shakescape": "オファー相手に接続",
       "row_wallet_pair_direct_shakescape_summary": "オファー作成者に接続します。オファーは自動的に開きます。資金は移動しません。",
       "wallet_restore_phrase_hint": "24単語のリカバリーフレーズ",
@@ -1024,10 +954,7 @@
       "wallet_swap_broadcast_hns_funding": "HNS資金供給をブロードキャスト"
     },
     "ko": {
-      "action_create_wallet": "만들기",
       "action_restore_wallet": "복원",
-      "action_unlock_wallet": "잠금 해제",
-      "action_saved_wallet_recovery": "저장했습니다",
       "action_sync_wallet_reads": "동기화",
       "action_reject": "거부",
       "action_prepare": "검토",
@@ -1035,8 +962,6 @@
       "row_wallet_restore": "지갑 복원",
       "row_wallet_recovery_confirm": "오프라인 백업 확인",
       "row_wallet_unlock": "잠금 해제",
-      "row_wallet_read_balance": "확인된 사용 가능 잔액",
-      "row_wallet_read_receive": "결제 수신 주소",
       "row_wallet_pair_direct_shakescape": "제안 피어에 연결",
       "row_wallet_pair_direct_shakescape_summary": "제안 생성자에게 연결합니다. 제안이 자동으로 열립니다. 자금은 이동하지 않습니다.",
       "wallet_restore_phrase_hint": "24단어 복구 문구",
@@ -1097,10 +1022,7 @@
       "wallet_swap_broadcast_hns_funding": "HNS 자금 공급 브로드캐스트"
     },
     "nl": {
-      "action_create_wallet": "Maken",
       "action_restore_wallet": "Herstellen",
-      "action_unlock_wallet": "Ontgrendelen",
-      "action_saved_wallet_recovery": "Ik heb het opgeslagen",
       "action_sync_wallet_reads": "Synchroniseren",
       "action_reject": "Weigeren",
       "action_prepare": "Controleren",
@@ -1108,8 +1030,6 @@
       "row_wallet_restore": "Wallet herstellen",
       "row_wallet_recovery_confirm": "Offline back-up bevestigen",
       "row_wallet_unlock": "Ontgrendelen",
-      "row_wallet_read_balance": "Bevestigd beschikbaar saldo",
-      "row_wallet_read_receive": "Ontvangstadres",
       "row_wallet_pair_direct_shakescape": "Verbinden met aanbiedingspeer",
       "row_wallet_pair_direct_shakescape_summary": "Maak verbinding met de opsteller van de aanbieding. De aanbiedingen openen automatisch. Er wordt geen geld verplaatst.",
       "wallet_restore_phrase_hint": "Herstelzin van 24 woorden",
@@ -1170,10 +1090,7 @@
       "wallet_swap_broadcast_hns_funding": "HNS-financiering uitzenden"
     },
     "pl": {
-      "action_create_wallet": "Utwórz",
       "action_restore_wallet": "Przywróć",
-      "action_unlock_wallet": "Odblokuj",
-      "action_saved_wallet_recovery": "Zapisano",
       "action_sync_wallet_reads": "Synchronizuj",
       "action_reject": "Odrzuć",
       "action_prepare": "Sprawdź",
@@ -1181,8 +1098,6 @@
       "row_wallet_restore": "Przywróć portfel",
       "row_wallet_recovery_confirm": "Potwierdź kopię offline",
       "row_wallet_unlock": "Odblokuj",
-      "row_wallet_read_balance": "Potwierdzone dostępne saldo",
-      "row_wallet_read_receive": "Adres odbiorczy",
       "row_wallet_pair_direct_shakescape": "Połącz z partnerem oferty",
       "row_wallet_pair_direct_shakescape_summary": "Połącz się z twórcą oferty. Jego oferty otworzą się automatycznie. Żadne środki nie zostaną przeniesione.",
       "wallet_restore_phrase_hint": "24-wyrazowa fraza odzyskiwania",
@@ -1243,10 +1158,7 @@
       "wallet_swap_broadcast_hns_funding": "Rozgłoś finansowanie HNS"
     },
     "ru": {
-      "action_create_wallet": "Создать",
       "action_restore_wallet": "Восстановить",
-      "action_unlock_wallet": "Разблокировать",
-      "action_saved_wallet_recovery": "Я сохранил(а)",
       "action_sync_wallet_reads": "Синхронизировать",
       "action_reject": "Отклонить",
       "action_prepare": "Проверить",
@@ -1254,8 +1166,6 @@
       "row_wallet_restore": "Восстановить кошелёк",
       "row_wallet_recovery_confirm": "Подтвердить офлайн-копию",
       "row_wallet_unlock": "Разблокировать",
-      "row_wallet_read_balance": "Подтверждённый доступный баланс",
-      "row_wallet_read_receive": "Адрес получения",
       "row_wallet_pair_direct_shakescape": "Подключиться к участнику предложения",
       "row_wallet_pair_direct_shakescape_summary": "Подключитесь к создателю предложения. Его предложения откроются автоматически. Средства не перемещаются.",
       "wallet_restore_phrase_hint": "Фраза восстановления из 24 слов",
@@ -1316,10 +1226,7 @@
       "wallet_swap_broadcast_hns_funding": "Отправить финансирование HNS"
     },
     "tr": {
-      "action_create_wallet": "Oluştur",
       "action_restore_wallet": "Geri yükle",
-      "action_unlock_wallet": "Kilidi aç",
-      "action_saved_wallet_recovery": "Kaydettim",
       "action_sync_wallet_reads": "Eşitle",
       "action_reject": "Reddet",
       "action_prepare": "İncele",
@@ -1327,8 +1234,6 @@
       "row_wallet_restore": "Cüzdanı geri yükle",
       "row_wallet_recovery_confirm": "Çevrimdışı yedeği doğrula",
       "row_wallet_unlock": "Kilidi aç",
-      "row_wallet_read_balance": "Onaylanmış harcanabilir bakiye",
-      "row_wallet_read_receive": "Ödeme alma adresi",
       "row_wallet_pair_direct_shakescape": "Teklif eşine bağlan",
       "row_wallet_pair_direct_shakescape_summary": "Teklif sahibine bağlanın. Teklifleri otomatik açılır. Para taşınmaz.",
       "wallet_restore_phrase_hint": "24 kelimelik kurtarma ifadesi",
@@ -1389,10 +1294,7 @@
       "wallet_swap_broadcast_hns_funding": "HNS fonlamasını yayınla"
     },
     "uk": {
-      "action_create_wallet": "Створити",
       "action_restore_wallet": "Відновити",
-      "action_unlock_wallet": "Розблокувати",
-      "action_saved_wallet_recovery": "Збережено",
       "action_sync_wallet_reads": "Синхронізувати",
       "action_reject": "Відхилити",
       "action_prepare": "Перевірити",
@@ -1400,8 +1302,6 @@
       "row_wallet_restore": "Відновити гаманець",
       "row_wallet_recovery_confirm": "Підтвердити офлайн-копію",
       "row_wallet_unlock": "Розблокувати",
-      "row_wallet_read_balance": "Підтверджений доступний баланс",
-      "row_wallet_read_receive": "Адреса отримання",
       "row_wallet_pair_direct_shakescape": "Підключитися до учасника пропозиції",
       "row_wallet_pair_direct_shakescape_summary": "Підключіться до автора пропозиції. Його пропозиції відкриються автоматично. Кошти не переміщуються.",
       "wallet_restore_phrase_hint": "Фраза відновлення з 24 слів",
@@ -1462,10 +1362,7 @@
       "wallet_swap_broadcast_hns_funding": "Надіслати фінансування HNS"
     },
     "vi": {
-      "action_create_wallet": "Tạo",
       "action_restore_wallet": "Khôi phục",
-      "action_unlock_wallet": "Mở khóa",
-      "action_saved_wallet_recovery": "Tôi đã lưu",
       "action_sync_wallet_reads": "Đồng bộ",
       "action_reject": "Từ chối",
       "action_prepare": "Xem lại",
@@ -1473,8 +1370,6 @@
       "row_wallet_restore": "Khôi phục ví",
       "row_wallet_recovery_confirm": "Xác nhận bản sao lưu ngoại tuyến",
       "row_wallet_unlock": "Mở khóa",
-      "row_wallet_read_balance": "Số dư khả dụng đã xác nhận",
-      "row_wallet_read_receive": "Địa chỉ nhận thanh toán",
       "row_wallet_pair_direct_shakescape": "Kết nối với bên chào giá",
       "row_wallet_pair_direct_shakescape_summary": "Kết nối với người tạo chào giá. Các chào giá sẽ tự động mở. Không có tiền nào được chuyển.",
       "wallet_restore_phrase_hint": "Cụm từ khôi phục 24 từ",
