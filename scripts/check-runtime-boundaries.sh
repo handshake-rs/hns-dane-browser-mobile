@@ -322,15 +322,12 @@ require_source_contains "$ios_bridging_header" \
 require_source_contains "$ios_native_wallet" \
   'hns_wallet_secure_zero(baseAddress, buffer.count)' \
   "iOS wallet secrets must use the SDK-compatible secure-zero primitive."
-require_source_contains "$ios_wallet_controller" \
-  'private let readBootstrapSource: any WalletReadBootstrapSource =' \
-  "iOS wallet-read bootstrap must use an immutable production source."
-require_source_contains "$ios_wallet_controller" \
-  'UnavailableWalletReadBootstrapSource.shared' \
-  "iOS production wallet-read bootstrap must remain unavailable."
 require_source_absent "$ios_wallet_controller" \
-  'var readBootstrapSource' \
-  "iOS wallet-read bootstrap source must not be mutable."
+  'readBootstrapSource' \
+  "iOS production wallet reads must not retain the obsolete companion bootstrap property."
+require_source_contains "$ios_wallet_controller" \
+  'try wallet.configureDirectHnsValue(' \
+  "iOS wallet reads must install the wallet-owned direct HNS controller."
 require_source_contains "$ios_wallet_controller" \
   'configuration.authority == expectedAuthority' \
   "iOS wallet-read admission must retain the authority requested before credential acquisition."
