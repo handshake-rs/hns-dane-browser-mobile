@@ -4532,12 +4532,7 @@ class WalletActivity : ComponentActivity() {
                 R.string.wallet_swap_notification_offer_accepted_detail,
                 offerResponse.sessionId.take(12),
             )
-            pending != null -> getString(
-                R.string.wallet_swap_status_negotiating,
-                formatSwapAmount(pending.offeredAsset, pending.offeredAmount),
-                formatSwapAmount(pending.receivedAsset, pending.receivedAmount),
-                pending.sessionId.take(12),
-            )
+            pending != null -> pendingAcceptanceStage(pending)
             status.executions.isNotEmpty() -> {
                 val latest = status.executions.maxByOrNull { it.lastVerifiedAtUnix }!!
                 getString(
@@ -4592,59 +4587,68 @@ class WalletActivity : ComponentActivity() {
         execution: NativeShakescapeExecutionSummary,
         includeBitcoinSync: Boolean = true,
     ): String {
-        val first = execution.firstChain.replaceFirstChar { it.uppercase() }
-        val second = execution.secondChain.replaceFirstChar { it.uppercase() }
+        val first = swapChainLabel(execution.firstChain)
+        val second = swapChainLabel(execution.secondChain)
+        val now = System.currentTimeMillis() / 1_000L
         val localFundingSubmitted = execution.localFundingState == "broadcast" ||
             execution.localFundingState == "seen" ||
             execution.localFundingState == "confirmed"
-        if (includeBitcoinSync && walletBitcoinSyncInProgress) {
-            return getString(R.string.wallet_swap_stage_bitcoin_syncing)
+        val fundingTarget = when (execution.state) {
+            "terms_frozen", "refunds_prepared", "first_funding_pending" -> first
+            "first_funded", "second_funding_pending" -> second
+            else -> null
         }
-        return when (execution.state) {
-            "terms_frozen", "refunds_prepared" ->
-                getString(R.string.wallet_swap_stage_terms_waiting)
-            "first_funding_pending" -> if (
-                execution.localRole == "maker" &&
-                System.currentTimeMillis() / 1_000L >= execution.fundingDeadlineUnix
-            ) {
-                getString(R.string.wallet_swap_stage_funding_expired)
-            } else if (
-                execution.localRole == "maker" && localFundingSubmitted
-            ) {
-                getString(R.string.wallet_swap_stage_funding_submitted, first)
-            } else if (
-                execution.localRole == "maker" && execution.localFundingState == "reorged"
-            ) {
-                getString(R.string.wallet_swap_stage_funding_reorged, first)
-            } else if (execution.localRole == "maker") {
-                getString(R.string.wallet_swap_stage_funding_ready_here, first)
-            } else {
-                getString(R.string.wallet_swap_stage_waiting_counterparty_funding, first)
+        var stage = when (execution.state) {
+            "terms_frozen", "refunds_prepared" -> when {
+                now >= execution.fundingDeadlineUnix ->
+                    getString(R.string.wallet_swap_stage_unfunded_closed)
+                now > execution.firstFundingCutoffUnix -> getString(
+                    R.string.wallet_swap_stage_first_funding_cutoff,
+                    first,
+                )
+                else -> getString(R.string.wallet_swap_stage_terms_waiting)
             }
-            "first_funded" -> if (execution.localRole == "taker") {
-                if (System.currentTimeMillis() / 1_000L < execution.fundingDeadlineUnix) {
-                    if (localFundingSubmitted) {
-                        getString(R.string.wallet_swap_stage_funding_submitted, second)
-                    } else if (execution.localFundingState == "reorged") {
-                        getString(R.string.wallet_swap_stage_funding_reorged, second)
-                    } else {
-                        getString(R.string.wallet_swap_stage_funding_ready_here, second)
-                    }
-                } else {
-                    getString(R.string.wallet_swap_stage_funding_expired)
-                }
-            } else if (
-                System.currentTimeMillis() / 1_000L >= execution.firstRefundAtUnix
-            ) {
-                // The maker never prepares the second-chain lock. Once the
-                // signed first-chain timeout has elapsed, direct the maker to
-                // the exact native refund action instead of implying that a
-                // now-unsafe counterparty funding transition is in progress.
-                getString(R.string.wallet_swap_stage_refund_ready_here, first)
-            } else {
-                getString(R.string.wallet_swap_stage_waiting_counterparty_funding, second)
+            "first_funding_pending" -> when {
+                now >= execution.fundingDeadlineUnix -> fundingClosedStage(
+                    execution,
+                    first,
+                    localFundingSubmitted,
+                    now,
+                )
+                execution.localRole == "maker" && localFundingSubmitted ->
+                    getString(R.string.wallet_swap_stage_funding_submitted, first)
+                execution.localRole == "maker" && execution.localFundingState == "reorged" ->
+                    getString(R.string.wallet_swap_stage_funding_reorged, first)
+                now > execution.firstFundingCutoffUnix -> getString(
+                    R.string.wallet_swap_stage_first_funding_cutoff,
+                    first,
+                )
+                execution.localRole == "maker" ->
+                    getString(R.string.wallet_swap_stage_funding_ready_here, first)
+                else -> getString(R.string.wallet_swap_stage_waiting_counterparty_funding, first)
             }
-            "second_funding_pending" -> if (execution.localRole == "taker") {
+            "first_funded" -> when {
+                now >= execution.fundingDeadlineUnix -> fundingClosedStage(
+                    execution,
+                    first,
+                    localFundingSubmitted,
+                    now,
+                )
+                execution.localRole == "taker" && localFundingSubmitted ->
+                    getString(R.string.wallet_swap_stage_funding_submitted, second)
+                execution.localRole == "taker" && execution.localFundingState == "reorged" ->
+                    getString(R.string.wallet_swap_stage_funding_reorged, second)
+                execution.localRole == "taker" ->
+                    getString(R.string.wallet_swap_stage_funding_ready_here, second)
+                else -> getString(R.string.wallet_swap_stage_waiting_counterparty_funding, second)
+            }
+            "second_funding_pending" -> if (
+                execution.localRole == "taker" && now >= execution.fundingDeadlineUnix
+            ) {
+                getString(R.string.wallet_swap_stage_funding_recovery_pending, second)
+            } else if (now >= execution.fundingDeadlineUnix) {
+                fundingClosedStage(execution, first, localFundingSubmitted, now)
+            } else if (execution.localRole == "taker") {
                 if (localFundingSubmitted) {
                     getString(R.string.wallet_swap_stage_funding_submitted, second)
                 } else if (execution.localFundingState == "reorged") {
@@ -4667,11 +4671,110 @@ class WalletActivity : ComponentActivity() {
             }
             "second_redeemed" -> getString(R.string.wallet_swap_stage_second_redeemed)
             "completed" -> getString(R.string.wallet_swap_stage_completed)
-            "refund_eligible", "refund_broadcast" -> getString(R.string.wallet_swap_stage_refunding)
+            "refund_eligible" -> getString(
+                R.string.wallet_swap_stage_refund_ready_here,
+                if (execution.localRole == "maker") first else second,
+                formatAtomicSwapDeadline(
+                    if (execution.localRole == "maker") {
+                        execution.firstRefundAtUnix
+                    } else {
+                        execution.secondRefundAtUnix
+                    },
+                ),
+            )
+            "refund_broadcast" -> getString(R.string.wallet_swap_stage_refunding)
             "refunded" -> getString(R.string.wallet_swap_stage_refunded)
             "failed" -> getString(R.string.wallet_swap_stage_failed)
             else -> execution.state.replace('_', ' ')
         }
+        if (fundingTarget != null && now < execution.fundingDeadlineUnix) {
+            stage = getString(
+                R.string.wallet_swap_stage_with_deadline,
+                stage,
+                formatAtomicSwapRemaining(execution.fundingDeadlineUnix, now),
+                fundingTarget,
+                formatAtomicSwapDeadline(execution.fundingDeadlineUnix),
+            )
+        }
+        if (includeBitcoinSync && walletBitcoinSyncInProgress) {
+            stage = getString(R.string.wallet_swap_stage_syncing_append, stage)
+        }
+        return stage
+    }
+
+    private fun fundingClosedStage(
+        execution: NativeShakescapeExecutionSummary,
+        first: String,
+        localFundingSubmitted: Boolean,
+        now: Long,
+    ): String {
+        val refundAt = formatAtomicSwapDeadline(execution.firstRefundAtUnix)
+        return when {
+            execution.localRole == "maker" &&
+                (execution.firstFundingConfirmed || localFundingSubmitted) &&
+                now >= execution.firstRefundAtUnix -> getString(
+                    R.string.wallet_swap_stage_refund_ready_here,
+                    first,
+                    refundAt,
+                )
+            execution.localRole == "maker" &&
+                (execution.firstFundingConfirmed || localFundingSubmitted) -> getString(
+                    R.string.wallet_swap_stage_funding_expired,
+                    first,
+                    refundAt,
+                    formatAtomicSwapRemaining(execution.firstRefundAtUnix, now),
+                )
+            execution.localRole == "taker" && execution.firstFundingConfirmed -> getString(
+                R.string.wallet_swap_stage_funding_closed_no_local_lock,
+                refundAt,
+            )
+            else -> getString(R.string.wallet_swap_stage_unfunded_closed)
+        }
+    }
+
+    private fun swapChainLabel(chain: String): String = when (chain) {
+        "bitcoin" -> "BTC"
+        "handshake" -> "HNS"
+        else -> chain.replaceFirstChar { it.uppercase() }
+    }
+
+    private fun formatAtomicSwapDeadline(unix: Long): String = runCatching {
+        DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(
+            Date(Math.multiplyExact(unix, 1_000L)),
+        )
+    }.getOrElse { unix.toString() }
+
+    private fun formatAtomicSwapRemaining(deadlineUnix: Long, nowUnix: Long): String {
+        val seconds = (deadlineUnix - nowUnix).coerceAtLeast(0L)
+        val roundedMinutes = (seconds + 59L) / 60L
+        val hours = roundedMinutes / 60L
+        val minutes = roundedMinutes % 60L
+        return if (hours > 0L) {
+            getString(R.string.wallet_swap_duration_hours_minutes, hours, minutes)
+        } else {
+            getString(R.string.wallet_swap_duration_minutes, minutes)
+        }
+    }
+
+    private fun pendingAcceptanceStage(
+        acceptance: com.denuoweb.hnsdane.wallet.NativeDirectOfferAcceptanceSummary,
+    ): String {
+        val deadline = acceptance.fundingDeadlineUnix
+        if (deadline != null) {
+            val now = System.currentTimeMillis() / 1_000L
+            return getString(
+                R.string.wallet_swap_acceptance_sent,
+                acceptance.sessionId.take(12),
+                formatAtomicSwapDeadline(deadline),
+                formatAtomicSwapRemaining(deadline, now),
+            )
+        }
+        return getString(
+            R.string.wallet_swap_status_negotiating,
+            formatSwapAmount(acceptance.offeredAsset, acceptance.offeredAmount),
+            formatSwapAmount(acceptance.receivedAsset, acceptance.receivedAmount),
+            acceptance.sessionId.take(12),
+        )
     }
 
     private fun hasLiveAtomicSwap(
@@ -5143,7 +5246,7 @@ class WalletActivity : ComponentActivity() {
                     numeric = true,
                     initial = NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS.toString(),
                 ),
-                WalletActionInput(R.string.wallet_swap_lifetime_hours_hint, initial = "24", numeric = true),
+                WalletActionInput(R.string.wallet_swap_lifetime_hours_hint, initial = "48", numeric = true),
             ),
         ) { values ->
             val btc = values[0].toLongOrNull()
@@ -5154,7 +5257,7 @@ class WalletActivity : ComponentActivity() {
                 it >= NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS
             }
             val lifetime = values[3].toLongOrNull()
-                ?.takeIf { it in 2L..168L }
+                ?.takeIf { it in 48L..168L }
                 ?.let { runCatching { Math.multiplyExact(it, 3_600L) }.getOrNull() }
             if (btc == null || hns == null || reserve == null || btc < reserve ||
                 btc - reserve < NativeWalletBridge.BITCOIN_HTLC_RECEIVER_DUST_SATS ||
@@ -5183,7 +5286,7 @@ class WalletActivity : ComponentActivity() {
                 ),
                 WalletActionInput(
                     R.string.wallet_swap_lifetime_hours_hint,
-                    initial = "24",
+                    initial = "48",
                     numeric = true,
                 ),
             ),
@@ -5194,7 +5297,7 @@ class WalletActivity : ComponentActivity() {
                 ?.takeIf { it >= NativeWalletBridge.MINIMUM_BITCOIN_HTLC_SATS }
             val reserve = parsePositiveHnsToBaseUnits(values[2])?.toLongOrNull()?.takeIf { it > 0L }
             val lifetime = values[3].toLongOrNull()
-                ?.takeIf { it in 2L..168L }
+                ?.takeIf { it in 48L..168L }
                 ?.let { runCatching { Math.multiplyExact(it, 3_600L) }.getOrNull() }
             if (hns == null || btc == null || reserve == null ||
                 reserve < NativeWalletBridge.MINIMUM_HNS_FEE_RESERVE_DOLLARYDOOS ||
@@ -5571,19 +5674,23 @@ class WalletActivity : ComponentActivity() {
             execution.secondChain,
             execution.firstFundingConfirmed.toString(),
             execution.secondFundingConfirmed.toString(),
-            execution.fundingDeadlineUnix,
-            execution.firstRefundAtUnix,
-            execution.secondRefundAtUnix,
+            formatAtomicSwapDeadline(execution.fundingDeadlineUnix),
+            formatAtomicSwapDeadline(execution.firstRefundAtUnix),
+            formatAtomicSwapDeadline(execution.secondRefundAtUnix),
             execution.failureReason ?: getString(R.string.wallet_swap_failure_none),
         )
         val builder = walletAlertDialogBuilder()
             .setTitle(R.string.wallet_swap_execution_title)
             .setMessage(message)
             .setNegativeButton(R.string.action_cancel, null)
+        // Offer acceptance binds amounts, participants, and timeouts, but it
+        // cannot safely approve a fee-selected transaction which does not yet
+        // exist. Keep the exact funding preview/approval and make its durable
+        // readiness an action-required notification instead.
         val fundingChain = when (execution.state) {
             "first_funding_pending" -> execution.firstChain.takeIf {
                 execution.localRole == "maker" &&
-                    System.currentTimeMillis() / 1_000L < execution.fundingDeadlineUnix
+                    System.currentTimeMillis() / 1_000L <= execution.firstFundingCutoffUnix
             }
             // Preparing the taker's second-chain lock is the operation that
             // durably applies SecondFundingReady. Waiting until the execution
@@ -5594,7 +5701,8 @@ class WalletActivity : ComponentActivity() {
                     System.currentTimeMillis() / 1_000L < execution.fundingDeadlineUnix
             }
             "second_funding_pending" -> execution.secondChain.takeIf {
-                execution.localRole == "taker"
+                execution.localRole == "taker" &&
+                    System.currentTimeMillis() / 1_000L < execution.fundingDeadlineUnix
             }
             else -> null
         }
@@ -5624,12 +5732,29 @@ class WalletActivity : ComponentActivity() {
                     else prepareHnsForBtcFunding(execution, fee)
                 }
             }
-        } else if (execution.state == "first_funded" && execution.localRole == "maker") {
+        } else if (
+            execution.state == "first_funded" && execution.localRole == "maker" &&
+                System.currentTimeMillis() / 1_000L >= execution.firstRefundAtUnix
+        ) {
             // A counterparty can expire before observing the first-chain lock.
             // Native policy authorizes only this maker's exact refund and
             // enforces the signed timeout, so keep recovery reachable even
             // though the execution never advanced to both-funded.
             val bitcoin = execution.firstChain == "bitcoin"
+            builder.setPositiveButton(
+                if (bitcoin) R.string.wallet_swap_refund_bitcoin
+                else R.string.wallet_swap_refund_hns,
+            ) { _, _ ->
+                showSwapSettlementFeeForm(execution, "refund", bitcoin)
+            }
+        } else if (execution.state == "refund_eligible") {
+            // Recovery remains an action on this durable session. The local
+            // maker funded the first chain; the local taker funded the second.
+            val bitcoin = if (execution.localRole == "maker") {
+                execution.firstChain == "bitcoin"
+            } else {
+                execution.secondChain == "bitcoin"
+            }
             builder.setPositiveButton(
                 if (bitcoin) R.string.wallet_swap_refund_bitcoin
                 else R.string.wallet_swap_refund_hns,
@@ -6292,7 +6417,18 @@ class WalletActivity : ComponentActivity() {
                             bitcoinStatusView.text = if (accepted == null) {
                                 getString(R.string.wallet_swap_acceptance_failed)
                             } else {
-                                getString(R.string.wallet_swap_acceptance_sent, accepted.sessionId.take(12))
+                                val deadline = accepted.fundingDeadlineUnix
+                                if (deadline == null) {
+                                    getString(R.string.wallet_swap_acceptance_failed)
+                                } else {
+                                    val now = System.currentTimeMillis() / 1_000L
+                                    getString(
+                                        R.string.wallet_swap_acceptance_sent,
+                                        accepted.sessionId.take(12),
+                                        formatAtomicSwapDeadline(deadline),
+                                        formatAtomicSwapRemaining(deadline, now),
+                                    )
+                                }
                             }
                         }
                         releaseStorageLeaseAfterOperation(lease)

@@ -270,6 +270,7 @@ internal data class NativeDirectOfferAcceptanceSummary(
     val receivedFeeReserve: Long,
     val createdAtUnix: Long,
     val expiresAtUnix: Long,
+    val fundingDeadlineUnix: Long?,
 )
 
 internal data class NativeShakescapeExecutionSummary(
@@ -284,6 +285,7 @@ internal data class NativeShakescapeExecutionSummary(
     val receivedAmount: Long,
     val localRole: String,
     val fundingDeadlineUnix: Long,
+    val firstFundingCutoffUnix: Long,
     val firstRefundAtUnix: Long,
     val secondRefundAtUnix: Long,
     val localFundingState: String?,
@@ -803,6 +805,7 @@ internal object NativeBitcoinWalletBundle {
         if (!hasExactKeys(json, setOf(
             "offerId", "sessionId", "offeredAsset", "offeredAmount", "receivedAsset",
             "receivedAmount", "receivedFeeReserve", "createdAtUnix", "expiresAtUnix",
+            "fundingDeadlineUnix",
         ))) return null
         val offeredAsset = json.optString("offeredAsset", "").takeIf { it in SHAKESCAPE_ASSETS }
             ?: return null
@@ -811,6 +814,12 @@ internal object NativeBitcoinWalletBundle {
         } ?: return null
         val created = positiveLong(json, "createdAtUnix") ?: return null
         val expires = positiveLong(json, "expiresAtUnix")?.takeIf { it > created } ?: return null
+        val fundingDeadline = if (json.isNull("fundingDeadlineUnix")) {
+            null
+        } else {
+            positiveLong(json, "fundingDeadlineUnix")?.takeIf { it > created && it <= expires }
+                ?: return null
+        }
         return NativeDirectOfferAcceptanceSummary(
             hexHash(json.optString("offerId", "")) ?: return null,
             hexHash(json.optString("sessionId", "")) ?: return null,
@@ -821,6 +830,7 @@ internal object NativeBitcoinWalletBundle {
             positiveLong(json, "receivedFeeReserve") ?: return null,
             created,
             expires,
+            fundingDeadline,
         )
     }
 
@@ -945,7 +955,8 @@ internal object NativeBitcoinWalletBundle {
             "sessionId", "revision", "state", "firstChain", "secondChain",
             "offeredAsset", "offeredAmount", "receivedAsset", "receivedAmount",
             "localRole",
-            "fundingDeadlineUnix", "firstRefundAtUnix", "secondRefundAtUnix", "localFundingState",
+            "fundingDeadlineUnix", "firstFundingCutoffUnix", "firstRefundAtUnix",
+            "secondRefundAtUnix", "localFundingState",
             "firstFundingConfirmed",
             "secondFundingConfirmed", "firstRedemptionConfirmed", "secondRedemptionConfirmed",
             "refundConfirmed", "lastVerifiedAtUnix", "failureReason",
@@ -963,6 +974,7 @@ internal object NativeBitcoinWalletBundle {
         val localRole = json.optString("localRole", "").takeIf { it in setOf("maker", "taker") }
             ?: return null
         val fundingDeadline = positiveLong(json, "fundingDeadlineUnix") ?: return null
+        val firstFundingCutoff = positiveLong(json, "firstFundingCutoffUnix") ?: return null
         val firstRefund = positiveLong(json, "firstRefundAtUnix") ?: return null
         val secondRefund = positiveLong(json, "secondRefundAtUnix") ?: return null
         val localFundingState = if (json.isNull("localFundingState")) null else {
@@ -973,7 +985,8 @@ internal object NativeBitcoinWalletBundle {
             json.optString("failureReason", "").takeIf { it.isNotEmpty() && it.length <= 256 }
                 ?: return null
         if (firstChain == secondChain || offeredAsset == receivedAsset ||
-            fundingDeadline >= secondRefund || firstRefund <= secondRefund
+            firstFundingCutoff >= fundingDeadline || fundingDeadline >= secondRefund ||
+            firstRefund <= secondRefund
         ) {
             return null
         }
@@ -989,6 +1002,7 @@ internal object NativeBitcoinWalletBundle {
             receivedAmount = positiveLong(json, "receivedAmount") ?: return null,
             localRole = localRole,
             fundingDeadlineUnix = fundingDeadline,
+            firstFundingCutoffUnix = firstFundingCutoff,
             firstRefundAtUnix = firstRefund,
             secondRefundAtUnix = secondRefund,
             localFundingState = localFundingState,

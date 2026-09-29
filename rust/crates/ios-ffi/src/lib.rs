@@ -1651,8 +1651,14 @@ impl NativeWalletController {
         else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        let permit = shakescape_sessions
-            .authorize_local_hns_second_funding(session_id, HnsReadSystemClock.now_unix()?)?;
+        let now_unix = HnsReadSystemClock.now_unix()?;
+        let permit =
+            match shakescape_sessions.authorize_local_hns_second_funding(session_id, now_unix) {
+                Ok(permit) => permit,
+                Err(_) => {
+                    shakescape_sessions.authorize_local_hns_first_funding(session_id, now_unix)?
+                }
+            };
         controller.prepare_shakescape_hns_funding(permit, maximum_fee_dollarydoos)
     }
 
@@ -1903,7 +1909,7 @@ impl NativeWalletController {
             .map(|count| count != 0)
     }
 
-    fn authorize_btc_for_hns_first_funding(
+    fn authorize_bitcoin_swap_funding(
         &mut self,
         session_id: SessionId,
     ) -> Result<MobileShakescapeBitcoinFundingPermit, MobileWalletError> {
@@ -1914,8 +1920,11 @@ impl NativeWalletController {
         else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        shakescape_sessions
-            .authorize_local_btc_first_funding(session_id, HnsReadSystemClock.now_unix()?)
+        let now_unix = HnsReadSystemClock.now_unix()?;
+        match shakescape_sessions.authorize_local_btc_first_funding(session_id, now_unix) {
+            Ok(permit) => Ok(permit),
+            Err(_) => shakescape_sessions.authorize_local_btc_second_funding(session_id, now_unix),
+        }
     }
 
     fn next_counterparty_bitcoin_watch(
@@ -7176,7 +7185,7 @@ pub unsafe extern "C" fn hns_browser_wallet_prepare_btc_for_hns_funding(
             ensure_wallet_active(&entry)?;
             entry
                 .controller
-                .authorize_btc_for_hns_first_funding(session_id)
+                .authorize_bitcoin_swap_funding(session_id)
                 .map_err(|_| wallet_runtime_failure("BTC-for-HNS funding is not authorized"))?
         };
         let control = wallet_bitcoin_control_entry(wallet)?;

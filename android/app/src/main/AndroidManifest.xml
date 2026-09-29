@@ -83,6 +83,9 @@
             android:name=".wallet.WalletSyncForegroundService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+        <receiver
+            android:name=".ui.AtomicSwapFundingWarningReceiver"
+            android:exported="false" />
         <activity
             android:name=".ui.HistoryActivity"
             android:exported="false"

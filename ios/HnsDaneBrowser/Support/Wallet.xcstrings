@@ -57647,127 +57647,127 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "بدأت المبادلة %1$@… بانتظار توقيع المحفظة الأخرى."
+            "value": "بدأت المبادلة %1$@…. الموعد النهائي للتمويل: %2$@ (متبقٍ %3$@). بانتظار توقيع المحفظة الأخرى."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Swap %1$@… gestartet. Warten auf die Signatur der anderen Wallet."
+            "value": "Swap %1$@… gestartet. Finanzierungsfrist: %2$@ (%3$@ verbleibend). Warten auf die Signatur der anderen Wallet."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Swap %1$@… started. Waiting for the other wallet to sign."
+            "value": "Swap %1$@… started. Funding deadline: %2$@ (%3$@ remaining). Waiting for the other wallet to sign."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Intercambio %1$@… iniciado. Esperando que firme la otra cartera."
+            "value": "Intercambio %1$@… iniciado. Límite de financiación: %2$@ (quedan %3$@). Esperando la firma de la otra cartera."
           }
         },
         "fa": {
           "stringUnit": {
             "state": "translated",
-            "value": "مبادله %1$@… آغاز شد. در انتظار امضای کیف پول دیگر."
+            "value": "مبادله %1$@… آغاز شد. مهلت تأمین مالی: %2$@ (%3$@ باقی‌مانده). در انتظار امضای کیف پول دیگر."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Échange %1$@… lancé. En attente de la signature de l’autre portefeuille."
+            "value": "Échange %1$@… lancé. Échéance de financement : %2$@ (%3$@ restantes). En attente de la signature de l’autre portefeuille."
           }
         },
         "he": {
           "stringUnit": {
             "state": "translated",
-            "value": "ההחלפה %1$@… התחילה. ממתינים לחתימת הארנק האחר."
+            "value": "ההחלפה %1$@… התחילה. מועד אחרון למימון: %2$@ (נותרו %3$@). ממתינים לחתימת הארנק האחר."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "स्वैप %1$@… शुरू हुआ। दूसरे वॉलेट के हस्ताक्षर की प्रतीक्षा है।"
+            "value": "स्वैप %1$@… शुरू हुआ। फ़ंडिंग की समय-सीमा: %2$@ (%3$@ शेष)। दूसरे वॉलेट के हस्ताक्षर की प्रतीक्षा है।"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Swap %1$@… dimulai. Menunggu dompet lain menandatangani."
+            "value": "Swap %1$@… dimulai. Batas pendanaan: %2$@ (tersisa %3$@). Menunggu dompet lain menandatangani."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Scambio %1$@… avviato. In attesa della firma dell’altro portafoglio."
+            "value": "Scambio %1$@… avviato. Scadenza finanziamento: %2$@ (%3$@ rimanenti). In attesa della firma dell’altro portafoglio."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "スワップ %1$@… を開始しました。相手のウォレットの署名を待っています。"
+            "value": "スワップ %1$@… を開始しました。資金提供期限：%2$@（残り %3$@）。相手のウォレットの署名を待っています。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "스왑 %1$@…이 시작되었습니다. 다른 지갑의 서명을 기다리는 중입니다."
+            "value": "스왑 %1$@…이 시작되었습니다. 펀딩 마감: %2$@(%3$@ 남음). 다른 지갑의 서명을 기다리는 중입니다."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Swap %1$@… gestart. Wachten op de handtekening van de andere wallet."
+            "value": "Swap %1$@… gestart. Financieringsdeadline: %2$@ (%3$@ resterend). Wachten op de handtekening van de andere wallet."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wymiana %1$@… rozpoczęta. Oczekiwanie na podpis drugiego portfela."
+            "value": "Wymiana %1$@… rozpoczęta. Termin finansowania: %2$@ (pozostało %3$@). Oczekiwanie na podpis drugiego portfela."
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Troca %1$@… iniciada. Aguardando a assinatura da outra carteira."
+            "value": "Troca %1$@… iniciada. Prazo de financiamento: %2$@ (%3$@ restantes). Aguardando a assinatura da outra carteira."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Обмен %1$@… начат. Ожидание подписи другого кошелька."
+            "value": "Обмен %1$@… начат. Срок финансирования: %2$@ (осталось %3$@). Ожидание подписи другого кошелька."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Takas %1$@… başladı. Diğer cüzdanın imzası bekleniyor."
+            "value": "Takas %1$@… başladı. Fonlama son tarihi: %2$@ (%3$@ kaldı). Diğer cüzdanın imzası bekleniyor."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Обмін %1$@… розпочато. Очікування підпису іншого гаманця."
+            "value": "Обмін %1$@… розпочато. Кінцевий термін фінансування: %2$@ (залишилося %3$@). Очікування підпису іншого гаманця."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hoán đổi %1$@… đã bắt đầu. Đang chờ ví kia ký."
+            "value": "Hoán đổi %1$@… đã bắt đầu. Hạn cấp vốn: %2$@ (còn %3$@). Đang chờ ví kia ký."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "交换 %1$@… 已开始。正在等待另一个钱包签名。"
+            "value": "交换 %1$@… 已开始。资金截止时间：%2$@（剩余 %3$@）。正在等待另一个钱包签名。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "交換 %1$@… 已開始。正在等待另一個錢包簽名。"
+            "value": "交換 %1$@… 已開始。資金截止時間：%2$@（剩餘 %3$@）。正在等待另一個錢包簽名。"
           }
         }
       }
@@ -60523,133 +60523,395 @@
         }
       }
     },
+    "wallet_swap_duration_hours_minutes": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dh %2$02dm"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dh %2$02dm"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dh %2$02dm"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dh %2$02dm"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dh %2$02dm"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dh %2$02dm"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dh %2$02dm"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dh %2$02dm"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dh %2$02dm"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dh %2$02dm"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dh %2$02dm"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dh %2$02dm"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dh %2$02dm"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dh %2$02dm"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dh %2$02dm"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dh %2$02dm"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dh %2$02dm"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dh %2$02dm"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dh %2$02dm"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dh %2$02dm"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dh %2$02dm"
+          }
+        }
+      }
+    },
+    "wallet_swap_duration_minutes": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dm"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dm"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dm"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dm"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dm"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dm"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dm"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dm"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dm"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dm"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dm"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dm"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dm"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dm"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dm"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dm"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dm"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dm"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dm"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dm"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$dm"
+          }
+        }
+      }
+    },
     "wallet_swap_execution_detail": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "الجلسة: %1$@\nالحالة: %2$@\n الدور المحلي: %3$@\n أمر التمويل: %4$@، ثم %5$@\n تأكيد التمويل الأول: %6$@\n تأكيد التمويل الثاني: %7$@\n الموعد النهائي للتمويل الجديد: Unix %8$d\n وقت استرداد السلسلة الأولى: Unix %9$d\n وقت استرداد السلسلة الثانية: Unix %10$d\n سبب الفشل: %11$@\n\n فقط أدلة السلسلة التي تم التحقق منها محليًا تعمل على تقدم هذه الحالة."
+            "value": "الجلسة: %1$@\nالحالة: %2$@\n الدور المحلي: %3$@\n أمر التمويل: %4$@، ثم %5$@\n تأكيد التمويل الأول: %6$@\n تأكيد التمويل الثاني: %7$@\n الموعد النهائي للتمويل الجديد: %8$@\n وقت استرداد السلسلة الأولى: %9$@\n وقت استرداد السلسلة الثانية: %10$@\n سبب الفشل: %11$@\n\n فقط أدلة السلسلة التي تم التحقق منها محليًا تعمل على تقدم هذه الحالة."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sitzung: %1$@\nStatus: %2$@\nLokale Rolle: %3$@\nFinanzierungsauftrag: %4$@, dann %5$@\nErste Finanzierung bestätigt: %6$@\nZweite Finanzierung bestätigt: %7$@\nNeue Finanzierungsfrist: Unix %8$d\nRückerstattungszeit der ersten Kette: Unix %9$d\nRückerstattungszeit der zweiten Kette: Unix %10$d\nFehlergrund: %11$@\n\nNur lokal überprüfte Kettennachweise erhöhen diesen Status."
+            "value": "Sitzung: %1$@\nStatus: %2$@\nLokale Rolle: %3$@\nFinanzierungsauftrag: %4$@, dann %5$@\nErste Finanzierung bestätigt: %6$@\nZweite Finanzierung bestätigt: %7$@\nNeue Finanzierungsfrist: %8$@\nRückerstattungszeit der ersten Kette: %9$@\nRückerstattungszeit der zweiten Kette: %10$@\nFehlergrund: %11$@\n\nNur lokal überprüfte Kettennachweise erhöhen diesen Status."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Session: %1$@\nState: %2$@\nLocal role: %3$@\nFunding order: %4$@, then %5$@\nFirst funding confirmed: %6$@\nSecond funding confirmed: %7$@\nNew-funding deadline: Unix %8$d\nFirst-chain refund time: Unix %9$d\nSecond-chain refund time: Unix %10$d\nFailure reason: %11$@\n\nOnly locally verified chain evidence advances this status."
+            "value": "Session: %1$@\nState: %2$@\nLocal role: %3$@\nFunding order: %4$@, then %5$@\nFirst funding confirmed: %6$@\nSecond funding confirmed: %7$@\nNew-funding deadline: %8$@\nFirst-chain refund time: %9$@\nSecond-chain refund time: %10$@\nFailure reason: %11$@\n\nOnly locally verified chain evidence advances this status."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sesión: %1$@\nEstado: %2$@\nRol local: %3$@\nOrden de financiación: %4$@, luego %5$@\nPrimera financiación confirmada: %6$@\nSegundo financiamiento confirmado: %7$@\nFecha límite para nuevo financiamiento: Unix %8$d\nTiempo de reembolso de la primera cadena: Unix %9$d\nTiempo de reembolso de la segunda cadena: Unix %10$d\nMotivo del error: %11$@\n\nSolo la evidencia de cadena verificada localmente avanza en este estado."
+            "value": "Sesión: %1$@\nEstado: %2$@\nRol local: %3$@\nOrden de financiación: %4$@, luego %5$@\nPrimera financiación confirmada: %6$@\nSegundo financiamiento confirmado: %7$@\nFecha límite para nuevo financiamiento: %8$@\nTiempo de reembolso de la primera cadena: %9$@\nTiempo de reembolso de la segunda cadena: %10$@\nMotivo del error: %11$@\n\nSolo la evidencia de cadena verificada localmente avanza en este estado."
           }
         },
         "fa": {
           "stringUnit": {
             "state": "translated",
-            "value": "جلسه: %1$@\nوضعیت: %2$@\nنقش محلی: %3$@\nسفارش تأمین مالی: %4$@، سپس %5$@\nاولین تأمین مالی تأیید شد: %6$@\nاعتبار دوم تأیید شد: %7$@\nمهلت تامین مالی جدید: Unix %8$d\nزمان بازپرداخت زنجیره اول: Unix %9$d\nزمان بازپرداخت زنجیره دوم: Unix %10$d\nدلیل خرابی: %11$@\n\nفقط شواهد زنجیره ای تایید شده محلی این وضعیت را ارتقا می دهد."
+            "value": "جلسه: %1$@\nوضعیت: %2$@\nنقش محلی: %3$@\nسفارش تأمین مالی: %4$@، سپس %5$@\nاولین تأمین مالی تأیید شد: %6$@\nاعتبار دوم تأیید شد: %7$@\nمهلت تامین مالی جدید: %8$@\nزمان بازپرداخت زنجیره اول: %9$@\nزمان بازپرداخت زنجیره دوم: %10$@\nدلیل خرابی: %11$@\n\nفقط شواهد زنجیره ای تایید شده محلی این وضعیت را ارتقا می دهد."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Session : %1$@\nÉtat : %2$@\nRôle local : %3$@\nOrdre de financement : %4$@, puis %5$@\nPremier financement confirmé : %6$@\nDeuxième financement confirmé : %7$@\nNouvelle date limite de financement : Unix %8$d\nDélai de remboursement de la première chaîne : Unix %9$d\nDélai de remboursement de la deuxième chaîne : Unix %10$d\nRaison de l'échec : %11$@\n\nSeules les preuves de chaîne vérifiées localement font progresser ce statut."
+            "value": "Session : %1$@\nÉtat : %2$@\nRôle local : %3$@\nOrdre de financement : %4$@, puis %5$@\nPremier financement confirmé : %6$@\nDeuxième financement confirmé : %7$@\nNouvelle date limite de financement : %8$@\nDélai de remboursement de la première chaîne : %9$@\nDélai de remboursement de la deuxième chaîne : %10$@\nRaison de l'échec : %11$@\n\nSeules les preuves de chaîne vérifiées localement font progresser ce statut."
           }
         },
         "he": {
           "stringUnit": {
             "state": "translated",
-            "value": "הפעלה: %1$@\nמצב: %2$@\nתפקיד מקומי: %3$@\nהזמנת מימון: %4$@ ולאחר מכן %5$@\nמימון ראשון אושר: %6$@\nמימון שני אושר: %7$@\nמועד אחרון למימון חדש: Unix %8$d\nזמן החזר בשרשרת ראשונה: Unix %9$d\nזמן החזר בשרשרת שנייה: Unix %10$d\nסיבת כשל: %11$@\n\nרק ראיות שרשרת מאומתות מקומיות מקדמות את הסטטוס הזה."
+            "value": "הפעלה: %1$@\nמצב: %2$@\nתפקיד מקומי: %3$@\nהזמנת מימון: %4$@ ולאחר מכן %5$@\nמימון ראשון אושר: %6$@\nמימון שני אושר: %7$@\nמועד אחרון למימון חדש: %8$@\nזמן החזר בשרשרת ראשונה: %9$@\nזמן החזר בשרשרת שנייה: %10$@\nסיבת כשל: %11$@\n\nרק ראיות שרשרת מאומתות מקומיות מקדמות את הסטטוס הזה."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "सत्र: %1$@\nराज्य: %2$@\nस्थानीय भूमिका: %3$@\nफंडिंग ऑर्डर: %4$@, फिर %5$@\nपहली फंडिंग की पुष्टि: %6$@\nदूसरी फंडिंग की पुष्टि: %7$@\nनई-फंडिंग की समय सीमा: Unix %8$d\n पहली-चेन रिफंड समय: Unix %9$d\nदूसरी-श्रृंखला धनवापसी समय: Unix %10$d\nविफलता का कारण: %11$@\n\nकेवल स्थानीय रूप से सत्यापित श्रृंखला साक्ष्य इस स्थिति को आगे बढ़ाते हैं।"
+            "value": "सत्र: %1$@\nराज्य: %2$@\nस्थानीय भूमिका: %3$@\nफंडिंग ऑर्डर: %4$@, फिर %5$@\nपहली फंडिंग की पुष्टि: %6$@\nदूसरी फंडिंग की पुष्टि: %7$@\nनई-फंडिंग की समय सीमा: %8$@\n पहली-चेन रिफंड समय: %9$@\nदूसरी-श्रृंखला धनवापसी समय: %10$@\nविफलता का कारण: %11$@\n\nकेवल स्थानीय रूप से सत्यापित श्रृंखला साक्ष्य इस स्थिति को आगे बढ़ाते हैं।"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sesi: %1$@\nNegara: %2$@\nPeran lokal: %3$@\nUrutan pendanaan: %4$@, lalu %5$@\nPendanaan pertama dikonfirmasi: %6$@\nPendanaan kedua dikonfirmasi: %7$@\nBatas waktu pendanaan baru: Unix %8$d\nWaktu pengembalian dana rantai pertama: Unix %9$d\nWaktu pengembalian dana rantai kedua: Unix %10$d\nAlasan kegagalan: %11$@\n\nHanya bukti rantai yang diverifikasi secara lokal yang dapat meningkatkan status ini."
+            "value": "Sesi: %1$@\nNegara: %2$@\nPeran lokal: %3$@\nUrutan pendanaan: %4$@, lalu %5$@\nPendanaan pertama dikonfirmasi: %6$@\nPendanaan kedua dikonfirmasi: %7$@\nBatas waktu pendanaan baru: %8$@\nWaktu pengembalian dana rantai pertama: %9$@\nWaktu pengembalian dana rantai kedua: %10$@\nAlasan kegagalan: %11$@\n\nHanya bukti rantai yang diverifikasi secara lokal yang dapat meningkatkan status ini."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sessione: %1$@\nStato: %2$@\nRuolo locale: %3$@\nOrdine di finanziamento: %4$@, quindi %5$@\nPrimo finanziamento confermato: %6$@\nSecondo finanziamento confermato: %7$@\nScadenza nuovo finanziamento: Unix %8$d\nTempo di rimborso della prima catena: Unix %9$d\nTempo di rimborso della seconda catena: Unix %10$d\nMotivo dell'errore: %11$@\n\nSolo le prove della catena verificate localmente fanno avanzare questo stato."
+            "value": "Sessione: %1$@\nStato: %2$@\nRuolo locale: %3$@\nOrdine di finanziamento: %4$@, quindi %5$@\nPrimo finanziamento confermato: %6$@\nSecondo finanziamento confermato: %7$@\nScadenza nuovo finanziamento: %8$@\nTempo di rimborso della prima catena: %9$@\nTempo di rimborso della seconda catena: %10$@\nMotivo dell'errore: %11$@\n\nSolo le prove della catena verificate localmente fanno avanzare questo stato."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "セッション: %1$@\n状態: %2$@\nローカル役割: %3$@\n資金調達注文: %4$@ 、次に %5$@\n最初の資金調達が確認されました: %6$@\n2 回目の資金調達が確認されました: %7$@\n新規資金調達期限: Unix %8$d\n最初のチェーンの払い戻し時間: Unix %9$d\nセカンドチェーンの返金時間: Unix %10$d\n失敗の理由: %11$@\n\nローカルで検証されたチェーン証拠のみがこのステータスを前進させます。"
+            "value": "セッション: %1$@\n状態: %2$@\nローカル役割: %3$@\n資金調達注文: %4$@ 、次に %5$@\n最初の資金調達が確認されました: %6$@\n2 回目の資金調達が確認されました: %7$@\n新規資金調達期限: %8$@\n最初のチェーンの払い戻し時間: %9$@\nセカンドチェーンの返金時間: %10$@\n失敗の理由: %11$@\n\nローカルで検証されたチェーン証拠のみがこのステータスを前進させます。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "세션: %1$@\n상태: %2$@\n로컬 역할: %3$@\n펀딩 순서: %4$@, 이후 %5$@\n첫 번째 펀딩 확인: %6$@\n두 번째 펀딩 확정: %7$@\n신규 펀딩 마감일: Unix %8$d\n첫 번째 체인 환불 시간: Unix %9$d\n두 번째 체인 환불 시간: Unix %10$d\n실패 이유: %11$@\n\n로컬에서 검증된 체인 증거만이 이 상태를 발전시킵니다."
+            "value": "세션: %1$@\n상태: %2$@\n로컬 역할: %3$@\n펀딩 순서: %4$@, 이후 %5$@\n첫 번째 펀딩 확인: %6$@\n두 번째 펀딩 확정: %7$@\n신규 펀딩 마감일: %8$@\n첫 번째 체인 환불 시간: %9$@\n두 번째 체인 환불 시간: %10$@\n실패 이유: %11$@\n\n로컬에서 검증된 체인 증거만이 이 상태를 발전시킵니다."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sessie: %1$@\nState: %2$@\nLokale rol: %3$@\nFinancieringsvolgorde: %4$@, daarna %5$@\nEerste financiering bevestigd: %6$@\nTweede financiering bevestigd: %7$@\n Deadline voor nieuwe financiering: Unix %8$d\n Terugbetalingstijd eerste keten: Unix %9$d\nRestitutietijd tweede keten: Unix %10$d\n Reden van fout: %11$@\n\nO Alleen lokaal geverifieerd ketenbewijs bevordert deze status."
+            "value": "Sessie: %1$@\nState: %2$@\nLokale rol: %3$@\nFinancieringsvolgorde: %4$@, daarna %5$@\nEerste financiering bevestigd: %6$@\nTweede financiering bevestigd: %7$@\n Deadline voor nieuwe financiering: %8$@\n Terugbetalingstijd eerste keten: %9$@\nRestitutietijd tweede keten: %10$@\n Reden van fout: %11$@\n\nO Alleen lokaal geverifieerd ketenbewijs bevordert deze status."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sesja: %1$@\nStan: %2$@\nRola lokalna: %3$@\nZlecenie finansowania: %4$@, następnie %5$@\nPierwsze finansowanie potwierdzone: %6$@\nPotwierdzono drugie finansowanie: %7$@\nTermin nowego finansowania: Unix %8$d\nCzas zwrotu pierwszego łańcucha: Unix %9$d\nCzas zwrotu kosztów w drugim łańcuchu: Unix %10$d\nPrzyczyna niepowodzenia: %11$@\n\nTylko zweryfikowane lokalnie dowody łańcucha zwiększają ten status."
+            "value": "Sesja: %1$@\nStan: %2$@\nRola lokalna: %3$@\nZlecenie finansowania: %4$@, następnie %5$@\nPierwsze finansowanie potwierdzone: %6$@\nPotwierdzono drugie finansowanie: %7$@\nTermin nowego finansowania: %8$@\nCzas zwrotu pierwszego łańcucha: %9$@\nCzas zwrotu kosztów w drugim łańcuchu: %10$@\nPrzyczyna niepowodzenia: %11$@\n\nTylko zweryfikowane lokalnie dowody łańcucha zwiększają ten status."
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sessão: %1$@\nEstado: %2$@\nFunção local: %3$@\nOrdem de financiamento: %4$@, depois %5$@\nPrimeiro financiamento confirmado: %6$@\nSegundo financiamento confirmado: %7$@\nNovo prazo de financiamento: Unix %8$d\nTempo de reembolso da primeira cadeia: Unix %9$d\nTempo de reembolso da segunda cadeia: Unix %10$d\nMotivo da falha: %11$@\n\nApenas evidências de cadeia verificadas localmente avançam esse status."
+            "value": "Sessão: %1$@\nEstado: %2$@\nFunção local: %3$@\nOrdem de financiamento: %4$@, depois %5$@\nPrimeiro financiamento confirmado: %6$@\nSegundo financiamento confirmado: %7$@\nNovo prazo de financiamento: %8$@\nTempo de reembolso da primeira cadeia: %9$@\nTempo de reembolso da segunda cadeia: %10$@\nMotivo da falha: %11$@\n\nApenas evidências de cadeia verificadas localmente avançam esse status."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Сессия: %1$@\nСостояние: %2$@\nЛокальная роль: %3$@\nПоручение на финансирование: %4$@, затем %5$@\nПервое финансирование подтверждено: %6$@\nВторое финансирование подтверждено: %7$@\nСрок нового финансирования: Unix %8$d\nВремя возврата первой цепочки: Unix %9$d\nВремя возврата второй цепочки: Unix %10$d\nПричина сбоя: %11$@\n\nТолько локально проверенные доказательства цепочки повышают этот статус."
+            "value": "Сессия: %1$@\nСостояние: %2$@\nЛокальная роль: %3$@\nПоручение на финансирование: %4$@, затем %5$@\nПервое финансирование подтверждено: %6$@\nВторое финансирование подтверждено: %7$@\nСрок нового финансирования: %8$@\nВремя возврата первой цепочки: %9$@\nВремя возврата второй цепочки: %10$@\nПричина сбоя: %11$@\n\nТолько локально проверенные доказательства цепочки повышают этот статус."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Oturum: %1$@\nDevlet: %2$@\nYerel rol: %3$@\nFonlama sırası: %4$@, ardından %5$@\nİlk finansman onaylandı: %6$@\nİkinci finansman onaylandı: %7$@\nYeni finansman son tarihi: Unix %8$d\nİlk zincir geri ödeme süresi: Unix %9$d\nİkinci zincir geri ödeme süresi: Unix %10$d\nArıza nedeni: %11$@\n\nYalnızca yerel olarak doğrulanmış zincir kanıtı bu durumu ilerletir."
+            "value": "Oturum: %1$@\nDevlet: %2$@\nYerel rol: %3$@\nFonlama sırası: %4$@, ardından %5$@\nİlk finansman onaylandı: %6$@\nİkinci finansman onaylandı: %7$@\nYeni finansman son tarihi: %8$@\nİlk zincir geri ödeme süresi: %9$@\nİkinci zincir geri ödeme süresi: %10$@\nArıza nedeni: %11$@\n\nYalnızca yerel olarak doğrulanmış zincir kanıtı bu durumu ilerletir."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Сесія: %1$@\nСтан: %2$@\nЛокальна роль: %3$@\nПорядок фінансування: %4$@, потім %5$@\nПерше фінансування підтверджено: %6$@\nПідтверджено друге фінансування: %7$@\nКрайній термін фінансування: Unix %8$d\nЧас повернення коштів у першому ланцюжку: Unix %9$d\nЧас повернення коштів у другому ланцюзі: Unix %10$d\nПричина збою: %11$@\n\nOЦей статус підтверджується лише локально перевіреним доказом ланцюга."
+            "value": "Сесія: %1$@\nСтан: %2$@\nЛокальна роль: %3$@\nПорядок фінансування: %4$@, потім %5$@\nПерше фінансування підтверджено: %6$@\nПідтверджено друге фінансування: %7$@\nКрайній термін фінансування: %8$@\nЧас повернення коштів у першому ланцюжку: %9$@\nЧас повернення коштів у другому ланцюзі: %10$@\nПричина збою: %11$@\n\nOЦей статус підтверджується лише локально перевіреним доказом ланцюга."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Phiên: %1$@\nTrạng thái: %2$@\nVai trò địa phương: %3$@\n Lệnh cấp vốn: %4$@, sau đó là %5$@\nSố tiền đầu tiên được xác nhận: %6$@\nĐã xác nhận khoản tài trợ thứ hai: %7$@\nThời hạn cấp vốn mới: Unix %8$d\nThời gian hoàn trả chuỗi đầu tiên: Unix %9$d\nThời gian hoàn tiền chuỗi thứ hai: Unix %10$d\nLý do thất bại: %11$@\n\nChỉ bằng chứng chuỗi được xác minh cục bộ mới nâng cao trạng thái này."
+            "value": "Phiên: %1$@\nTrạng thái: %2$@\nVai trò địa phương: %3$@\n Lệnh cấp vốn: %4$@, sau đó là %5$@\nSố tiền đầu tiên được xác nhận: %6$@\nĐã xác nhận khoản tài trợ thứ hai: %7$@\nThời hạn cấp vốn mới: %8$@\nThời gian hoàn trả chuỗi đầu tiên: %9$@\nThời gian hoàn tiền chuỗi thứ hai: %10$@\nLý do thất bại: %11$@\n\nChỉ bằng chứng chuỗi được xác minh cục bộ mới nâng cao trạng thái này."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "会话：%1$@\n状态：%2$@\n本地角色：%3$@\n资金订单：%4$@，则%5$@\n首次资金确认： %6$@\n第二笔资金确认：%7$@\n新增资金截止时间：Unix %8$d\n首链退款时间：Unix %9$d\n第二链退款时间：Unix %10$d\n失败原因：%11$@\n\n只有本地验证的链证据才会推进此状态。"
+            "value": "会话：%1$@\n状态：%2$@\n本地角色：%3$@\n资金订单：%4$@，则%5$@\n首次资金确认： %6$@\n第二笔资金确认：%7$@\n新增资金截止时间：%8$@\n首链退款时间：%9$@\n第二链退款时间：%10$@\n失败原因：%11$@\n\n只有本地验证的链证据才会推进此状态。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "會話： %1$@\n狀態： %2$@\n本地角色： %3$@\n資金順序： %4$@ ，然後%5$@\n確認第一筆資金： %6$@\n第二筆資金已確認： %7$@\n新資金截止日期： Unix %8$d\n第一鏈退款時間： Unix %9$d\n第二鏈退款時間： Unix %10$d\n失敗原因： %11$@\n\n只有本地驗證的鏈證據才能提升此地位。"
+            "value": "會話： %1$@\n狀態： %2$@\n本地角色： %3$@\n資金順序： %4$@ ，然後%5$@\n確認第一筆資金： %6$@\n第二筆資金已確認： %7$@\n新資金截止日期： %8$@\n第一鏈退款時間： %9$@\n第二鏈退款時間： %10$@\n失敗原因： %11$@\n\n只有本地驗證的鏈證據才能提升此地位。"
           }
         }
       }
@@ -64721,127 +64983,127 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "عمر القائمة (ساعات، 2–168)"
+            "value": "عمر القائمة (ساعات، 48–168)"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lebensdauer des Eintrags (Stunden, 2–168)"
+            "value": "Lebensdauer des Eintrags (Stunden, 48–168)"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Listing lifetime (hours, 2–168)"
+            "value": "Listing lifetime (hours, 48–168)"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vida útil del listado (horas, 2 a 168)"
+            "value": "Vida útil del listado (horas, 48 a 168)"
           }
         },
         "fa": {
           "stringUnit": {
             "state": "translated",
-            "value": "طول عمر فهرست (ساعت، 2 تا 168)"
+            "value": "طول عمر فهرست (ساعت، 48 تا 168)"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Durée de vie de l'annonce (heures, 2 à 168)"
+            "value": "Durée de vie de l'annonce (heures, 48 à 168)"
           }
         },
         "he": {
           "stringUnit": {
             "state": "translated",
-            "value": "משך חיים של רישום (שעות, 2-168)"
+            "value": "משך חיים של רישום (שעות, 48-168)"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "लिस्टिंग जीवनकाल (घंटे, 2-168)"
+            "value": "लिस्टिंग जीवनकाल (घंटे, 48-168)"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Daftar seumur hidup (jam, 2–168)"
+            "value": "Daftar seumur hidup (jam, 48–168)"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Durata dell'elenco (ore, 2–168)"
+            "value": "Durata dell'elenco (ore, 48–168)"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "リストの有効期間 (時間、2 ～ 168)"
+            "value": "リストの有効期間 (時間、48 ～ 168)"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "목록 수명(시간, 2~168)"
+            "value": "목록 수명(시간, 48~168)"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Levensduur vermelding (uren, 2-168)"
+            "value": "Levensduur vermelding (uren, 48-168)"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Czas trwania wpisu (godziny, 2–168)"
+            "value": "Czas trwania wpisu (godziny, 48–168)"
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vida útil da listagem (horas, 2–168)"
+            "value": "Vida útil da listagem (horas, 48–168)"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Срок действия листинга (часы, 2–168)"
+            "value": "Срок действия листинга (часы, 48–168)"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Listeleme ömrü (saat, 2–168)"
+            "value": "Listeleme ömrü (saat, 48–168)"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Тривалість лістингу (годин, 2–168)"
+            "value": "Тривалість лістингу (годин, 48–168)"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Thời gian tồn tại của danh sách (giờ, 2–168)"
+            "value": "Thời gian tồn tại của danh sách (giờ, 48–168)"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "列表生命周期（小时，2–168）"
+            "value": "列表生命周期（小时，48–168）"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "列表生命週期（小時，2–168）"
+            "value": "列表生命週期（小時，48–168）"
           }
         }
       }
@@ -69568,127 +69830,127 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "تم قفل استرداد الأموال Bitcoin (بعد انتهاء المهلة)"
+            "value": "استرداد Bitcoin المقفلة"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rückerstattung gesperrt Bitcoin (nach Zeitüberschreitung)"
+            "value": "Gesperrte Bitcoin zurückerstatten"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Refund locked Bitcoin (after timeout)"
+            "value": "Refund locked Bitcoin"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reembolso bloqueado Bitcoin (después del tiempo de espera)"
+            "value": "Reembolsar Bitcoin bloqueado"
           }
         },
         "fa": {
           "stringUnit": {
             "state": "translated",
-            "value": "بازپرداخت قفل Bitcoin (پس از مهلت زمانی)"
+            "value": "بازپرداخت Bitcoin قفل‌شده"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Remboursement verrouillé Bitcoin (après expiration du délai)"
+            "value": "Rembourser les bitcoins verrouillés"
           }
         },
         "he": {
           "stringUnit": {
             "state": "translated",
-            "value": "החזר כספי נעול Bitcoin (לאחר פסק זמן)"
+            "value": "החזר Bitcoin נעול"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "रिफंड लॉक Bitcoin (समय समाप्त होने के बाद)"
+            "value": "लॉक किया गया Bitcoin वापस करें"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pengembalian dana terkunci Bitcoin (setelah batas waktu)"
+            "value": "Kembalikan Bitcoin yang terkunci"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rimborso bloccato Bitcoin (dopo il timeout)"
+            "value": "Rimborsa Bitcoin bloccati"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "返金ロック済み Bitcoin (タイムアウト後)"
+            "value": "ロックされた Bitcoin を払い戻す"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "환불 잠김 Bitcoin(시간 초과 후)"
+            "value": "잠긴 Bitcoin 환불"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Terugbetaling vergrendeld Bitcoin (na time-out)"
+            "value": "Vergrendelde Bitcoin terugbetalen"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zwrot środków zablokowany Bitcoin (po przekroczeniu limitu czasu)"
+            "value": "Zwróć zablokowane Bitcoin"
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reembolso bloqueado Bitcoin (após tempo limite)"
+            "value": "Reembolsar Bitcoin bloqueado"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Возврат заблокирован Bitcoin (после тайм-аута)"
+            "value": "Вернуть заблокированные Bitcoin"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Geri ödeme kilitlendi Bitcoin (zaman aşımından sonra)"
+            "value": "Kilitli Bitcoin'i iade et"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Відшкодування заблоковано Bitcoin (після тайм-ауту)"
+            "value": "Повернути заблоковані Bitcoin"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tiền hoàn lại bị khóa Bitcoin (sau khi hết thời gian chờ)"
+            "value": "Hoàn lại Bitcoin bị khóa"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "退款锁定 Bitcoin（超时后）"
+            "value": "退还锁定的 Bitcoin"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "退款鎖定 Bitcoin（超時後）"
+            "value": "退還鎖定的 Bitcoin"
           }
         }
       }
@@ -69699,127 +69961,127 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "تم قفل استرداد الأموال HNS (بعد انتهاء المهلة)"
+            "value": "استرداد HNS المقفلة"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rückerstattung gesperrt HNS (nach Zeitüberschreitung)"
+            "value": "Gesperrte HNS zurückerstatten"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Refund locked HNS (after timeout)"
+            "value": "Refund locked HNS"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reembolso bloqueado HNS (después del tiempo de espera)"
+            "value": "Reembolsar HNS bloqueado"
           }
         },
         "fa": {
           "stringUnit": {
             "state": "translated",
-            "value": "بازپرداخت قفل HNS (پس از مهلت زمانی)"
+            "value": "بازپرداخت HNS قفل‌شده"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Remboursement verrouillé HNS (après expiration du délai)"
+            "value": "Rembourser les HNS verrouillés"
           }
         },
         "he": {
           "stringUnit": {
             "state": "translated",
-            "value": "החזר כספי נעול HNS (לאחר פסק זמן)"
+            "value": "החזר HNS נעול"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "रिफंड लॉक HNS (समय समाप्त होने के बाद)"
+            "value": "लॉक किया गया HNS वापस करें"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pengembalian dana terkunci HNS (setelah batas waktu)"
+            "value": "Kembalikan HNS yang terkunci"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rimborso bloccato HNS (dopo il timeout)"
+            "value": "Rimborsa HNS bloccati"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "返金ロック済み HNS (タイムアウト後)"
+            "value": "ロックされた HNS を払い戻す"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "환불 잠김 HNS(시간 초과 후)"
+            "value": "잠긴 HNS 환불"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Terugbetaling vergrendeld HNS (na time-out)"
+            "value": "Vergrendelde HNS terugbetalen"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zwrot środków zablokowany HNS (po przekroczeniu limitu czasu)"
+            "value": "Zwróć zablokowane HNS"
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reembolso bloqueado HNS (após tempo limite)"
+            "value": "Reembolsar HNS bloqueado"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Возврат заблокирован HNS (после тайм-аута)"
+            "value": "Вернуть заблокированные HNS"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Geri ödeme kilitlendi HNS (zaman aşımından sonra)"
+            "value": "Kilitli HNS'yi iade et"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Відшкодування заблоковано HNS (після тайм-ауту)"
+            "value": "Повернути заблоковані HNS"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tiền hoàn lại bị khóa HNS (sau khi hết thời gian chờ)"
+            "value": "Hoàn lại HNS bị khóa"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "退款锁定 HNS（超时后）"
+            "value": "退还锁定的 HNS"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "退款鎖定 HNS（超時後）"
+            "value": "退還鎖定的 HNS"
           }
         }
       }
@@ -72051,133 +72313,395 @@
         }
       }
     },
+    "wallet_swap_stage_first_funding_cutoff": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لا يوجد وقت كافٍ لبدء تمويل %1$@ بأمان"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es bleibt nicht genug Zeit, um die %1$@-Finanzierung sicher zu starten"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not enough time remains to safely start %1$@ funding"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No queda tiempo suficiente para iniciar con seguridad la financiación de %1$@"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "زمان کافی برای شروع ایمن تأمین مالی %1$@ باقی نمانده است"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il ne reste pas assez de temps pour démarrer le financement de %1$@ en toute sécurité"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "לא נותר מספיק זמן להתחיל בבטחה את מימון %1$@"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ फ़ंडिंग सुरक्षित रूप से शुरू करने के लिए पर्याप्त समय नहीं बचा है"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waktu tidak cukup untuk memulai pendanaan %1$@ dengan aman"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non rimane abbastanza tempo per avviare in sicurezza il finanziamento di %1$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ の資金提供を安全に開始する時間が足りません"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ 펀딩을 안전하게 시작할 시간이 부족합니다"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Er is niet genoeg tijd om de financiering van %1$@ veilig te starten"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pozostało zbyt mało czasu, aby bezpiecznie rozpocząć finansowanie %1$@"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não há tempo suficiente para iniciar com segurança o financiamento de %1$@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Недостаточно времени, чтобы безопасно начать финансирование %1$@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ fonlamasını güvenle başlatmak için yeterli süre kalmadı"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Недостатньо часу, щоб безпечно почати фінансування %1$@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không còn đủ thời gian để bắt đầu cấp vốn %1$@ một cách an toàn"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剩余时间不足，无法安全开始 %1$@ 注资"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剩餘時間不足，無法安全開始 %1$@ 注資"
+          }
+        }
+      }
+    },
+    "wallet_swap_stage_funding_closed_no_local_lock": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "أُغلق التمويل · لم تُقفل أموال محلية في المبادلة · يتاح استرداد السلسلة الأولى في %1$@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finanzierung geschlossen · keine lokalen Swap-Mittel gesperrt · Erstketten-Rückerstattung verfügbar am %1$@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Funding closed · no local swap funds were locked · first-chain refund available %1$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Financiación cerrada · no se bloquearon fondos locales · reembolso de la primera cadena disponible el %1$@"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تأمین مالی بسته شد · هیچ وجه محلی قفل نشد · بازپرداخت زنجیره اول در %1$@ در دسترس است"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Financement fermé · aucun fonds local bloqué · remboursement de la première chaîne disponible le %1$@"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "המימון נסגר · לא ננעלו כספים מקומיים בהחלפה · החזר השרשרת הראשונה זמין ב-%1$@"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "फ़ंडिंग बंद · कोई स्थानीय स्वैप धन लॉक नहीं हुआ · पहली चेन का रिफ़ंड %1$@ को उपलब्ध होगा"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pendanaan ditutup · tidak ada dana swap lokal yang dikunci · pengembalian rantai pertama tersedia %1$@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finanziamento chiuso · nessun fondo locale bloccato · rimborso della prima catena disponibile il %1$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "資金提供は終了しました · ローカル資金はロックされていません · 第1チェーンの返金は %1$@ に可能"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "펀딩 종료 · 로컬 스왑 자금이 잠기지 않음 · 첫 번째 체인 환불 가능 시각 %1$@"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Financiering gesloten · geen lokale swapmiddelen vergrendeld · terugbetaling eerste keten beschikbaar op %1$@"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finansowanie zamknięte · nie zablokowano lokalnych środków · zwrot z pierwszego łańcucha dostępny %1$@"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Financiamento encerrado · nenhum fundo local foi bloqueado · reembolso da primeira cadeia disponível em %1$@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Финансирование закрыто · локальные средства не заблокированы · возврат первой цепочки доступен %1$@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fonlama kapandı · yerel takas fonu kilitlenmedi · ilk zincir iadesi %1$@ tarihinde kullanılabilir"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Фінансування закрито · локальні кошти не заблоковано · повернення першого ланцюга доступне %1$@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã đóng cấp vốn · không có tiền cục bộ bị khóa · hoàn tiền chuỗi đầu khả dụng lúc %1$@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "注资已关闭 · 本地交换资金未锁定 · 第一链退款时间为 %1$@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "注資已關閉 · 本機交換資金未鎖定 · 第一鏈退款時間為 %1$@"
+          }
+        }
+      }
+    },
     "wallet_swap_stage_funding_expired": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "انتهت فترة التمويل · لا يُسمح بأي تمويل محلي جديد؛ يتم تحرير أي حجز محلي غير ممول، ويمكن استرداد قفل السلسلة الأولى الحالي بعد انتهاء المهلة"
+            "value": "أُغلق التمويل · يظل %1$@ الخاص بك في هذه المبادلة · يتاح الاسترداد في %2$@ (%3$@)"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Finanzierungsfenster abgelaufen · keine neue lokale Finanzierung zulässig; Jede nicht finanzierte lokale Reservierung wird freigegeben und eine bestehende Erstbuchungssperre kann nach Ablauf der Zeit erstattet werden"
+            "value": "Finanzierung geschlossen · Ihre %1$@ bleiben in diesem Swap · Rückerstattung verfügbar am %2$@ (%3$@)"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Funding window expired · no new local funding is allowed; any unfunded local reservation is released, and an existing first-chain lock can be refunded after timeout"
+            "value": "Funding closed · your %1$@ remains in this swap · refund available %2$@ (%3$@)"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "El plazo de financiación expiró · no se permite nueva financiación local; cualquier reserva local no financiada se libera y un candado de primera cadena existente se puede reembolsar después del tiempo de espera"
+            "value": "Financiación cerrada · tus %1$@ siguen en este intercambio · reembolso disponible el %2$@ (%3$@)"
           }
         },
         "fa": {
           "stringUnit": {
             "state": "translated",
-            "value": "پنجره بودجه منقضی شده است · هیچ بودجه محلی جدیدی مجاز نیست. هرگونه رزرو محلی بدون بودجه آزاد می شود و قفل زنجیره اول موجود را می توان پس از اتمام زمان بازپرداخت کرد."
+            "value": "تأمین مالی بسته شد · %1$@ شما در این مبادله باقی است · بازپرداخت در %2$@ در دسترس است (%3$@)"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fenêtre de financement expirée · aucun nouveau financement local n'est autorisé ; toute réservation locale non financée est libérée et un verrou de première chaîne existant peut être remboursé après expiration du délai"
+            "value": "Financement fermé · vos %1$@ restent dans cet échange · remboursement disponible le %2$@ (%3$@)"
           }
         },
         "he": {
           "stringUnit": {
             "state": "translated",
-            "value": "פג תוקף חלון המימון · אין מימון מקומי חדש מותר; כל הזמנה מקומית ללא מימון משוחררת, וניתן לקבל החזר על מנעול שרשרת ראשון קיים לאחר הזמן הקצוב"
+            "value": "המימון נסגר · ה-%1$@ שלך נשאר בהחלפה הזו · ההחזר זמין ב-%2$@ (%3$@)"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "फ़ंडिंग विंडो समाप्त हो गई · किसी नई स्थानीय फ़ंडिंग की अनुमति नहीं है; कोई भी गैर-वित्त पोषित स्थानीय आरक्षण जारी किया जाता है, और मौजूदा प्रथम-श्रृंखला लॉक को समय समाप्ति के बाद वापस किया जा सकता है"
+            "value": "फ़ंडिंग बंद · आपका %1$@ इस स्वैप में है · रिफ़ंड %2$@ को उपलब्ध होगा (%3$@)"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Jangka waktu pendanaan telah habis · tidak ada pendanaan lokal baru yang diperbolehkan; setiap reservasi lokal yang tidak didanai akan dilepaskan, dan kunci rantai pertama yang ada dapat dikembalikan setelah batas waktu habis"
+            "value": "Pendanaan ditutup · %1$@ Anda tetap dalam swap ini · pengembalian tersedia %2$@ (%3$@)"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Il periodo di finanziamento è scaduto · non è consentito alcun nuovo finanziamento locale; qualsiasi prenotazione locale non finanziata viene rilasciata e un blocco della prima catena esistente può essere rimborsato dopo il timeout"
+            "value": "Finanziamento chiuso · i tuoi %1$@ restano in questo scambio · rimborso disponibile il %2$@ (%3$@)"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "資金調達枠が期限切れになりました。新しいローカル資金調達は許可されません。資金のないローカル予約はすべて解放され、タイムアウト後に既存のファーストチェーン ロックを返金できます。"
+            "value": "資金提供は終了しました · あなたの %1$@ はこのスワップ内にあります · %2$@ に返金可能（%3$@）"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "자금 조달 기간이 만료되었습니다. 새로운 지역 자금 조달은 허용되지 않습니다. 자금이 지원되지 않은 현지 예약은 해제되며 기존 첫 번째 체인 잠금은 시간 초과 후 환불될 수 있습니다."
+            "value": "펀딩 종료 · 회원님의 %1$@는 이 스왑에 남아 있음 · %2$@에 환불 가능(%3$@)"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Financieringstermijn verlopen · er is geen nieuwe lokale financiering toegestaan; elke niet-gefinancierde lokale reservering wordt vrijgegeven en een bestaand slot van de eerste keten kan na een time-out worden terugbetaald"
+            "value": "Financiering gesloten · je %1$@ blijft in deze swap · terugbetaling beschikbaar op %2$@ (%3$@)"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Upłynął okres finansowania · żadne nowe finansowanie lokalne nie jest dozwolone; każda niesfinansowana rezerwacja lokalna zostaje zwolniona, a istniejąca blokada pierwszego łańcucha może zostać zwrócona po przekroczeniu limitu czasu"
+            "value": "Finansowanie zamknięte · Twoje %1$@ pozostaje w tej wymianie · zwrot dostępny %2$@ (%3$@)"
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "O período de financiamento expirou · nenhum novo financiamento local é permitido; qualquer reserva local não financiada será liberada e um bloqueio de primeira cadeia existente poderá ser reembolsado após o tempo limite"
+            "value": "Financiamento encerrado · seus %1$@ permanecem nesta troca · reembolso disponível em %2$@ (%3$@)"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Окно финансирования истекло · новое местное финансирование не допускается; любое необеспеченное местное резервирование снимается, а существующая блокировка первой цепи может быть возвращена после тайм-аута."
+            "value": "Финансирование закрыто · ваши %1$@ остаются в этом обмене · возврат доступен %2$@ (%3$@)"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Finansman penceresinin süresi doldu · yeni yerel finansmana izin verilmiyor; Finanse edilmemiş herhangi bir yerel rezervasyon iptal edilir ve mevcut bir ilk zincir kilidi, zaman aşımından sonra iade edilebilir"
+            "value": "Fonlama kapandı · %1$@ bakiyeniz bu takasta kalıyor · iade %2$@ tarihinde kullanılabilir (%3$@)"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Період фінансування закінчився · нове місцеве фінансування не дозволяється; будь-яке нефінансоване локальне резервування скасовується, а наявне блокування першого ланцюга може бути відшкодовано після тайм-ауту"
+            "value": "Фінансування закрито · ваші %1$@ залишаються в цьому обміні · повернення доступне %2$@ (%3$@)"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Thời hạn cấp vốn đã hết · Không được phép cấp vốn mới tại địa phương; mọi đặt chỗ địa phương chưa được cấp vốn sẽ được giải phóng và khóa chuỗi đầu tiên hiện có có thể được hoàn lại sau khi hết thời gian chờ"
+            "value": "Đã đóng cấp vốn · %1$@ của bạn vẫn ở trong giao dịch này · hoàn tiền khả dụng lúc %2$@ (%3$@)"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "资助窗口期满 · 不允许新的地方资助；任何未提供资金的本地预订都会被释放，并且现有的第一链锁可以在超时后退款"
+            "value": "注资已关闭 · 您的 %1$@ 仍在此交换中 · 可在 %2$@ 退款（%3$@）"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "資助窗口期滿 · 不允許新的地方資助；任何未提供資金的本地預訂都會被釋放，並且現有的第一鏈鎖可以在超時後退款"
+            "value": "注資已關閉 · 您的 %1$@ 仍在此交換中 · 可於 %2$@ 退款（%3$@）"
           }
         }
       }
@@ -72309,6 +72833,137 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$@ 資金已準備好在此錢包上獲得批准"
+          }
+        }
+      }
+    },
+    "wallet_swap_stage_funding_recovery_pending": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "أُغلق التمويل · جارٍ التحقق من محاولة تمويل %1$@ الحالية لهذه الجلسة"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finanzierung geschlossen · der bestehende %1$@-Finanzierungsversuch dieser Sitzung wird geprüft"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Funding closed · checking this session’s existing %1$@ funding attempt"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Financiación cerrada · comprobando el intento de financiación de %1$@ existente en esta sesión"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تأمین مالی بسته شد · تلاش موجود برای تأمین %1$@ در این جلسه در حال بررسی است"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Financement fermé · vérification de la tentative de financement %1$@ existante pour cette session"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "המימון נסגר · בודק את ניסיון המימון הקיים של %1$@ עבור הפעלה זו"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "फ़ंडिंग बंद · इस सत्र के मौजूदा %1$@ फ़ंडिंग प्रयास की जाँच हो रही है"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pendanaan ditutup · memeriksa upaya pendanaan %1$@ yang ada untuk sesi ini"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finanziamento chiuso · verifica del tentativo di finanziamento %1$@ esistente per questa sessione"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "資金提供は終了しました · このセッションの既存の %1$@ 資金提供試行を確認中"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "펀딩 종료 · 이 세션의 기존 %1$@ 펀딩 시도 확인 중"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Financiering gesloten · de bestaande %1$@-financieringspoging voor deze sessie wordt gecontroleerd"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finansowanie zamknięte · sprawdzanie istniejącej próby finansowania %1$@ dla tej sesji"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Financiamento encerrado · verificando a tentativa de financiamento de %1$@ existente nesta sessão"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Финансирование закрыто · проверка существующей попытки финансирования %1$@ для этой сессии"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fonlama kapandı · bu oturumdaki mevcut %1$@ fonlama girişimi kontrol ediliyor"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Фінансування закрито · перевірка наявної спроби фінансування %1$@ для цього сеансу"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã đóng cấp vốn · đang kiểm tra lần cấp vốn %1$@ hiện có của phiên này"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "注资已关闭 · 正在检查此会话现有的 %1$@ 注资尝试"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "注資已關閉 · 正在檢查此工作階段現有的 %1$@ 注資嘗試"
           }
         }
       }
@@ -72712,127 +73367,127 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "استرداد %1$@ مؤهل بعد انتهاء المهلة · فتح عمليات تنفيذ المقايضة الذرية"
+            "value": "استرداد %1$@ متاح الآن · أصبح متاحًا منذ %2$@ · استرد هذه الجلسة"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Eine %1$@-Rückerstattung ist nach einer Zeitüberschreitung möglich · offene Atomic-Swap-Ausführungen"
+            "value": "%1$@-Rückerstattung ist jetzt verfügbar · berechtigt seit %2$@ · diese Sitzung wiederherstellen"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@ refund is eligible after timeout · open Atomic swap executions"
+            "value": "%1$@ refund is available now · eligible since %2$@ · recover this session"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "El reembolso de %1$@ es elegible después del tiempo de espera · abrir ejecuciones de intercambio atómico"
+            "value": "El reembolso de %1$@ ya está disponible · habilitado desde %2$@ · recupera esta sesión"
           }
         },
         "fa": {
           "stringUnit": {
             "state": "translated",
-            "value": "بازپرداخت %1$@ پس از مهلت زمانی واجد شرایط است · اجرای سوآپ اتمی را باز کنید"
+            "value": "بازپرداخت %1$@ اکنون در دسترس است · از %2$@ واجد شرایط است · این جلسه را بازیابی کنید"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Le remboursement %1$@ est éligible après l'expiration du délai · exécutions de swap Atomic ouvertes"
+            "value": "Le remboursement de %1$@ est disponible · éligible depuis le %2$@ · récupérer cette session"
           }
         },
         "he": {
           "stringUnit": {
             "state": "translated",
-            "value": "החזר %1$@ זכאי לאחר הזמן הקצוב · פתיחת ביצוע החלפת Atomic"
+            "value": "החזר %1$@ זמין עכשיו · זכאי מאז %2$@ · שחזר את ההפעלה הזו"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@ समय समाप्ति · खुले परमाणु स्वैप निष्पादन के बाद रिफंड पात्र है"
+            "value": "%1$@ रिफ़ंड अब उपलब्ध है · %2$@ से पात्र · यह सत्र पुनर्प्राप्त करें"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pengembalian dana %1$@ memenuhi syarat setelah batas waktu · eksekusi pertukaran Atom terbuka"
+            "value": "Pengembalian %1$@ tersedia sekarang · memenuhi syarat sejak %2$@ · pulihkan sesi ini"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Il rimborso %1$@ è idoneo dopo il timeout · esecuzioni di scambio atomico aperte"
+            "value": "Il rimborso di %1$@ è ora disponibile · idoneo dal %2$@ · recupera questa sessione"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@ の払い戻しは、タイムアウト後、アトミック スワップの実行が開始された後に対象となります。"
+            "value": "%1$@ の返金が可能です · %2$@ から対象 · このセッションを復旧"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "시간 초과 후 %1$@ 환불이 가능합니다. · 아토믹 스왑 실행 개시"
+            "value": "%1$@ 환불 가능 · %2$@부터 자격 충족 · 이 세션 복구"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@-terugbetaling komt in aanmerking na een time-out · open Atomic swap-uitvoeringen"
+            "value": "%1$@-terugbetaling is nu beschikbaar · beschikbaar sinds %2$@ · herstel deze sessie"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zwrot %1$@ kwalifikuje się po przekroczeniu limitu czasu. · Otwórz egzekucje wymiany Atomic"
+            "value": "Zwrot %1$@ jest już dostępny · uprawnienie od %2$@ · odzyskaj tę sesję"
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "O reembolso de %1$@ é elegível após o tempo limite · abrir execuções de swap atômico"
+            "value": "O reembolso de %1$@ está disponível · elegível desde %2$@ · recupere esta sessão"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Возврат %1$@ возможен после таймаута · открытые исполнения атомарных свопов"
+            "value": "Возврат %1$@ доступен · право действует с %2$@ · восстановить эту сессию"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@ iadesi zaman aşımından sonra uygundur · açık Atomik takas uygulamaları"
+            "value": "%1$@ iadesi artık kullanılabilir · %2$@ tarihinden beri uygun · bu oturumu kurtar"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@ відшкодування придатне після тайм-ауту · відкриті виконання Atomic swap"
+            "value": "Повернення %1$@ доступне · право діє з %2$@ · відновити цей сеанс"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Khoản hoàn trả %1$@ đủ điều kiện sau khi hết thời gian chờ · mở thực thi hoán đổi nguyên tử"
+            "value": "Hoàn tiền %1$@ hiện khả dụng · đủ điều kiện từ %2$@ · khôi phục phiên này"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@ 超时后可退款·开放原子互换执行"
+            "value": "%1$@ 退款现已可用 · 自 %2$@ 起符合条件 · 恢复此会话"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@ 逾時後可退款·開放式原子互換執行"
+            "value": "%1$@ 退款現已可用 · 自 %2$@ 起符合資格 · 復原此工作階段"
           }
         }
       }
@@ -73492,6 +74147,137 @@
         }
       }
     },
+    "wallet_swap_stage_syncing_append": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · جارٍ التحقق من حالة Bitcoin"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · Bitcoin-Status wird verifiziert"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · verifying Bitcoin state"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · verificando el estado de Bitcoin"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · در حال تأیید وضعیت Bitcoin"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · vérification de l’état Bitcoin"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · מאמת את מצב Bitcoin"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · Bitcoin स्थिति सत्यापित हो रही है"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · memverifikasi status Bitcoin"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · verifica dello stato Bitcoin"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · Bitcoin の状態を検証中"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · Bitcoin 상태 확인 중"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · Bitcoin-status wordt geverifieerd"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · weryfikowanie stanu Bitcoin"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · verificando o estado do Bitcoin"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · проверка состояния Bitcoin"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · Bitcoin durumu doğrulanıyor"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · перевірка стану Bitcoin"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · đang xác minh trạng thái Bitcoin"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · 正在验证 Bitcoin 状态"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · 正在驗證 Bitcoin 狀態"
+          }
+        }
+      }
+    },
     "wallet_swap_stage_terms_syncing": {
       "extractionState": "manual",
       "localizations": {
@@ -73750,6 +74536,137 @@
           "stringUnit": {
             "state": "translated",
             "value": "條款凍結·自動 Bitcoin 同步/手錶準備下一步"
+          }
+        }
+      }
+    },
+    "wallet_swap_stage_unfunded_closed": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "أُغلق التمويل بأمان · لم تُقفل أي أموال في المبادلة"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finanzierung sicher geschlossen · keine Swap-Mittel wurden gesperrt"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Funding closed safely · no swap funds were locked"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Financiación cerrada de forma segura · no se bloquearon fondos"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تأمین مالی با ایمنی بسته شد · هیچ وجهی در مبادله قفل نشد"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Financement fermé en toute sécurité · aucun fonds d’échange n’a été bloqué"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "המימון נסגר בבטחה · לא ננעלו כספים בהחלפה"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "फ़ंडिंग सुरक्षित रूप से बंद · कोई स्वैप धन लॉक नहीं हुआ"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pendanaan ditutup dengan aman · tidak ada dana swap yang dikunci"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finanziamento chiuso in sicurezza · nessun fondo di scambio è stato bloccato"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "資金提供は安全に終了しました · スワップ資金はロックされていません"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "펀딩이 안전하게 종료됨 · 잠긴 스왑 자금 없음"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Financiering veilig gesloten · er zijn geen swapmiddelen vergrendeld"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finansowanie bezpiecznie zamknięte · nie zablokowano środków wymiany"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Financiamento encerrado com segurança · nenhum fundo de troca foi bloqueado"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Финансирование безопасно закрыто · средства обмена не заблокированы"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fonlama güvenle kapandı · hiçbir takas fonu kilitlenmedi"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Фінансування безпечно закрито · кошти обміну не заблоковано"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã đóng cấp vốn an toàn · không có tiền hoán đổi bị khóa"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "注资已安全关闭 · 没有交换资金被锁定"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "注資已安全關閉 · 沒有交換資金被鎖定"
           }
         }
       }
@@ -74143,6 +75060,137 @@
           "stringUnit": {
             "state": "translated",
             "value": "兩筆資金交易均已驗證·等待交易對手贖回%1$@"
+          }
+        }
+      }
+    },
+    "wallet_swap_stage_with_deadline": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · متبقٍ %2$@ لتمويل %3$@ · الموعد النهائي %4$@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %2$@ verbleibend, um %3$@ zu finanzieren · Frist %4$@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %2$@ remaining to fund %3$@ · deadline %4$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · quedan %2$@ para financiar %3$@ · límite %4$@"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %2$@ برای تأمین %3$@ باقی مانده · مهلت %4$@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %2$@ restantes pour financer %3$@ · échéance %4$@"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · נותרו %2$@ למימון %3$@ · מועד אחרון %4$@"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %3$@ फ़ंड करने के लिए %2$@ शेष · समय-सीमा %4$@"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · tersisa %2$@ untuk mendanai %3$@ · batas %4$@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %2$@ rimanenti per finanziare %3$@ · scadenza %4$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %3$@ の資金提供まで残り %2$@ · 期限 %4$@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %3$@ 펀딩까지 %2$@ 남음 · 마감 %4$@"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · nog %2$@ om %3$@ te financieren · deadline %4$@"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · pozostało %2$@ na finansowanie %3$@ · termin %4$@"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %2$@ restantes para financiar %3$@ · prazo %4$@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · осталось %2$@ для финансирования %3$@ · срок %4$@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %3$@ fonlamak için %2$@ kaldı · son tarih %4$@"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · залишилося %2$@ для фінансування %3$@ · термін %4$@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · còn %2$@ để cấp vốn %3$@ · hạn %4$@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · 距离完成 %3$@ 注资还剩 %2$@ · 截止时间 %4$@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · 距離完成 %3$@ 注資還剩 %2$@ · 截止時間 %4$@"
           }
         }
       }

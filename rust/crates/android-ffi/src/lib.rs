@@ -1701,7 +1701,7 @@ impl AndroidWalletController {
         })
     }
 
-    fn authorize_btc_for_hns_first_funding(
+    fn authorize_bitcoin_swap_funding(
         &mut self,
         session_id: SessionId,
     ) -> Option<MobileShakescapeBitcoinFundingPermit> {
@@ -8394,7 +8394,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
                 None
             })?;
             controller
-                .authorize_btc_for_hns_first_funding(session_id)
+                .authorize_bitcoin_swap_funding(session_id)
                 .or_else(|| {
                     android_log_error(&format!(
                         "Bitcoin HTLC funding preparation was not authorized for session {}",

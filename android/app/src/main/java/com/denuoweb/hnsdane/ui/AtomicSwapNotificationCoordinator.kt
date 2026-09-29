@@ -18,9 +18,9 @@ import java.security.MessageDigest
  * Publishes one durable, deduplicated notification for each meaningful atomic-swap stage.
  *
  * The native execution journal remains the authority. This class persists only the last
- * presentation fingerprint for each random session ID and one-way fingerprints for confirmed
- * HNS receives; it stores no keys, raw transaction IDs or bytes, addresses, names, amounts, or
- * counterparty endpoints. The first observation after this feature is installed establishes a
+ * presentation fingerprint and funding-warning time for each random session ID, plus one-way
+ * fingerprints for confirmed HNS receives; it stores no keys, raw transaction IDs or bytes,
+ * addresses, names, amounts, or counterparty endpoints. The first observation establishes a
  * baseline so historical activity does not all alert at once. Every later new session, stage
  * transition, or confirmed incoming HNS payment is eligible for one notification.
  */
@@ -28,6 +28,7 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
     private val applicationContext = context.applicationContext
     private val manager = applicationContext.getSystemService(NotificationManager::class.java)
     private val preferences = applicationContext.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+    private val scheduledFundingWarnings = mutableMapOf<String, String>()
 
     init {
         manager.createNotificationChannel(
@@ -68,33 +69,58 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
             )
         }
         status.pendingAcceptances.forEach { pending ->
+            val deadline = pending.fundingDeadlineUnix
+            val now = System.currentTimeMillis() / 1_000L
+            val oneHourWarning = deadline != null && deadline > now &&
+                deadline - now <= ONE_HOUR_SECONDS
             records[pending.sessionId] = SwapNotificationRecord(
                 sessionId = pending.sessionId,
-                fingerprint = "pending_acceptance",
-                title = applicationContext.getString(R.string.wallet_swap_notification_updated),
-                text = applicationContext.getString(
-                    R.string.wallet_swap_notification_negotiating,
-                    pending.sessionId.take(12),
+                fingerprint = "pending_acceptance:${deadline ?: 0L}:$oneHourWarning",
+                title = applicationContext.getString(
+                    if (oneHourWarning) R.string.wallet_swap_notification_action_required
+                    else R.string.wallet_swap_notification_updated,
                 ),
+                text = if (deadline == null) {
+                    applicationContext.getString(
+                        R.string.wallet_swap_notification_negotiating,
+                        pending.sessionId.take(12),
+                    )
+                } else {
+                    applicationContext.getString(
+                        R.string.wallet_swap_acceptance_sent,
+                        pending.sessionId.take(12),
+                        localDeadline(deadline),
+                        remainingTime(deadline, now),
+                    )
+                },
                 historicalTerminal = false,
+                actionRequired = oneHourWarning,
             )
         }
         status.executions.forEach { execution ->
             val stage = stageText(execution)
+            val milestone = notificationMilestone(execution)
+            val actionRequired = notificationRequiresAction(execution, milestone)
             val firstObservationIsOfferAcceptance =
-                execution.localRole == "taker" && execution.state !in TERMINAL_STATES
+                execution.localRole == "taker" &&
+                    execution.state !in TERMINAL_STATES &&
+                    !actionRequired
             records[execution.sessionId] = SwapNotificationRecord(
                 sessionId = execution.sessionId,
                 // Do not include the native revision: confirmation-count and replay bookkeeping
                 // can increment it without changing what either participant needs to do.
-                fingerprint = "${execution.state}:${execution.localRole}:$stage",
-                title = notificationTitle(execution.state, stage),
+                // Countdown text changes each minute. Semantic buckets notify
+                // once for first funding, the one-hour warning, expiry, and
+                // each durable state transition without minute-by-minute spam.
+                fingerprint = "${execution.state}:${execution.localRole}:$milestone",
+                title = notificationTitle(execution, milestone),
                 text = applicationContext.getString(
                     R.string.wallet_swap_notification_stage,
                     stage,
                     execution.sessionId.take(12),
                 ),
                 historicalTerminal = execution.state in TERMINAL_STATES,
+                actionRequired = actionRequired,
                 initialTitle = if (firstObservationIsOfferAcceptance) {
                     applicationContext.getString(R.string.wallet_swap_notification_offer_accepted)
                 } else {
@@ -110,17 +136,38 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
                 },
             )
         }
+        reconcileFundingWarnings(status)
+        val fundingWarningNeedsPermission =
+            hasOpenFundingDeadline(status) && !canPostNotifications()
 
         if (!preferences.getBoolean(INITIALIZED, false)) {
+            val canNotify = canPostNotifications()
+            var permissionNeeded = fundingWarningNeedsPermission
             preferences.edit().apply {
-                records.values.forEach { putString(sessionKey(it.sessionId), it.fingerprint) }
+                records.values.filterNot { it.actionRequired }.forEach {
+                    putString(sessionKey(it.sessionId), it.fingerprint)
+                }
                 putBoolean(INITIALIZED, true)
             }.apply()
-            return false
+            records.values.filter { it.actionRequired }.forEach { record ->
+                if (!canNotify) {
+                    permissionNeeded = true
+                    return@forEach
+                }
+                manager.notify(
+                    "atomic-swap:${record.sessionId}",
+                    NOTIFICATION_ID,
+                    notification(record),
+                )
+                preferences.edit()
+                    .putString(sessionKey(record.sessionId), record.fingerprint)
+                    .apply()
+            }
+            return permissionNeeded
         }
 
         val canNotify = canPostNotifications()
-        var permissionNeeded = false
+        var permissionNeeded = fundingWarningNeedsPermission
         records.values.forEach { record ->
             val key = sessionKey(record.sessionId)
             val previous = preferences.getString(key, null)
@@ -151,6 +198,126 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
             preferences.edit().putString(key, record.fingerprint).apply()
         }
         return permissionNeeded
+    }
+
+    private fun reconcileFundingWarnings(status: NativeShakescapeExecutionStatus) {
+        val now = System.currentTimeMillis() / 1_000L
+        val previouslyScheduled = preferences.getStringSet(FUNDING_WARNING_SESSIONS, emptySet())
+            ?.toSet() ?: emptySet()
+        val scheduled = linkedSetOf<String>()
+
+        fun scheduleWarning(
+            sessionId: String,
+            fundingDeadlineUnix: Long,
+            warningFingerprint: String,
+            warningText: (String) -> String,
+        ) {
+            val warningAt = fundingDeadlineUnix - ONE_HOUR_SECONDS
+            if (warningAt <= now) {
+                AtomicSwapFundingWarningReceiver.cancel(applicationContext, sessionId)
+                scheduledFundingWarnings.remove(sessionId)
+                return
+            }
+            val deadline = java.text.DateFormat.getDateTimeInstance(
+                java.text.DateFormat.MEDIUM,
+                java.text.DateFormat.SHORT,
+            ).format(java.util.Date(runCatching {
+                Math.multiplyExact(fundingDeadlineUnix, 1_000L)
+            }.getOrElse { return }))
+            // Keep the optimization in memory, not as durable authority.
+            // Android cancels alarms when an app is force-stopped. A fresh
+            // process must therefore reinstall every still-live warning even
+            // when SharedPreferences remembers the prior session.
+            if (scheduledFundingWarnings[sessionId] != warningFingerprint) {
+                val warningScheduled = AtomicSwapFundingWarningReceiver.schedule(
+                    applicationContext,
+                    sessionId,
+                    runCatching { Math.multiplyExact(warningAt, 1_000L) }
+                        .getOrElse { return },
+                    applicationContext.getString(
+                        R.string.wallet_swap_notification_action_required,
+                    ),
+                    warningText(deadline),
+                )
+                if (warningScheduled) {
+                    scheduledFundingWarnings[sessionId] = warningFingerprint
+                }
+            }
+            scheduled += sessionId
+        }
+
+        status.pendingAcceptances.forEach { pending ->
+            val fundingDeadlineUnix = pending.fundingDeadlineUnix ?: return@forEach
+            scheduleWarning(
+                sessionId = pending.sessionId,
+                fundingDeadlineUnix = fundingDeadlineUnix,
+                warningFingerprint = "$fundingDeadlineUnix:pending",
+            ) { deadline ->
+                applicationContext.getString(
+                    R.string.wallet_swap_acceptance_sent,
+                    pending.sessionId.take(12),
+                    deadline,
+                    applicationContext.getString(
+                        R.string.wallet_swap_duration_hours_minutes,
+                        1,
+                        0,
+                    ),
+                )
+            }
+        }
+        status.executions.forEach { execution ->
+            if (execution.state !in FUNDING_STATES) return@forEach
+            val target = if (execution.state in setOf("first_funded", "second_funding_pending")) {
+                execution.secondChain
+            } else {
+                execution.firstChain
+            }.let(::chainLabel)
+            val warningFingerprint = "${execution.fundingDeadlineUnix}:$target"
+            scheduleWarning(
+                sessionId = execution.sessionId,
+                fundingDeadlineUnix = execution.fundingDeadlineUnix,
+                warningFingerprint = warningFingerprint,
+            ) { deadline ->
+                val warningStage = applicationContext.getString(
+                    R.string.wallet_swap_stage_with_deadline,
+                    applicationContext.getString(R.string.wallet_swap_notification_action_required),
+                    applicationContext.getString(
+                        R.string.wallet_swap_duration_hours_minutes,
+                        1,
+                        0,
+                    ),
+                    target,
+                    deadline,
+                )
+                applicationContext.getString(
+                    R.string.wallet_swap_notification_stage,
+                    warningStage,
+                    execution.sessionId.take(12),
+                )
+            }
+        }
+        (previouslyScheduled - scheduled).forEach { sessionId ->
+            AtomicSwapFundingWarningReceiver.cancel(applicationContext, sessionId)
+            scheduledFundingWarnings.remove(sessionId)
+        }
+        if (scheduled != previouslyScheduled) {
+            preferences.edit().putStringSet(FUNDING_WARNING_SESSIONS, scheduled).apply()
+        }
+    }
+
+    private fun chainLabel(chain: String): String = when (chain) {
+        "bitcoin" -> "BTC"
+        "handshake" -> "HNS"
+        else -> chain.replaceFirstChar { it.uppercase() }
+    }
+
+    private fun hasOpenFundingDeadline(status: NativeShakescapeExecutionStatus): Boolean {
+        val now = System.currentTimeMillis() / 1_000L
+        return status.pendingAcceptances.any {
+            it.fundingDeadlineUnix?.let { deadline -> deadline > now } == true
+        } || status.executions.any {
+            it.state in FUNDING_STATES && it.fundingDeadlineUnix > now
+        }
     }
 
     /**
@@ -259,28 +426,82 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
             .build()
     }
 
-    private fun notificationTitle(state: String, stage: String): String = when {
-        state == "completed" -> applicationContext.getString(
+    private fun notificationMilestone(
+        execution: com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionSummary,
+    ): String {
+        val now = System.currentTimeMillis() / 1_000L
+        val fundingState = execution.state in FUNDING_STATES
+        return when {
+            fundingState && now >= execution.fundingDeadlineUnix -> "funding_expired"
+            fundingState && execution.fundingDeadlineUnix - now <= ONE_HOUR_SECONDS ->
+                "funding_one_hour"
+            execution.state == "first_funded" && execution.localRole == "taker" ->
+                "second_funding_action"
+            execution.state == "first_funding_pending" && execution.localRole == "maker" &&
+                now <= execution.firstFundingCutoffUnix ->
+                "first_funding_action"
+            else -> execution.state
+        }
+    }
+
+    private fun notificationTitle(
+        execution: com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionSummary,
+        milestone: String,
+    ): String = when {
+        execution.state == "completed" -> applicationContext.getString(
             R.string.wallet_swap_notification_completed,
         )
-        state == "refunded" -> applicationContext.getString(
+        execution.state == "refunded" -> applicationContext.getString(
             R.string.wallet_swap_notification_refunded,
         )
-        state == "failed" -> applicationContext.getString(
+        execution.state == "failed" -> applicationContext.getString(
             R.string.wallet_swap_notification_failed,
         )
-        state == "refund_eligible" ||
-            stage.contains("ready for approval", ignoreCase = true) ||
-            stage.contains("redeem", ignoreCase = true) ||
-            stage.contains("refund is eligible", ignoreCase = true) ->
+        notificationRequiresAction(execution, milestone) ->
             applicationContext.getString(R.string.wallet_swap_notification_action_required)
         else -> applicationContext.getString(R.string.wallet_swap_notification_updated)
     }
+
+    private fun notificationRequiresAction(
+        execution: com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionSummary,
+        milestone: String,
+    ): Boolean = execution.state == "refund_eligible" ||
+        milestone in setOf(
+            "funding_one_hour",
+            "first_funding_action",
+            "second_funding_action",
+        ) || (execution.state == "both_funded" && execution.localRole == "maker") ||
+        (execution.state in setOf("first_redeemed", "secret_observed") &&
+            execution.localRole == "taker")
 
     private fun canPostNotifications(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             applicationContext.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
             PackageManager.PERMISSION_GRANTED
+
+    private fun localDeadline(deadlineUnix: Long): String =
+        java.text.DateFormat.getDateTimeInstance(
+            java.text.DateFormat.MEDIUM,
+            java.text.DateFormat.SHORT,
+        ).format(java.util.Date(Math.multiplyExact(deadlineUnix, 1_000L)))
+
+    private fun remainingTime(deadlineUnix: Long, nowUnix: Long): String {
+        val minutes = ((deadlineUnix - nowUnix).coerceAtLeast(0L) + 59L) / 60L
+        val hours = minutes / 60L
+        val remainingMinutes = minutes % 60L
+        return if (hours > 0L) {
+            applicationContext.getString(
+                R.string.wallet_swap_duration_hours_minutes,
+                hours,
+                remainingMinutes,
+            )
+        } else {
+            applicationContext.getString(
+                R.string.wallet_swap_duration_minutes,
+                remainingMinutes,
+            )
+        }
+    }
 
     private fun sessionKey(sessionId: String): String = "session:$sessionId"
 
@@ -294,6 +515,7 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
         val title: String,
         val text: String,
         val historicalTerminal: Boolean,
+        val actionRequired: Boolean = false,
         val initialTitle: String? = null,
         val initialText: String? = null,
     )
@@ -306,7 +528,16 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
         const val HNS_RECEIVE_INITIALIZED = "hns_receive_initialized"
         const val HNS_RECEIVE_ACCOUNT = "hns_receive_account"
         const val HNS_RECEIVE_FINGERPRINTS = "hns_receive_fingerprints"
+        const val FUNDING_WARNING_SESSIONS = "funding_warning_sessions"
         const val NOTIFICATION_ID = 1
+        const val ONE_HOUR_SECONDS = 60L * 60L
+        val FUNDING_STATES = setOf(
+            "terms_frozen",
+            "refunds_prepared",
+            "first_funding_pending",
+            "first_funded",
+            "second_funding_pending",
+        )
         val TERMINAL_STATES = setOf("completed", "refunded", "failed")
     }
 }

@@ -528,10 +528,12 @@ struct NativeDirectOfferAcceptanceSummary: Decodable, Equatable, Sendable {
     let receivedFeeReserve: UInt64
     let createdAtUnix: UInt64
     let expiresAtUnix: UInt64
+    let fundingDeadlineUnix: UInt64?
 
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case offerId, sessionId, offeredAsset, offeredAmount, receivedAsset
         case receivedAmount, receivedFeeReserve, createdAtUnix, expiresAtUnix
+        case fundingDeadlineUnix
     }
 
     init(from decoder: Decoder) throws {
@@ -545,12 +547,16 @@ struct NativeDirectOfferAcceptanceSummary: Decodable, Equatable, Sendable {
         receivedFeeReserve = try container.decode(UInt64.self, forKey: .receivedFeeReserve)
         createdAtUnix = try container.decode(UInt64.self, forKey: .createdAtUnix)
         expiresAtUnix = try container.decode(UInt64.self, forKey: .expiresAtUnix)
+        fundingDeadlineUnix = try container.decodeIfPresent(
+            UInt64.self, forKey: .fundingDeadlineUnix
+        )
         let assets: Set<String> = ["btc", "hns"]
         guard NativeBitcoinHtlcFundingReceipt.validHash(offerId),
               NativeBitcoinHtlcFundingReceipt.validHash(sessionId),
               assets.contains(offeredAsset), assets.contains(receivedAsset),
               offeredAsset != receivedAsset, offeredAmount > 0, receivedAmount > 0,
-              receivedFeeReserve > 0, createdAtUnix > 0, expiresAtUnix > createdAtUnix else {
+              receivedFeeReserve > 0, createdAtUnix > 0, expiresAtUnix > createdAtUnix,
+              fundingDeadlineUnix.map({ $0 > createdAtUnix && $0 <= expiresAtUnix }) ?? true else {
             throw NativeWalletBridgeError.invalidOutput("invalid direct offer acceptance summary")
         }
     }
@@ -596,6 +602,7 @@ struct NativeShakescapeExecutionSummary: Decodable, Equatable, Sendable {
     let receivedAmount: UInt64
     let localRole: String
     let fundingDeadlineUnix: UInt64
+    let firstFundingCutoffUnix: UInt64
     let firstRefundAtUnix: UInt64
     let secondRefundAtUnix: UInt64
     let localFundingState: String?
@@ -610,6 +617,7 @@ struct NativeShakescapeExecutionSummary: Decodable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case sessionId, revision, state, firstChain, secondChain, offeredAsset, offeredAmount
         case receivedAsset, receivedAmount, localRole, fundingDeadlineUnix
+        case firstFundingCutoffUnix
         case firstRefundAtUnix, secondRefundAtUnix, localFundingState
         case firstFundingConfirmed, secondFundingConfirmed, firstRedemptionConfirmed
         case secondRedemptionConfirmed, refundConfirmed, lastVerifiedAtUnix, failureReason
@@ -628,6 +636,9 @@ struct NativeShakescapeExecutionSummary: Decodable, Equatable, Sendable {
         receivedAmount = try container.decode(UInt64.self, forKey: .receivedAmount)
         localRole = try container.decode(String.self, forKey: .localRole)
         fundingDeadlineUnix = try container.decode(UInt64.self, forKey: .fundingDeadlineUnix)
+        firstFundingCutoffUnix = try container.decode(
+            UInt64.self, forKey: .firstFundingCutoffUnix
+        )
         firstRefundAtUnix = try container.decode(UInt64.self, forKey: .firstRefundAtUnix)
         secondRefundAtUnix = try container.decode(UInt64.self, forKey: .secondRefundAtUnix)
         localFundingState = try container.decodeIfPresent(
@@ -656,7 +667,9 @@ struct NativeShakescapeExecutionSummary: Decodable, Equatable, Sendable {
               ["btc", "hns"].contains(offeredAsset), ["btc", "hns"].contains(receivedAsset),
               offeredAsset != receivedAsset, ["maker", "taker"].contains(localRole),
               offeredAmount > 0, receivedAmount > 0, validLocalFundingState,
-              fundingDeadlineUnix > 0, fundingDeadlineUnix < secondRefundAtUnix,
+              firstFundingCutoffUnix > 0,
+              firstFundingCutoffUnix < fundingDeadlineUnix,
+              fundingDeadlineUnix < secondRefundAtUnix,
               firstRefundAtUnix > secondRefundAtUnix, lastVerifiedAtUnix > 0,
               failureReason.map { !$0.isEmpty && $0.count <= 256 } ?? true else {
             throw NativeWalletBridgeError.invalidOutput("invalid durable Shakescape execution")

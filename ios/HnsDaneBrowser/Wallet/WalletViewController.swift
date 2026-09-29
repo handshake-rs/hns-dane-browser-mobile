@@ -27,10 +27,10 @@ private let maximumVisibleDirectShakescapePeers = 3
 private let showShakedexWalletCard = true
 
 /// Presents authenticated journal and confirmed-receive transitions without
-/// persisting wallet contents. UserDefaults contains random session IDs plus
-/// one-way account/transaction fingerprints; amounts, addresses, names,
-/// peers, and signed transaction material never leave the encrypted native
-/// wallet database.
+/// persisting wallet contents. UserDefaults contains random session IDs,
+/// presentation deadlines, and one-way account/transaction fingerprints;
+/// amounts, addresses, names, peers, and signed transaction material never
+/// leave the encrypted native wallet database.
 @MainActor
 private final class AtomicSwapNotificationCoordinator {
     private struct Record {
@@ -39,6 +39,7 @@ private final class AtomicSwapNotificationCoordinator {
         let title: String
         let body: String
         let historicalTerminal: Bool
+        let actionRequired: Bool
         let initialTitle: String?
         let initialBody: String?
     }
@@ -47,6 +48,7 @@ private final class AtomicSwapNotificationCoordinator {
     private let defaults = UserDefaults.standard
     private let initializedKey = "atomic-swap-notifications.initialized.v1"
     private let fingerprintsKey = "atomic-swap-notifications.fingerprints.v1"
+    private let fundingWarningsKey = "atomic-swap-notifications.funding-warnings.v1"
     private let terminalStates: Set<String> = ["completed", "refunded", "failed"]
     private var pendingFingerprints: [String: String] = [:]
     private let hnsReceiveInitializedKey = "hns-receive-notifications.initialized.v1"
@@ -70,40 +72,61 @@ private final class AtomicSwapNotificationCoordinator {
                     String(offer.sessionId.prefix(12))
                 ),
                 historicalTerminal: false,
+                actionRequired: false,
                 initialTitle: nil,
                 initialBody: nil
             )
         }
         for pending in status.pendingAcceptances {
+            let deadline = pending.fundingDeadlineUnix
+            let now = UInt64(Date().timeIntervalSince1970)
+            let oneHourWarning = deadline.map {
+                $0 > now && $0 - now <= 60 * 60
+            } ?? false
             records[pending.sessionId] = Record(
                 sessionId: pending.sessionId,
-                fingerprint: "pending-acceptance",
-                title: WalletCopy.text("wallet_swap_notification_updated"),
-                body: WalletCopy.format(
+                fingerprint: "pending-acceptance:\(deadline ?? 0):\(oneHourWarning)",
+                title: WalletCopy.text(
+                    oneHourWarning
+                        ? "wallet_swap_notification_action_required"
+                        : "wallet_swap_notification_updated"
+                ),
+                body: deadline.map {
+                    WalletCopy.format(
+                        "wallet_swap_acceptance_sent",
+                        String(pending.sessionId.prefix(12)),
+                        localDeadline($0),
+                        remainingTime(until: $0)
+                    )
+                } ?? WalletCopy.format(
                     "wallet_swap_notification_negotiating",
                     String(pending.sessionId.prefix(12))
                 ),
                 historicalTerminal: false,
+                actionRequired: oneHourWarning,
                 initialTitle: nil,
                 initialBody: nil
             )
         }
         for execution in status.executions {
             let stage = stageText(execution)
+            let milestone = notificationMilestone(execution)
+            let actionRequired = notificationRequiresAction(execution, milestone: milestone)
             let title: String
             switch execution.state {
             case "completed": title = WalletCopy.text("wallet_swap_notification_completed")
             case "refunded": title = WalletCopy.text("wallet_swap_notification_refunded")
             case "failed": title = WalletCopy.text("wallet_swap_notification_failed")
-            case "refund_eligible": title = WalletCopy.text("wallet_swap_notification_action_required")
-            case _ where stage.localizedCaseInsensitiveContains("ready") ||
-                stage.localizedCaseInsensitiveContains("redeem"):
+            case _ where actionRequired:
                 title = WalletCopy.text("wallet_swap_notification_action_required")
             default: title = WalletCopy.text("wallet_swap_notification_updated")
             }
             records[execution.sessionId] = Record(
                 sessionId: execution.sessionId,
-                fingerprint: "\(execution.state):\(execution.localRole):\(stage)",
+                // Countdown text changes each minute. Semantic buckets issue
+                // one notification for the first-chain confirmation, the
+                // one-hour warning, expiry, and durable state transitions.
+                fingerprint: "\(execution.state):\(execution.localRole):\(milestone)",
                 title: title,
                 body: WalletCopy.format(
                     "wallet_swap_notification_stage",
@@ -111,12 +134,15 @@ private final class AtomicSwapNotificationCoordinator {
                     String(execution.sessionId.prefix(12))
                 ),
                 historicalTerminal: terminalStates.contains(execution.state),
+                actionRequired: actionRequired,
                 initialTitle: execution.localRole == "taker" &&
-                    !terminalStates.contains(execution.state)
+                    !terminalStates.contains(execution.state) &&
+                    !actionRequired
                     ? WalletCopy.text("wallet_swap_notification_offer_accepted")
                     : nil,
                 initialBody: execution.localRole == "taker" &&
-                    !terminalStates.contains(execution.state)
+                    !terminalStates.contains(execution.state) &&
+                    !actionRequired
                     ? WalletCopy.format(
                         "wallet_swap_notification_offer_accepted_detail",
                         String(execution.sessionId.prefix(12))
@@ -124,11 +150,19 @@ private final class AtomicSwapNotificationCoordinator {
                     : nil
             )
         }
+        reconcileFundingWarnings(
+            status,
+            requestAuthorization: !records.values.contains { $0.actionRequired }
+        )
 
         var fingerprints = defaults.dictionary(forKey: fingerprintsKey) as? [String: String] ?? [:]
         if !defaults.bool(forKey: initializedKey) {
             for record in records.values {
-                fingerprints[record.sessionId] = record.fingerprint
+                if record.actionRequired {
+                    post(record)
+                } else {
+                    fingerprints[record.sessionId] = record.fingerprint
+                }
             }
             persist(fingerprints)
             defaults.set(true, forKey: initializedKey)
@@ -155,6 +189,7 @@ private final class AtomicSwapNotificationCoordinator {
                     title: initialTitle,
                     body: initialBody,
                     historicalTerminal: record.historicalTerminal,
+                    actionRequired: record.actionRequired,
                     initialTitle: nil,
                     initialBody: nil
                 ))
@@ -163,6 +198,200 @@ private final class AtomicSwapNotificationCoordinator {
             }
         }
         persist(fingerprints)
+    }
+
+    private func reconcileFundingWarnings(
+        _ status: NativeShakescapeExecutionStatus,
+        requestAuthorization: Bool
+    ) {
+        let now = UInt64(Date().timeIntervalSince1970)
+        let fundingStates: Set<String> = [
+            "terms_frozen",
+            "refunds_prepared",
+            "first_funding_pending",
+            "first_funded",
+            "second_funding_pending",
+        ]
+        let previous = defaults.dictionary(forKey: fundingWarningsKey)
+            as? [String: String] ?? [:]
+        var scheduled: [String: String] = [:]
+        for pending in status.pendingAcceptances {
+            guard let deadline = pending.fundingDeadlineUnix,
+                  deadline > 60 * 60 else { continue }
+            let warningAt = deadline - 60 * 60
+            let identifier = fundingWarningIdentifier(pending.sessionId)
+            guard warningAt > now else {
+                center.removePendingNotificationRequests(withIdentifiers: [identifier])
+                continue
+            }
+            let fingerprint = "\(deadline):pending"
+            scheduled[pending.sessionId] = fingerprint
+            guard previous[pending.sessionId] != fingerprint else { continue }
+            let content = UNMutableNotificationContent()
+            content.title = WalletCopy.text("wallet_swap_notification_action_required")
+            content.body = WalletCopy.format(
+                "wallet_swap_acceptance_sent",
+                String(pending.sessionId.prefix(12)),
+                localDeadline(deadline),
+                WalletCopy.format("wallet_swap_duration_hours_minutes", 1, 0)
+            )
+            content.sound = .default
+            content.categoryIdentifier = "ATOMIC_SWAP_STATUS"
+            center.add(UNNotificationRequest(
+                identifier: identifier,
+                content: content,
+                trigger: UNTimeIntervalNotificationTrigger(
+                    timeInterval: TimeInterval(warningAt - now),
+                    repeats: false
+                )
+            ))
+        }
+        for execution in status.executions where fundingStates.contains(execution.state) {
+            let identifier = fundingWarningIdentifier(execution.sessionId)
+            guard execution.fundingDeadlineUnix > 60 * 60 else {
+                center.removePendingNotificationRequests(withIdentifiers: [identifier])
+                continue
+            }
+            let warningAt = execution.fundingDeadlineUnix - 60 * 60
+            guard warningAt > now else {
+                center.removePendingNotificationRequests(withIdentifiers: [identifier])
+                continue
+            }
+            let targetChain = ["first_funded", "second_funding_pending"].contains(execution.state)
+                ? execution.secondChain
+                : execution.firstChain
+            let target = notificationChainLabel(targetChain)
+            let fingerprint = "\(execution.fundingDeadlineUnix):\(target)"
+            scheduled[execution.sessionId] = fingerprint
+            guard previous[execution.sessionId] != fingerprint else { continue }
+            let deadlineFormatter = DateFormatter()
+            deadlineFormatter.dateStyle = .medium
+            deadlineFormatter.timeStyle = .short
+            let deadline = deadlineFormatter.string(
+                from: Date(timeIntervalSince1970: TimeInterval(execution.fundingDeadlineUnix))
+            )
+            let warningStage = WalletCopy.format(
+                "wallet_swap_stage_with_deadline",
+                WalletCopy.text("wallet_swap_notification_action_required"),
+                WalletCopy.format("wallet_swap_duration_hours_minutes", 1, 0),
+                target,
+                deadline
+            )
+            let content = UNMutableNotificationContent()
+            content.title = WalletCopy.text("wallet_swap_notification_action_required")
+            content.body = WalletCopy.format(
+                "wallet_swap_notification_stage",
+                warningStage,
+                String(execution.sessionId.prefix(12))
+            )
+            content.sound = .default
+            content.categoryIdentifier = "ATOMIC_SWAP_STATUS"
+            center.add(UNNotificationRequest(
+                identifier: identifier,
+                content: content,
+                trigger: UNTimeIntervalNotificationTrigger(
+                    timeInterval: TimeInterval(warningAt - now),
+                    repeats: false
+                )
+            ))
+        }
+        let stale = Set(previous.keys).subtracting(scheduled.keys)
+            .map { fundingWarningIdentifier($0) }
+        if !stale.isEmpty {
+            center.removePendingNotificationRequests(withIdentifiers: stale)
+        }
+        if scheduled != previous {
+            defaults.set(scheduled, forKey: fundingWarningsKey)
+        }
+        if requestAuthorization, !scheduled.isEmpty {
+            ensureFundingNotificationAuthorization()
+        }
+    }
+
+    private func ensureFundingNotificationAuthorization() {
+        center.getNotificationSettings { [weak self] settings in
+            DispatchQueue.main.async {
+                guard let self, settings.authorizationStatus == .notDetermined else { return }
+                self.center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
+            }
+        }
+    }
+
+    private func fundingWarningIdentifier(_ sessionId: String) -> String {
+        "atomic-swap-funding-warning:\(sessionId)"
+    }
+
+    private func notificationChainLabel(_ chain: String) -> String {
+        switch chain {
+        case "bitcoin": return "BTC"
+        case "handshake": return "HNS"
+        default: return chain.capitalized
+        }
+    }
+
+    private func localDeadline(_ deadline: UInt64) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: Date(timeIntervalSince1970: TimeInterval(deadline)))
+    }
+
+    private func remainingTime(until deadline: UInt64) -> String {
+        let now = UInt64(Date().timeIntervalSince1970)
+        let seconds = deadline > now ? deadline - now : 0
+        let roundedMinutes = (seconds + 59) / 60
+        let hours = roundedMinutes / 60
+        let minutes = roundedMinutes % 60
+        if hours > 0 {
+            return WalletCopy.format(
+                "wallet_swap_duration_hours_minutes", Int(hours), Int(minutes)
+            )
+        }
+        return WalletCopy.format("wallet_swap_duration_minutes", Int(minutes))
+    }
+
+    private func notificationMilestone(
+        _ execution: NativeShakescapeExecutionSummary
+    ) -> String {
+        let now = UInt64(Date().timeIntervalSince1970)
+        let fundingStates: Set<String> = [
+            "terms_frozen",
+            "refunds_prepared",
+            "first_funding_pending",
+            "first_funded",
+            "second_funding_pending",
+        ]
+        if fundingStates.contains(execution.state), now >= execution.fundingDeadlineUnix {
+            return "funding-expired"
+        }
+        if fundingStates.contains(execution.state),
+           execution.fundingDeadlineUnix > now,
+           execution.fundingDeadlineUnix - now <= 60 * 60 {
+            return "funding-one-hour"
+        }
+        if execution.state == "first_funded", execution.localRole == "taker" {
+            return "second-funding-action"
+        }
+        if execution.state == "first_funding_pending", execution.localRole == "maker",
+           now <= execution.firstFundingCutoffUnix {
+            return "first-funding-action"
+        }
+        return execution.state
+    }
+
+    private func notificationRequiresAction(
+        _ execution: NativeShakescapeExecutionSummary,
+        milestone: String
+    ) -> Bool {
+        execution.state == "refund_eligible" ||
+            [
+                "funding-one-hour",
+                "first-funding-action",
+                "second-funding-action",
+            ].contains(milestone) ||
+            (execution.state == "both_funded" && execution.localRole == "maker") ||
+            (["first_redeemed", "secret_observed"].contains(execution.state) &&
+                execution.localRole == "taker")
     }
 
     /// Fixed-price name sales have no interactive acceptance packet. Their
@@ -1840,7 +2069,7 @@ final class WalletViewController: UIViewController {
                     label: WalletCopy.text("wallet_swap_lifetime_hours_hint"),
                     placeholder: WalletCopy.text("wallet_swap_lifetime_hours_hint"),
                     keyboardType: .numberPad,
-                    initialValue: "24"
+                    initialValue: "48"
                 ),
             ],
             primaryTitle: WalletCopy.text("wallet_action_review_transaction")
@@ -1852,7 +2081,7 @@ final class WalletViewController: UIViewController {
                   let hns = UInt64(hnsText), hns >= minimumHnsSwapDollarydoos,
                   let reserve = UInt64(fields[2]), reserve >= minimumBitcoinFeeReserveSats,
                   btc >= reserve, btc - reserve >= bitcoinHtlcReceiverDustSats,
-                  let hours = UInt64(fields[3]), (2...168).contains(hours),
+                  let hours = UInt64(fields[3]), (48...168).contains(hours),
                   hours <= UInt64.max / 3_600 else {
                 self?.showErrorMessage(WalletCopy.text("wallet_swap_prepare_failed"))
                 return
@@ -2026,7 +2255,7 @@ final class WalletViewController: UIViewController {
                     label: WalletCopy.text("wallet_swap_lifetime_hours_hint"),
                     placeholder: WalletCopy.text("wallet_swap_lifetime_hours_hint"),
                     keyboardType: .numberPad,
-                    initialValue: "24"
+                    initialValue: "48"
                 ),
             ],
             primaryTitle: WalletCopy.text("wallet_action_review_transaction")
@@ -2038,7 +2267,7 @@ final class WalletViewController: UIViewController {
                   let reserveText = Self.positiveHnsBaseUnits(fields[2]),
                   let reserve = UInt64(reserveText), reserve >= minimumHnsFeeReserveDollarydoos,
                   hns >= reserve, hns - reserve >= hnsSwapReceiverDustDollarydoos,
-                  let hours = UInt64(fields[3]), (2...168).contains(hours) else {
+                  let hours = UInt64(fields[3]), (48...168).contains(hours) else {
                 self?.showErrorMessage(WalletCopy.text("wallet_swap_hns_prepare_failed"))
                 return
             }
@@ -2431,10 +2660,19 @@ final class WalletViewController: UIViewController {
                     self.isOperating = false
                     switch outcome {
                     case .success(let summary):
-                        self.bitcoinStatusLabel.text = WalletCopy.format(
-                            "wallet_swap_acceptance_sent",
-                            String(summary.sessionId.prefix(12))
-                        )
+                        if let deadline = summary.fundingDeadlineUnix {
+                            let now = UInt64(Date().timeIntervalSince1970)
+                            self.bitcoinStatusLabel.text = WalletCopy.format(
+                                "wallet_swap_acceptance_sent",
+                                String(summary.sessionId.prefix(12)),
+                                self.formatAtomicSwapDeadline(deadline),
+                                self.formatAtomicSwapRemaining(deadline, now: now)
+                            )
+                        } else {
+                            self.bitcoinStatusLabel.text = WalletCopy.text(
+                                "wallet_swap_acceptance_failed"
+                            )
+                        }
                     case .failure(let error):
                         self.bitcoinStatusLabel.text = WalletCopy.text(
                             "wallet_swap_acceptance_failed"
@@ -2644,9 +2882,9 @@ final class WalletViewController: UIViewController {
             execution.secondChain,
             String(execution.firstFundingConfirmed),
             String(execution.secondFundingConfirmed),
-            Int(execution.fundingDeadlineUnix),
-            Int(execution.firstRefundAtUnix),
-            Int(execution.secondRefundAtUnix),
+            formatAtomicSwapDeadline(execution.fundingDeadlineUnix),
+            formatAtomicSwapDeadline(execution.firstRefundAtUnix),
+            formatAtomicSwapDeadline(execution.secondRefundAtUnix),
             execution.failureReason ?? WalletCopy.text("wallet_swap_failure_none")
         )
         let alert = UIAlertController(
@@ -2658,8 +2896,14 @@ final class WalletViewController: UIViewController {
             title: WalletCopy.text("wallet_action_done"),
             style: .cancel
         ))
-        let newFundingWindowOpen = UInt64(Date().timeIntervalSince1970) < execution.fundingDeadlineUnix
-        if execution.state == "first_funding_pending" && newFundingWindowOpen &&
+        // Acceptance binds the trade and its timeouts, not a later
+        // fee-selected transaction which the user has never reviewed. Keep
+        // that exact preview/approval and surface readiness as an immediate
+        // action-required notification.
+        let now = UInt64(Date().timeIntervalSince1970)
+        let newFundingWindowOpen = now < execution.fundingDeadlineUnix
+        let firstFundingMayStart = now <= execution.firstFundingCutoffUnix
+        if execution.state == "first_funding_pending" && firstFundingMayStart &&
             execution.localRole == "maker" && execution.firstChain == "bitcoin" {
             alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_swap_fund_bitcoin"), style: .destructive) {
                 [weak self, weak wallet] _ in
@@ -2667,8 +2911,16 @@ final class WalletViewController: UIViewController {
                 self.showBtcForHnsFundingFee(execution, wallet: wallet)
             })
         }
-        if ((execution.state == "first_funded" && newFundingWindowOpen) ||
-            execution.state == "second_funding_pending") &&
+        if execution.state == "first_funding_pending" && firstFundingMayStart &&
+            execution.localRole == "maker" && execution.firstChain == "handshake" {
+            alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_swap_fund_hns"), style: .destructive) {
+                [weak self, weak wallet] _ in
+                guard let self, let wallet, self.wallet === wallet else { return }
+                self.showHnsForBtcFundingFee(execution, wallet: wallet)
+            })
+        }
+        if (execution.state == "first_funded" || execution.state == "second_funding_pending") &&
+            newFundingWindowOpen &&
             execution.localRole == "taker" &&
             execution.secondChain == "handshake" {
             alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_swap_fund_hns"), style: .destructive) {
@@ -2677,8 +2929,42 @@ final class WalletViewController: UIViewController {
                 self.showHnsForBtcFundingFee(execution, wallet: wallet)
             })
         }
-        if execution.state == "first_funded" && execution.localRole == "maker" {
+        if (execution.state == "first_funded" || execution.state == "second_funding_pending") &&
+            newFundingWindowOpen &&
+            execution.localRole == "taker" &&
+            execution.secondChain == "bitcoin" {
+            alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_swap_fund_bitcoin"), style: .destructive) {
+                [weak self, weak wallet] _ in
+                guard let self, let wallet, self.wallet === wallet else { return }
+                self.showBtcForHnsFundingFee(execution, wallet: wallet)
+            })
+        }
+        if execution.state == "first_funded" && execution.localRole == "maker" &&
+            now >= execution.firstRefundAtUnix {
             let bitcoin = execution.firstChain == "bitcoin"
+            alert.addAction(UIAlertAction(
+                title: bitcoin
+                    ? WalletCopy.text("wallet_swap_refund_bitcoin")
+                    : WalletCopy.text("wallet_swap_refund_hns"),
+                style: .destructive
+            ) { [weak self, weak wallet] _ in
+                guard let self, let wallet, self.wallet === wallet else { return }
+                self.authenticateWalletAction(
+                    reason: WalletCopy.text("wallet_auth_transaction_message")
+                ) { [weak self, weak wallet] in
+                    guard let self, let wallet, self.wallet === wallet else { return }
+                    self.showSwapSettlementFee(
+                        execution, action: .refund, bitcoin: bitcoin, wallet: wallet
+                    )
+                }
+            })
+        }
+        if execution.state == "refund_eligible" {
+            // Refund the chain funded by this participant without creating a
+            // replacement offer or abandoning the durable session.
+            let bitcoin = execution.localRole == "maker"
+                ? execution.firstChain == "bitcoin"
+                : execution.secondChain == "bitcoin"
             alert.addAction(UIAlertAction(
                 title: bitcoin
                     ? WalletCopy.text("wallet_swap_refund_bitcoin")
@@ -4554,8 +4840,13 @@ final class WalletViewController: UIViewController {
                         executions,
                         stageText: self.shakescapeExecutionNotificationStage
                     )
+                    // Re-render even when the durable journal is unchanged so
+                    // the local funding countdown advances while the app is
+                    // open. Notification fingerprints use semantic buckets,
+                    // so this does not create minute-by-minute alerts.
+                    self.publishShakescapeExecutionStatus(executions)
                     if previous != executions {
-                        self.publishShakescapeExecutionStatus(executions)
+                        self.renderWalletDashboard()
                     }
                 }
                 self.directShakescapeServiceTicks =
@@ -4689,10 +4980,7 @@ final class WalletViewController: UIViewController {
         } else if let pending = status.pendingAcceptances.max(by: {
             $0.createdAtUnix < $1.createdAtUnix
         }) {
-            bitcoinStatusLabel.text = WalletCopy.format(
-                "wallet_swap_notification_negotiating",
-                String(pending.sessionId.prefix(12))
-            )
+            bitcoinStatusLabel.text = pendingAcceptanceStage(pending)
         } else if let latest = status.executions.max(by: {
             $0.lastVerifiedAtUnix < $1.lastVerifiedAtUnix
         }) {
@@ -4708,66 +4996,98 @@ final class WalletViewController: UIViewController {
         _ execution: NativeShakescapeExecutionSummary,
         includeBitcoinSync: Bool = true
     ) -> String {
-        let first = execution.firstChain.capitalized
-        let second = execution.secondChain.capitalized
+        let first = swapChainLabel(execution.firstChain)
+        let second = swapChainLabel(execution.secondChain)
         let now = UInt64(Date().timeIntervalSince1970)
         let fundingWasSubmitted = ["broadcast", "seen", "confirmed"]
             .contains(execution.localFundingState ?? "")
-        if includeBitcoinSync && bitcoinSyncInProgress {
-            return WalletCopy.text("wallet_swap_stage_bitcoin_syncing")
+        let fundingTarget: String?
+        switch execution.state {
+        case "terms_frozen", "refunds_prepared", "first_funding_pending":
+            fundingTarget = first
+        case "first_funded", "second_funding_pending":
+            fundingTarget = second
+        default:
+            fundingTarget = nil
         }
+        var stage: String
         switch execution.state {
         case "terms_frozen", "refunds_prepared":
-            return WalletCopy.text("wallet_swap_stage_terms_waiting")
+            if now >= execution.fundingDeadlineUnix {
+                stage = WalletCopy.text("wallet_swap_stage_unfunded_closed")
+            } else if now > execution.firstFundingCutoffUnix {
+                stage = WalletCopy.format("wallet_swap_stage_first_funding_cutoff", first)
+            } else {
+                stage = WalletCopy.text("wallet_swap_stage_terms_waiting")
+            }
         case "first_funding_pending":
             if now >= execution.fundingDeadlineUnix {
-                return WalletCopy.text("wallet_swap_stage_funding_expired")
-            }
-            if execution.localRole == "maker", fundingWasSubmitted {
-                return WalletCopy.format(
-                    "wallet_swap_stage_funding_submitted", first
+                stage = fundingClosedStage(
+                    execution,
+                    first: first,
+                    fundingWasSubmitted: fundingWasSubmitted,
+                    now: now
                 )
-            }
-            if execution.localRole == "maker", execution.localFundingState == "reorged" {
-                return WalletCopy.format(
-                    "wallet_swap_stage_funding_reorged", first
-                )
-            }
-            return execution.localRole == "maker"
-                ? WalletCopy.format("wallet_swap_stage_funding_ready_here", first)
-                : WalletCopy.format(
+            } else if execution.localRole == "maker", fundingWasSubmitted {
+                stage = WalletCopy.format("wallet_swap_stage_funding_submitted", first)
+            } else if execution.localRole == "maker",
+                      execution.localFundingState == "reorged" {
+                stage = WalletCopy.format("wallet_swap_stage_funding_reorged", first)
+            } else if now > execution.firstFundingCutoffUnix {
+                stage = WalletCopy.format("wallet_swap_stage_first_funding_cutoff", first)
+            } else if execution.localRole == "maker" {
+                stage = WalletCopy.format("wallet_swap_stage_funding_ready_here", first)
+            } else {
+                stage = WalletCopy.format(
                     "wallet_swap_stage_waiting_counterparty_funding", first
                 )
-        case "first_funded", "second_funding_pending":
-            if execution.localRole == "taker" {
-                guard now < execution.fundingDeadlineUnix ||
-                        execution.state == "second_funding_pending" else {
-                    return WalletCopy.text("wallet_swap_stage_funding_expired")
-                }
-                if fundingWasSubmitted {
-                    return WalletCopy.format(
-                        "wallet_swap_stage_funding_submitted", second
-                    )
-                }
-                if execution.localFundingState == "reorged" {
-                    return WalletCopy.format(
-                        "wallet_swap_stage_funding_reorged", second
-                    )
-                }
-                return WalletCopy.format(
-                    "wallet_swap_stage_funding_ready_here", second
+            }
+        case "first_funded":
+            if now >= execution.fundingDeadlineUnix {
+                stage = fundingClosedStage(
+                    execution,
+                    first: first,
+                    fundingWasSubmitted: fundingWasSubmitted,
+                    now: now
+                )
+            } else if execution.localRole == "taker", fundingWasSubmitted {
+                stage = WalletCopy.format("wallet_swap_stage_funding_submitted", second)
+            } else if execution.localRole == "taker",
+                      execution.localFundingState == "reorged" {
+                stage = WalletCopy.format("wallet_swap_stage_funding_reorged", second)
+            } else if execution.localRole == "taker" {
+                stage = WalletCopy.format("wallet_swap_stage_funding_ready_here", second)
+            } else {
+                stage = WalletCopy.format(
+                    "wallet_swap_stage_waiting_counterparty_funding", second
                 )
             }
-            if now >= execution.firstRefundAtUnix {
-                return WalletCopy.format(
-                    "wallet_swap_stage_refund_ready_here", first
+        case "second_funding_pending":
+            if execution.localRole == "taker", now >= execution.fundingDeadlineUnix {
+                stage = WalletCopy.format(
+                    "wallet_swap_stage_funding_recovery_pending", second
+                )
+            } else if now >= execution.fundingDeadlineUnix {
+                stage = fundingClosedStage(
+                    execution,
+                    first: first,
+                    fundingWasSubmitted: fundingWasSubmitted,
+                    now: now
+                )
+            } else if execution.localRole == "taker", fundingWasSubmitted {
+                stage = WalletCopy.format("wallet_swap_stage_funding_submitted", second)
+            } else if execution.localRole == "taker",
+                      execution.localFundingState == "reorged" {
+                stage = WalletCopy.format("wallet_swap_stage_funding_reorged", second)
+            } else if execution.localRole == "taker" {
+                stage = WalletCopy.format("wallet_swap_stage_funding_ready_here", second)
+            } else {
+                stage = WalletCopy.format(
+                    "wallet_swap_stage_waiting_counterparty_funding", second
                 )
             }
-            return WalletCopy.format(
-                "wallet_swap_stage_waiting_counterparty_funding", second
-            )
         case "both_funded":
-            return execution.localRole == "maker"
+            stage = execution.localRole == "maker"
                 ? WalletCopy.format(
                     "wallet_swap_stage_redeem_ready_here", second
                 )
@@ -4775,7 +5095,7 @@ final class WalletViewController: UIViewController {
                     "wallet_swap_stage_waiting_counterparty_redeem", second
                 )
         case "first_redeemed", "secret_observed":
-            return execution.localRole == "taker"
+            stage = execution.localRole == "taker"
                 ? WalletCopy.format(
                     "wallet_swap_stage_secret_redeem_ready_here", first
                 )
@@ -4783,22 +5103,119 @@ final class WalletViewController: UIViewController {
                     "wallet_swap_stage_waiting_counterparty_final_redeem", first
                 )
         case "second_redeemed":
-            return WalletCopy.text("wallet_swap_stage_second_redeemed")
+            stage = WalletCopy.text("wallet_swap_stage_second_redeemed")
         case "completed":
-            return WalletCopy.text("wallet_swap_stage_completed")
+            stage = WalletCopy.text("wallet_swap_stage_completed")
         case "refund_eligible":
-            return WalletCopy.format(
-                "wallet_swap_stage_refund_ready_here", first
+            stage = WalletCopy.format(
+                "wallet_swap_stage_refund_ready_here",
+                execution.localRole == "maker" ? first : second,
+                formatAtomicSwapDeadline(
+                    execution.localRole == "maker"
+                        ? execution.firstRefundAtUnix
+                        : execution.secondRefundAtUnix
+                )
             )
         case "refund_broadcast":
-            return WalletCopy.text("wallet_swap_stage_refunding")
+            stage = WalletCopy.text("wallet_swap_stage_refunding")
         case "refunded":
-            return WalletCopy.text("wallet_swap_stage_refunded")
+            stage = WalletCopy.text("wallet_swap_stage_refunded")
         case "failed":
-            return WalletCopy.text("wallet_swap_stage_failed")
+            stage = WalletCopy.text("wallet_swap_stage_failed")
         default:
-            return execution.state.replacingOccurrences(of: "_", with: " ")
+            stage = execution.state.replacingOccurrences(of: "_", with: " ")
         }
+        if let fundingTarget,
+           now < execution.fundingDeadlineUnix {
+            stage = WalletCopy.format(
+                "wallet_swap_stage_with_deadline",
+                stage,
+                formatAtomicSwapRemaining(execution.fundingDeadlineUnix, now: now),
+                fundingTarget,
+                formatAtomicSwapDeadline(execution.fundingDeadlineUnix)
+            )
+        }
+        if includeBitcoinSync && bitcoinSyncInProgress {
+            stage = WalletCopy.format("wallet_swap_stage_syncing_append", stage)
+        }
+        return stage
+    }
+
+    private func fundingClosedStage(
+        _ execution: NativeShakescapeExecutionSummary,
+        first: String,
+        fundingWasSubmitted: Bool,
+        now: UInt64
+    ) -> String {
+        let refundAt = formatAtomicSwapDeadline(execution.firstRefundAtUnix)
+        if execution.localRole == "maker",
+           execution.firstFundingConfirmed || fundingWasSubmitted {
+            if now >= execution.firstRefundAtUnix {
+                return WalletCopy.format(
+                    "wallet_swap_stage_refund_ready_here", first, refundAt
+                )
+            }
+            return WalletCopy.format(
+                "wallet_swap_stage_funding_expired",
+                first,
+                refundAt,
+                formatAtomicSwapRemaining(execution.firstRefundAtUnix, now: now)
+            )
+        }
+        if execution.localRole == "taker", execution.firstFundingConfirmed {
+            return WalletCopy.format(
+                "wallet_swap_stage_funding_closed_no_local_lock", refundAt
+            )
+        }
+        return WalletCopy.text("wallet_swap_stage_unfunded_closed")
+    }
+
+    private func swapChainLabel(_ chain: String) -> String {
+        switch chain {
+        case "bitcoin": return "BTC"
+        case "handshake": return "HNS"
+        default: return chain.capitalized
+        }
+    }
+
+    private func formatAtomicSwapDeadline(_ unix: UInt64) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: Date(timeIntervalSince1970: TimeInterval(unix)))
+    }
+
+    private func formatAtomicSwapRemaining(_ deadline: UInt64, now: UInt64) -> String {
+        let seconds = deadline > now ? deadline - now : 0
+        let roundedMinutes = (seconds + 59) / 60
+        let hours = roundedMinutes / 60
+        let minutes = roundedMinutes % 60
+        if hours > 0 {
+            return WalletCopy.format(
+                "wallet_swap_duration_hours_minutes", Int(hours), Int(minutes)
+            )
+        }
+        return WalletCopy.format("wallet_swap_duration_minutes", Int(minutes))
+    }
+
+    private func pendingAcceptanceStage(
+        _ acceptance: NativeDirectOfferAcceptanceSummary
+    ) -> String {
+        if let deadline = acceptance.fundingDeadlineUnix {
+            let now = UInt64(Date().timeIntervalSince1970)
+            return WalletCopy.format(
+                "wallet_swap_acceptance_sent",
+                String(acceptance.sessionId.prefix(12)),
+                formatAtomicSwapDeadline(deadline),
+                formatAtomicSwapRemaining(deadline, now: now)
+            )
+        }
+        return WalletCopy.format(
+            "wallet_swap_status_negotiating",
+            swapAmount(acceptance.offeredAmount, asset: acceptance.offeredAsset),
+            swapAmount(acceptance.receivedAmount, asset: acceptance.receivedAsset),
+            String(acceptance.sessionId.prefix(12))
+        )
     }
 
     private func shakescapeExecutionNotificationStage(
