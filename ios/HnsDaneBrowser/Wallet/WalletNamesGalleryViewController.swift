@@ -18,6 +18,7 @@ final class WalletNamesGalleryViewController: UIViewController,
     private let searchContainer = UIView()
     private let searchField = UISearchTextField()
     private let card = HolographicWalletNameCardView()
+    private let emptyMessage = UILabel()
     private let positionLabel = UILabel()
     private let previousButton = UIButton(type: .system)
     private let searchButton = UIButton(type: .system)
@@ -132,10 +133,21 @@ final class WalletNamesGalleryViewController: UIViewController,
         card.translatesAutoresizingMaskIntoConstraints = false
         card.accessibilityIdentifier = "wallet.names.holocard"
         view.addSubview(card)
+        emptyMessage.translatesAutoresizingMaskIntoConstraints = false
+        emptyMessage.text = WalletCopy.text("wallet_ux_names_empty")
+        emptyMessage.font = .preferredFont(forTextStyle: .body)
+        emptyMessage.adjustsFontForContentSizeCategory = true
+        emptyMessage.textColor = UIColor(red: 0.85, green: 0.91, blue: 0.97, alpha: 1)
+        emptyMessage.numberOfLines = 0
+        emptyMessage.textAlignment = .center
+        view.addSubview(emptyMessage)
         NSLayoutConstraint.activate([
             card.topAnchor.constraint(equalTo: searchContainer.bottomAnchor, constant: 8),
             card.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             card.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            emptyMessage.topAnchor.constraint(equalTo: card.topAnchor, constant: 24),
+            emptyMessage.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 16),
+            emptyMessage.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -16),
         ])
     }
 
@@ -225,6 +237,10 @@ final class WalletNamesGalleryViewController: UIViewController,
     }
 
     private func renderSelection() {
+        card.isHidden = names.isEmpty
+        emptyMessage.isHidden = !names.isEmpty
+        footerButtonsHeightConstraint.constant = names.isEmpty ? 48 :
+            (traitCollection.preferredContentSizeCategory.isAccessibilityCategory ? 224 : 48)
         if names.isEmpty {
             positionLabel.text = WalletCopy.text("wallet_name_card_position_empty")
             card.configure(name: nil, snapshotHeight: snapshotHeight)

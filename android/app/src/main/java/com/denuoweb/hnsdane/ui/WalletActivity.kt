@@ -1082,7 +1082,19 @@ class WalletActivity : ComponentActivity() {
         }
         addCellularDataWarningIfNeeded(walletUnlocked = true)
         val total = snapshot.trackedNameCount
-        if (total == 0) selectedTrackedNameIndex = 0
+        if (total == 0) {
+            selectedTrackedNameIndex = 0
+            dashboardContent.addView(walletModalDetailCard(
+                getString(R.string.wallet_name_card_position_empty),
+                TextView(this).apply {
+                    text = getString(R.string.wallet_ux_names_empty)
+                    textSize = 18f
+                    setTextColor(themeColors().primaryText)
+                },
+            ))
+            renderNamesGalleryFooter(navigationAvailable, total)
+            return
+        }
         val relativeIndex = selectedTrackedNameIndex - trackedNamePageOffset
         val selected = loadedTrackedNames.getOrNull(relativeIndex)
         val state = selected?.let { name ->
