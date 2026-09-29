@@ -1,0 +1,13 @@
+// Explicitly opt in with --init-script; ordinary builds retain their app IDs.
+allprojects {
+    afterEvaluate { project ->
+        if (project.path == ':app') {
+            project.android.defaultConfig.applicationId = 'com.denuoweb.hnsdane.walletux'
+            project.android.defaultConfig.testApplicationId = 'com.denuoweb.hnsdane.walletux.test'
+            project.android.buildTypes.debug.applicationIdSuffix = ''
+            project.android.sourceSets.debug.manifest.srcFile(
+                new File(project.rootDir, '../tests/wallet-ux/AndroidManifest.xml')
+            )
+        }
+    }
+}

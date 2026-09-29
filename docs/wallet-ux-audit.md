@@ -49,3 +49,91 @@ pass should cover recovery-unknown, new-wallet automatic birthday, syncing,
 stop requested, ready, disconnected/paired, live swap, empty Names, and locked
 states; Android build/tests; localization and runtime-boundary checks; and
 Apple compilation or an explicit account of host limitations.
+
+## Implementation notes
+
+The refactor retains separate native execution gates. The overview menus use
+cached public state for presentation, with a live action list so setup → sync
+→ stop transitions do not require closing the sheet. Android keeps controls
+stable when only progress text changes; iOS uses the same approach and opens
+these task overviews at the large sheet size.
+
+Bitcoin shows the existing receive address before offering explicit address
+rotation. Name forms start with the selected gallery name and remain editable.
+Browsing name offers now fetches the first page directly; manual cursor/limit
+input remains under Advanced offer search. Swap action feedback no longer
+writes over Bitcoin sync feedback. The native send builder remains the judge
+of spendability, including eligible pending outputs.
+
+### Isolated Android view tests
+
+`WalletOverviewInstrumentationTest` uses public synthetic snapshots without a
+native wallet handle. It tests live setup/sync/stop controls, copying the
+current address, disconnected Shakedex, home layout, and empty Names. It
+requires the `.walletux` application ID and never opens an installed user's
+wallet. Screenshots are fixture evidence, not proof of live transaction flows.
+
+Build the separate **Shakescape UX Preview** app and test APK with:
+
+```sh
+cd android
+./gradlew --init-script ../tests/wallet-ux/preview.init.gradle \
+  assembleDebug assembleDebugAndroidTest
+```
+
+On the ARM development host use the APK Workbench Gradle wrapper. When only
+shell sources have changed, `-x :app:buildRustAndroid` may reuse already-built
+JNI libraries. Install the resulting target and test APKs with `adb install -r`
+and run the specific test class with:
+
+```sh
+adb shell am instrument -w \
+  -e class com.denuoweb.hnsdane.ui.WalletOverviewInstrumentationTest \
+  com.denuoweb.hnsdane.walletux.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+The test writes timestamped PNGs to the preview app's external-files
+`wallet-ux-previews` directory. Export them and any needed existing device logs
+without clearing logs or app data. The preview app has separate storage from
+release, debug, and legacy-recovery packages.
+
+### Validation results and limits
+
+- Android debug app and instrumentation APK compile with the APK Workbench
+  wrapper and the existing JNI libraries (`-x :app:buildRustAndroid`). No Rust
+  or bundled RocksDB compilation was needed for these UI changes.
+- Android unit suite: **472 tests in 78 suites**, no failures, errors, or skips.
+  The new state cases distinguish recovery setup from a new wallet's automatic
+  birthday, maintain Stop during full-history scanning, and block competing
+  actions while a birthday is being saved.
+- Pixel 9 view instrumentation: **4 tests passed** in the isolated preview
+  package. Tests target dialog roots explicitly and wait for a presented frame
+  before screenshots. The first run exposed a test-root targeting issue;
+  explicit dialog matching resolved it without changing production behavior.
+- Reviewed device screenshots of Wallet home, Bitcoin recovery setup, active
+  sync, Receive, disconnected Shakedex, and empty Names. The visual review also
+  caught the old blank Names collectible placeholder, now replaced with a clear
+  explanation. Real tracked names retain their collectible presentation.
+- Wallet catalog generation, Android translation coverage/format tokens for all
+  20 locales, runtime-boundary checks, and `git diff --check` pass. New UX copy
+  uses the documented English fallback pending reviewed translations.
+- Android full lint **did not complete**. The initial run spent over ten minutes
+  in the dependency-provided `RepeatOnLifecycleWrongUsage` traversal. A local
+  retry disabling only that rule also remained in source analysis after twelve
+  minutes and was stopped. No lint suppression was committed; lint is not
+  reported as passing. Build and unit tests completed separately.
+- iOS build and XCTest execution remain unverified: this Linux host has neither
+  Xcode nor the Swift toolchain. A Swift tree-sitter syntax comparison found no
+  new parser errors across the changed Swift files relative to the audit base;
+  this does not substitute for compilation or device testing.
+- No real send, swap, recovery, or name transaction was executed. The UI fixtures
+  deliberately have no signing authority. Live network and transaction flows,
+  iOS device layouts, and larger accessibility sizes still need release smoke
+  testing on their normal platform environments.
+
+The preview is installed separately as **Shakescape UX Preview**
+(`com.denuoweb.hnsdane.walletux`). It has its own app storage. Existing release,
+debug, and legacy-recovery installations were not replaced. Local screenshots
+and build/test logs are preserved in the Git-ignored
+`diagnostics/wallet-ux-2026-09-29/` directory; device logs were exported without
+clearing the on-device log stream.
