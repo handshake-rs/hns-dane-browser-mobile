@@ -1292,7 +1292,7 @@ final class WalletViewController: UIViewController {
         dashboardStack.addArrangedSubview(dashboardTileRow(namesTile, walletTile))
         let bitcoinTile = dashboardTile(
             title: "Bitcoin",
-            summary: bitcoinValueAvailable ? WalletCopy.text("wallet_dashboard_ready") : WalletCopy.text("wallet_dashboard_sync_required"),
+            summary: bitcoinSetupSummary(),
             enabled: !isOperating,
             action: { [weak self] in self?.showBitcoinDashboard() }
         )
@@ -1425,63 +1425,142 @@ final class WalletViewController: UIViewController {
         walletPresentationHost.present(viewer, animated: true)
     }
 
+    private var bitcoinStage: BitcoinOverviewStage {
+        bitcoinOverviewStage(
+            birthdayState: bitcoinSnapshot?.birthdayState, syncing: bitcoinSyncInProgress,
+            stopping: bitcoinSyncStopRequested, savingBirthday: bitcoinBirthdayResetInProgress
+        )
+    }
+
+    private func bitcoinSetupSummary() -> String {
+        switch bitcoinStage {
+        case .recoveryStart: return WalletCopy.text("wallet_ux_setup_required")
+        case .savingRecoveryStart: return WalletCopy.text("wallet_ux_validating_birthday")
+        case .firstSync: return WalletCopy.text("wallet_ux_first_sync")
+        case .syncing: return WalletCopy.text("wallet_bitcoin_syncing")
+        case .stopping: return WalletCopy.text("wallet_ux_stopping")
+        case .unavailable: return WalletCopy.text("wallet_bitcoin_balance_unavailable")
+        case .sync:
+            if let height = bitcoinSnapshot?.synchronizedHeight, height > 0 {
+                return WalletCopy.format("wallet_ux_last_scanned", Int(height))
+            }
+            return WalletCopy.text("wallet_ux_sync_required")
+        }
+    }
+
+    private func bitcoinOverviewSummary() -> String {
+        var lines: [String] = []
+        if let snapshot = bitcoinSnapshot, snapshot.synchronizedHeight > 0 {
+            lines.append(WalletCopy.format("wallet_ux_confirmed_sats", String(snapshot.confirmedSats)))
+            let pending = snapshot.trustedPendingSats + snapshot.untrustedPendingSats
+            if pending > 0 { lines.append(WalletCopy.format("wallet_ux_pending_sats", String(pending))) }
+            if snapshot.immatureSats > 0 {
+                lines.append(WalletCopy.format("wallet_ux_immature_sats", String(snapshot.immatureSats)))
+            }
+        } else {
+            lines.append(WalletCopy.text("wallet_ux_balance_after_sync"))
+        }
+        lines.append(bitcoinSetupSummary())
+        if let update = bitcoinStatusLabel.text, !update.isEmpty,
+           update != WalletCopy.text("wallet_bitcoin_ready"),
+           update != WalletCopy.text("wallet_bitcoin_syncing") { lines.append(update) }
+        if isOperating { lines.append(WalletCopy.text("wallet_ux_busy")) }
+        return lines.joined(separator: "\n\n")
+    }
+
+    private func bitcoinOverviewActions() -> [WalletMenuAction] {
+        let available = !isOperating && walletIsUnlocked && bitcoinValueAvailable &&
+            !bitcoinSyncInProgress && !bitcoinBirthdayResetInProgress && bitcoinSnapshot != nil
+        var actions: [WalletMenuAction] = []
+        switch bitcoinStage {
+        case .recoveryStart:
+            actions.append(WalletMenuAction(
+                title: WalletCopy.text("wallet_ux_recovery_start"), enabled: available, primary: true
+            ) { [weak self] in self?.showBitcoinRecoveryStart() })
+        case .syncing, .stopping:
+            actions.append(WalletMenuAction(
+                title: WalletCopy.text("action_stop_bitcoin_sync"),
+                enabled: !bitcoinSyncStopRequested, primary: true
+            ) { [weak self] in self?.stopBitcoinSynchronization() })
+        case .firstSync, .sync:
+            actions.append(WalletMenuAction(
+                title: WalletCopy.text("wallet_dashboard_sync"), enabled: available,
+                primary: bitcoinSnapshot?.synchronizedHeight == 0
+            ) { [weak self] in self?.startBitcoinSynchronization() })
+        default: break
+        }
+        actions.append(WalletMenuAction(
+            title: WalletCopy.text("wallet_ux_receive_bitcoin"), enabled: available,
+            primary: bitcoinStage == .sync && (bitcoinSnapshot?.synchronizedHeight ?? 0) > 0
+        ) { [weak self] in
+            guard let self, let address = self.bitcoinSnapshot?.receiveAddress else { return }
+            self.presentBitcoinReceiveAddress(address)
+        })
+        actions.append(WalletMenuAction(
+            title: WalletCopy.text("wallet_dashboard_send_bitcoin"),
+            enabled: available && bitcoinStage == .sync && (bitcoinSnapshot?.confirmedSats ?? 0) > 0
+        ) { [weak self] in self?.showBitcoinSendForm() })
+        actions.append(WalletMenuAction(
+            title: WalletCopy.text("wallet_bitcoin_recent_activity"),
+            section: WalletCopy.text("wallet_ux_details"), enabled: available
+        ) { [weak self] in self?.showBitcoinActivity() })
+        actions.append(WalletMenuAction(
+            title: WalletCopy.text("wallet_ux_details"), section: WalletCopy.text("wallet_ux_details")
+        ) { [weak self] in self?.showBitcoinDetails() })
+        return actions
+    }
+
     private func showBitcoinDashboard() {
         guard walletCanPresentChild else { return }
-        let activitySummary: String
-        if let snapshot = bitcoinSnapshot {
-            let count = Int(snapshot.recentActivityTotal)
-            activitySummary = count == 0
-                ? WalletCopy.text("wallet_bitcoin_activity_empty")
-                : WalletCopy.text("wallet_bitcoin_recent_activity")
-        } else {
-            activitySummary = WalletCopy.text("wallet_bitcoin_activity_unavailable")
-        }
+        presentWalletMenu(
+            title: WalletCopy.text("wallet_dashboard_bitcoin"),
+            rows: [WalletMenuRow(
+                title: WalletCopy.text("wallet_ux_overview"), detail: bitcoinOverviewSummary(),
+                liveDetail: { [weak self] in self?.bitcoinOverviewSummary() ?? "" }
+            )],
+            actions: bitcoinOverviewActions(), retainForChildActions: true,
+            liveActions: { [weak self] in self?.bitcoinOverviewActions() ?? [] }
+        )
+    }
+
+    private func showBitcoinDetails() {
         var actions: [WalletMenuAction] = []
-        if bitcoinReceiveButton.isEnabled {
-            actions.append(WalletMenuAction(title: WalletCopy.text("action_wallet_bitcoin_receive")) { [weak self] in
-                self?.nextBitcoinReceiveAddress()
-            })
-        }
-        if bitcoinSyncButton.isEnabled {
-            actions.append(WalletMenuAction(
-                title: bitcoinSyncInProgress
-                    ? WalletCopy.text("action_stop_bitcoin_sync")
-                    : WalletCopy.text("row_wallet_bitcoin_sync")
-            ) { [weak self] in
-                self?.toggleBitcoinSynchronization()
-            })
-        }
         if bitcoinBirthdayButton.isEnabled && !bitcoinBirthdayButton.isHidden {
-            actions.append(WalletMenuAction(title: WalletCopy.text("action_wallet_bitcoin_birthday")) { [weak self] in
-                self?.showBitcoinBirthdayForm()
-            })
-        }
-        if bitcoinSendButton.isEnabled {
-            actions.append(WalletMenuAction(title: WalletCopy.text("wallet_dashboard_send_bitcoin")) { [weak self] in
-                self?.showBitcoinSendForm()
-            })
-        }
-        if bitcoinSnapshot != nil {
-            actions.append(WalletMenuAction(title: WalletCopy.text("wallet_bitcoin_recent_activity")) { [weak self] in
-                self?.showBitcoinActivity()
+            actions.append(WalletMenuAction(title: WalletCopy.text("action_wallet_bitcoin_birthday")) {
+                [weak self] in self?.showBitcoinBirthdayForm()
             })
         }
         presentWalletMenu(
-            title: WalletCopy.text("row_wallet_bitcoin_status"),
+            title: WalletCopy.text("wallet_ux_details"),
             rows: [
-                WalletMenuRow(title: WalletCopy.text("row_wallet_bitcoin_status"), detail: bitcoinStatusLabel.text ?? WalletCopy.text("wallet_bitcoin_sync_failed")) { [weak self] in
-                    self?.bitcoinStatusLabel.text ?? WalletCopy.text("wallet_bitcoin_sync_failed")
+                WalletMenuRow(title: WalletCopy.text("row_wallet_bitcoin_status"),
+                    detail: bitcoinStatusLabel.text ?? "", liveDetail: { [weak self] in self?.bitcoinStatusLabel.text ?? "" }),
+                WalletMenuRow(title: WalletCopy.text("row_wallet_bitcoin_balance"),
+                    detail: bitcoinBalanceLabel.text ?? "", liveDetail: { [weak self] in self?.bitcoinBalanceLabel.text ?? "" }),
+            ], actions: actions, retainForChildActions: true
+        )
+    }
+
+    private func showBitcoinRecoveryStart() {
+        presentWalletMenu(
+            title: WalletCopy.text("wallet_ux_recovery_start"),
+            rows: [WalletMenuRow(title: WalletCopy.text("wallet_ux_overview"),
+                detail: WalletCopy.text("wallet_ux_recovery_help"))],
+            actions: [
+                WalletMenuAction(title: WalletCopy.text("action_wallet_bitcoin_birthday"), primary: true) {
+                    [weak self] in self?.showBitcoinBirthdayForm()
                 },
-                WalletMenuRow(title: WalletCopy.text("row_wallet_bitcoin_balance"), detail: bitcoinBalanceLabel.text ?? WalletCopy.text("wallet_bitcoin_balance_unavailable")) { [weak self] in
-                    self?.bitcoinBalanceLabel.text ?? WalletCopy.text("wallet_bitcoin_balance_unavailable")
+                WalletMenuAction(title: WalletCopy.text("wallet_ux_full_history")) { [weak self] in
+                    guard let self else { return }
+                    let alert = UIAlertController(title: WalletCopy.text("wallet_ux_full_history"),
+                        message: WalletCopy.text("wallet_ux_full_history_help"), preferredStyle: .alert)
+                    alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_action_cancel"), style: .cancel))
+                    alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_ux_full_history"), style: .default) {
+                        [weak self] _ in self?.startBitcoinSynchronization(allowFullHistory: true)
+                    })
+                    self.walletPresentationHost.present(alert, animated: true)
                 },
-                WalletMenuRow(title: WalletCopy.text("row_wallet_bitcoin_receive"), detail: bitcoinReceiveLabel.text ?? WalletCopy.text("wallet_bitcoin_receive_unavailable")) { [weak self] in
-                    self?.bitcoinReceiveLabel.text ?? WalletCopy.text("wallet_bitcoin_receive_unavailable")
-                },
-                WalletMenuRow(title: WalletCopy.text("wallet_bitcoin_recent_activity"), detail: activitySummary),
-            ],
-            actions: actions,
-            retainForChildActions: true
+            ]
         )
     }
 
@@ -1644,17 +1723,19 @@ final class WalletViewController: UIViewController {
 
     private func presentBitcoinReceiveAddress(_ address: String) {
         presentWalletMenu(
-            title: WalletCopy.text("row_wallet_bitcoin_receive"),
-            rows: [WalletMenuRow(
-                title: WalletCopy.text("row_wallet_bitcoin_receive"),
-                detail: address
-            )],
-            actions: [WalletMenuAction(title: WalletCopy.text("wallet_action_copy")) {
-                UIPasteboard.general.setItems(
-                    [[UTType.plainText.identifier: address]],
-                    options: [.localOnly: true]
-                )
-            }]
+            title: WalletCopy.text("wallet_ux_receive_bitcoin"),
+            rows: [WalletMenuRow(title: WalletCopy.text("row_wallet_bitcoin_receive"), detail: address),
+                WalletMenuRow(title: WalletCopy.text("wallet_ux_overview"), detail: WalletCopy.text("wallet_ux_receive_help"))],
+            actions: [
+                WalletMenuAction(title: WalletCopy.text("wallet_action_copy"), primary: true) {
+                    UIPasteboard.general.setItems(
+                        [[UTType.plainText.identifier: address]], options: [.localOnly: true]
+                    )
+                },
+                WalletMenuAction(title: WalletCopy.text("wallet_ux_new_address")) { [weak self] in
+                    self?.nextBitcoinReceiveAddress()
+                },
+            ]
         )
     }
 
@@ -1750,7 +1831,11 @@ final class WalletViewController: UIViewController {
         }
     }
 
-    private func startBitcoinSynchronization() {
+    private func startBitcoinSynchronization(allowFullHistory: Bool = false) {
+        guard bitcoinSnapshot?.birthdayState != "recoveryUnknown" || allowFullHistory else {
+            bitcoinStatusLabel.text = WalletCopy.text("wallet_ux_setup_required")
+            return
+        }
         guard let wallet, bitcoinValueAvailable, !bitcoinSyncInProgress,
               !bitcoinBirthdayResetInProgress else { return }
         bitcoinSyncInProgress = true

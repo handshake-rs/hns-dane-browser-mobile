@@ -1357,12 +1357,7 @@ class WalletActivity : ComponentActivity() {
         resources.getQuantityString(R.plurals.wallet_dashboard_tracked_names, count, count)
     } ?: getString(R.string.wallet_dashboard_sync_required)
 
-    private fun bitcoinSummary(): String =
-        if (bitcoinBalanceView.text == getString(R.string.wallet_bitcoin_balance_unavailable)) {
-            getString(R.string.wallet_dashboard_sync_required)
-        } else {
-            getString(R.string.wallet_dashboard_ready)
-        }
+    private fun bitcoinSummary(): String = bitcoinSetupSummary()
 
     private fun shakedexSummary(): String =
         latestReadSnapshot?.finalizeNotices?.firstOrNull()?.let(::formatFinalizeNotice)
@@ -2248,35 +2243,139 @@ class WalletActivity : ComponentActivity() {
         )
     }
 
-    private fun showBitcoinDashboard() {
-        val actions = mutableListOf<Pair<String, () -> Unit>>()
-        actions.add(getString(R.string.action_wallet_bitcoin_receive) to ::revealBitcoinReceiveAddress)
-        if (walletBitcoinSyncInProgress) {
-            actions.add(
-                getString(R.string.action_stop_bitcoin_sync) to ::requestBitcoinSyncCancellation,
-            )
+    private fun bitcoinStage(): BitcoinOverviewStage = bitcoinOverviewStage(
+        bitcoinSnapshot?.birthdayState, walletBitcoinSyncInProgress,
+        bitcoinSyncStopRequested, bitcoinBirthdayResetInProgress,
+    )
+
+    private fun bitcoinSetupSummary(): String = when (bitcoinStage()) {
+        BitcoinOverviewStage.RecoveryStart -> getString(R.string.wallet_ux_setup_required)
+        BitcoinOverviewStage.SavingRecoveryStart -> getString(R.string.wallet_ux_validating_birthday)
+        BitcoinOverviewStage.FirstSync -> getString(R.string.wallet_ux_first_sync)
+        BitcoinOverviewStage.Syncing -> getString(R.string.wallet_bitcoin_syncing)
+        BitcoinOverviewStage.Stopping -> getString(R.string.wallet_ux_stopping)
+        BitcoinOverviewStage.Unavailable -> getString(R.string.wallet_bitcoin_balance_unavailable)
+        BitcoinOverviewStage.Sync -> bitcoinSnapshot?.synchronizedHeight?.takeIf { it > 0 }?.let {
+            getString(R.string.wallet_ux_last_scanned, it)
+        } ?: getString(R.string.wallet_ux_sync_required)
+    }
+
+    private fun bitcoinOverviewSummary(): String = buildList {
+        val snapshot = bitcoinSnapshot
+        if (snapshot != null && snapshot.synchronizedHeight > 0) {
+            add(getString(R.string.wallet_ux_confirmed_sats, snapshot.confirmedSats.toString()))
+            val pending = snapshot.trustedPendingSats + snapshot.untrustedPendingSats
+            if (pending > 0) add(getString(R.string.wallet_ux_pending_sats, pending.toString()))
+            if (snapshot.immatureSats > 0) add(getString(
+                R.string.wallet_ux_immature_sats, snapshot.immatureSats.toString(),
+            ))
         } else {
-            actions.add(getString(R.string.action_sync_wallet_reads) to {
-                automaticSwapBitcoinSyncPausedUntilElapsedMillis = Long.MIN_VALUE
-                synchronizeBitcoin()
-            })
+            add(getString(R.string.wallet_ux_balance_after_sync))
         }
-        if (bitcoinBirthdayMayStart()) {
-            actions.add(
-                getString(R.string.action_wallet_bitcoin_birthday) to ::showBitcoinBirthdayForm,
+        add(bitcoinSetupSummary())
+        // Keep action results and failures visible; full balance internals live in Details.
+        val update = bitcoinStatusView.text.toString()
+        if (update.isNotBlank() && update != getString(R.string.wallet_bitcoin_ready) &&
+            update != getString(R.string.wallet_bitcoin_syncing)) add(update)
+        if (busy) add(getString(R.string.wallet_ux_busy))
+    }.joinToString("\n\n")
+
+    private fun showBitcoinDashboard() = showWalletOverview(
+        title = getString(R.string.wallet_dashboard_bitcoin),
+        summary = ::bitcoinOverviewSummary,
+        sections = {
+            val stage = bitcoinStage()
+            val available = overviewActionsAvailable() && bitcoinSnapshot != null
+            val main = buildList {
+                when (stage) {
+                    BitcoinOverviewStage.RecoveryStart -> add(WalletModalAction(
+                        getString(R.string.wallet_ux_recovery_start), available,
+                        ::showBitcoinRecoveryStart, primary = true,
+                    ))
+                    BitcoinOverviewStage.Syncing, BitcoinOverviewStage.Stopping -> add(WalletModalAction(
+                        getString(R.string.action_stop_bitcoin_sync), !bitcoinSyncStopRequested,
+                        ::requestBitcoinSyncCancellation, primary = true,
+                    ))
+                    BitcoinOverviewStage.FirstSync, BitcoinOverviewStage.Sync -> add(WalletModalAction(
+                        getString(R.string.wallet_dashboard_sync), available,
+                        { automaticSwapBitcoinSyncPausedUntilElapsedMillis = Long.MIN_VALUE; synchronizeBitcoin() },
+                        primary = bitcoinSnapshot?.synchronizedHeight == 0L,
+                    ))
+                    else -> Unit
+                }
+                add(WalletModalAction(
+                    getString(R.string.wallet_ux_receive_bitcoin), available,
+                    ::showBitcoinReceiveAddress,
+                    primary = stage == BitcoinOverviewStage.Sync && (bitcoinSnapshot?.synchronizedHeight ?: 0) > 0,
+                ))
+                add(WalletModalAction(
+                    getString(R.string.wallet_dashboard_send_bitcoin),
+                    available && stage == BitcoinOverviewStage.Sync && (bitcoinSnapshot?.confirmedSats ?: 0) > 0,
+                    ::showBitcoinSendForm,
+                ))
+            }
+            listOf(
+                WalletModalActionSection(getString(R.string.wallet_modal_actions), main),
+                WalletModalActionSection(getString(R.string.wallet_ux_details), listOf(
+                    WalletModalAction(getString(R.string.wallet_bitcoin_recent_activity),
+                        available, ::showBitcoinActivityDetails),
+                    WalletModalAction(getString(R.string.wallet_ux_details), action = ::showBitcoinDetails),
+                )),
             )
-        }
-        actions.add(getString(R.string.wallet_dashboard_send_bitcoin) to ::showBitcoinSendForm)
-        actions.add(getString(R.string.wallet_bitcoin_recent_activity) to ::showBitcoinActivityDetails)
+        },
+    )
+
+    private fun showBitcoinDetails() {
+        val actions = if (bitcoinBirthdayMayStart()) listOf(
+            getString(R.string.action_wallet_bitcoin_birthday) to ::showBitcoinBirthdayForm,
+        ) else emptyList()
         walletLiveDetailDialog(
-            title = getString(R.string.wallet_dashboard_bitcoin),
+            title = getString(R.string.wallet_ux_details),
             rows = listOf(
                 getString(R.string.row_wallet_bitcoin_status) to bitcoinStatusView,
                 getString(R.string.row_wallet_bitcoin_balance) to bitcoinBalanceView,
-                getString(R.string.row_wallet_bitcoin_receive) to bitcoinReceiveView,
-                getString(R.string.wallet_bitcoin_recent_activity) to bitcoinActivityView,
             ),
             actions = actions,
+        )
+    }
+
+    private fun showBitcoinRecoveryStart() {
+        walletDetailDialog(
+            title = getString(R.string.wallet_ux_recovery_start),
+            rows = listOf(getString(R.string.wallet_ux_overview) to getString(R.string.wallet_ux_recovery_help)),
+            actions = listOf(
+                getString(R.string.action_wallet_bitcoin_birthday) to ::showBitcoinBirthdayForm,
+                getString(R.string.wallet_ux_full_history) to {
+                    walletAlertDialogBuilder()
+                        .setTitle(R.string.wallet_ux_full_history)
+                        .setMessage(R.string.wallet_ux_full_history_help)
+                        .setNegativeButton(R.string.action_cancel, null)
+                        .setPositiveButton(R.string.wallet_ux_full_history) { _, _ ->
+                            automaticSwapBitcoinSyncPausedUntilElapsedMillis = Long.MIN_VALUE
+                            synchronizeBitcoin(allowFullHistory = true)
+                        }.show()
+                },
+            ),
+        )
+    }
+
+    private fun showBitcoinReceiveAddress() {
+        val address = bitcoinSnapshot?.receiveAddress?.takeIf { it.isNotBlank() } ?: return
+        walletDetailDialog(
+            title = getString(R.string.wallet_ux_receive_bitcoin),
+            rows = listOf(
+                getString(R.string.row_wallet_bitcoin_receive) to address,
+                getString(R.string.wallet_ux_overview) to getString(R.string.wallet_ux_receive_help),
+            ),
+            actions = listOf(
+                getString(R.string.wallet_dashboard_copy_address) to {
+                    getSystemService(ClipboardManager::class.java).setPrimaryClip(
+                        ClipData.newPlainText(getString(R.string.row_wallet_bitcoin_receive), address),
+                    )
+                    Toast.makeText(this, R.string.common_copied, Toast.LENGTH_SHORT).show()
+                },
+                getString(R.string.wallet_ux_new_address) to ::revealBitcoinReceiveAddress,
+            ),
         )
     }
 
@@ -4167,12 +4266,17 @@ class WalletActivity : ComponentActivity() {
                     bitcoinStatusView.text = getString(R.string.wallet_bitcoin_receive_failed)
                 } else {
                     renderBitcoinSnapshot(address.snapshot)
+                    showBitcoinReceiveAddress()
                 }
             }
         }
     }
 
-    private fun synchronizeBitcoin() {
+    private fun synchronizeBitcoin(allowFullHistory: Boolean = false) {
+        if (bitcoinSnapshot?.birthdayState == "recoveryUnknown" && !allowFullHistory) {
+            bitcoinStatusView.text = getString(R.string.wallet_ux_setup_required)
+            return
+        }
         val lease = currentStorageLease() ?: return
         val handle = walletHandle
         if (!walletBitcoinOperationMayStart(
@@ -4193,6 +4297,7 @@ class WalletActivity : ComponentActivity() {
             return
         }
         walletBitcoinSyncInProgress = true
+        renderWalletDashboard()
         bitcoinSyncStopRequested = false
         bitcoinStatusView.text = getString(R.string.wallet_bitcoin_syncing)
         startWalletForegroundSyncService("Bitcoin")
@@ -4245,6 +4350,7 @@ class WalletActivity : ComponentActivity() {
                 // A long Bitcoin scan may overlap one or more authenticated
                 // Handshake blocks. Re-check the ordinary receive watcher now
                 // that the shared native controller is available again.
+                renderWalletDashboard()
                 maybeRefreshWalletAfterNewBlock()
             }
         }
@@ -4951,6 +5057,7 @@ class WalletActivity : ComponentActivity() {
         )
         bitcoinReceiveView.text = getString(R.string.wallet_bitcoin_receive, snapshot.receiveAddress)
         bitcoinActivityView.text = bitcoinActivitySummary()
+        renderWalletDashboard()
     }
 
     private fun showBitcoinBirthdayForm() {
