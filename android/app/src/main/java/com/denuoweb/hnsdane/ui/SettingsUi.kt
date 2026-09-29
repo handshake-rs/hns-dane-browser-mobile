@@ -164,11 +164,17 @@ internal fun Context.dashboardActionButton(
         setTextColor(if (secondary) themeColors().primaryText else themeColors().action)
         background = settingsSurfaceDrawable(
             accent = if (secondary) themeColors().divider else themeColors().action,
-            fill = themeColors().background,
+            fill = if (secondary) themeColors().background else themeColors().actionContainer,
             cornerRadius = 12,
         )
         isClickable = true
         isFocusable = true
+        accessibilityDelegate = object : View.AccessibilityDelegate() {
+            override fun onInitializeAccessibilityNodeInfo(host: View, info: android.view.accessibility.AccessibilityNodeInfo) {
+                super.onInitializeAccessibilityNodeInfo(host, info)
+                info.className = android.widget.Button::class.java.name
+            }
+        }
         setOnClickListener { action() }
     }
 

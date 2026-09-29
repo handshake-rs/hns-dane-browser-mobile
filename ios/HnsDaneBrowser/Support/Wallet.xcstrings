@@ -76145,6 +76145,17 @@
         }
       }
     },
+    "wallet_ux_bitcoin": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitcoin"
+          }
+        }
+      }
+    },
     "wallet_ux_bitcoin_setup_trade": {
       "extractionState": "manual",
       "localizations": {
@@ -76471,6 +76482,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Stopping sync…"
+          }
+        }
+      }
+    },
+    "wallet_ux_sync_progress": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Syncing Bitcoin · %1$d%%"
           }
         }
       }

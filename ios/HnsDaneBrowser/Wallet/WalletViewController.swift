@@ -683,6 +683,9 @@ final class WalletViewController: UIViewController {
     private var bitcoinBirthdayResetInProgress = false
     private var bitcoinSyncTimer: Timer?
     private let swapActionStatusLabel = UILabel()
+    private var bitcoinProgressSummary: String?
+    private var bitcoinCompletedSyncMessage: String?
+    private var bitcoinLastSyncFailed = false
     private var bitcoinSnapshot: NativeBitcoinWalletSnapshot?
     private var bitcoinValueAvailable = false
     private weak var bitcoinSendApprovalAlert: UIAlertController?
@@ -1413,11 +1416,12 @@ final class WalletViewController: UIViewController {
     }
 
     private func bitcoinSetupSummary() -> String {
+        if bitcoinLastSyncFailed { return WalletCopy.text("wallet_bitcoin_sync_failed") }
         switch bitcoinStage {
         case .recoveryStart: return WalletCopy.text("wallet_ux_setup_required")
         case .savingRecoveryStart: return WalletCopy.text("wallet_ux_validating_birthday")
         case .firstSync: return WalletCopy.text("wallet_ux_first_sync")
-        case .syncing: return WalletCopy.text("wallet_bitcoin_syncing")
+        case .syncing: return bitcoinProgressSummary ?? WalletCopy.text("wallet_bitcoin_syncing")
         case .stopping: return WalletCopy.text("wallet_ux_stopping")
         case .unavailable: return WalletCopy.text("wallet_bitcoin_balance_unavailable")
         case .sync:
@@ -1441,8 +1445,9 @@ final class WalletViewController: UIViewController {
             lines.append(WalletCopy.text("wallet_ux_balance_after_sync"))
         }
         lines.append(bitcoinSetupSummary())
-        if let update = bitcoinStatusLabel.text, !update.isEmpty,
-           update != WalletCopy.text("wallet_bitcoin_ready"),
+        if let update = bitcoinStatusLabel.text, !update.isEmpty, !bitcoinSyncInProgress,
+           update != bitcoinCompletedSyncMessage, update != bitcoinSetupSummary(),
+           update != WalletCopy.text("wallet_dashboard_ready"),
            update != WalletCopy.text("wallet_bitcoin_syncing") { lines.append(update) }
         if isOperating { lines.append(WalletCopy.text("wallet_ux_busy")) }
         return lines.joined(separator: "\n\n")
@@ -1493,7 +1498,7 @@ final class WalletViewController: UIViewController {
     private func showBitcoinDashboard() {
         guard walletCanPresentChild else { return }
         presentWalletMenu(
-            title: WalletCopy.text("wallet_dashboard_bitcoin"),
+            title: WalletCopy.text("wallet_ux_bitcoin"),
             rows: [WalletMenuRow(
                 title: WalletCopy.text("wallet_ux_overview"), detail: bitcoinOverviewSummary(),
                 liveDetail: { [weak self] in self?.bitcoinOverviewSummary() ?? "" }
@@ -1816,9 +1821,11 @@ final class WalletViewController: UIViewController {
             bitcoinStatusLabel.text = WalletCopy.text("wallet_ux_setup_required")
             return
         }
-        guard let wallet, bitcoinValueAvailable, !bitcoinSyncInProgress,
+        guard let wallet, bitcoinValueAvailable, !isOperating, !bitcoinSyncInProgress,
               !bitcoinBirthdayResetInProgress else { return }
         bitcoinSyncInProgress = true
+        bitcoinProgressSummary = nil
+        bitcoinLastSyncFailed = false
         bitcoinSyncStopRequested = false
         bitcoinStatusLabel.text = WalletCopy.text("wallet_bitcoin_syncing")
         startBitcoinProgressWatcher(wallet: wallet)
@@ -1844,6 +1851,7 @@ final class WalletViewController: UIViewController {
                         Int(synchronization.requiredPeerCount),
                         elapsed
                     )
+                    self.bitcoinCompletedSyncMessage = self.bitcoinStatusLabel.text
                 case .failure where stopped:
                     self.bitcoinStatusLabel.text = WalletCopy.text(
                         "wallet_bitcoin_sync_stopped"
@@ -1852,6 +1860,7 @@ final class WalletViewController: UIViewController {
                         self.renderBitcoinSnapshot(snapshot)
                     }
                 case .failure(let error):
+                    self.bitcoinLastSyncFailed = true
                     self.bitcoinStatusLabel.text = WalletCopy.text(
                         "wallet_bitcoin_sync_failed"
                     )
@@ -1899,6 +1908,11 @@ final class WalletViewController: UIViewController {
                 DispatchQueue.main.async { [weak self, weak wallet] in
                     guard let self, let wallet, self.wallet === wallet,
                           self.bitcoinSyncInProgress, let progress else { return }
+                    let summary = WalletCopy.format("wallet_ux_sync_progress", Int(min(progress.completionBasisPoints, 10_000) / 100))
+                    if summary != self.bitcoinProgressSummary {
+                        self.bitcoinProgressSummary = summary
+                        self.renderWalletDashboard()
+                    }
                     let percentWhole = Int(progress.completionBasisPoints / 100)
                     let percentFraction = Int(progress.completionBasisPoints % 100)
                     let height = progress.chainHeight.map(String.init) ?? "—"
@@ -4337,7 +4351,7 @@ final class WalletViewController: UIViewController {
         let ready = bitcoinStage == .sync
         var actions: [WalletMenuAction] = []
         if !ready {
-            actions.append(WalletMenuAction(title: WalletCopy.text("wallet_dashboard_bitcoin"), primary: true) {
+            actions.append(WalletMenuAction(title: WalletCopy.text("wallet_ux_bitcoin"), primary: true) {
                 [weak self] in self?.showBitcoinDashboard()
             })
         }
@@ -4348,7 +4362,7 @@ final class WalletViewController: UIViewController {
             [weak self] in self?.showHnsForBtcOfferForm()
         })
         presentWalletMenu(title: WalletCopy.text("wallet_ux_coin_offers"),
-            rows: ready ? [] : [WalletMenuRow(title: WalletCopy.text("wallet_dashboard_bitcoin"),
+            rows: ready ? [] : [WalletMenuRow(title: WalletCopy.text("wallet_ux_bitcoin"),
                 detail: WalletCopy.text("wallet_ux_bitcoin_setup_trade"))],
             actions: actions, retainForChildActions: true)
     }
@@ -7576,6 +7590,9 @@ final class WalletViewController: UIViewController {
         bitcoinBirthdayResetInProgress = false
         bitcoinValueAvailable = false
         bitcoinSnapshot = nil
+        bitcoinProgressSummary = nil
+        bitcoinCompletedSyncMessage = nil
+        bitcoinLastSyncFailed = false
         swapActionStatusLabel.text = nil
         bitcoinActivityPageOffset = 0
         bitcoinBirthdayButton.isHidden = true

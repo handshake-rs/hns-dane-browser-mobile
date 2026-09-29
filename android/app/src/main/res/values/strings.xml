@@ -1396,4 +1396,6 @@
     <string name="wallet_ux_hns_current" translatable="false">HNS · %1$s</string>
     <string name="wallet_ux_actions" translatable="false">Actions</string>
     <string name="wallet_ux_done" translatable="false">Done</string>
+    <string name="wallet_ux_sync_progress" translatable="false">Syncing Bitcoin · %1$d%%</string>
+    <string name="wallet_ux_bitcoin" translatable="false">Bitcoin</string>
 </resources>

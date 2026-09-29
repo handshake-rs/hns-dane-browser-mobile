@@ -431,6 +431,9 @@ class WalletActivity : ComponentActivity() {
     @Volatile
     private var walletHnsSyncInProgress = false
     private var walletBitcoinSyncInProgress = false
+    private var bitcoinProgressSummary: String? = null
+    private var bitcoinCompletedSyncMessage: String? = null
+    private var bitcoinLastSyncFailed = false
     private lateinit var swapActionStatusView: TextView
     private var bitcoinSnapshot: com.denuoweb.hnsdane.wallet.NativeBitcoinWalletSnapshot? = null
     private var bitcoinSyncStopRequested = false
@@ -1300,7 +1303,10 @@ class WalletActivity : ComponentActivity() {
             })
         }
 
-    private fun namesSummary(): String = latestReadSnapshot?.let { snapshot ->
+    private fun namesSummary(): String = if (walletNameImportInProgressCount > 0) {
+        resources.getQuantityString(R.plurals.wallet_name_card_importing,
+            walletNameImportInProgressCount, walletNameImportInProgressCount)
+    } else latestReadSnapshot?.let { snapshot ->
         val count = snapshot.trackedNameCount
         val summary = if (count == 0) getString(R.string.wallet_ux_names_empty) else
             resources.getQuantityString(R.plurals.wallet_dashboard_tracked_names, count, count)
@@ -2241,11 +2247,13 @@ class WalletActivity : ComponentActivity() {
         bitcoinSyncStopRequested, bitcoinBirthdayResetInProgress,
     )
 
-    private fun bitcoinSetupSummary(): String = when (bitcoinStage()) {
+    private fun bitcoinSetupSummary(): String = if (bitcoinLastSyncFailed) {
+        getString(R.string.wallet_bitcoin_sync_failed)
+    } else when (bitcoinStage()) {
         BitcoinOverviewStage.RecoveryStart -> getString(R.string.wallet_ux_setup_required)
         BitcoinOverviewStage.SavingRecoveryStart -> getString(R.string.wallet_ux_validating_birthday)
         BitcoinOverviewStage.FirstSync -> getString(R.string.wallet_ux_first_sync)
-        BitcoinOverviewStage.Syncing -> getString(R.string.wallet_bitcoin_syncing)
+        BitcoinOverviewStage.Syncing -> bitcoinProgressSummary ?: getString(R.string.wallet_bitcoin_syncing)
         BitcoinOverviewStage.Stopping -> getString(R.string.wallet_ux_stopping)
         BitcoinOverviewStage.Unavailable -> getString(R.string.wallet_bitcoin_balance_unavailable)
         BitcoinOverviewStage.Sync -> bitcoinSnapshot?.synchronizedHeight?.takeIf { it > 0 }?.let {
@@ -2268,8 +2276,9 @@ class WalletActivity : ComponentActivity() {
         add(bitcoinSetupSummary())
         // Keep action results and failures visible; full balance internals live in Details.
         val update = bitcoinStatusView.text.toString()
-        if (update.isNotBlank() && update != getString(R.string.wallet_bitcoin_ready) &&
-            update != getString(R.string.wallet_bitcoin_syncing)) add(update)
+        if (!walletBitcoinSyncInProgress && update.isNotBlank() && update != bitcoinCompletedSyncMessage &&
+            update != getString(R.string.wallet_bitcoin_ready) &&
+            update != getString(R.string.wallet_bitcoin_syncing) && update != bitcoinSetupSummary()) add(update)
         if (busy) add(getString(R.string.wallet_ux_busy))
     }.joinToString("\n\n")
 
@@ -2541,7 +2550,7 @@ class WalletActivity : ComponentActivity() {
                 val main = buildList {
                     if (!paired) add(WalletModalAction(
                         getString(R.string.row_wallet_pair_direct_shakescape), available,
-                        ::showPairDirectShakescapeForm, dismissParent = true, primary = true,
+                        ::showPairDirectShakescapeForm, dismissParent = true, primary = !hasLiveAtomicSwap(),
                     ))
                     add(WalletModalAction(getString(R.string.wallet_swap_executions), available,
                         ::showShakescapeExecutions, primary = hasLiveAtomicSwap()))
@@ -4324,6 +4333,8 @@ class WalletActivity : ComponentActivity() {
             return
         }
         walletBitcoinSyncInProgress = true
+        bitcoinProgressSummary = null
+        bitcoinLastSyncFailed = false
         renderWalletDashboard()
         bitcoinSyncStopRequested = false
         bitcoinStatusView.text = getString(R.string.wallet_bitcoin_syncing)
@@ -4348,6 +4359,7 @@ class WalletActivity : ComponentActivity() {
                     Log.i(TAG, "Direct Bitcoin synchronization stopped by user request")
                     bitcoinStatusView.text = getString(R.string.wallet_bitcoin_sync_stopped)
                 } else if (synchronization == null) {
+                    bitcoinLastSyncFailed = true
                     Log.w(TAG, "Direct Bitcoin synchronization returned no verified snapshot")
                     bitcoinStatusView.text = getString(R.string.wallet_bitcoin_sync_failed)
                 } else {
@@ -4373,6 +4385,7 @@ class WalletActivity : ComponentActivity() {
                         synchronization.requiredPeerCount,
                         formatBitcoinSyncDuration(synchronization.totalMs),
                     )
+                    bitcoinCompletedSyncMessage = bitcoinStatusView.text.toString()
                 }
                 // A long Bitcoin scan may overlap one or more authenticated
                 // Handshake blocks. Re-check the ordinary receive watcher now
@@ -4443,6 +4456,12 @@ class WalletActivity : ComponentActivity() {
                             watcher.get() && walletBitcoinSyncInProgress &&
                             operationIsCurrent(epoch, lease) && walletHandle == handle
                         ) {
+                            val summary = getString(R.string.wallet_ux_sync_progress,
+                                progress.completionBasisPoints.coerceIn(0, 10_000) / 100)
+                            if (summary != bitcoinProgressSummary) {
+                                bitcoinProgressSummary = summary
+                                if (!showingNamesPage) renderWalletDashboard()
+                            }
                             bitcoinStatusView.text = getString(
                                 R.string.wallet_bitcoin_sync_background_guidance,
                                 bitcoinSyncProgressText(progress, etaMillis),
@@ -4531,6 +4550,9 @@ class WalletActivity : ComponentActivity() {
 
     private fun resetBitcoinProjection() {
         bitcoinSnapshot = null
+        bitcoinProgressSummary = null
+        bitcoinCompletedSyncMessage = null
+        bitcoinLastSyncFailed = false
         bitcoinActivityPageOffset = 0
         bitcoinBalanceView.text = getString(R.string.wallet_bitcoin_balance_unavailable)
         bitcoinReceiveView.text = getString(R.string.wallet_bitcoin_receive_unavailable)
