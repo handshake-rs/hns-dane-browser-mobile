@@ -1063,7 +1063,7 @@ class WalletActivity : ComponentActivity() {
         synchronizationInProgress: Boolean = false,
     ) {
         addCellularDataWarningIfNeeded(walletUnlocked = true)
-        dashboardContent.addView(walletBalanceCard(actionsAvailable))
+        dashboardContent.addView(walletBalanceCard(actionsAvailable, synchronizationInProgress))
         addWalletTiles(locked = false, actionsAvailable = navigationAvailable)
         dashboardContent.addView(settingsGroup(getString(R.string.wallet_dashboard_recent_activity)) {
             addSettingsRow(navRow(
@@ -1198,7 +1198,10 @@ class WalletActivity : ComponentActivity() {
         }
     }
 
-    private fun walletBalanceCard(actionsAvailable: Boolean = true): LinearLayout =
+    private fun walletBalanceCard(
+        actionsAvailable: Boolean = true,
+        synchronizationInProgress: Boolean = false,
+    ): LinearLayout =
         LinearLayout(this).apply {
             val paymentActionsAvailable =
                 walletHnsPaymentActionsAvailable(
@@ -1228,7 +1231,7 @@ class WalletActivity : ComponentActivity() {
             if (busy || statusView.text.toString() != getString(R.string.wallet_status_unlocked)) {
                 addView(statusView)
             }
-            if (latestReadSnapshot == null || hasActiveWalletHnsSynchronization()) {
+            if (latestReadSnapshot == null || synchronizationInProgress || hasActiveWalletHnsSynchronization()) {
                 addView(readStatusView)
             }
             addView(LinearLayout(this@WalletActivity).apply {
@@ -1290,18 +1293,6 @@ class WalletActivity : ComponentActivity() {
             alpha = 0.55f
         }
     }
-
-    private fun walletTileRow(first: View, second: View): LinearLayout =
-        LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(0, 0, 0, uiDp(8))
-            addView(first, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                rightMargin = uiDp(4)
-            })
-            addView(second, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                leftMargin = uiDp(4)
-            })
-        }
 
     private fun namesSummary(): String = if (walletNameImportInProgressCount > 0) {
         resources.getQuantityString(R.plurals.wallet_name_card_importing,
@@ -2306,7 +2297,7 @@ class WalletActivity : ComponentActivity() {
                     else -> Unit
                 }
                 add(WalletModalAction(
-                    getString(R.string.wallet_ux_receive_bitcoin), available,
+                    getString(R.string.wallet_ux_receive_bitcoin), bitcoinSnapshot != null,
                     ::showBitcoinReceiveAddress,
                     primary = stage == BitcoinOverviewStage.Sync && (bitcoinSnapshot?.synchronizedHeight ?: 0) > 0,
                 ))
@@ -2324,7 +2315,7 @@ class WalletActivity : ComponentActivity() {
                 WalletModalActionSection(getString(R.string.wallet_modal_actions), main),
                 WalletModalActionSection(getString(R.string.wallet_ux_details), listOf(
                     WalletModalAction(getString(R.string.wallet_bitcoin_recent_activity),
-                        available, ::showBitcoinActivityDetails),
+                        bitcoinSnapshot != null, ::showBitcoinActivityDetails),
                     WalletModalAction(getString(R.string.wallet_ux_details), action = ::showBitcoinDetails),
                 )),
             )
@@ -2373,15 +2364,15 @@ class WalletActivity : ComponentActivity() {
                 getString(R.string.row_wallet_bitcoin_receive) to address,
                 getString(R.string.wallet_ux_overview) to getString(R.string.wallet_ux_receive_help),
             ),
-            actions = listOf(
-                getString(R.string.wallet_dashboard_copy_address) to {
+            actionSections = listOf(WalletModalActionSection(getString(R.string.wallet_modal_actions), listOf(
+                WalletModalAction(getString(R.string.wallet_dashboard_copy_address), action = {
                     getSystemService(ClipboardManager::class.java).setPrimaryClip(
                         ClipData.newPlainText(getString(R.string.row_wallet_bitcoin_receive), address),
                     )
                     Toast.makeText(this, R.string.common_copied, Toast.LENGTH_SHORT).show()
-                },
-                getString(R.string.wallet_ux_new_address) to ::revealBitcoinReceiveAddress,
-            ),
+                }, primary = true),
+                WalletModalAction(getString(R.string.wallet_ux_new_address), overviewActionsAvailable(), ::revealBitcoinReceiveAddress),
+            ))),
         )
     }
 

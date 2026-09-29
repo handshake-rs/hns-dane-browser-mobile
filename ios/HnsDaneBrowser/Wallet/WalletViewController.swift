@@ -1339,14 +1339,6 @@ final class WalletViewController: UIViewController {
         return label
     }
 
-    private func dashboardTileRow(_ first: UIView, _ second: UIView) -> UIStackView {
-        let row = UIStackView(arrangedSubviews: [first, second])
-        row.axis = .horizontal
-        row.spacing = 10
-        row.distribution = .fillEqually
-        return row
-    }
-
     private func dashboardTile(
         title: String,
         summary: String,
@@ -1475,7 +1467,7 @@ final class WalletViewController: UIViewController {
         default: break
         }
         actions.append(WalletMenuAction(
-            title: WalletCopy.text("wallet_ux_receive_bitcoin"), enabled: available,
+            title: WalletCopy.text("wallet_ux_receive_bitcoin"), enabled: bitcoinSnapshot != nil,
             primary: bitcoinStage == .sync && (bitcoinSnapshot?.synchronizedHeight ?? 0) > 0
         ) { [weak self] in
             guard let self, let address = self.bitcoinSnapshot?.receiveAddress else { return }
@@ -1491,7 +1483,7 @@ final class WalletViewController: UIViewController {
         }
         actions.append(WalletMenuAction(
             title: WalletCopy.text("wallet_bitcoin_recent_activity"),
-            section: WalletCopy.text("wallet_ux_details"), enabled: available
+            section: WalletCopy.text("wallet_ux_details"), enabled: bitcoinSnapshot != nil
         ) { [weak self] in self?.showBitcoinActivity() })
         actions.append(WalletMenuAction(
             title: WalletCopy.text("wallet_ux_details"), section: WalletCopy.text("wallet_ux_details")
@@ -1721,7 +1713,7 @@ final class WalletViewController: UIViewController {
                         [[UTType.plainText.identifier: address]], options: [.localOnly: true]
                     )
                 },
-                WalletMenuAction(title: WalletCopy.text("wallet_ux_new_address")) { [weak self] in
+                WalletMenuAction(title: WalletCopy.text("wallet_ux_new_address"), enabled: bitcoinReceiveButton.isEnabled && !isOperating) { [weak self] in
                     self?.nextBitcoinReceiveAddress()
                 },
             ]
@@ -4475,6 +4467,7 @@ final class WalletViewController: UIViewController {
         menu.modalPresentationStyle = .pageSheet
         if let sheet = menu.sheetPresentationController {
             sheet.detents = [.medium(), .large()]
+            sheet.selectedDetentIdentifier = liveActions == nil ? .medium : .large
             sheet.prefersGrabberVisible = true
             sheet.preferredCornerRadius = 24
         }
