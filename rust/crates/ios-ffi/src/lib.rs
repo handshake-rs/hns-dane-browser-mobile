@@ -1621,11 +1621,11 @@ impl NativeWalletController {
         }
     }
 
-    fn apply_verified_bitcoin_funding(
+    fn reconcile_bitcoin_funding(
         &mut self,
         session_id: SessionId,
-        lock: hns_wallet_mobile::VerifiedBitcoinLock,
-    ) -> Result<(), MobileWalletError> {
+        observation: hns_wallet_mobile::ReconciledShakescapeBitcoinFunding,
+    ) -> Result<bool, MobileWalletError> {
         let Self::DirectHnsValue {
             shakescape_sessions,
             ..
@@ -1633,18 +1633,32 @@ impl NativeWalletController {
         else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        shakescape_sessions
-            .apply_local_verified_bitcoin_funding(session_id, lock, HnsReadSystemClock.now_unix()?)
-            .map(|_| ())
+        shakescape_sessions.reconcile_local_bitcoin_funding(
+            session_id,
+            observation,
+            HnsReadSystemClock.now_unix()?,
+        )
     }
 
     fn prepare_hns_for_btc_funding(
         &mut self,
         session_id: SessionId,
         maximum_fee_dollarydoos: u64,
+        first_bitcoin_funding: Option<hns_wallet_mobile::ReconciledShakescapeBitcoinFunding>,
     ) -> Result<hns_wallet_mobile::MobileShakescapeHnsFundingApproval, MobileWalletError> {
+        let permit = self.authorize_hns_swap_funding(session_id, first_bitcoin_funding)?;
+        let Self::DirectHnsValue { controller, .. } = self else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        controller.prepare_shakescape_hns_funding(permit, maximum_fee_dollarydoos)
+    }
+
+    fn authorize_hns_swap_funding(
+        &mut self,
+        session_id: SessionId,
+        first_bitcoin_funding: Option<hns_wallet_mobile::ReconciledShakescapeBitcoinFunding>,
+    ) -> Result<hns_wallet_mobile::MobileShakescapeHnsFundingPermit, MobileWalletError> {
         let Self::DirectHnsValue {
-            controller,
             shakescape_sessions,
             ..
         } = self
@@ -1652,24 +1666,43 @@ impl NativeWalletController {
             return Err(MobileWalletError::ControllerFailed);
         };
         let now_unix = HnsReadSystemClock.now_unix()?;
-        let permit =
-            match shakescape_sessions.authorize_local_hns_second_funding(session_id, now_unix) {
-                Ok(permit) => permit,
-                Err(_) => {
-                    shakescape_sessions.authorize_local_hns_first_funding(session_id, now_unix)?
-                }
-            };
-        controller.prepare_shakescape_hns_funding(permit, maximum_fee_dollarydoos)
+        if let Ok(permit) =
+            shakescape_sessions.authorize_local_hns_first_funding(session_id, now_unix)
+        {
+            return Ok(permit);
+        }
+        match first_bitcoin_funding {
+            Some(hns_wallet_mobile::ReconciledShakescapeBitcoinFunding::Confirmed(lock)) => {
+                shakescape_sessions.authorize_local_hns_second_funding(session_id, lock, now_unix)
+            }
+            Some(hns_wallet_mobile::ReconciledShakescapeBitcoinFunding::NotConfirmed) => {
+                shakescape_sessions.reconcile_local_bitcoin_funding(
+                    session_id,
+                    hns_wallet_mobile::ReconciledShakescapeBitcoinFunding::NotConfirmed,
+                    now_unix,
+                )?;
+                Err(MobileWalletError::InvalidShakescapeSessionMessage)
+            }
+            None => Err(MobileWalletError::InvalidShakescapeSessionMessage),
+        }
+    }
+
+    fn pending_hns_swap_funding_session_id(&self) -> Result<Option<SessionId>, MobileWalletError> {
+        let Self::DirectHnsValue { controller, .. } = self else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        Ok(controller.pending_shakescape_hns_funding_session_id())
     }
 
     fn approve_hns_for_btc_funding(
         &mut self,
         action_token: &str,
+        reauthorization: hns_wallet_mobile::MobileShakescapeHnsFundingPermit,
     ) -> Result<hns_wallet_mobile::MobileShakescapeHnsFundingReceipt, MobileWalletError> {
         let Self::DirectHnsValue { controller, .. } = self else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        controller.approve_shakescape_hns_funding(action_token)
+        controller.approve_shakescape_hns_funding(action_token, reauthorization)
     }
 
     fn reject_hns_for_btc_funding(&mut self, action_token: &str) -> Result<(), MobileWalletError> {
@@ -1732,13 +1765,12 @@ impl NativeWalletController {
         };
         for permit in shakescape_sessions.pending_second_hns_funding_verifications()? {
             let session_id = permit.session_id();
-            if let Some(lock) = controller.verified_shakescape_hns_funding(permit)? {
-                shakescape_sessions.apply_local_verified_hns_funding(
-                    session_id,
-                    lock,
-                    HnsReadSystemClock.now_unix()?,
-                )?;
-            }
+            let lock = controller.verified_shakescape_hns_funding(permit)?;
+            shakescape_sessions.reconcile_local_hns_funding(
+                session_id,
+                lock,
+                HnsReadSystemClock.now_unix()?,
+            )?;
         }
         Ok(())
     }
@@ -1914,6 +1946,7 @@ impl NativeWalletController {
         session_id: SessionId,
     ) -> Result<MobileShakescapeBitcoinFundingPermit, MobileWalletError> {
         let Self::DirectHnsValue {
+            controller,
             shakescape_sessions,
             ..
         } = self
@@ -1921,9 +1954,22 @@ impl NativeWalletController {
             return Err(MobileWalletError::ControllerFailed);
         };
         let now_unix = HnsReadSystemClock.now_unix()?;
-        match shakescape_sessions.authorize_local_btc_first_funding(session_id, now_unix) {
-            Ok(permit) => Ok(permit),
-            Err(_) => shakescape_sessions.authorize_local_btc_second_funding(session_id, now_unix),
+        if let Ok(permit) =
+            shakescape_sessions.authorize_local_btc_first_funding(session_id, now_unix)
+        {
+            return Ok(permit);
+        }
+        let verification = shakescape_sessions.hns_funding_verification_permit(session_id)?;
+        match controller.verified_shakescape_hns_funding(verification)? {
+            Some(first_funding) => shakescape_sessions.authorize_local_btc_second_funding(
+                session_id,
+                first_funding,
+                now_unix,
+            ),
+            None => {
+                shakescape_sessions.reconcile_local_hns_funding(session_id, None, now_unix)?;
+                Err(MobileWalletError::InvalidShakescapeSessionMessage)
+            }
         }
     }
 
@@ -6012,7 +6058,7 @@ pub unsafe extern "C" fn hns_browser_wallet_shakescape_executions(
                 .pending_first_bitcoin_funding_sessions()
                 .map_err(|_| wallet_runtime_failure("Shakescape execution recovery failed"))?
         };
-        let verified = if candidates.is_empty() {
+        let reconciled = if candidates.is_empty() {
             Vec::new()
         } else {
             let control = wallet_bitcoin_control_entry(wallet)?;
@@ -6022,10 +6068,10 @@ pub unsafe extern "C" fn hns_browser_wallet_shakescape_executions(
                         .into_iter()
                         .filter_map(|session_id| {
                             bitcoin
-                                .verified_shakescape_htlc_funding(session_id)
+                                .reconciled_shakescape_htlc_funding(session_id)
                                 .ok()
                                 .flatten()
-                                .map(|lock| (session_id, lock))
+                                .map(|observation| (session_id, observation))
                         })
                         .collect()
                 }),
@@ -6033,15 +6079,15 @@ pub unsafe extern "C" fn hns_browser_wallet_shakescape_executions(
                 Err(TryLockError::Poisoned(_)) => return Err(FfiFailure::internal()),
             }
         };
-        if !verified.is_empty() {
+        if !reconciled.is_empty() {
             let entry = wallet_entry(wallet)?;
             let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
             ensure_wallet_active(&entry)?;
-            for (session_id, lock) in verified {
+            for (session_id, observation) in reconciled {
                 entry
                     .controller
-                    .apply_verified_bitcoin_funding(session_id, lock)
-                    .map_err(|_| wallet_runtime_failure("Bitcoin funding recovery failed"))?;
+                    .reconcile_bitcoin_funding(session_id, observation)
+                    .map_err(|_| wallet_runtime_failure("Bitcoin funding reconciliation failed"))?;
             }
         }
         let spend_candidates = {
@@ -7223,6 +7269,32 @@ pub unsafe extern "C" fn hns_browser_wallet_approve_btc_for_hns_funding(
         unsafe { write_output(out_receipt_bundle, HnsBrowserBuffer::empty()) };
         let token = unsafe { wallet_action_token(action_token) }?;
         let control = wallet_bitcoin_control_entry(wallet)?;
+        let session_id = {
+            let slot = control.controller.try_lock().map_err(|error| match error {
+                TryLockError::WouldBlock => direct_hns_not_ready("direct Bitcoin wallet is busy"),
+                TryLockError::Poisoned(_) => FfiFailure::internal(),
+            })?;
+            slot.as_ref()
+                .filter(|controller| controller.is_active())
+                .ok_or_else(|| direct_hns_not_ready("direct Bitcoin wallet is not active"))?
+                .pending_shakescape_htlc_funding_session_id()
+                .ok_or_else(|| {
+                    wallet_runtime_failure("BTC-for-HNS funding has no pending session")
+                })?
+        };
+        let reauthorization = {
+            let entry = wallet_entry(wallet)?;
+            let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+            ensure_wallet_active(&entry)?;
+            entry
+                .controller
+                .authorize_bitcoin_swap_funding(session_id)
+                .map_err(|_| {
+                    wallet_runtime_failure(
+                        "BTC-for-HNS funding approval requires current first-chain confirmation",
+                    )
+                })?
+        };
         let mut slot = control.controller.try_lock().map_err(|error| match error {
             TryLockError::WouldBlock => direct_hns_not_ready("direct Bitcoin wallet is busy"),
             TryLockError::Poisoned(_) => FfiFailure::internal(),
@@ -7232,7 +7304,7 @@ pub unsafe extern "C" fn hns_browser_wallet_approve_btc_for_hns_funding(
             .filter(|controller| controller.is_active())
             .ok_or_else(|| direct_hns_not_ready("direct Bitcoin wallet is not active"))?;
         let receipt = controller
-            .approve_shakescape_htlc_funding(&token)
+            .approve_shakescape_htlc_funding(&token, reauthorization)
             .map_err(|_| wallet_runtime_failure("BTC-for-HNS funding approval failed"))?;
         let bundle = wallet_bitcoin_bundle(&receipt)?;
         let output = allocate_output(&bundle.0, true)?;
@@ -7261,7 +7333,8 @@ pub unsafe extern "C" fn hns_browser_wallet_reject_btc_for_hns_funding(
             .filter(|controller| controller.is_active())
             .ok_or_else(|| direct_hns_not_ready("direct Bitcoin wallet is not active"))?
             .reject_shakescape_htlc_funding(&token)
-            .map_err(|_| wallet_runtime_failure("BTC-for-HNS funding rejection failed"))
+            .map_err(|_| wallet_runtime_failure("BTC-for-HNS funding rejection failed"))?;
+        Ok(())
     })
 }
 
@@ -7279,12 +7352,39 @@ pub unsafe extern "C" fn hns_browser_wallet_prepare_hns_for_btc_funding(
         unsafe { write_output(out_approval_bundle, HnsBrowserBuffer::empty()) };
         let session_id = unsafe { wallet_session_id(session_id) }?;
         let maximum_fee = unsafe { wallet_nonzero_sats(maximum_fee) }?;
+        let first_chain_approval = {
+            let entry = wallet_entry(wallet)?;
+            let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+            ensure_wallet_active(&entry)?;
+            entry
+                .controller
+                .prepare_hns_for_btc_funding(session_id, maximum_fee, None)
+                .ok()
+        };
+        if let Some(approval) = first_chain_approval {
+            let bundle = wallet_bitcoin_bundle(&approval)?;
+            let output = allocate_output(&bundle.0, true)?;
+            unsafe { write_output(out_approval_bundle, output) };
+            return Ok(());
+        }
+        let control = wallet_bitcoin_control_entry(wallet)?;
+        let first_bitcoin_funding = {
+            let slot = control.controller.try_lock().map_err(|error| match error {
+                TryLockError::WouldBlock => direct_hns_not_ready("direct Bitcoin wallet is busy"),
+                TryLockError::Poisoned(_) => FfiFailure::internal(),
+            })?;
+            slot.as_ref()
+                .filter(|controller| controller.is_active())
+                .ok_or_else(|| direct_hns_not_ready("direct Bitcoin wallet is not active"))?
+                .reconciled_shakescape_htlc_funding(session_id)
+                .map_err(|_| wallet_runtime_failure("Bitcoin funding verification failed"))?
+        };
         let entry = wallet_entry(wallet)?;
         let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
         ensure_wallet_active(&entry)?;
         let approval = entry
             .controller
-            .prepare_hns_for_btc_funding(session_id, maximum_fee)
+            .prepare_hns_for_btc_funding(session_id, maximum_fee, first_bitcoin_funding)
             .map_err(|_| wallet_runtime_failure("HNS-for-BTC funding preparation failed"))?;
         let bundle = wallet_bitcoin_bundle(&approval)?;
         let output = allocate_output(&bundle.0, true)?;
@@ -7305,12 +7405,69 @@ pub unsafe extern "C" fn hns_browser_wallet_approve_hns_for_btc_funding(
         require_output(out_receipt_bundle)?;
         unsafe { write_output(out_receipt_bundle, HnsBrowserBuffer::empty()) };
         let token = unsafe { wallet_action_token(action_token) }?;
+        let session_id = {
+            let entry = wallet_entry(wallet)?;
+            let entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+            ensure_wallet_active(&entry)?;
+            entry
+                .controller
+                .pending_hns_swap_funding_session_id()
+                .map_err(|_| wallet_runtime_failure("HNS-for-BTC funding lookup failed"))?
+                .ok_or_else(|| {
+                    wallet_runtime_failure("HNS-for-BTC funding has no pending session")
+                })?
+        };
+        let first_chain_receipt = {
+            let entry = wallet_entry(wallet)?;
+            let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+            ensure_wallet_active(&entry)?;
+            match entry
+                .controller
+                .authorize_hns_swap_funding(session_id, None)
+            {
+                Ok(reauthorization) => Some(
+                    entry
+                        .controller
+                        .approve_hns_for_btc_funding(&token, reauthorization)
+                        .map_err(|_| {
+                            wallet_runtime_failure("HNS-for-BTC funding approval failed")
+                        })?,
+                ),
+                Err(_) => None,
+            }
+        };
+        if let Some(receipt) = first_chain_receipt {
+            let bundle = wallet_bitcoin_bundle(&receipt)?;
+            let output = allocate_output(&bundle.0, true)?;
+            unsafe { write_output(out_receipt_bundle, output) };
+            return Ok(());
+        }
+        let control = wallet_bitcoin_control_entry(wallet)?;
+        let first_bitcoin_funding = {
+            let slot = control.controller.try_lock().map_err(|error| match error {
+                TryLockError::WouldBlock => direct_hns_not_ready("direct Bitcoin wallet is busy"),
+                TryLockError::Poisoned(_) => FfiFailure::internal(),
+            })?;
+            slot.as_ref()
+                .filter(|controller| controller.is_active())
+                .ok_or_else(|| direct_hns_not_ready("direct Bitcoin wallet is not active"))?
+                .reconciled_shakescape_htlc_funding(session_id)
+                .map_err(|_| wallet_runtime_failure("Bitcoin funding verification failed"))?
+        };
         let entry = wallet_entry(wallet)?;
         let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
         ensure_wallet_active(&entry)?;
+        let reauthorization = entry
+            .controller
+            .authorize_hns_swap_funding(session_id, first_bitcoin_funding)
+            .map_err(|_| {
+                wallet_runtime_failure(
+                    "HNS-for-BTC funding approval requires current first-chain confirmation",
+                )
+            })?;
         let receipt = entry
             .controller
-            .approve_hns_for_btc_funding(&token)
+            .approve_hns_for_btc_funding(&token, reauthorization)
             .map_err(|_| wallet_runtime_failure("HNS-for-BTC funding approval failed"))?;
         let bundle = wallet_bitcoin_bundle(&receipt)?;
         let output = allocate_output(&bundle.0, true)?;
@@ -7334,7 +7491,8 @@ pub unsafe extern "C" fn hns_browser_wallet_reject_hns_for_btc_funding(
         entry
             .controller
             .reject_hns_for_btc_funding(&token)
-            .map_err(|_| wallet_runtime_failure("HNS-for-BTC funding rejection failed"))
+            .map_err(|_| wallet_runtime_failure("HNS-for-BTC funding rejection failed"))?;
+        Ok(())
     })
 }
 
