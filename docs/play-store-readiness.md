@@ -2,7 +2,7 @@
 
 Original audit: 2026-09-05. Release readback: 2026-10-01.
 
-Android `1.0.12` (`versionCode 64`) supports Android 9 / API 28 or later.
+Android `1.0.13` (`versionCode 65`) is the current release candidate and supports Android 9 / API 28 or later. The signed bundle and production upload remain pending. Android `1.0.12` (`versionCode 64`) was the previous verified production upload.
 Exact-source CI passed, and the 119,499,240-byte signed AAB passed
 `verifyPlayReleaseBundle` with SHA-256
 `08530dc29630c7f513a1fa5b6368aa62903eb681c81947ebd1c44f9e9c65c2b6`.

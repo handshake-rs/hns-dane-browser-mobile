@@ -1,8 +1,8 @@
 # Rust Dependency Cohort
 
-Last reviewed: 2026-09-30.
+Last reviewed: 2026-10-01.
 
-The `1.0.12` application source consumes exact, checksum-bearing crates.io
+The `1.0.13` application source consumes exact, checksum-bearing crates.io
 releases. No sibling checkout, Git dependency, or `[patch.crates-io]` override
 is part of the release graph.
 

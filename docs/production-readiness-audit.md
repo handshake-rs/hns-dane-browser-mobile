@@ -2,12 +2,12 @@
 
 Last release readback: 2026-10-01
 
-Current source coordinates Android `1.0.12` / code `64`, embedded
-non-publishable Rust `1.0.2`, and iOS `1.0.12` / build `75`. The signed Android
-bundle is committed to Google Play production with status `completed` and
-generated APKs available. Apple's signed build `75` is `VALID` and version
-`1.0.12` is `WAITING_FOR_REVIEW`, configured for automatic release after
-approval. Exact-source CI passed at `bb29154c4e9586d5d932ea009846bcc2410bac15`
+Current candidate source coordinates Android `1.0.13` / code `65`, embedded
+non-publishable Rust `1.0.2`, and iOS `1.0.13` / build `76`. The prior Android
+`1.0.12` / code `64` bundle is committed to Google Play production. Apple's
+prior signed build `75` remains `VALID`, but its `1.0.12` review submission
+was withdrawn pending corrected screenshots. The `1.0.13` builds and store
+submissions are pending qualification. Exact-source CI passed at `bb29154c4e9586d5d932ea009846bcc2410bac15`
 in [run `36859040080`](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/36859040080).
 Earlier
 HNWR-v2/ECH-and-sync-telemetry code-bearing source

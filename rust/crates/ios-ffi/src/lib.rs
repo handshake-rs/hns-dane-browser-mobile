@@ -2970,7 +2970,7 @@ fn direct_hns_peer_config(network: HnsNetwork) -> HnsDirectPeerConfig {
         // Mainnet/testnet discovery is allowed to replace a bounded pool of
         // candidates. The direct wallet still requires independently agreed
         // headers before it treats any peer as chain authority.
-        config.target_peers = 12;
+        config.target_peers = 4;
         config.connect_timeout = Duration::from_secs(30);
     }
     config

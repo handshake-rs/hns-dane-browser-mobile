@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.13 - 2026-10-01
+
+Android `1.0.13` / code `65` and iOS `1.0.13` / build `76` consume the
+published `hns-wallet-rs 0.4.1` cohort.
+
+- Let Wallet foreground sync, name import, and peer maintenance proceed after
+  the two-peer verification quorum connects instead of waiting for a larger
+  reserve pool. Limit the mobile pool to four connected peers.
+- Keep the HNS header and wallet scan verification rules unchanged while
+  reducing the time spent connecting peers before user-visible work.
+
 ## 1.0.12 - 2026-09-30
 
 Android `1.0.12` / code `64` and iOS `1.0.12` / build `75` consume the

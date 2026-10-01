@@ -194,7 +194,7 @@ const DIRECT_HNS_WATCH_SET_EXTENSION_REQUIRED: &str =
 /// independently discovered peers than the library minimum. A stale DNS
 /// answer or an endpoint with another service on the Handshake port must not
 /// make the sole wallet sync attempt depend on the other candidates.
-const ANDROID_DIRECT_HNS_PUBLIC_TARGET_PEERS: usize = 12;
+const ANDROID_DIRECT_HNS_PUBLIC_TARGET_PEERS: usize = 4;
 /// The wallet's direct peer I/O deadline also bounds the local multi-peer
 /// header-agreement round. Eight seconds is insufficient for cold mobile TCP
 /// paths to return two full 2,000-header batches, so retain a bounded

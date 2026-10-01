@@ -1,1 +1,1 @@
-1.0.12 makes the wallet easier to navigate, guides Bitcoin recovery setup, resumes HNS synchronization when peers disconnect, and strengthens name-sale and HNS/BTC swap recovery.
+1.0.13 starts Wallet sync once two independent Handshake peers are ready, without waiting for extra reserve connections. The same peer improvement applies to Wallet name actions on Android and iOS.

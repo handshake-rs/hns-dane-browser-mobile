@@ -1,6 +1,6 @@
 # Version Audit
 
-Audit date: 2026-09-30.
+Audit date: 2026-10-01.
 
 This table records the independently versioned current release candidates.
 It is not evidence that signed artifacts were built or published. Android
@@ -10,10 +10,10 @@ into the app.
 
 | Component | Pinned | Audit source |
 | --- | --- | --- |
-| Android app | `1.0.12` / code `64` | `android/app/build.gradle.kts` |
+| Android app | `1.0.13` / code `65` | `android/app/build.gradle.kts` |
 | Embedded Rust workspace | `1.0.2` (`publish = false`) | `rust/Cargo.toml` |
-| iOS app | `1.0.12` / build `75` | `ios/project.yml` |
-| Native wallet controller | published `0.4.0` cohort | `rust/Cargo.toml`, `rust/Cargo.lock` |
+| iOS app | `1.0.13` / build `76` | `ios/project.yml` |
+| Native wallet controller | pending `0.4.1` cohort | `rust/Cargo.toml`, `rust/Cargo.lock` |
 | Wallet protocol closure | published `hns-rs 0.5.0` | `rust/Cargo.lock` |
 | Rust toolchain | `1.98.1` | `rust/rust-toolchain.toml` |
 | Android file locking | Rust standard-library `File` locks | `rust/crates/hns-mobile-platform-runtime/src/lib.rs` |

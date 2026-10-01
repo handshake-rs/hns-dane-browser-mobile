@@ -8,7 +8,7 @@ The committed application identity is:
 - Bundle ID: `com.denuoweb.hnsdane.ios`
 - Display name: `Shakescape`
 - Deployment floor: iOS 17.0
-- Submitted update: `1.0.12` (`75`), waiting for App Review and configured for automatic release after approval
+- Current release candidate: `1.0.13` (`76`); upload and review submission pending fresh screenshots
 - Device families: iPhone and iPad; compatible iOS-on-Apple-silicon-Mac use is permitted by the target
 
 Build `75` includes the redesigned Wallet overview and focused Names, Bitcoin,
@@ -169,8 +169,8 @@ gh workflow run ios-app-store-submit.yml \
   -f expected_upload_run_id="$upload_run_id" \
   -f mode=submit \
   -f review_contact_source_version=1.0.4 \
-  -f confirm_metadata=APPLY_METADATA_1.0.12_75 \
-  -f confirm_submit=SUBMIT_FOR_REVIEW_1.0.12_75 \
+  -f confirm_metadata=APPLY_METADATA_1.0.13_76 \
+  -f confirm_submit=SUBMIT_FOR_REVIEW_1.0.13_76 \
   -f confirm_account_readiness=true
 ```
 
@@ -186,19 +186,17 @@ gh workflow run ios-app-store-submit.yml \
   -f expected_upload_run_id="$upload_run_id" \
   -f mode=auto-release \
   -f review_contact_source_version=1.0.4 \
-  -f confirm_auto_release=SET_AUTO_RELEASE_1.0.12_75 \
+  -f confirm_auto_release=SET_AUTO_RELEASE_1.0.13_76 \
   -f confirm_account_readiness=true
 ```
 
-Apple may carry the prior public version's screenshots into a new editable
-version. The default release path deliberately keeps that set and neither
-downloads nor validates a replacement artifact. To replace it, first run the
-upload workflow with `-f capture_screenshots=true`; after visually reviewing its
-retained exact-artifact images, a metadata or submission run may replace only
-that version's `APP_IPHONE_65` set by adding the exact confirmation
-`-f confirm_screenshot_replacement=REPLACE_SCREENSHOTS_1.0.12_75`. Replacement
-fails closed on any byte mismatch. Without that input the client performs no
-screenshot upload or deletion requests.
+The `1.0.13` submission requires new screenshots because the previous set
+shows an outdated omnibar. Capture the shipping Release runtime from the exact
+artifact commit, review the resulting iPhone and iPad images, and pass the
+successful screenshot run ID with
+`-f confirm_screenshot_replacement=REPLACE_SCREENSHOTS_1.0.13_76` in the
+metadata step. The guarded client replaces and verifies both device-family
+sets before submission.
 
 If the exact build is not yet `VALID`, the workflow fails closed before
 submission and can be rerun after processing. It copies the private review
