@@ -31,7 +31,7 @@ import java.io.File
 
 /**
  * View-only fixtures: no native handle, keys, peer, signing, or wallet database.
- * Run in the dedicated .walletux application ID so no installed wallet is used.
+ * Run in the dedicated .walletuxfixture application ID so no installed wallet is used.
  * Reflection keeps test fixture injection out of the production controller API.
  */
 @RunWith(AndroidJUnit4::class)
@@ -135,7 +135,7 @@ class WalletOverviewInstrumentationTest {
     }
 
     private fun fixture(test: (ActivityScenario<WalletActivity>) -> Unit) {
-        assumeTrue("Use the isolated walletux application ID", context.packageName.endsWith(".walletux"))
+        assumeTrue("Use the isolated walletuxfixture application ID", context.packageName.endsWith(".walletuxfixture"))
         val scenario = ActivityScenario.launch<WalletActivity>(Intent(context, WalletActivity::class.java))
         instrumentation.waitForIdleSync()
         try { test(scenario) } finally {

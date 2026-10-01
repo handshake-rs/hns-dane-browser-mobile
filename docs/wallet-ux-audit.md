@@ -179,3 +179,22 @@ this Linux host, as documented above. Existing preview wallet data was not used
 as an instrumentation fixture now that the preview is in use. The updated APK
 was installed over the preview without clearing its data. Build evidence is in
 `diagnostics/wallet-cleanup-2026-09-29/`.
+
+## HNS catch-up follow-up — 2026-09-30
+
+On the connected Pixel 9, the pre-update wallet remained at birthday height
+349,207 and displayed a generic synchronization failure. A preserved logcat
+capture showed that the direct header round had fewer than the two independent
+peers required for verification. The wallet `0.4.0` peer coordinator now
+retries retired DNS candidates while below quorum and reports temporary
+agreement failures as retryable catch-up. The mobile sync adapter retries a
+bounded number of rounds, then keeps balances and sending unavailable until a
+verified snapshot exists. The two-peer security requirement is unchanged.
+
+After installing the updated Android debug APK over the existing app without
+clearing its data, the wallet advanced its headers and scan from 349,207 to
+349,324 and reported a verified snapshot. A timestamped logcat export and
+screen captures are retained locally in `.codex-diagnostics/`; they are not
+committed because they contain device-specific information. The isolated
+`.walletux` preview package is built from the same Rust closure and remains
+separate from the user's debug and release wallet data.
