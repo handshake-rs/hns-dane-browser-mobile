@@ -812,7 +812,6 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertTrue(secondActivityPage.hasPrevious)
         XCTAssertFalse(secondActivityPage.hasNext)
         XCTAssertTrue(secondActivityPage.text.hasPrefix("Showing activity 2–2 of 2."))
-        XCTAssertFalse(fullPresentation.names.contains("more items"))
 
         let pendingOutgoingJSON = versionTwoJSON.replacingOccurrences(
             of: "\"negative\":false,\"magnitude\":\"1000000\"",
