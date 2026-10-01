@@ -1,1 +1,1 @@
-Makes the wallet easier to navigate, guides Bitcoin recovery setup, resumes HNS synchronization when peers disconnect, and strengthens name-sale and HNS/BTC swap recovery.
+Starts Wallet synchronization as soon as two independent Handshake peers are ready, without waiting for extra reserve connections. Wallet name actions use the same faster connection path.
