@@ -1102,9 +1102,9 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn("APPLY_METADATA_1.0.12_75", workflow)
         self.assertIn("REPLACE_SCREENSHOTS_1.0.12_75", workflow)
         self.assertIn("SUBMIT_FOR_REVIEW_1.0.12_75", workflow)
-        self.assertIn("CANCEL_SUBMISSION_1.0.10_73", workflow)
-        self.assertIn("--cancel-version 1.0.10", workflow)
-        self.assertIn("--cancel-build 73", workflow)
+        self.assertIn("CANCEL_SUBMISSION_1.0.12_75", workflow)
+        self.assertIn("--cancel-version 1.0.12", workflow)
+        self.assertIn("--cancel-build 75", workflow)
         self.assertIn('[[ "$ACCOUNT_READY" == true ]]', workflow)
         self.assertIn('.path == ".github/workflows/ios-app-store-upload.yml"', workflow)
         self.assertIn("expected_artifact_commit:", workflow)
@@ -1123,7 +1123,8 @@ class WorkflowSafetyTests(unittest.TestCase):
             workflow,
         )
         self.assertIn(".expired == false and .size_in_bytes > 0", workflow)
-        self.assertIn("run-id: ${{ inputs.expected_upload_run_id }}", workflow)
+        self.assertIn("run-id: ${{ inputs.expected_screenshot_run_id }}", workflow)
+        self.assertIn('.path == ".github/workflows/ios-screenshots.yml"', workflow)
         self.assertIn(
             "name: ios-app-store-live-screenshots-"
             "${{ inputs.expected_artifact_commit }}",

@@ -15,6 +15,10 @@ on:
         description: Successful iOS App Store Upload run for the artifact commit (required to mutate)
         required: false
         type: string
+      expected_screenshot_run_id:
+        description: Successful live iOS screenshots run for the artifact commit (required to replace screenshots)
+        required: false
+        type: string
       mode:
         description: Discovery is GET-only; the other modes mutate App Store Connect
         required: true
@@ -40,7 +44,7 @@ on:
         required: false
         type: string
       confirm_submit:
-        description: For submission, enter SUBMIT_FOR_REVIEW_1.0.12_75; to withdraw the superseded build enter CANCEL_SUBMISSION_1.0.10_73
+        description: For submission, enter SUBMIT_FOR_REVIEW_1.0.12_75; to withdraw this build enter CANCEL_SUBMISSION_1.0.12_75
         required: false
         type: string
       confirm_auto_release:
@@ -83,6 +87,7 @@ jobs:
           EXPECTED_ARTIFACT_COMMIT: ${{ inputs.expected_artifact_commit }}
           EXPECTED_COMMIT: ${{ inputs.expected_commit }}
           EXPECTED_UPLOAD_RUN_ID: ${{ inputs.expected_upload_run_id }}
+          EXPECTED_SCREENSHOT_RUN_ID: ${{ inputs.expected_screenshot_run_id }}
           MODE: ${{ inputs.mode }}
           SCREENSHOT_REPLACEMENT: ${{ inputs.confirm_screenshot_replacement }}
         run: |
@@ -112,12 +117,16 @@ jobs:
               echo "invalid release-specific screenshot replacement confirmation" >&2
               exit 2
             }
+            [[ "$EXPECTED_SCREENSHOT_RUN_ID" =~ ^[1-9][0-9]*$ ]] || {
+              echo "screenshot replacement requires one successful screenshot run ID" >&2
+              exit 2
+            }
           fi
           case "$MODE" in
             discover)
               ;;
             cancel-submission)
-              [[ "$CONFIRM_SUBMIT" == CANCEL_SUBMISSION_1.0.10_73 ]]
+              [[ "$CONFIRM_SUBMIT" == CANCEL_SUBMISSION_1.0.12_75 ]]
               ;;
             auto-release)
               [[ "$EXPECTED_UPLOAD_RUN_ID" =~ ^[1-9][0-9]*$ ]]
@@ -166,6 +175,8 @@ jobs:
               .github/workflows/ios-app-store-submit.yml|\
               README.md|\
               docs/ios-app-store-release.md|\
+              docs/play-store-readiness.md|\
+              docs/production-readiness-audit.md|\
               scripts/app_store_connect_release.py|\
               tests/test_app_store_connect_release.py)
                 ;;
@@ -202,7 +213,6 @@ jobs:
           EXPECTED_ARTIFACT_COMMIT: ${{ inputs.expected_artifact_commit }}
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
-          SCREENSHOT_REPLACEMENT: ${{ inputs.confirm_screenshot_replacement }}
           UPLOAD_RUN_ID: ${{ inputs.expected_upload_run_id }}
         run: |
           set -euo pipefail
@@ -238,18 +248,32 @@ jobs:
               echo "exact-commit signed-IPA evidence must be retained" >&2
               exit 2
             }
-          if [[ -n "$SCREENSHOT_REPLACEMENT" ]]; then
-            screenshot_artifact="ios-app-store-live-screenshots-${EXPECTED_ARTIFACT_COMMIT}"
-            jq -e \
-              --arg screenshot_artifact "$screenshot_artifact" \
-              '([.artifacts[] | select(
-                  .name == $screenshot_artifact and .expired == false and .size_in_bytes > 0
-                )] | length) == 1' \
-              <<<"$artifacts_json" >/dev/null || {
-                echo "exact-commit screenshot evidence is required for replacement" >&2
-                exit 2
-              }
-          fi
+
+      - name: Validate the exact-commit screenshot run
+        if: ${{ inputs.confirm_screenshot_replacement != '' }}
+        env:
+          EXPECTED_SCREENSHOT_RUN_ID: ${{ inputs.expected_screenshot_run_id }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          EXPECTED_ARTIFACT_COMMIT: ${{ inputs.expected_artifact_commit }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SCREENSHOT_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          run_json="$(gh api "repos/$REPOSITORY/actions/runs/$EXPECTED_SCREENSHOT_RUN_ID")"
+          artifacts_json="$(gh api "repos/$REPOSITORY/actions/runs/$EXPECTED_SCREENSHOT_RUN_ID/artifacts?per_page=100")"
+          jq -e \
+            '.event == "workflow_dispatch"
+             and .head_branch == "main"
+             and .conclusion == "success"
+             and .path == ".github/workflows/ios-screenshots.yml"' \
+            <<<"$run_json" >/dev/null
+          screenshot_artifact="ios-app-store-live-screenshots-${EXPECTED_ARTIFACT_COMMIT}"
+          jq -e \
+            --arg screenshot_artifact "$screenshot_artifact" \
+            '([.artifacts[] | select(
+                .name == $screenshot_artifact and .expired == false and .size_in_bytes > 0
+              )] | length) == 1' \
+            <<<"$artifacts_json" >/dev/null
 
       - name: Download exact-commit App Store screenshots
         if: ${{ inputs.mode != 'discover' && inputs.confirm_screenshot_replacement != '' }}
@@ -259,7 +283,7 @@ jobs:
           path: build/app-store-live-screenshots
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
-          run-id: ${{ inputs.expected_upload_run_id }}
+          run-id: ${{ inputs.expected_screenshot_run_id }}
 
       - name: Verify screenshots came from the exact release commit
         if: ${{ inputs.mode != 'discover' && inputs.confirm_screenshot_replacement != '' }}
@@ -341,8 +365,8 @@ jobs:
           fi
           if [[ "$MODE" == cancel-submission ]]; then
             arguments+=(
-              --cancel-version 1.0.10
-              --cancel-build 73
+              --cancel-version 1.0.12
+              --cancel-build 75
               --confirm-cancel "$CONFIRM_SUBMIT"
             )
           fi
