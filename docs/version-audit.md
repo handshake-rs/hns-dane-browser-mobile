@@ -13,7 +13,7 @@ into the app.
 | Android app | `1.0.13` / code `65` | `android/app/build.gradle.kts` |
 | Embedded Rust workspace | `1.0.2` (`publish = false`) | `rust/Cargo.toml` |
 | iOS app | `1.0.13` / build `76` | `ios/project.yml` |
-| Native wallet controller | pending `0.4.1` cohort | `rust/Cargo.toml`, `rust/Cargo.lock` |
+| Native wallet controller | published `0.4.1` cohort | `rust/Cargo.toml`, `rust/Cargo.lock` |
 | Wallet protocol closure | published `hns-rs 0.5.0` | `rust/Cargo.lock` |
 | Rust toolchain | `1.98.1` | `rust/rust-toolchain.toml` |
 | Android file locking | Rust standard-library `File` locks | `rust/crates/hns-mobile-platform-runtime/src/lib.rs` |

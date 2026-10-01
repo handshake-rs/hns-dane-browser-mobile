@@ -198,7 +198,7 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertEqual(deny["advisories"]["ignore"], ["RUSTSEC-2024-0436"])
 
         project = (ROOT / "ios/project.yml").read_text(encoding="utf-8")
-        self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 1\.0\.12$")
+        self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 1\.0\.13$")
         self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 76$")
         self.assertIn('TARGETED_DEVICE_FAMILY: "1,2"', project)
         self.assertIn("SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: YES", project)
