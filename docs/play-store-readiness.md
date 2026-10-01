@@ -1,12 +1,16 @@
 # Google Play Readiness Checklist
 
-Original audit: 2026-09-05. Dependency cohort refreshed: 2026-09-30.
+Original audit: 2026-09-05. Release readback: 2026-10-01.
 
-Current pending Android candidate source is `1.0.12` (`versionCode 64`) and
-supports Android 9 / API 28 or later. It has not yet been built, signed,
-uploaded, or qualified. A live Android Publisher readback on 2026-09-30 reports
-production code `63` with status `completed`, so code `64` is the next available
-candidate. Earlier code `56` was committed to the Google Play production track
+Android `1.0.12` (`versionCode 64`) supports Android 9 / API 28 or later.
+Exact-source CI passed, and the 119,499,240-byte signed AAB passed
+`verifyPlayReleaseBundle` with SHA-256
+`08530dc29630c7f513a1fa5b6368aa62903eb681c81947ebd1c44f9e9c65c2b6`.
+Android Publisher edit `10298658252337366380` committed code `64` to the
+production track with status `completed`; a fresh track readback returned
+`completed` / `64`, and `generatedApks/64` returned HTTP `200`. The upload
+preserved the existing listing and screenshots. Earlier code `56` was committed
+to the Google Play production track
 with status `completed` through Android Publisher edit
 `13709111796723000294`; `generatedApks/56` returned HTTP `200`. Its
 144,695,055-byte signed AAB
@@ -102,8 +106,8 @@ behavior against the exact signed candidate before upload.
 | Account deletion | Not applicable | The app does not create developer-operated accounts. |
 | App category | Candidate review required | Utilities/Tools may remain appropriate for the browser, but code `54` contains a noncustodial HNS wallet with native sends. Reconcile every financial-feature/category declaration and distinguish it from the unavailable website-provider, exchange, and marketplace surfaces. |
 | Target audience | Live reconciliation required | Use `18 and over` because the app is a general-purpose browser and is not child-directed; confirm the existing public listing already uses that answer. |
-| Release track | Code 63 live on production; code 64 pending | Android Publisher readback on 2026-09-30 reports code `63` completed on production. Earlier code `56` was committed through edit `13709111796723000294`; `generatedApks/56` returned HTTP `200`. Existing listing text and screenshots were preserved. |
-| CI regression | Earlier exact-source CI and CodeQL passed | Source `3fff254c9f7f4df535e24256869331111dd0f40f` passed full CI run `33538557957`, including policy, Rust/supply-chain, Android build/unit/bundle, API 37 native instrumentation, the complete Apple gate, and Required CI. Both associated CodeQL workflows also passed. The current dependency cohort requires its own locked application gate; signed-product, installed-device, Console, and upload gates remain separate. |
+| Release track | Code 64 committed to production | Android Publisher edit `10298658252337366380` committed code `64` with status `completed`; fresh track readback returned `completed` / `64`, and `generatedApks/64` returned HTTP `200`. Existing listing text and screenshots were preserved. |
+| CI regression | Exact-source required CI passed | Source `bb29154c4e9586d5d932ea009846bcc2410bac15` passed [Required CI](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/36859040080). The preceding code-bearing commit passed Rust/supply-chain, Android build/unit, and native instrumentation; the final one-line iOS test repair passed the affected Apple gate. The signed AAB and IPA were verified separately. |
 | Store assets | Six-image Pixel set committed to Play | Six 1080 × 2424 images cover the ICANN and proof-backed `shakescape/` HNS sites, browser navigation, Handshake settings, diagnostics, and proof details. Android Publisher edit `04351495318173077620` removed the two obsolete local-start and locked-wallet captures, uploaded the canonical six-image set, committed successfully, and a fresh edit read back exactly six en-US phone screenshots. |
 
 ## Release Signing

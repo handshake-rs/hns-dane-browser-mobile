@@ -8,7 +8,7 @@ The committed application identity is:
 - Bundle ID: `com.denuoweb.hnsdane.ios`
 - Display name: `Shakescape`
 - Deployment floor: iOS 17.0
-- Current candidate: `1.0.12` (`75`), configured for automatic release after approval
+- Submitted update: `1.0.12` (`75`), waiting for App Review and configured for automatic release after approval
 - Device families: iPhone and iPad; compatible iOS-on-Apple-silicon-Mac use is permitted by the target
 
 Build `75` includes the redesigned Wallet overview and focused Names, Bitcoin,
@@ -16,10 +16,18 @@ and ShakeDex flows. It consumes the published `hns-wallet-rs 0.4.0` crate cohort
 including the HNS sync retry and guarded name/swap settlement fixes. Android
 verified that a wallet progressed from birthday block 349,207 to a verified
 snapshot at 349,324. That Android observation does not qualify the Apple build:
-its exact source must pass the protected Apple gate before upload. The existing
-App Store screenshots are retained by default; replacement requires an exact
-build capture and a separate workflow confirmation. The workflow also verifies
-signing identity and API readback before submitting build `75`.
+its exact source passed the protected Apple gate before upload. The existing
+App Store screenshots were retained: the replacement capture timed out waiting
+for current Handshake headers after its only attempted CI simulator peer failed.
+The qualified fallback [upload run](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/36873286693)
+signed and uploaded build `75` from source
+`bb29154c4e9586d5d932ea009846bcc2410bac15`. Its retained IPA is 82,208,076
+bytes with SHA-256 `fbe1a8a32f52bd0b37eeb2a08cd72f173271417744a8616c6cd00cfcc6c4da11`.
+App Store Connect reported the build `VALID`; the
+[submission run](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/36878254671)
+verified version metadata and entered `WAITING_FOR_REVIEW`. The
+[release-policy readback](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/36879071378)
+confirmed `AFTER_APPROVAL`, so Apple can publish the update after approval.
 
 Website-provider and HNSA/HNSR service roles remain unavailable. Native wallet
 send, name, and swap actions require their existing sync and user-approval gates.
@@ -230,12 +238,14 @@ dispatched Rust, Android, Apple, and Required CI matrix in run `31835813994`;
 CodeQL runs `31833858421` and `31833858650` also passed. This is exact-source
 build, test, and static-analysis evidence only, not a signed product, screenshot
 set, store declaration/readback, upload/submission, or physical-iPhone result.
-For build `75`, the protected workflow must rerun its complete exact-checkout
-gate before credential materialization. Existing App Store
-screenshots are retained unless the separately confirmed replacement path is
-used. App Privacy/category answers also require live reconciliation. After
-upload, replace this paragraph with the retained IPA provenance and App Store
-Connect readback.
+For build `75`, the protected upload workflow passed the complete exact-checkout
+gate before credential materialization. The attempted live screenshot capture
+failed because its CI simulator could not establish a current Handshake header
+sync; [diagnostics](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/36859077111)
+were retained. A second run reused the successful gate and preserved the
+existing App Store screenshots. Its signed IPA provenance and App Store Connect
+readback are recorded above. App Privacy and category declarations still require
+periodic live reconciliation outside the guarded version-metadata client.
 
 The same protected run completed successfully and retained repeat live-capture
 artifact `8727084963` as corroborating workflow evidence. It is not the staged
