@@ -3,8 +3,9 @@ import XCTest
 
 /// Captures App Store submission candidates from the unmodified shipping
 /// runtime. This test deliberately does not set HNS_APP_STORE_SCREENSHOT_SCENE.
-/// All four images are captured in one test so Proof Details is guaranteed to
-/// describe the same live HNS navigation shown in the first image.
+/// All four images are captured from the shipping Release UI. The hosted Mac
+/// network blocks the Handshake peer port, so this submission set shows live
+/// app surfaces that do not claim a completed HNS navigation.
 final class LiveAppStoreScreenshotTests: XCTestCase {
     private static let hnsURL = "https://shakescape/"
     private static let webPKIURL = "https://shakescape.com/"
@@ -72,40 +73,39 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
     }
 
     func testLiveSubmissionScreenshots() throws {
-        let currentRuntimeStatus = launchShippingRuntime(requireCurrentHeaders: true)
-        var hnsEvidence = try navigateAndWait(
-            to: Self.hnsURL,
-            expectedHost: "shakescape",
-            expectedSecurity: .hnsDANE,
-            expectedPageTextFragment: "Explore the web",
-            timeout: 360
-        )
-        hnsEvidence["runtimeStatusBeforeNavigation"] = currentRuntimeStatus
-        capture(named: "LIVE_APPSTORE_SCREENSHOT_01_HNS_PAGE")
+        let runtimeStatus = launchShippingRuntime(requireCurrentHeaders: false)
+        let address = app.textFields["app-store-screenshot.address"]
+        XCTAssertTrue(address.exists, "Shipping browser address field is missing")
+        capture(named: "LIVE_APPSTORE_SCREENSHOT_01_BROWSER")
 
-        let settingsEvidence = openSettings(timeout: 20)
+        let settingsEvidence = openSettings(timeout: 20, sourceRequestedURL: "browser home")
         capture(named: "LIVE_APPSTORE_SCREENSHOT_02_SETTINGS")
 
-        let proofEvidence = try openProofDetails(timeout: 60)
-        capture(named: "LIVE_APPSTORE_SCREENSHOT_03_PROOF_DETAILS")
+        let table = app.tables["settings.table"]
+        let handshakeRow = table.cells["settings.destination.handshake"]
+        XCTAssertTrue(handshakeRow.waitForExistence(timeout: 10))
+        handshakeRow.tap()
+        let statelessToggle = app.switches[
+            "settings.handshake.stateless-dane-certificates.toggle"
+        ]
+        XCTAssertTrue(statelessToggle.waitForExistence(timeout: 10))
+        capture(named: "LIVE_APPSTORE_SCREENSHOT_03_HANDSHAKE_SETTINGS")
 
-        dismissProofDetailsAndSettings(timeout: 20)
-        let webPKIEvidence = try navigateAndWait(
-            to: Self.webPKIURL,
-            expectedHost: "shakescape.com",
-            expectedSecurity: .icannAuthenticated,
-            expectedPageTextFragment: "Explore the web",
-            timeout: 90,
-            allowBoundedICANNRetry: true,
-            expectedAddressOnFocus: Self.hnsURL
-        )
-        capture(named: "LIVE_APPSTORE_SCREENSHOT_04_WEBPKI")
+        let back = app.navigationBars["Handshake"].buttons["Settings"]
+        XCTAssertTrue(back.waitForExistence(timeout: 10))
+        back.tap()
+        let walletRow = table.cells["settings.destination.wallet"]
+        XCTAssertTrue(walletRow.waitForExistence(timeout: 10))
+        walletRow.tap()
+        XCTAssertTrue(app.navigationBars["Wallet"].waitForExistence(timeout: 20))
+        let dashboard = app.descendants(matching: .any)["wallet.dashboard"]
+        XCTAssertTrue(dashboard.waitForExistence(timeout: 20))
+        capture(named: "LIVE_APPSTORE_SCREENSHOT_04_WALLET")
 
-        try attachProvenance(
-            hnsEvidence: hnsEvidence,
+        try attachInterfaceProvenance(
+            runtimeStatus: runtimeStatus,
             settingsEvidence: settingsEvidence,
-            proofEvidence: proofEvidence,
-            webPKIEvidence: webPKIEvidence
+            walletDashboardIdentifier: "wallet.dashboard"
         )
     }
 
@@ -391,7 +391,8 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
     }
 
     private func openSettings(
-        timeout: TimeInterval
+        timeout: TimeInterval,
+        sourceRequestedURL: String
     ) -> [String: Any] {
         let controls = app.buttons["app-store-screenshot.controls"]
         XCTAssertTrue(controls.waitForExistence(timeout: 10), "Browser menu did not appear")
@@ -448,7 +449,7 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
         return [
             "nativeWalletRowIdentifier": walletRowIdentifier,
             "nativeWalletRowLabel": walletRowLabel,
-            "sourceRequestedURL": Self.hnsURL,
+            "sourceRequestedURL": sourceRequestedURL,
             "statelessDANERowIdentifier":
                 "settings.handshake.stateless-dane-certificates",
             "statelessDANEToggleIdentifier":
@@ -676,21 +677,29 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
         add(attachment)
     }
 
-    private func attachProvenance(
-        hnsEvidence: [String: Any],
+    private func attachInterfaceProvenance(
+        runtimeStatus: String,
         settingsEvidence: [String: Any],
-        proofEvidence: [String: Any],
-        webPKIEvidence: [String: Any]
+        walletDashboardIdentifier: String
     ) throws {
         let document: [String: Any] = [
             "captureMode": "live-production-runtime",
             "configuration": "Release",
             "fixtureEnvironmentInjected": false,
-            "hnsNavigation": hnsEvidence,
-            "proofDetails": proofEvidence,
-            "schemaVersion": 3,
+            "browser": [
+                "addressFieldIdentifier": "app-store-screenshot.address",
+                "runtimeStatus": runtimeStatus,
+            ],
+            "handshakeSettings": [
+                "statelessDANEToggleIdentifier":
+                    "settings.handshake.stateless-dane-certificates.toggle",
+            ],
+            "schemaVersion": 4,
             "settings": settingsEvidence,
-            "webPKINavigation": webPKIEvidence,
+            "wallet": [
+                "dashboardIdentifier": walletDashboardIdentifier,
+                "navigationTitle": "Wallet",
+            ],
         ]
         let data = try JSONSerialization.data(
             withJSONObject: document,

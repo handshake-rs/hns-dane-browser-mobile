@@ -27,7 +27,9 @@ App Store Connect reported the build `VALID`; the
 [submission run](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/36878254671)
 verified version metadata and entered `WAITING_FOR_REVIEW`. The
 [release-policy readback](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/36879071378)
-confirmed `AFTER_APPROVAL`, so Apple can publish the update after approval.
+confirmed `AFTER_APPROVAL`. That submission was later withdrawn because the
+carried-forward screenshots showed the outdated omnibar; build `75` remains
+`VALID`, and the `1.0.13` update is awaiting new screenshots and upload.
 
 Website-provider and HNSA/HNSR service roles remain unavailable. Native wallet
 send, name, and swap actions require their existing sync and user-approval gates.
@@ -196,7 +198,9 @@ artifact commit, review the resulting iPhone and iPad images, and pass the
 successful screenshot run ID with
 `-f confirm_screenshot_replacement=REPLACE_SCREENSHOTS_1.0.13_76` in the
 metadata step. The guarded client replaces and verifies both device-family
-sets before submission.
+sets before submission. The new set shows Browser, Settings, Handshake
+settings, and Wallet onboarding. It does not claim that the hosted CI network
+completed an HNS navigation while that network blocks outbound TCP 12038.
 
 If the exact build is not yet `VALID`, the workflow fails closed before
 submission and can be rerun after processing. It copies the private review
@@ -268,7 +272,7 @@ reconciled version metadata, selected build `65`, preserved the existing
 screenshots, and submitted the update after build `64` was withdrawn. The
 readback at that time reported `WAITING_FOR_REVIEW`, `releaseType=MANUAL`, and
 `reviewType=APP_STORE`; that is historical evidence and does not describe the
-current `1.0.12` / build `75` candidate.
+current `1.0.13` / build `76` candidate.
 
 The `0.5.5` version-managed metadata, current iPhone screenshots, App Review
 details, content-rights declaration, and build `57` were reconciled through

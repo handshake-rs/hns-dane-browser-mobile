@@ -191,7 +191,7 @@ python3 "$ROOT_DIR/scripts/ios_screenshot_tools.py" collect \
   --manifest "$ATTACHMENTS_DIR/manifest.json" \
   --attachments-dir "$ATTACHMENTS_DIR" \
   --output-dir "$RAW_DIR" \
-  --profile live \
+  --profile live-interface \
   --provenance-output "$RUNTIME_PROVENANCE"
 
 for source in "$RAW_DIR"/*.png; do
@@ -221,6 +221,7 @@ python3 "$ROOT_DIR/scripts/ios_screenshot_tools.py" manifest \
   --device "$DEVICE_NAME" \
   --device-family "$DEVICE_FAMILY" \
   --configuration Release \
+  --profile live-interface \
   --runtime-provenance "$RUNTIME_PROVENANCE"
 
 python3 "$ROOT_DIR/scripts/ios_screenshot_tools.py" verify-live \

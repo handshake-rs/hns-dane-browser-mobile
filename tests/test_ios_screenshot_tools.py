@@ -6,6 +6,7 @@ from pathlib import Path
 
 from scripts.ios_screenshot_tools import (
     LIVE_CAPTURE_MODE,
+    LIVE_INTERFACE_SCREENSHOTS,
     LIVE_PROVENANCE_SCHEMA_VERSION,
     RETRYABLE_DUAL_ROOT_SECURITY_LABEL,
     RETRYABLE_MISSING_STATUS_SECURITY_LABEL,
@@ -20,6 +21,32 @@ from scripts.ios_screenshot_tools import (
     verify_live_set,
     write_manifest,
 )
+
+
+def live_interface_provenance() -> dict:
+    return {
+        "schemaVersion": 4,
+        "captureMode": LIVE_CAPTURE_MODE,
+        "configuration": "Release",
+        "fixtureEnvironmentInjected": False,
+        "browser": {
+            "addressFieldIdentifier": "app-store-screenshot.address",
+            "runtimeStatus": "Syncing Handshake headers",
+        },
+        "settings": {
+            "sourceRequestedURL": "browser home",
+            "nativeWalletRowIdentifier": "settings.destination.wallet",
+            "nativeWalletRowLabel": "Wallet",
+        },
+        "handshakeSettings": {
+            "statelessDANEToggleIdentifier":
+                "settings.handshake.stateless-dane-certificates.toggle",
+        },
+        "wallet": {
+            "dashboardIdentifier": "wallet.dashboard",
+            "navigationTitle": "Wallet",
+        },
+    }
 
 
 PNG = b"\x89PNG\r\n\x1a\nfixture"
@@ -559,6 +586,39 @@ class ScreenshotManifestTests(unittest.TestCase):
             }
             with self.assertRaisesRegex(ScreenshotToolError, "cannot be staged"):
                 verify_live_set(directory, fixture_manifest)
+
+
+class LiveInterfaceScreenshotTests(unittest.TestCase):
+    def test_release_interface_evidence_and_exact_images(self) -> None:
+        provenance = live_interface_provenance()
+        self.assertEqual(validate_live_provenance(provenance), provenance)
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            for _, basename in LIVE_INTERFACE_SCREENSHOTS:
+                (directory / f"{basename}.jpg").write_bytes(minimal_jpeg(1284, 2778))
+            manifest_path = write_manifest(
+                directory,
+                1284,
+                2778,
+                COMMIT,
+                "Xcode 26.5",
+                "26.5",
+                "iPhone 14 Plus",
+                screenshot_specs=LIVE_INTERFACE_SCREENSHOTS,
+                runtime_provenance=provenance,
+            )
+            manifest = json.loads(manifest_path.read_text())
+            self.assertEqual(len(verify_live_set(directory, manifest, COMMIT)), 4)
+
+    def test_interface_capture_rejects_fixtures_and_error_state(self) -> None:
+        provenance = live_interface_provenance()
+        provenance["fixtureEnvironmentInjected"] = True
+        with self.assertRaisesRegex(ScreenshotToolError, "cannot inject fixtures"):
+            validate_live_provenance(provenance)
+        provenance = live_interface_provenance()
+        provenance["browser"]["runtimeStatus"] = "Network blocks outbound TCP 12038"
+        with self.assertRaisesRegex(ScreenshotToolError, "healthy runtime status"):
+            validate_live_provenance(provenance)
 
 
 if __name__ == "__main__":

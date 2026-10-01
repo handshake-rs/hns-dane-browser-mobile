@@ -33,6 +33,13 @@ LIVE_SCREENSHOTS = (
     ),
 )
 
+LIVE_INTERFACE_SCREENSHOTS = (
+    ("LIVE_APPSTORE_SCREENSHOT_01_BROWSER", "01-browser"),
+    ("LIVE_APPSTORE_SCREENSHOT_02_SETTINGS", "02-settings"),
+    ("LIVE_APPSTORE_SCREENSHOT_03_HANDSHAKE_SETTINGS", "03-handshake-settings"),
+    ("LIVE_APPSTORE_SCREENSHOT_04_WALLET", "04-wallet"),
+)
+
 FIXTURE_SCREENSHOTS = (
     ("UI_REGRESSION_FIXTURE_01_HNS", "fixture-01-hns"),
     ("UI_REGRESSION_FIXTURE_02_PROOF_DETAILS", "fixture-02-proof-details"),
@@ -44,6 +51,7 @@ FIXTURE_SCREENSHOTS = (
 SCREENSHOTS = LIVE_SCREENSHOTS
 SCREENSHOT_PROFILES = {
     "live": LIVE_SCREENSHOTS,
+    "live-interface": LIVE_INTERFACE_SCREENSHOTS,
     "fixture-regression": FIXTURE_SCREENSHOTS,
 }
 LIVE_PROVENANCE_ATTACHMENT = "LIVE_APPSTORE_PROVENANCE"
@@ -320,6 +328,8 @@ def sha256(path: Path) -> str:
 def validate_live_provenance(document: Any) -> dict[str, Any]:
     if not isinstance(document, dict):
         raise ScreenshotToolError("live runtime provenance must be a JSON object")
+    if document.get("schemaVersion") == 4:
+        return validate_live_interface_provenance(document)
     if document.get("schemaVersion") != LIVE_PROVENANCE_SCHEMA_VERSION:
         raise ScreenshotToolError(
             "live runtime provenance schemaVersion must be "
@@ -446,6 +456,31 @@ def validate_live_provenance(document: Any) -> dict[str, Any]:
     return document
 
 
+def validate_live_interface_provenance(document: dict[str, Any]) -> dict[str, Any]:
+    if document.get("captureMode") != LIVE_CAPTURE_MODE:
+        raise ScreenshotToolError("live interface capture mode is invalid")
+    if document.get("configuration") != "Release":
+        raise ScreenshotToolError("live interface screenshots must use Release")
+    if document.get("fixtureEnvironmentInjected") is not False:
+        raise ScreenshotToolError("live interface capture cannot inject fixtures")
+    browser = document.get("browser")
+    if not isinstance(browser, dict) or browser.get("addressFieldIdentifier") != "app-store-screenshot.address":
+        raise ScreenshotToolError("live browser address field evidence is missing")
+    runtime_status = browser.get("runtimeStatus")
+    if not isinstance(runtime_status, str) or not runtime_status.strip() or runtime_status.startswith(("Network blocks outbound", "Header sync needs attention")):
+        raise ScreenshotToolError("live browser screenshot has no healthy runtime status")
+    settings = document.get("settings")
+    if not isinstance(settings, dict) or settings.get("sourceRequestedURL") != "browser home" or settings.get("nativeWalletRowIdentifier") != NATIVE_WALLET_ROW_IDENTIFIER or settings.get("nativeWalletRowLabel") != "Wallet":
+        raise ScreenshotToolError("live settings evidence is missing")
+    handshake = document.get("handshakeSettings")
+    if not isinstance(handshake, dict) or handshake.get("statelessDANEToggleIdentifier") != "settings.handshake.stateless-dane-certificates.toggle":
+        raise ScreenshotToolError("live Handshake settings evidence is missing")
+    wallet = document.get("wallet")
+    if not isinstance(wallet, dict) or wallet.get("dashboardIdentifier") != "wallet.dashboard" or wallet.get("navigationTitle") != "Wallet":
+        raise ScreenshotToolError("live Wallet evidence is missing")
+    return document
+
+
 def write_manifest(
     directory: Path,
     width: int,
@@ -548,9 +583,14 @@ def verify_live_set(
             raise ScreenshotToolError(
                 "live screenshot manifest source commit does not match expected commit"
             )
-    validate_live_provenance(manifest.get("runtimeEvidence"))
+    runtime_evidence = validate_live_provenance(manifest.get("runtimeEvidence"))
+    screenshot_specs = (
+        LIVE_INTERFACE_SCREENSHOTS
+        if runtime_evidence["schemaVersion"] == 4
+        else LIVE_SCREENSHOTS
+    )
 
-    expected_files = [f"{basename}.jpg" for _, basename in LIVE_SCREENSHOTS]
+    expected_files = [f"{basename}.jpg" for _, basename in screenshot_specs]
     actual_files = sorted(path.name for path in directory.glob("*.jpg"))
     if actual_files != sorted(expected_files):
         raise ScreenshotToolError(
@@ -558,14 +598,14 @@ def verify_live_set(
         )
 
     records = manifest.get("screenshots")
-    if not isinstance(records, list) or len(records) != len(LIVE_SCREENSHOTS):
+    if not isinstance(records, list) or len(records) != len(screenshot_specs):
         raise ScreenshotToolError("live screenshot manifest has the wrong image count")
     records_by_file = {
         record.get("file"): record for record in records if isinstance(record, dict)
     }
     verified = []
     expected_by_file = {
-        f"{basename}.jpg": attachment for attachment, basename in LIVE_SCREENSHOTS
+        f"{basename}.jpg": attachment for attachment, basename in screenshot_specs
     }
     for filename in expected_files:
         path = directory / filename
@@ -623,6 +663,7 @@ def build_parser() -> argparse.ArgumentParser:
     manifest.add_argument("--device-family", choices=("iphone", "ipad"), default="iphone")
     manifest.add_argument("--configuration", default="Release")
     manifest.add_argument("--runtime-provenance", required=True)
+    manifest.add_argument("--profile", choices=("live", "live-interface"), default="live")
 
     verify = subparsers.add_parser("verify-live")
     verify.add_argument("--directory", required=True)
@@ -642,7 +683,7 @@ def main() -> int:
             )
             print(f"{identifier}\t{name}\t{width}\t{height}")
         elif args.command == "collect":
-            if args.profile == "live" and not args.provenance_output:
+            if args.profile in {"live", "live-interface"} and not args.provenance_output:
                 raise ScreenshotToolError(
                     "live attachment collection requires --provenance-output"
                 )
@@ -667,6 +708,7 @@ def main() -> int:
                     args.xcode,
                     args.sdk,
                     args.device,
+                    screenshot_specs=SCREENSHOT_PROFILES[args.profile],
                     configuration=args.configuration,
                     runtime_provenance=load_json(args.runtime_provenance),
                     device_family=args.device_family,
