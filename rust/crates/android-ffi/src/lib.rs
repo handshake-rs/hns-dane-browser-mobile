@@ -1736,21 +1736,19 @@ impl AndroidWalletController {
                 return None;
             }
         };
-        let first_funding = match controller.verified_shakescape_hns_funding(verification) {
-            Ok(Some(lock)) => lock,
-            Ok(None) => {
-                if let Err(error) =
-                    shakescape_sessions.reconcile_local_hns_funding(session_id, None, now_unix)
-                {
-                    android_log_error(&format!(
-                        "Bitcoin HTLC funding authorization could not revoke absent HNS funding: {error}"
-                    ));
-                }
-                android_log_error(
-                    "Bitcoin HTLC funding authorization requires current first-chain confirmation",
-                );
+        let observation = match shakescape_sessions
+            .begin_local_hns_first_funding_observation(session_id, now_unix)
+        {
+            Ok(observation) => observation,
+            Err(error) => {
+                android_log_error(&format!(
+                    "Bitcoin HTLC funding authorization could not begin an HNS observation: {error}"
+                ));
                 return None;
             }
+        };
+        let first_funding = match controller.verified_shakescape_hns_funding(verification) {
+            Ok(first_funding) => first_funding,
             Err(error) => {
                 android_log_error(&format!(
                     "Bitcoin HTLC funding authorization could not verify HNS funding: {error}"
@@ -1758,10 +1756,36 @@ impl AndroidWalletController {
                 return None;
             }
         };
+        let observation_now_unix = match HnsReadSystemClock.now_unix() {
+            Ok(now_unix) => now_unix,
+            Err(error) => {
+                android_log_error(&format!(
+                    "Bitcoin HTLC funding authorization could not refresh the system clock: {error}"
+                ));
+                return None;
+            }
+        };
+        let Some(first_funding) = first_funding else {
+            if let Err(error) = shakescape_sessions.reconcile_local_hns_funding(
+                session_id,
+                observation,
+                None,
+                observation_now_unix,
+            ) {
+                android_log_error(&format!(
+                    "Bitcoin HTLC funding authorization could not revoke absent HNS funding: {error}"
+                ));
+            }
+            android_log_error(
+                "Bitcoin HTLC funding authorization requires current first-chain confirmation",
+            );
+            return None;
+        };
         match shakescape_sessions.authorize_local_btc_second_funding(
             session_id,
+            observation,
             first_funding,
-            now_unix,
+            observation_now_unix,
         ) {
             Ok(permit) => Some(permit),
             Err(second_error) => {
@@ -1913,9 +1937,35 @@ impl AndroidWalletController {
         }
     }
 
+    fn maybe_begin_bitcoin_funding_observation(
+        &mut self,
+        session_id: SessionId,
+    ) -> Option<Option<hns_wallet_mobile::MobileShakescapeFirstFundingObservation>> {
+        let Self::DirectValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return None;
+        };
+        let now_unix = HnsReadSystemClock.now_unix().ok()?;
+        match shakescape_sessions
+            .maybe_begin_local_bitcoin_first_funding_observation(session_id, now_unix)
+        {
+            Ok(observation) => Some(observation),
+            Err(error) => {
+                android_log_error(&format!(
+                    "ShakeScape Bitcoin funding observation could not begin for session {session_id:?}: {error}"
+                ));
+                None
+            }
+        }
+    }
+
     fn reconcile_bitcoin_funding(
         &mut self,
         session_id: SessionId,
+        observation_permit: Option<hns_wallet_mobile::MobileShakescapeFirstFundingObservation>,
         observation: hns_wallet_mobile::ReconciledShakescapeBitcoinFunding,
     ) -> bool {
         let Self::DirectValue {
@@ -1934,8 +1984,23 @@ impl AndroidWalletController {
                 return false;
             }
         };
-        match shakescape_sessions.reconcile_local_bitcoin_funding(session_id, observation, now_unix)
-        {
+        let result = match observation_permit {
+            Some(observation_permit) => shakescape_sessions.reconcile_local_bitcoin_funding(
+                session_id,
+                observation_permit,
+                observation,
+                now_unix,
+            ),
+            None => match observation {
+                hns_wallet_mobile::ReconciledShakescapeBitcoinFunding::Confirmed(lock) => {
+                    shakescape_sessions
+                        .apply_local_verified_bitcoin_funding(session_id, lock, now_unix)
+                        .map(|_| false)
+                }
+                hns_wallet_mobile::ReconciledShakescapeBitcoinFunding::NotConfirmed => Ok(false),
+            },
+        };
+        match result {
             Ok(_) => true,
             Err(error) => {
                 android_log_error(&format!(
@@ -1950,7 +2015,10 @@ impl AndroidWalletController {
         &mut self,
         session_id: SessionId,
         maximum_fee_dollarydoos: u64,
-        first_bitcoin_funding: Option<hns_wallet_mobile::ReconciledShakescapeBitcoinFunding>,
+        first_bitcoin_funding: Option<(
+            hns_wallet_mobile::MobileShakescapeFirstFundingObservation,
+            hns_wallet_mobile::ReconciledShakescapeBitcoinFunding,
+        )>,
     ) -> Option<Vec<u8>> {
         let permit = self.authorize_hns_swap_funding(session_id, first_bitcoin_funding)?;
         let Self::DirectValue { controller, .. } = self else {
@@ -1984,7 +2052,10 @@ impl AndroidWalletController {
     fn authorize_hns_swap_funding(
         &mut self,
         session_id: SessionId,
-        first_bitcoin_funding: Option<hns_wallet_mobile::ReconciledShakescapeBitcoinFunding>,
+        first_bitcoin_funding: Option<(
+            hns_wallet_mobile::MobileShakescapeFirstFundingObservation,
+            hns_wallet_mobile::ReconciledShakescapeBitcoinFunding,
+        )>,
     ) -> Option<hns_wallet_mobile::MobileShakescapeHnsFundingPermit> {
         let Self::DirectValue {
             shakescape_sessions,
@@ -2007,11 +2078,18 @@ impl AndroidWalletController {
                 Ok(permit) => return Some(permit),
                 Err(error) => error,
             };
-        let first_funding = match first_bitcoin_funding {
-            Some(hns_wallet_mobile::ReconciledShakescapeBitcoinFunding::Confirmed(lock)) => lock,
-            Some(hns_wallet_mobile::ReconciledShakescapeBitcoinFunding::NotConfirmed) => {
+        let (observation_permit, first_funding) = match first_bitcoin_funding {
+            Some((
+                observation_permit,
+                hns_wallet_mobile::ReconciledShakescapeBitcoinFunding::Confirmed(lock),
+            )) => (observation_permit, lock),
+            Some((
+                observation_permit,
+                hns_wallet_mobile::ReconciledShakescapeBitcoinFunding::NotConfirmed,
+            )) => {
                 if let Err(error) = shakescape_sessions.reconcile_local_bitcoin_funding(
                     session_id,
+                    observation_permit,
                     hns_wallet_mobile::ReconciledShakescapeBitcoinFunding::NotConfirmed,
                     now_unix,
                 ) {
@@ -2030,6 +2108,7 @@ impl AndroidWalletController {
         };
         match shakescape_sessions.authorize_local_hns_second_funding(
             session_id,
+            observation_permit,
             first_funding,
             now_unix,
         ) {
@@ -2197,6 +2276,26 @@ impl AndroidWalletController {
         };
         for permit in permits {
             let session_id = permit.session_id();
+            let observation_now = match HnsReadSystemClock.now_unix() {
+                Ok(now_unix) => now_unix,
+                Err(error) => {
+                    android_log_error(&format!(
+                        "ShakeScape HNS funding observation could not read the system clock: {error}"
+                    ));
+                    return false;
+                }
+            };
+            let observation = match shakescape_sessions
+                .maybe_begin_local_hns_first_funding_observation(session_id, observation_now)
+            {
+                Ok(observation) => observation,
+                Err(error) => {
+                    android_log_error(&format!(
+                        "ShakeScape HNS funding observation could not begin for session {session_id:?}: {error}"
+                    ));
+                    return false;
+                }
+            };
             let verified = match controller.verified_shakescape_hns_funding(permit) {
                 Ok(verified) => verified,
                 Err(error) => {
@@ -2215,9 +2314,21 @@ impl AndroidWalletController {
                     return false;
                 }
             };
-            if let Err(error) =
-                shakescape_sessions.reconcile_local_hns_funding(session_id, verified, now_unix)
-            {
+            let reconciled = match observation {
+                Some(observation) => shakescape_sessions.reconcile_local_hns_funding(
+                    session_id,
+                    observation,
+                    verified,
+                    now_unix,
+                ),
+                None => match verified {
+                    Some(lock) => shakescape_sessions
+                        .apply_local_verified_hns_funding(session_id, lock, now_unix)
+                        .map(|_| false),
+                    None => Ok(false),
+                },
+            };
+            if let Err(error) = reconciled {
                 android_log_error(&format!(
                     "ShakeScape HNS funding could not be reconciled for session {session_id:?}: {error}"
                 ));
@@ -7954,18 +8065,29 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             let controller = record.controller_if_active()?;
             controller.pending_first_bitcoin_funding_sessions()?
         };
+        let candidates = {
+            let mut controller = record.controller_if_active()?;
+            candidates
+                .into_iter()
+                .map(|session_id| {
+                    controller
+                        .maybe_begin_bitcoin_funding_observation(session_id)
+                        .map(|observation| (session_id, observation))
+                })
+                .collect::<Option<Vec<_>>>()?
+        };
         let reconciled = if candidates.is_empty() {
             Vec::new()
         } else if let Some(bitcoin) = record.bitcoin_try_if_active() {
             bitcoin.as_ref().map_or_else(Vec::new, |bitcoin| {
                 candidates
                     .into_iter()
-                    .filter_map(|session_id| {
+                    .filter_map(|(session_id, observation_permit)| {
                         bitcoin
                             .reconciled_shakescape_htlc_funding(session_id)
                             .ok()
                             .flatten()
-                            .map(|observation| (session_id, observation))
+                            .map(|observation| (session_id, observation_permit, observation))
                     })
                     .collect::<Vec<_>>()
             })
@@ -7974,8 +8096,12 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         };
         if !reconciled.is_empty() {
             let mut controller = record.controller_if_active()?;
-            for (session_id, observation) in reconciled {
-                if !controller.reconcile_bitcoin_funding(session_id, observation) {
+            for (session_id, observation_permit, observation) in reconciled {
+                if !controller.reconcile_bitcoin_funding(
+                    session_id,
+                    observation_permit,
+                    observation,
+                ) {
                     return None;
                 }
             }
@@ -8685,6 +8811,10 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             bundle.fill(0);
             return array.map(JByteArray::into_raw);
         }
+        let observation_permit = {
+            let mut controller = record.controller_if_active()?;
+            controller.maybe_begin_bitcoin_funding_observation(session_id)??
+        };
         let first_bitcoin_funding = {
             let bitcoin = record.bitcoin_if_active()?;
             match bitcoin
@@ -8704,7 +8834,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let mut bundle = controller.prepare_hns_for_btc_funding(
             session_id,
             maximum_fee,
-            first_bitcoin_funding,
+            first_bitcoin_funding.map(|observation| (observation_permit, observation)),
         )?;
         let array = env.byte_array_from_slice(bundle.as_slice()).ok();
         bundle.fill(0);
@@ -8745,6 +8875,10 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             bundle.fill(0);
             return array.map(JByteArray::into_raw);
         }
+        let observation_permit = {
+            let mut controller = record.controller_if_active()?;
+            controller.maybe_begin_bitcoin_funding_observation(session_id)??
+        };
         let first_bitcoin_funding = {
             let bitcoin = record.bitcoin_if_active()?;
             match bitcoin
@@ -8762,7 +8896,10 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         };
         let mut controller = record.controller_if_active()?;
         let reauthorization = controller
-            .authorize_hns_swap_funding(session_id, first_bitcoin_funding)
+            .authorize_hns_swap_funding(
+                session_id,
+                first_bitcoin_funding.map(|observation| (observation_permit, observation)),
+            )
             .or_else(|| {
                 android_log_error(
                     "ShakeScape HNS funding approval requires current first-chain confirmation",

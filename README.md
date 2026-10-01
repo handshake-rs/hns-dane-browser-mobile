@@ -8,7 +8,7 @@ wallet, and direct peer-to-peer ShakeDex name and HNS/BTC swap workflows.
 - [Google Play](https://play.google.com/store/apps/details?id=com.denuoweb.hnsdane)
 - [Apple App Store](https://apps.apple.com/us/app/hns-dane-browser/id6791914326)
 
-The 1.0.11 release source is Android code `63` and iOS build `74`. iOS
+The 1.0.12 release source is Android code `64` and iOS build `75`. iOS
 distribution follows Apple approval through the App Store. The repository’s
 embedded Rust workspace is private to the application and is not published as
 a crate.
@@ -134,8 +134,8 @@ Repository layout:
 The application consumes protocol code from `hns-rs`, browser/light-client
 code from `hns-dane-engine`, and wallet code from `hns-wallet-rs`. Current
 repository source pins the checksum-bearing registry cohorts `hns-rs 0.5.0`,
-engine mobile-wallet `0.2.6`, and wallet `0.3.1`. The app version is
-`1.0.11`; exact
+engine mobile-wallet `0.2.6`, and wallet `0.4.0`. The app version is
+`1.0.12`; exact
 source and checksum provenance is recorded in
 [the released dependency cohort](docs/released-dependency-cohort.md).
 

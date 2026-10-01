@@ -1,11 +1,13 @@
 # Google Play Readiness Checklist
 
-Original audit: 2026-09-05. Dependency cohort refreshed: 2026-09-29.
+Original audit: 2026-09-05. Dependency cohort refreshed: 2026-09-30.
 
-Current pending Android candidate source is `1.0.11` (`versionCode 63`) and
+Current pending Android candidate source is `1.0.12` (`versionCode 64`) and
 supports Android 9 / API 28 or later. It has not yet been built, signed,
-uploaded, or qualified. The preceding code `56` was committed to the Google Play
-production track with status `completed` through Android Publisher edit
+uploaded, or qualified. A live Android Publisher readback on 2026-09-30 reports
+production code `63` with status `completed`, so code `64` is the next available
+candidate. Earlier code `56` was committed to the Google Play production track
+with status `completed` through Android Publisher edit
 `13709111796723000294`; `generatedApks/56` returned HTTP `200`. Its
 144,695,055-byte signed AAB
 contains `armeabi-v7a`, `arm64-v8a`, and `x86_64`, passed the complete protected
@@ -89,7 +91,7 @@ behavior against the exact signed candidate before upload.
 | Target API level | Ready | `targetSdk = 37`, above the current Google Play requirement of Android 15 / API 35 for new apps and updates. |
 | Android App Bundle | Code 47 production complete | The signed 60,276,192-byte AAB has SHA-256 `de668002cbcf803a5704028f06331a57c29998d6f9540dd8ccdeede545cb7b69`. Edit `07330408575596336357` assigned code `47` to production with status `completed`, and `generatedApks/47` returned HTTP `200`. |
 | Android runtime hotfix | Shipped and exact-artifact validated | Rust 1.92's `std::fs::File::lock` target support omitted Android and returned `Unsupported` during fresh header-state initialization. Code `47` uses the locked `libc 0.2.186` Android `flock` path with the same lock semantics; upstream added equivalent support for Rust 1.98 in `rust-lang/rust#157038`. The exact signed APK upgraded a Pixel 9 from code `46` with data preserved, cold-launched, and reached `up_to_date` at height `340348`, lag `0`, freshness `current`, and `error: null` after manual sync. |
-| Native wallet candidate | HNS, Bitcoin, names, and direct ShakeScape active; exact application qualification pending | Repository source pins the wallet `0.3.1`, HNS `0.5.0`, and engine light-client `0.2.6` crates from the registry. The non-exported native wallet supports direct HNS and Bitcoin synchronization, receive/QR, guarded sends, activity, name actions, restoration birthday heights, signed offer intents, responder-maker atomic-swap initiation, durable noncustodial BTC/HNS swap execution, and deletion. Website-provider and HNSA/HNSR service roles remain closed. Locked application qualification, Play signing, final two-device completion, and Console review/upload remain open. |
+| Native wallet candidate | HNS, Bitcoin, names, and direct ShakeScape active; exact application qualification pending | Repository source pins the wallet `0.4.0`, HNS `0.5.0`, and engine light-client `0.2.6` crates from the registry. The non-exported native wallet supports direct HNS and Bitcoin synchronization, receive/QR, guarded sends, activity, name actions, restoration birthday heights, signed offer intents, responder-maker atomic-swap initiation, durable noncustodial BTC/HNS swap execution, and deletion. Website-provider and HNSA/HNSR service roles remain closed. Locked application qualification, Play signing, final two-device completion, and Console review/upload remain open. |
 | Proof Details namespace | Fixed and release-device confirmed | Every canonical DNS host uses the native dual-root gateway, so that route cannot identify HNS versus ICANN. Before the fix, Pixel 9 API 37 instrumentation reproduced an HNS-selected trace being shown as DNSSEC with synthetic ICANN details, and paired instrumentation passed after the correction. HNS browsing and corrected proof presentation then passed manually with the exact signed release APK. |
 | 64-bit / 16 KiB native code | Code 47 signed gates passed | The code `47` APK/AAB passed `arm64-v8a`/`x86_64`, 16 KiB, ELF hardening, Build ID, matching-symbol, stripping, path-sanitization, archive/APK signature, R8, and APK ZIP-alignment gates. The APK SHA-256 is `46022ec141aa5e700592ab6f81d4d246c71b6a2fb80c2e30139f42fa24effeeb`; the upload certificate SHA-256 is `D2:2F:F3:25:17:53:11:EB:E6:D6:E9:3D:A3:FD:F5:1D:84:89:22:A1:B8:1A:CB:B3:2F:22:39:CC:F9:4A:51:14`. |
 | Restricted permissions | Reconcile camera disclosure | Manifest requests camera only for the user-initiated native Handshake QR scanner; it does not request location, contacts, SMS, call logs, microphone, all-files, package visibility, or account permissions. Store and hosted privacy copy disclose on-device QR processing. |
@@ -100,7 +102,7 @@ behavior against the exact signed candidate before upload.
 | Account deletion | Not applicable | The app does not create developer-operated accounts. |
 | App category | Candidate review required | Utilities/Tools may remain appropriate for the browser, but code `54` contains a noncustodial HNS wallet with native sends. Reconcile every financial-feature/category declaration and distinguish it from the unavailable website-provider, exchange, and marketplace surfaces. |
 | Target audience | Live reconciliation required | Use `18 and over` because the app is a general-purpose browser and is not child-directed; confirm the existing public listing already uses that answer. |
-| Release track | Code 56 committed to production | Android `1.0.4` / code `56` carries the complete signed-origin/unsigned-CDN fix. Android Publisher edit `13709111796723000294` committed it with status `completed`; `generatedApks/56` returned HTTP `200`. Existing listing text and screenshots were preserved. |
+| Release track | Code 63 live on production; code 64 pending | Android Publisher readback on 2026-09-30 reports code `63` completed on production. Earlier code `56` was committed through edit `13709111796723000294`; `generatedApks/56` returned HTTP `200`. Existing listing text and screenshots were preserved. |
 | CI regression | Earlier exact-source CI and CodeQL passed | Source `3fff254c9f7f4df535e24256869331111dd0f40f` passed full CI run `33538557957`, including policy, Rust/supply-chain, Android build/unit/bundle, API 37 native instrumentation, the complete Apple gate, and Required CI. Both associated CodeQL workflows also passed. The current dependency cohort requires its own locked application gate; signed-product, installed-device, Console, and upload gates remain separate. |
 | Store assets | Six-image Pixel set committed to Play | Six 1080 × 2424 images cover the ICANN and proof-backed `shakescape/` HNS sites, browser navigation, Handshake settings, diagnostics, and proof details. Android Publisher edit `04351495318173077620` removed the two obsolete local-start and locked-wallet captures, uploaded the canonical six-image set, committed successfully, and a fresh edit read back exactly six en-US phone screenshots. |
 

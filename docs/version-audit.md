@@ -1,6 +1,6 @@
 # Version Audit
 
-Audit date: 2026-09-29.
+Audit date: 2026-09-30.
 
 This table records the independently versioned current release candidates.
 It is not evidence that signed artifacts were built or published. Android
@@ -10,10 +10,10 @@ into the app.
 
 | Component | Pinned | Audit source |
 | --- | --- | --- |
-| Android app | `1.0.11` / code `63` | `android/app/build.gradle.kts` |
+| Android app | `1.0.12` / code `64` | `android/app/build.gradle.kts` |
 | Embedded Rust workspace | `1.0.2` (`publish = false`) | `rust/Cargo.toml` |
-| iOS app | `1.0.11` / build `74` | `ios/project.yml` |
-| Native wallet controller | published `0.3.1` cohort | `rust/Cargo.toml`, `rust/Cargo.lock` |
+| iOS app | `1.0.12` / build `75` | `ios/project.yml` |
+| Native wallet controller | published `0.4.0` cohort | `rust/Cargo.toml`, `rust/Cargo.lock` |
 | Wallet protocol closure | published `hns-rs 0.5.0` | `rust/Cargo.lock` |
 | Rust toolchain | `1.98.1` | `rust/rust-toolchain.toml` |
 | Android file locking | Rust standard-library `File` locks | `rust/crates/hns-mobile-platform-runtime/src/lib.rs` |
@@ -112,7 +112,7 @@ Notes:
   application profile. No requester, transport adapter, endpoint/profile
   validator, provider role, FFI, UI, or native control is instantiated by this
   candidate, and its dedicated release gate remains false.
-- The mobile dependency sequence uses the published wallet `0.3.1` cohort,
+- The mobile dependency sequence uses the published wallet `0.4.0` cohort,
   reviewed HNS `0.5.0`, and exact published engine releases including the
   SQLite-backed browser adapters at `0.2.6`. The complete source and checksum
   policy is documented in [released-dependency-cohort.md](released-dependency-cohort.md).

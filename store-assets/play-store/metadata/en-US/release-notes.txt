@@ -1,1 +1,1 @@
-1.0.11 gives mobile wallet atomic swaps a 24-hour funding window, persistent stage and countdown details, one-hour warnings, safer late-funding checks, and exact refund timing.
+1.0.12 makes the wallet easier to navigate, guides Bitcoin recovery setup, resumes HNS synchronization when peers disconnect, and strengthens name-sale and HNS/BTC swap recovery.

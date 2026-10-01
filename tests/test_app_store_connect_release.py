@@ -230,8 +230,8 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             ROOT,
             "a" * 40,
             "a" * 40,
-            "1.0.11",
-            "74",
+            "1.0.12",
+            "75",
             {},
         )
 
@@ -240,15 +240,15 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             ROOT,
             "a" * 40,
             "a" * 40,
-            "1.0.11",
-            "74",
+            "1.0.12",
+            "75",
         )
         plan = release_client.local_plan(release)
         self.assertEqual(plan["mode"], "plan")
         self.assertEqual(plan["networkRequests"], 0)
         self.assertEqual(plan["mutations"], 0)
-        self.assertEqual(plan["version"], "1.0.11")
-        self.assertEqual(plan["build"], "74")
+        self.assertEqual(plan["version"], "1.0.12")
+        self.assertEqual(plan["build"], "75")
         serialized = json.dumps(plan)
         self.assertNotIn(release.metadata["reviewNotes"], serialized)
 
@@ -267,9 +267,9 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             "--expected-commit",
             "a" * 40,
             "--expected-version",
-            "1.0.11",
+            "1.0.12",
             "--expected-build",
-            "74",
+            "75",
         ]
         with (
             mock.patch.object(sys, "argv", arguments),
@@ -285,8 +285,8 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             ROOT,
             "a" * 40,
             "a" * 40,
-            "1.0.11",
-            "74",
+            "1.0.12",
+            "75",
         )
 
     def test_mutations_require_release_specific_confirmation_strings(self):
@@ -358,7 +358,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             None,
             None,
             False,
-            auto_release_confirmation="SET_AUTO_RELEASE_1.0.11_74",
+            auto_release_confirmation="SET_AUTO_RELEASE_1.0.12_75",
         )
 
     def test_screenshot_replacement_confirmation_is_exact_and_mutation_only(self):
@@ -372,7 +372,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
                 self.release.metadata_confirmation,
                 None,
                 False,
-                "REPLACE_SCREENSHOTS_1.0.11_64",
+                "REPLACE_SCREENSHOTS_1.0.12_64",
             )
         with self.assertRaisesRegex(release_client.ReleaseError, "mutating mode"):
             release_client.validate_confirmations(
@@ -400,9 +400,9 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             "--expected-commit",
             "a" * 40,
             "--expected-version",
-            "1.0.11",
+            "1.0.12",
             "--expected-build",
-            "74",
+            "75",
         ]
         self.assertIsNone(parser.parse_args(base).screenshots_dir)
 
@@ -1099,9 +1099,9 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn('[[ "$DISPATCH_COMMIT" == "$EXPECTED_COMMIT" ]]', workflow)
         self.assertIn("git ls-remote --exit-code origin refs/heads/main", workflow)
         self.assertIn("group: global-ios-app-store-upload-lease", workflow)
-        self.assertIn("APPLY_METADATA_1.0.11_74", workflow)
-        self.assertIn("REPLACE_SCREENSHOTS_1.0.11_74", workflow)
-        self.assertIn("SUBMIT_FOR_REVIEW_1.0.11_74", workflow)
+        self.assertIn("APPLY_METADATA_1.0.12_75", workflow)
+        self.assertIn("REPLACE_SCREENSHOTS_1.0.12_75", workflow)
+        self.assertIn("SUBMIT_FOR_REVIEW_1.0.12_75", workflow)
         self.assertIn("CANCEL_SUBMISSION_1.0.10_73", workflow)
         self.assertIn("--cancel-version 1.0.10", workflow)
         self.assertIn("--cancel-build 73", workflow)

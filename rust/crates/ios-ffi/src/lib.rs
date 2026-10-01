@@ -1602,6 +1602,24 @@ impl NativeWalletController {
         shakescape_sessions.pending_first_bitcoin_funding_sessions()
     }
 
+    fn maybe_begin_bitcoin_funding_observation(
+        &mut self,
+        session_id: SessionId,
+    ) -> Result<Option<hns_wallet_mobile::MobileShakescapeFirstFundingObservation>, MobileWalletError>
+    {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        shakescape_sessions.maybe_begin_local_bitcoin_first_funding_observation(
+            session_id,
+            HnsReadSystemClock.now_unix()?,
+        )
+    }
+
     fn authorize_bitcoin_swap_settlement(
         &self,
         session_id: SessionId,
@@ -1624,6 +1642,7 @@ impl NativeWalletController {
     fn reconcile_bitcoin_funding(
         &mut self,
         session_id: SessionId,
+        observation_permit: Option<hns_wallet_mobile::MobileShakescapeFirstFundingObservation>,
         observation: hns_wallet_mobile::ReconciledShakescapeBitcoinFunding,
     ) -> Result<bool, MobileWalletError> {
         let Self::DirectHnsValue {
@@ -1633,18 +1652,33 @@ impl NativeWalletController {
         else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        shakescape_sessions.reconcile_local_bitcoin_funding(
-            session_id,
-            observation,
-            HnsReadSystemClock.now_unix()?,
-        )
+        let now_unix = HnsReadSystemClock.now_unix()?;
+        match observation_permit {
+            Some(observation_permit) => shakescape_sessions.reconcile_local_bitcoin_funding(
+                session_id,
+                observation_permit,
+                observation,
+                now_unix,
+            ),
+            None => match observation {
+                hns_wallet_mobile::ReconciledShakescapeBitcoinFunding::Confirmed(lock) => {
+                    shakescape_sessions
+                        .apply_local_verified_bitcoin_funding(session_id, lock, now_unix)
+                        .map(|_| false)
+                }
+                hns_wallet_mobile::ReconciledShakescapeBitcoinFunding::NotConfirmed => Ok(false),
+            },
+        }
     }
 
     fn prepare_hns_for_btc_funding(
         &mut self,
         session_id: SessionId,
         maximum_fee_dollarydoos: u64,
-        first_bitcoin_funding: Option<hns_wallet_mobile::ReconciledShakescapeBitcoinFunding>,
+        first_bitcoin_funding: Option<(
+            hns_wallet_mobile::MobileShakescapeFirstFundingObservation,
+            hns_wallet_mobile::ReconciledShakescapeBitcoinFunding,
+        )>,
     ) -> Result<hns_wallet_mobile::MobileShakescapeHnsFundingApproval, MobileWalletError> {
         let permit = self.authorize_hns_swap_funding(session_id, first_bitcoin_funding)?;
         let Self::DirectHnsValue { controller, .. } = self else {
@@ -1656,7 +1690,10 @@ impl NativeWalletController {
     fn authorize_hns_swap_funding(
         &mut self,
         session_id: SessionId,
-        first_bitcoin_funding: Option<hns_wallet_mobile::ReconciledShakescapeBitcoinFunding>,
+        first_bitcoin_funding: Option<(
+            hns_wallet_mobile::MobileShakescapeFirstFundingObservation,
+            hns_wallet_mobile::ReconciledShakescapeBitcoinFunding,
+        )>,
     ) -> Result<hns_wallet_mobile::MobileShakescapeHnsFundingPermit, MobileWalletError> {
         let Self::DirectHnsValue {
             shakescape_sessions,
@@ -1672,12 +1709,22 @@ impl NativeWalletController {
             return Ok(permit);
         }
         match first_bitcoin_funding {
-            Some(hns_wallet_mobile::ReconciledShakescapeBitcoinFunding::Confirmed(lock)) => {
-                shakescape_sessions.authorize_local_hns_second_funding(session_id, lock, now_unix)
-            }
-            Some(hns_wallet_mobile::ReconciledShakescapeBitcoinFunding::NotConfirmed) => {
+            Some((
+                observation_permit,
+                hns_wallet_mobile::ReconciledShakescapeBitcoinFunding::Confirmed(lock),
+            )) => shakescape_sessions.authorize_local_hns_second_funding(
+                session_id,
+                observation_permit,
+                lock,
+                now_unix,
+            ),
+            Some((
+                observation_permit,
+                hns_wallet_mobile::ReconciledShakescapeBitcoinFunding::NotConfirmed,
+            )) => {
                 shakescape_sessions.reconcile_local_bitcoin_funding(
                     session_id,
+                    observation_permit,
                     hns_wallet_mobile::ReconciledShakescapeBitcoinFunding::NotConfirmed,
                     now_unix,
                 )?;
@@ -1765,12 +1812,28 @@ impl NativeWalletController {
         };
         for permit in shakescape_sessions.pending_second_hns_funding_verifications()? {
             let session_id = permit.session_id();
-            let lock = controller.verified_shakescape_hns_funding(permit)?;
-            shakescape_sessions.reconcile_local_hns_funding(
+            let observation = shakescape_sessions.maybe_begin_local_hns_first_funding_observation(
                 session_id,
-                lock,
                 HnsReadSystemClock.now_unix()?,
             )?;
+            let lock = controller.verified_shakescape_hns_funding(permit)?;
+            let now_unix = HnsReadSystemClock.now_unix()?;
+            match observation {
+                Some(observation) => {
+                    shakescape_sessions.reconcile_local_hns_funding(
+                        session_id,
+                        observation,
+                        lock,
+                        now_unix,
+                    )?;
+                }
+                None => {
+                    if let Some(lock) = lock {
+                        shakescape_sessions
+                            .apply_local_verified_hns_funding(session_id, lock, now_unix)?;
+                    }
+                }
+            }
         }
         Ok(())
     }
@@ -1960,14 +2023,24 @@ impl NativeWalletController {
             return Ok(permit);
         }
         let verification = shakescape_sessions.hns_funding_verification_permit(session_id)?;
-        match controller.verified_shakescape_hns_funding(verification)? {
+        let observation =
+            shakescape_sessions.begin_local_hns_first_funding_observation(session_id, now_unix)?;
+        let first_funding = controller.verified_shakescape_hns_funding(verification)?;
+        let observation_now_unix = HnsReadSystemClock.now_unix()?;
+        match first_funding {
             Some(first_funding) => shakescape_sessions.authorize_local_btc_second_funding(
                 session_id,
+                observation,
                 first_funding,
-                now_unix,
+                observation_now_unix,
             ),
             None => {
-                shakescape_sessions.reconcile_local_hns_funding(session_id, None, now_unix)?;
+                shakescape_sessions.reconcile_local_hns_funding(
+                    session_id,
+                    observation,
+                    None,
+                    observation_now_unix,
+                )?;
                 Err(MobileWalletError::InvalidShakescapeSessionMessage)
             }
         }
@@ -6051,12 +6124,22 @@ pub unsafe extern "C" fn hns_browser_wallet_shakescape_executions(
         unsafe { write_output(out_executions_bundle, HnsBrowserBuffer::empty()) };
         let candidates = {
             let entry = wallet_entry(wallet)?;
-            let entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+            let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
             ensure_wallet_active(&entry)?;
-            entry
+            let candidates = entry
                 .controller
                 .pending_first_bitcoin_funding_sessions()
-                .map_err(|_| wallet_runtime_failure("Shakescape execution recovery failed"))?
+                .map_err(|_| wallet_runtime_failure("Shakescape execution recovery failed"))?;
+            candidates
+                .into_iter()
+                .map(|session_id| {
+                    entry
+                        .controller
+                        .maybe_begin_bitcoin_funding_observation(session_id)
+                        .map(|observation| (session_id, observation))
+                })
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|_| wallet_runtime_failure("Bitcoin observation setup failed"))?
         };
         let reconciled = if candidates.is_empty() {
             Vec::new()
@@ -6066,12 +6149,12 @@ pub unsafe extern "C" fn hns_browser_wallet_shakescape_executions(
                 Ok(slot) => slot.as_ref().map_or_else(Vec::new, |bitcoin| {
                     candidates
                         .into_iter()
-                        .filter_map(|session_id| {
+                        .filter_map(|(session_id, observation_permit)| {
                             bitcoin
                                 .reconciled_shakescape_htlc_funding(session_id)
                                 .ok()
                                 .flatten()
-                                .map(|observation| (session_id, observation))
+                                .map(|observation| (session_id, observation_permit, observation))
                         })
                         .collect()
                 }),
@@ -6083,10 +6166,10 @@ pub unsafe extern "C" fn hns_browser_wallet_shakescape_executions(
             let entry = wallet_entry(wallet)?;
             let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
             ensure_wallet_active(&entry)?;
-            for (session_id, observation) in reconciled {
+            for (session_id, observation_permit, observation) in reconciled {
                 entry
                     .controller
-                    .reconcile_bitcoin_funding(session_id, observation)
+                    .reconcile_bitcoin_funding(session_id, observation_permit, observation)
                     .map_err(|_| wallet_runtime_failure("Bitcoin funding reconciliation failed"))?;
             }
         }
@@ -7367,6 +7450,16 @@ pub unsafe extern "C" fn hns_browser_wallet_prepare_hns_for_btc_funding(
             unsafe { write_output(out_approval_bundle, output) };
             return Ok(());
         }
+        let observation_permit = {
+            let entry = wallet_entry(wallet)?;
+            let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+            ensure_wallet_active(&entry)?;
+            entry
+                .controller
+                .maybe_begin_bitcoin_funding_observation(session_id)
+                .map_err(|_| wallet_runtime_failure("Bitcoin observation setup failed"))?
+                .ok_or_else(|| wallet_runtime_failure("Bitcoin is not the first funding chain"))?
+        };
         let control = wallet_bitcoin_control_entry(wallet)?;
         let first_bitcoin_funding = {
             let slot = control.controller.try_lock().map_err(|error| match error {
@@ -7384,7 +7477,11 @@ pub unsafe extern "C" fn hns_browser_wallet_prepare_hns_for_btc_funding(
         ensure_wallet_active(&entry)?;
         let approval = entry
             .controller
-            .prepare_hns_for_btc_funding(session_id, maximum_fee, first_bitcoin_funding)
+            .prepare_hns_for_btc_funding(
+                session_id,
+                maximum_fee,
+                first_bitcoin_funding.map(|observation| (observation_permit, observation)),
+            )
             .map_err(|_| wallet_runtime_failure("HNS-for-BTC funding preparation failed"))?;
         let bundle = wallet_bitcoin_bundle(&approval)?;
         let output = allocate_output(&bundle.0, true)?;
@@ -7442,6 +7539,16 @@ pub unsafe extern "C" fn hns_browser_wallet_approve_hns_for_btc_funding(
             unsafe { write_output(out_receipt_bundle, output) };
             return Ok(());
         }
+        let observation_permit = {
+            let entry = wallet_entry(wallet)?;
+            let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+            ensure_wallet_active(&entry)?;
+            entry
+                .controller
+                .maybe_begin_bitcoin_funding_observation(session_id)
+                .map_err(|_| wallet_runtime_failure("Bitcoin observation setup failed"))?
+                .ok_or_else(|| wallet_runtime_failure("Bitcoin is not the first funding chain"))?
+        };
         let control = wallet_bitcoin_control_entry(wallet)?;
         let first_bitcoin_funding = {
             let slot = control.controller.try_lock().map_err(|error| match error {
@@ -7459,7 +7566,10 @@ pub unsafe extern "C" fn hns_browser_wallet_approve_hns_for_btc_funding(
         ensure_wallet_active(&entry)?;
         let reauthorization = entry
             .controller
-            .authorize_hns_swap_funding(session_id, first_bitcoin_funding)
+            .authorize_hns_swap_funding(
+                session_id,
+                first_bitcoin_funding.map(|observation| (observation_permit, observation)),
+            )
             .map_err(|_| {
                 wallet_runtime_failure(
                     "HNS-for-BTC funding approval requires current first-chain confirmation",

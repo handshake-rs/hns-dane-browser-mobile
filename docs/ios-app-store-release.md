@@ -8,68 +8,24 @@ The committed application identity is:
 - Bundle ID: `com.denuoweb.hnsdane.ios`
 - Display name: `Shakescape`
 - Deployment floor: iOS 17.0
-- Previous submission: `1.0.9` (`72`), submitted with automatic release
-  after approval on 2026-09-25
-- Current candidate: `1.0.11` (`74`), automatic release after approval
-- Device families: iPhone and iPad; compatible iOS-on-Apple-silicon-Mac use is
-  permitted by the target
+- Current candidate: `1.0.12` (`75`), configured for automatic release after approval
+- Device families: iPhone and iPad; compatible iOS-on-Apple-silicon-Mac use is permitted by the target
 
-Candidate build `74` includes the current native-only wallet screen for
-create/restore/open/status/unlock/lock, one HNS account identity, and strict
-HNWR-v2 read-only fields for balance, one account-zero payment/name receive
-target, history, tracked names, and module status. The decoder retains
-the exact historical HNWR-v1 shape separately.
-The underlying wallet tranche passed its dated complete Apple gate in Required
-CI run `31393998309` at
-`571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. Historical `0.5.8` source
-`f21bee1c3afccd06604dc99fccb51528e2441055`, using the earlier wallet pin and
-`hns-rs` `b24b66c`, passed Required CI run `31402758394`; documentation-only
-descendant `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI run
-`31411048376`; those runs remain historical. Code-bearing `0.5.9` source
-`893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
-`31433931682`, including the complete Apple ABI/XCFramework/app/simulator gate
-and aggregate Required CI. Earlier HNWR-v2 code-bearing source
-`986accb7d86d220af63187031e629a9ce69d71e5` passed that complete Apple gate and
-aggregate Required CI in full run `31807520618`; CodeQL runs `31807519998` and
-`31807520229` also passed. That evidence predates the `2061a27` exact-name
-import tranche. Earlier application source
-`adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed the complete manually
-dispatched CI matrix in run `31835813994`, including repository policy,
-Rust/supply-chain, Android build/unit, API 37 native-runtime instrumentation,
-the complete Apple ABI/XCFramework/app/simulator gate, and aggregate Required
-CI. CodeQL runs `31833858421` and `31833858650` also passed.
-Build `57` does not contain the controller. The
-current candidate pins wallet `2061a27`. Wallet-aware hosted
-privacy source `909dbd1a713f322f0a8d4cff88e765c612e184f3` was deployed and read
-back for the historical lifecycle boundary. Version-neutral HNWR-aware source
-`a5539cb063fb4b19fed4dff5400a3bc991acdc4f` was deployed and read back in
-Firebase run `31485234945`. The `1.0.0` description, What's New, and review
-notes are updated, while
-fresh exact-release-checkout screenshots, App Privacy/category answers,
-signing, processing, submission, and the physical-iPhone matrix remain release
-gates. CI also produced Android debug artifact `9080493058` (APK SHA-256
-`7ea4c5b7cb4e2713287bf90794a6bb706311d0bb8fbb7348f94875ce615cc8fb`),
-which subsequently installed and cold-launched on a Pixel 9 and exposed the
-expected fresh no-wallet/fail-closed wallet UI. It remains default-debug-key
-signed rather than store signed, and this Android result is not iOS evidence.
-No wallet was created/restored and no credentialed read or value action ran.
+Build `75` includes the redesigned Wallet overview and focused Names, Bitcoin,
+and ShakeDex flows. It consumes the published `hns-wallet-rs 0.4.0` crate cohort,
+including the HNS sync retry and guarded name/swap settlement fixes. Android
+verified that a wallet progressed from birthday block 349,207 to a verified
+snapshot at 349,324. That Android observation does not qualify the Apple build:
+its exact source must pass the protected Apple gate before upload. The existing
+App Store screenshots are retained by default; replacement requires an exact
+build capture and a separate workflow confirmation. The workflow also verifies
+signing identity and API readback before submitting build `75`.
 
-The product installs no scoped loopback credential or indexed wallet backend, so
-the visible read fields remain fail-closed and unavailable. A pruned indexed and
-authenticated node can return indexed confirmation/history, and an existing
-wallet may reuse authenticated retained raw bytes. Fresh restore additionally
-needs archive-capable raw bytes or another durable wallet-relevant raw-tx source.
-The native exact-text name-import control is implemented but remains unavailable
-because this product provisions neither backend nor credential. It does not
-enter WKWebView or provider JSON.
-Website-provider, send/value, settlement, exchange, HNSA/HNSR, and P2P-market
-gates remain false. iOS now implements nonblocking lifecycle teardown with an
-exact lease handoff. Exact-source Apple XCTest covers the retirement
-queue/lease behavior and stale-completion publication-authority checks through
-`walletReadMayPublish`; it does not execute an end-to-end credentialed native
-read in flight. That scenario remains unavailable until the scoped
-credential/backend/data boundary exists, and physical-iPhone repetition remains
-open.
+Website-provider and HNSA/HNSR service roles remain unavailable. Native wallet
+send, name, and swap actions require their existing sync and user-approval gates.
+The unapproved default-browser and MarketplaceKit app-installation entitlements
+remain absent. A physical-iPhone repetition can be recorded separately in
+`docs/ios-device-validation.md`.
 
 ## One-time Apple setup
 
@@ -162,7 +118,7 @@ The workflow then:
 
 ## Apply metadata and submit through the API
 
-After the upload run succeeds and build `74` finishes processing, use the
+After the upload run succeeds and build `75` finishes processing, use the
 separate protected workflow. Its default `discover` mode performs authenticated
 GET requests only. Pin both the exact current `main` automation commit and the
 signed-artifact commit from the successful upload run. They may differ only by
@@ -205,8 +161,8 @@ gh workflow run ios-app-store-submit.yml \
   -f expected_upload_run_id="$upload_run_id" \
   -f mode=submit \
   -f review_contact_source_version=1.0.4 \
-  -f confirm_metadata=APPLY_METADATA_1.0.11_74 \
-  -f confirm_submit=SUBMIT_FOR_REVIEW_1.0.11_74 \
+  -f confirm_metadata=APPLY_METADATA_1.0.12_75 \
+  -f confirm_submit=SUBMIT_FOR_REVIEW_1.0.12_75 \
   -f confirm_account_readiness=true
 ```
 
@@ -222,7 +178,7 @@ gh workflow run ios-app-store-submit.yml \
   -f expected_upload_run_id="$upload_run_id" \
   -f mode=auto-release \
   -f review_contact_source_version=1.0.4 \
-  -f confirm_auto_release=SET_AUTO_RELEASE_1.0.11_74 \
+  -f confirm_auto_release=SET_AUTO_RELEASE_1.0.12_75 \
   -f confirm_account_readiness=true
 ```
 
@@ -232,7 +188,7 @@ downloads nor validates a replacement artifact. To replace it, first run the
 upload workflow with `-f capture_screenshots=true`; after visually reviewing its
 retained exact-artifact images, a metadata or submission run may replace only
 that version's `APP_IPHONE_65` set by adding the exact confirmation
-`-f confirm_screenshot_replacement=REPLACE_SCREENSHOTS_1.0.11_74`. Replacement
+`-f confirm_screenshot_replacement=REPLACE_SCREENSHOTS_1.0.12_75`. Replacement
 fails closed on any byte mismatch. Without that input the client performs no
 screenshot upload or deletion requests.
 
@@ -264,7 +220,7 @@ debug entitlement, icon, and encryption declaration all match the release.
 Public GitHub Release `v0.5.5` publishes that exact IPA as asset `494101433`
 beside the verified code 46 APK.
 
-Build `72` is the configured candidate. Historical HNWR application-source CI,
+Build `72` was a historical candidate. Historical HNWR application-source CI,
 CodeQL, lockfile/notices, and the complete Apple app/simulator gate remain
 retained historical evidence. The earlier HNWR-v2 code-bearing source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed its own complete platform
@@ -274,8 +230,8 @@ dispatched Rust, Android, Apple, and Required CI matrix in run `31835813994`;
 CodeQL runs `31833858421` and `31833858650` also passed. This is exact-source
 build, test, and static-analysis evidence only, not a signed product, screenshot
 set, store declaration/readback, upload/submission, or physical-iPhone result.
-Build `72` must not be uploaded until the protected workflow reruns its complete
-exact-checkout gate before credential materialization. Existing App Store
+For build `75`, the protected workflow must rerun its complete exact-checkout
+gate before credential materialization. Existing App Store
 screenshots are retained unless the separately confirmed replacement path is
 used. App Privacy/category answers also require live reconciliation. After
 upload, replace this paragraph with the retained IPA provenance and App Store
@@ -304,7 +260,7 @@ reconciled version metadata, selected build `65`, preserved the existing
 screenshots, and submitted the update after build `64` was withdrawn. The
 readback at that time reported `WAITING_FOR_REVIEW`, `releaseType=MANUAL`, and
 `reviewType=APP_STORE`; that is historical evidence and does not describe the
-current `1.0.11` / build `74` candidate.
+current `1.0.12` / build `75` candidate.
 
 The `0.5.5` version-managed metadata, current iPhone screenshots, App Review
 details, content-rights declaration, and build `57` were reconciled through

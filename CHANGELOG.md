@@ -1,5 +1,21 @@
 # Changelog
 
+All notable changes to this project will be documented in this file.
+
+## 1.0.12 - 2026-09-30
+
+Android `1.0.12` / code `64` and iOS `1.0.12` / build `75` consume the
+published `hns-wallet-rs 0.4.0` cohort with the existing `hns-rs 0.5.0` and
+`hns-dane-engine 0.2.6` mobile dependencies.
+
+- Organize Wallet, Names, Bitcoin, and Shakedex around balances, next actions,
+  and concise progress; keep detailed status and recovery controls available
+  when they apply. Wait for a verified browser birthday before enabling Create.
+- Recover direct HNS header synchronization when the independent-peer quorum
+  drops, and retain a clear retryable catch-up state until the wallet reaches a
+  verified snapshot.
+- Strengthen name-sale and HNS/BTC swap admission, funding revalidation,
+  refunds, recovery, and bounded relay state.
 - Prefer current, previously successful Handshake peers over untouched
   discoveries when fetching an exact-root Urkel proof. The mobile gateway now
   races eight diverse peers with bounded cold-network timeouts and reports an
@@ -14,8 +30,6 @@
   probes their intended ten-second allowance and removes avoidable scheduler
   gaps while the public-network target is still unknown, without weakening the
   independent peer-group authority threshold.
-
-All notable changes to this project will be documented in this file.
 
 ## 1.0.11 - 2026-09-29
 
