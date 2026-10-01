@@ -2250,7 +2250,7 @@ impl NativeWalletController {
             });
         if peer_maintenance_due {
             *shakescape_last_peer_maintenance_at = Some(now_unix);
-            let _ = coordinator.connect_available(now_unix);
+            let _ = coordinator.connect_sync_quorum_available(now_unix);
         }
         let offer_inventory_interval = if shakescape_sessions
             .has_direct_swap_reconciliation(now_unix)
@@ -6559,7 +6559,7 @@ pub unsafe extern "C" fn hns_browser_wallet_import_hns_name_exact_text(
                     .now_unix()
                     .map_err(|_| wallet_runtime_failure("direct HNS clock is unavailable"))?;
                 coordinator
-                    .connect_available(now_unix)
+                    .connect_sync_quorum_available(now_unix)
                     .map_err(|_| direct_hns_not_ready("direct HNS peers are unavailable"))?;
                 let request_at_unix = HnsReadSystemClock
                     .now_unix()
@@ -6653,7 +6653,7 @@ pub unsafe extern "C" fn hns_browser_wallet_import_hns_names_exact_text(
                     .now_unix()
                     .map_err(|_| wallet_runtime_failure("direct HNS clock is unavailable"))?;
                 coordinator
-                    .connect_available(now_unix)
+                    .connect_sync_quorum_available(now_unix)
                     .map_err(|_| direct_hns_not_ready("direct HNS peers are unavailable"))?;
                 for name in &names {
                     let request_at_unix = HnsReadSystemClock

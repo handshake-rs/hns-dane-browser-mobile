@@ -2639,7 +2639,7 @@ impl AndroidWalletController {
             });
         if peer_maintenance_due {
             *shakescape_last_peer_maintenance_at = Some(now_unix);
-            match coordinator.connect_available(now_unix) {
+            match coordinator.connect_sync_quorum_available(now_unix) {
                 Ok(connected) => android_log_info(
                     "hns-shakescape",
                     &format!(
@@ -3347,7 +3347,7 @@ impl AndroidWalletController {
                 ..
             } => {
                 let now_unix = HnsReadSystemClock.now_unix().ok()?;
-                coordinator.connect_available(now_unix).ok()?;
+                coordinator.connect_sync_quorum_available(now_unix).ok()?;
                 let request_at_unix = HnsReadSystemClock.now_unix().ok()?;
                 coordinator
                     .synchronize_name_proof_exact_text(name, request_at_unix)
@@ -3417,7 +3417,7 @@ impl AndroidWalletController {
                 ..
             } => (|| {
                 let now_unix = HnsReadSystemClock.now_unix()?;
-                coordinator.connect_available(now_unix)?;
+                coordinator.connect_sync_quorum_available(now_unix)?;
                 for name in names {
                     let request_at_unix = HnsReadSystemClock.now_unix()?;
                     coordinator.synchronize_name_proof_exact_text(name, request_at_unix)?;
