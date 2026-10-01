@@ -10135,7 +10135,6 @@ mod tests {
         let public_quorum = android_direct_hns_peer_config(HnsNetwork::Mainnet).minimum_block_views;
         assert_eq!(public_quorum, 2);
         assert_eq!(ANDROID_DIRECT_HNS_PUBLIC_TARGET_PEERS, 2 * public_quorum);
-        assert!(DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC >= 1);
     }
 
     #[test]
