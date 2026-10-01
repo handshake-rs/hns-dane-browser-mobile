@@ -198,3 +198,8 @@ screen captures are retained locally in `.codex-diagnostics/`; they are not
 committed because they contain device-specific information. The isolated
 `.walletux` preview package is built from the same Rust closure and remains
 separate from the user's debug and release wallet data.
+
+The view-only Wallet overview suite now runs under the separate
+`.walletuxfixture` package. All four instrumentation tests passed on the
+connected Pixel 9 on 2026-09-30; the suite did not open the saved preview
+wallet or clear any application data.
