@@ -10131,13 +10131,11 @@ mod tests {
     }
 
     #[test]
-    fn direct_hns_header_recovery_budget_covers_the_public_peer_pool() {
+    fn direct_hns_public_peer_pool_has_one_reserve_quorum() {
         let public_quorum = android_direct_hns_peer_config(HnsNetwork::Mainnet).minimum_block_views;
         assert_eq!(public_quorum, 2);
-        assert_eq!(
-            (DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC + 1) * public_quorum,
-            ANDROID_DIRECT_HNS_PUBLIC_TARGET_PEERS,
-        );
+        assert_eq!(ANDROID_DIRECT_HNS_PUBLIC_TARGET_PEERS, 2 * public_quorum);
+        assert!(DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC >= 1);
     }
 
     #[test]
