@@ -28,7 +28,7 @@ Generated input SHA-256:
   android/app/src/main/assets/fonts/Orbitron-VariableFont_wght.ttf = f42db2dd16e642258e35782916eceb1dcdbea06fb958d77ad71dc5963587e8fd
   android/app/src/main/assets/fonts/OFL-Orbitron.txt = dd6fdb6716fd179d1fe891759efb3f9200753fdf6abf513b55b712c4ae16e512
   rust/Cargo.toml = 826becf9daec12d59cf4cb768a9a8523bf7a92c6a52107faf57140733ac6b30d
-  rust/Cargo.lock = 5ac2af1c5f11a9de4a0712c8fa2dc8b2f3d9837b8db97893f7dc3fd1afb47515
+  rust/Cargo.lock = ecaa946cfa5233247db78044f4ef259317862f230f22d7763fb66569a96c7249
   android/gradle/libs.versions.toml = 6e6aa686c60e39364e82418f57bb4e2cb0b1cdc420db5dc20dcb48b9f9e58214
   android/app/gradle.lockfile = af2b566239607d09657d3a5930a2d60e9a765d3a1cae7bbf212080b592766ab3
   android/gradle/verification-metadata.xml = 904a6b05ddaea646070bd1a7d077a5bcaf415cb3c71605e5549042e60651df52
@@ -463,7 +463,7 @@ RUST COMPONENTS (393)
   xmltree 0.10.3 | MIT
   yasna 0.6.0 | MIT OR Apache-2.0
   yoke 0.8.3 | Unicode-3.0
-  yoke-derive 0.8.3 | Unicode-3.0
+  yoke-derive 0.8.4 | Unicode-3.0
   zerocopy 0.8.57 | BSD-2-Clause OR Apache-2.0 OR MIT
   zerocopy-derive 0.8.57 | BSD-2-Clause OR Apache-2.0 OR MIT
   zerofrom 0.1.8 | Unicode-3.0
@@ -12454,7 +12454,7 @@ Applies to:
   - Rust crate tinystr 0.8.4
   - Rust crate writeable 0.6.4
   - Rust crate yoke 0.8.3
-  - Rust crate yoke-derive 0.8.3
+  - Rust crate yoke-derive 0.8.4
   - Rust crate zerofrom 0.1.8
   - Rust crate zerofrom-derive 0.1.8
   - Rust crate zerotrie 0.2.5
