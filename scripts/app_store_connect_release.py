@@ -1058,6 +1058,33 @@ class ReleaseManager:
         app = self.find_app()
         app_id = _resource_id(app, "apps")
         version = self.find_version(app_id, self.release.version)
+        if version is None and self.release.version == "1.0.13":
+            withdrawn = self.find_version(app_id, "1.0.12")
+            if withdrawn is not None:
+                withdrawn_id = _resource_id(withdrawn, "appStoreVersions")
+                state = _resource_attributes(withdrawn).get("appVersionState")
+                if state != "DEVELOPER_REJECTED":
+                    raise ReleaseError(
+                        "the preceding 1.0.12 version is not in the expected withdrawn state"
+                    )
+                if self.active_review_submissions(app_id):
+                    raise ReleaseError(
+                        "cannot advance a withdrawn version while a review submission is active"
+                    )
+                document = self.api.request(
+                    "PATCH",
+                    f"/v1/appStoreVersions/{withdrawn_id}",
+                    body={"data": {
+                        "type": "appStoreVersions",
+                        "id": withdrawn_id,
+                        "attributes": {"versionString": self.release.version},
+                    }},
+                    expected=(200,),
+                )
+                version = _data_resource(document, "appStoreVersions")
+                if (_resource_id(version, "appStoreVersions") != withdrawn_id or
+                        _resource_attributes(version).get("versionString") != self.release.version):
+                    raise ReleaseError("the withdrawn version advance did not read back as 1.0.13")
         if version is None:
             document = self.api.request(
                 "POST",
