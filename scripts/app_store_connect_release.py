@@ -992,6 +992,15 @@ class ReleaseManager:
             ),
             "build": None,
             "version": None,
+            "availableVersions": [
+                {
+                    "versionString": attrs.get("versionString"),
+                    "appStoreState": attrs.get("appStoreState"),
+                    "appVersionState": attrs.get("appVersionState"),
+                }
+                for item in self.versions(app_id)
+                for attrs in [_resource_attributes(item)]
+            ],
             "activeReviewSubmissions": [],
         }
         if build is not None:
