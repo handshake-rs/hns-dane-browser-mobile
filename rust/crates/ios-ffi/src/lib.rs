@@ -90,7 +90,8 @@ const HNS_BROWSER_SECURITY_PATH_HNS_THIRD_PARTY_DOH: u32 = 8;
 const HNS_BROWSER_SECURITY_PATH_DANE_P2P_DNS_RELAY: u32 = 9;
 const HNS_BROWSER_SECURITY_PATH_HNS_P2P_DNS_RELAY: u32 = 10;
 
-const DEFAULT_SYNC_TIMEOUT_MILLIS: u64 = 3_000;
+// Match SyncOptions::default(), which Android uses without an FFI override.
+const DEFAULT_SYNC_TIMEOUT_MILLIS: u64 = 10_000;
 const MAX_SYNC_TIMEOUT_MILLIS: u64 = 10 * 60 * 1_000;
 const MAX_RESOURCE_CACHE_LIMIT_BYTES: u64 = 1024 * 1024 * 1024;
 const MAX_RUNTIME_HANDLES: usize = 16;
@@ -9861,6 +9862,15 @@ mod tests {
         assert_eq!(
             security_path_code(Some(BrowserProxySecurityPath::HnsP2pDnsRelay)),
             HNS_BROWSER_SECURITY_PATH_HNS_P2P_DNS_RELAY
+        );
+    }
+
+    #[test]
+    fn browser_sync_timeout_matches_android_runtime_default() {
+        let options = HnsBrowserRuntimeOptions::defaults();
+        assert_eq!(
+            Duration::from_millis(options.sync_timeout_millis),
+            SyncOptions::default().timeout
         );
     }
 
