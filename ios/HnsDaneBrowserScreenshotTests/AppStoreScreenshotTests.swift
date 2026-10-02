@@ -73,7 +73,7 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
     }
 
     func testLiveSubmissionScreenshots() throws {
-        let runtimeStatus = launchShippingRuntime(requireCurrentHeaders: false)
+        let runtimeStatus = launchShippingRuntime(requireCurrentHeaders: true)
         let address = app.textFields["app-store-screenshot.address"]
         XCTAssertTrue(address.exists, "Shipping browser address field is missing")
         capture(named: "LIVE_APPSTORE_SCREENSHOT_01_BROWSER")
@@ -125,8 +125,9 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
         XCTAssertTrue(address.waitForExistence(timeout: 20), "Address field did not appear")
 
         let sync = app.staticTexts["app-store-screenshot.sync"]
-        let readinessTimeout: TimeInterval = requireCurrentHeaders ? 1_200 : 120
+        let readinessTimeout: TimeInterval = requireCurrentHeaders ? 2_700 : 120
         var lastRuntimeStatus = ""
+        var observedSyncRow = false
         XCTAssertTrue(
             waitUntil(
                 description: requireCurrentHeaders
@@ -139,9 +140,11 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
                     // only when committed headers are current and no sync is
                     // active. The hidden row is therefore the ready signal.
                     guard sync.exists else {
+                        guard observedSyncRow else { return false }
                         lastRuntimeStatus = "Handshake headers current (diagnostic row hidden)"
                         return true
                     }
+                    observedSyncRow = true
                     let label = sync.label.trimmingCharacters(in: .whitespacesAndNewlines)
                     if label != lastRuntimeStatus {
                         lastRuntimeStatus = label
