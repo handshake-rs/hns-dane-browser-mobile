@@ -4803,7 +4803,9 @@ final class WalletViewController: UIViewController {
             }
             // Reconcile once after the receive burst. The transport loop must
             // not repeat database and swap recovery work for every queued frame.
-            let reconciliationChanged = (try? wallet.serviceDirectShakescape()) == true
+            let reconciliationChanged = transportWorkServiced || pollExecutions
+                ? (try? wallet.serviceDirectShakescape()) == true
+                : false
             let status = try? wallet.directShakescapeStatus()
             let executions = pollExecutions || transportWorkServiced || reconciliationChanged
                 ? try? wallet.shakescapeExecutions()
