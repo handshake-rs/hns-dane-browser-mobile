@@ -127,7 +127,7 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
         let sync = app.staticTexts["app-store-screenshot.sync"]
         let readinessTimeout: TimeInterval = requireCurrentHeaders ? 2_700 : 120
         var lastRuntimeStatus = ""
-        var observedSyncRow = false
+        var readySince: TimeInterval?
         XCTAssertTrue(
             waitUntil(
                 description: requireCurrentHeaders
@@ -136,22 +136,33 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
                 timeout: readinessTimeout,
                 timeoutEvidence: { " Last runtime status: \(lastRuntimeStatus)" },
                 condition: {
-                    // Shipping UI intentionally collapses the diagnostic row
-                    // only when committed headers are current and no sync is
-                    // active. The hidden row is therefore the ready signal.
-                    guard sync.exists else {
-                        guard observedSyncRow else { return false }
-                        lastRuntimeStatus = "Handshake headers current (diagnostic row hidden)"
+                    // A failed or restarting sync can briefly hide its row.
+                    // Require the navigation gate to be gone as well, and
+                    // keep both conditions stable across transient UI updates.
+                    if requireCurrentHeaders {
+                        let gate = app.staticTexts.matching(NSPredicate(
+                            format: "label CONTAINS[c] %@ OR label CONTAINS[c] %@",
+                            "Handshake header sync must recover",
+                            "Waiting for authenticated Handshake headers"
+                        )).firstMatch
+                        guard !sync.exists && !gate.exists else {
+                            readySince = nil
+                            lastRuntimeStatus = sync.exists
+                                ? "Header sync remains visible"
+                                : "Browser admission gate remains visible"
+                            return false
+                        }
+                        let now = ProcessInfo.processInfo.systemUptime
+                        if readySince == nil { readySince = now }
+                        guard now - (readySince ?? now) >= 10 else { return false }
+                        lastRuntimeStatus = "Handshake admission stable (sync and gate hidden)"
                         return true
                     }
-                    observedSyncRow = true
+                    guard sync.exists else { return false }
                     let label = sync.label.trimmingCharacters(in: .whitespacesAndNewlines)
                     if label != lastRuntimeStatus {
                         lastRuntimeStatus = label
                         print("Live screenshot runtime status: \(label)")
-                    }
-                    if requireCurrentHeaders {
-                        return false
                     }
                     return !label.isEmpty && label != "Preparing runtime"
                 }
