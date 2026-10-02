@@ -100,6 +100,10 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Wallet"].waitForExistence(timeout: 20))
         let dashboard = app.descendants(matching: .any)["wallet.dashboard"]
         XCTAssertTrue(dashboard.waitForExistence(timeout: 20))
+        XCTAssertFalse(
+            app.staticTexts["Wallet protected storage is unavailable."].exists,
+            "A screenshot from an unsigned simulator app cannot show Wallet onboarding"
+        )
         capture(named: "LIVE_APPSTORE_SCREENSHOT_04_WALLET")
 
         try attachInterfaceProvenance(
