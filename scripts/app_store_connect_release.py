@@ -126,7 +126,11 @@ RELEASE_AUTOMATION_ALLOWLIST = frozenset(
         "docs/play-store-readiness.md",
         "docs/production-readiness-audit.md",
         "scripts/app_store_connect_release.py",
+        "scripts/generate-ios-app-store-screenshots.sh",
+        "scripts/ios_screenshot_tools.py",
         "tests/test_app_store_connect_release.py",
+        "tests/test_ios_screenshot_tools.py",
+        "ios/HnsDaneBrowserScreenshotTests/AppStoreScreenshotTests.swift",
     }
 )
 
@@ -2132,6 +2136,26 @@ def verified_screenshot_sets(
     return sets
 
 
+def verify_screenshot_source(release: LocalRelease, screenshot_commit: str) -> None:
+    if not EXACT_COMMIT.fullmatch(screenshot_commit):
+        raise ReleaseError("screenshot source must be an exact lowercase Git commit")
+    for ancestor, descendant in (
+        (release.artifact_commit, screenshot_commit),
+        (screenshot_commit, release.expected_commit),
+    ):
+        result = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", ancestor, descendant],
+            cwd=release.root,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if result.returncode != 0:
+            raise ReleaseError(
+                "screenshot source must be between the signed app source and current main"
+            )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -2148,6 +2172,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--expected-commit", required=True)
     parser.add_argument("--expected-artifact-commit")
+    parser.add_argument("--expected-screenshot-commit")
     parser.add_argument("--expected-version", required=True)
     parser.add_argument("--expected-build", required=True)
     parser.add_argument("--review-contact-source-version", default="0.5.5")
@@ -2214,8 +2239,10 @@ def main() -> int:
         }:
             verify_exact_current_main(release)
         if args.screenshots_dir:
+            screenshot_commit = args.expected_screenshot_commit or release.artifact_commit
+            verify_screenshot_source(release, screenshot_commit)
             screenshot_sets = verified_screenshot_sets(
-                root, (root / args.screenshots_dir).resolve(), release.artifact_commit
+                root, (root / args.screenshots_dir).resolve(), screenshot_commit
             )
         manager = ReleaseManager(
             api,
