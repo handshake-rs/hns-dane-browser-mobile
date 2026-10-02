@@ -532,6 +532,10 @@ HnsBrowserResult hns_browser_wallet_connect_direct_shakescape(
 HnsBrowserResult hns_browser_wallet_disconnect_direct_shakescape(
     HnsBrowserWalletHandle wallet,
     uint8_t *out_disconnected);
+/* Drain one direct peer transport event without running lifecycle recovery. */
+HnsBrowserResult hns_browser_wallet_service_direct_shakescape_transport(
+    HnsBrowserWalletHandle wallet,
+    uint8_t *out_serviced);
 HnsBrowserResult hns_browser_wallet_service_direct_shakescape(
     HnsBrowserWalletHandle wallet,
     uint8_t *out_serviced);

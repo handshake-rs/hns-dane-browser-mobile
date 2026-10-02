@@ -4256,6 +4256,18 @@ final class RustNativeWallet: @unchecked Sendable {
         return serviced == 1
     }
 
+    func serviceDirectShakescapeTransport() throws -> Bool {
+        var serviced: UInt8 = 0
+        try NativeWalletBridge.check(
+            hns_browser_wallet_service_direct_shakescape_transport(try liveHandle(), &serviced),
+            operation: "wallet direct Shakescape transport"
+        )
+        guard serviced <= 1 else {
+            throw NativeWalletBridgeError.invalidOutput("direct Shakescape transport result is not boolean")
+        }
+        return serviced == 1
+    }
+
     func approveHnsSend(_ actionToken: NativeHnsSendActionToken) throws -> NativeHnsSendReceipt {
         try actionToken.consume { token in
             var output = HnsBrowserBuffer()

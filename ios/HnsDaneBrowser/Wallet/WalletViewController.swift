@@ -4798,11 +4798,14 @@ final class WalletViewController: UIViewController {
         DispatchQueue.global(qos: .utility).async {
             var transportWorkServiced = false
             for _ in 0..<maximumDirectShakescapeFramesPerTick {
-                guard (try? wallet.serviceDirectShakescape()) == true else { break }
+                guard (try? wallet.serviceDirectShakescapeTransport()) == true else { break }
                 transportWorkServiced = true
             }
+            // Reconcile once after the receive burst. The transport loop must
+            // not repeat database and swap recovery work for every queued frame.
+            let reconciliationChanged = (try? wallet.serviceDirectShakescape()) == true
             let status = try? wallet.directShakescapeStatus()
-            let executions = pollExecutions || transportWorkServiced
+            let executions = pollExecutions || transportWorkServiced || reconciliationChanged
                 ? try? wallet.shakescapeExecutions()
                 : nil
             DispatchQueue.main.async { [weak self] in

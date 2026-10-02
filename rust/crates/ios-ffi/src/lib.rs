@@ -5636,6 +5636,25 @@ pub unsafe extern "C" fn hns_browser_wallet_disconnect_direct_shakescape(
 #[unsafe(no_mangle)]
 /// # Safety
 /// `out_serviced` must point to one writable byte.
+pub unsafe extern "C" fn hns_browser_wallet_service_direct_shakescape_transport(
+    wallet: HnsBrowserWalletHandle,
+    out_serviced: *mut u8,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_serviced)?;
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let serviced = u8::from(entry.controller.service_direct_shakescape_once());
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_serviced, serviced) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// `out_serviced` must point to one writable byte.
 pub unsafe extern "C" fn hns_browser_wallet_service_direct_shakescape(
     wallet: HnsBrowserWalletHandle,
     out_serviced: *mut u8,
@@ -8601,6 +8620,7 @@ mod tests {
             "hns_browser_wallet_retry_direct_shakescape_listener",
             "hns_browser_wallet_connect_direct_shakescape",
             "hns_browser_wallet_disconnect_direct_shakescape",
+            "hns_browser_wallet_service_direct_shakescape_transport",
             "hns_browser_wallet_service_direct_shakescape",
             "hns_browser_wallet_prepare_btc_for_hns_offer",
             "hns_browser_wallet_approve_btc_for_hns_offer",
