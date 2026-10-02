@@ -31,10 +31,15 @@ def live_interface_provenance() -> dict:
         "fixtureEnvironmentInjected": False,
         "browser": {
             "addressFieldIdentifier": "app-store-screenshot.address",
-            "runtimeStatus": "Syncing Handshake headers",
+            "runtimeStatus": "Handshake admission stable (sync and gate hidden)",
+            "navigation": {
+                "requestedURL": "https://shakescape/",
+                "finalAddress": "https://shakescape/",
+                "securityLabel": "DANE verified · authoritative DoH",
+            },
         },
         "settings": {
-            "sourceRequestedURL": "browser home",
+            "sourceRequestedURL": "https://shakescape/",
             "nativeWalletRowIdentifier": "settings.destination.wallet",
             "nativeWalletRowLabel": "Wallet",
         },
@@ -617,7 +622,11 @@ class LiveInterfaceScreenshotTests(unittest.TestCase):
             validate_live_provenance(provenance)
         provenance = live_interface_provenance()
         provenance["browser"]["runtimeStatus"] = "Network blocks outbound TCP 12038"
-        with self.assertRaisesRegex(ScreenshotToolError, "healthy runtime status"):
+        with self.assertRaisesRegex(ScreenshotToolError, "verified header admission"):
+            validate_live_provenance(provenance)
+        provenance = live_interface_provenance()
+        provenance["browser"]["navigation"]["securityLabel"] = "Waiting for a verified response"
+        with self.assertRaisesRegex(ScreenshotToolError, "DANE-verified"):
             validate_live_provenance(provenance)
 
 
