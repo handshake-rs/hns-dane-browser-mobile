@@ -22027,7 +22027,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The exact direct endpoint was unavailable, incompatible, or rejected. The wallet remains unlocked and usable."
+            "value": "Could not complete the direct peer connection. Check that the other Wallet is open and hosting at this address, then try again. Your wallet remains usable."
           }
         },
         "es": {

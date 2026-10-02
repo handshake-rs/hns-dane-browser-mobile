@@ -632,7 +632,7 @@
     <string name="wallet_direct_shakescape_replaced">Replaced the active swap peer with %1$s. Board exchange is running locally without a relay.</string>
     <string name="wallet_direct_shakescape_connect_unavailable">This wallet controller does not currently provide P2P swap pairing.</string>
     <string name="wallet_direct_shakescape_connect_locked">The wallet locked before the swap peer could be paired.</string>
-    <string name="wallet_direct_shakescape_connect_failed">The exact direct endpoint was unavailable, incompatible, or rejected. The wallet remains unlocked and usable.</string>
+    <string name="wallet_direct_shakescape_connect_failed">Could not complete the direct peer connection. Check that the other Wallet is open and hosting at this address, then try again. Your wallet remains usable.</string>
     <string name="wallet_direct_shakescape_exchange_failed">The direct endpoint connected but the initial board exchange was rejected. The active direct peer was not replaced.</string>
     <string name="wallet_direct_shakescape_connect_bridge_failed">The P2P swap connection result could not be verified. The wallet remains usable; inspect the host and peer state before retrying.</string>
     <string name="wallet_direct_shakescape_disconnected">The active swap peer was disconnected. The wallet-owned listener remains available.</string>
