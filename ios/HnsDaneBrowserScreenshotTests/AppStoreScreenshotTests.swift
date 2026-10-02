@@ -76,9 +76,16 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
         let runtimeStatus = launchShippingRuntime(requireCurrentHeaders: true)
         let address = app.textFields["app-store-screenshot.address"]
         XCTAssertTrue(address.exists, "Shipping browser address field is missing")
+        let browserEvidence = try navigateAndWait(
+            to: Self.hnsURL,
+            expectedHost: "shakescape",
+            expectedSecurity: .hnsDANE,
+            expectedPageTextFragment: "Explore the web",
+            timeout: 180
+        )
         capture(named: "LIVE_APPSTORE_SCREENSHOT_01_BROWSER")
 
-        let settingsEvidence = openSettings(timeout: 20, sourceRequestedURL: "browser home")
+        let settingsEvidence = openSettings(timeout: 20, sourceRequestedURL: Self.hnsURL)
         capture(named: "LIVE_APPSTORE_SCREENSHOT_02_SETTINGS")
 
         let table = app.tables["settings.table"]
@@ -108,6 +115,7 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
 
         try attachInterfaceProvenance(
             runtimeStatus: runtimeStatus,
+            browserEvidence: browserEvidence,
             settingsEvidence: settingsEvidence,
             walletDashboardIdentifier: "wallet.dashboard"
         )
@@ -697,6 +705,7 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
 
     private func attachInterfaceProvenance(
         runtimeStatus: String,
+        browserEvidence: [String: Any],
         settingsEvidence: [String: Any],
         walletDashboardIdentifier: String
     ) throws {
@@ -707,6 +716,7 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
             "browser": [
                 "addressFieldIdentifier": "app-store-screenshot.address",
                 "runtimeStatus": runtimeStatus,
+                "navigation": browserEvidence,
             ],
             "handshakeSettings": [
                 "statelessDANEToggleIdentifier":

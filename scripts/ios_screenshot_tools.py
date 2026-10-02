@@ -467,10 +467,18 @@ def validate_live_interface_provenance(document: dict[str, Any]) -> dict[str, An
     if not isinstance(browser, dict) or browser.get("addressFieldIdentifier") != "app-store-screenshot.address":
         raise ScreenshotToolError("live browser address field evidence is missing")
     runtime_status = browser.get("runtimeStatus")
-    if not isinstance(runtime_status, str) or not runtime_status.strip() or runtime_status.startswith(("Network blocks outbound", "Header sync needs attention")):
-        raise ScreenshotToolError("live browser screenshot has no healthy runtime status")
+    if not isinstance(runtime_status, str) or runtime_status != "Handshake admission stable (sync and gate hidden)":
+        raise ScreenshotToolError("live browser screenshot has no verified header admission")
+    navigation = browser.get("navigation")
+    if not isinstance(navigation, dict):
+        raise ScreenshotToolError("live browser screenshot is missing navigation evidence")
+    if navigation.get("requestedURL") != LIVE_TARGETS["hnsNavigation"] or navigation.get("finalAddress") != LIVE_TARGETS["hnsNavigation"]:
+        raise ScreenshotToolError("live browser screenshot did not load the intended HNS page")
+    security_label = navigation.get("securityLabel")
+    if not isinstance(security_label, str) or not security_label.startswith("DANE verified · ") or not security_label.removeprefix("DANE verified · ").strip():
+        raise ScreenshotToolError("live browser screenshot lacks a DANE-verified HNS response")
     settings = document.get("settings")
-    if not isinstance(settings, dict) or settings.get("sourceRequestedURL") != "browser home" or settings.get("nativeWalletRowIdentifier") != NATIVE_WALLET_ROW_IDENTIFIER or settings.get("nativeWalletRowLabel") != "Wallet":
+    if not isinstance(settings, dict) or settings.get("sourceRequestedURL") != LIVE_TARGETS["hnsNavigation"] or settings.get("nativeWalletRowIdentifier") != NATIVE_WALLET_ROW_IDENTIFIER or settings.get("nativeWalletRowLabel") != "Wallet":
         raise ScreenshotToolError("live settings evidence is missing")
     handshake = document.get("handshakeSettings")
     if not isinstance(handshake, dict) or handshake.get("statelessDANEToggleIdentifier") != "settings.handshake.stateless-dane-certificates.toggle":
