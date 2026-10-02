@@ -1111,6 +1111,9 @@ impl NativeWalletController {
             Self::Lifecycle(controller) => controller,
             _ => return Err(MobileWalletError::ControllerFailed),
         };
+        hns_mobile_platform_runtime::register_wallet_header_transport(
+            coordinator.public_header_transport(),
+        );
         let backend = coordinator.backend().clone();
         let controller =
             lifecycle.into_hns_value_with_wallet_owned_direct_shakedex(database_key, backend)?;
@@ -3480,7 +3483,7 @@ fn synchronize_wallet_owned_direct_hns(
         .now_unix()
         .map_err(|_| wallet_runtime_failure("direct HNS clock is unavailable"))?;
     coordinator
-        .extend_wallet_restore_watch_set(watch_now_unix)
+        .prepare_wallet_restore_watch_set(watch_now_unix)
         .map_err(|_| direct_hns_not_ready("direct HNS wallet watch set is unavailable"))?;
     for _ in 0..DIRECT_HNS_MAX_SCAN_CHUNKS_PER_SYNC {
         ensure_wallet_hns_sync_not_cancelled(sync_control)?;
@@ -3533,9 +3536,36 @@ fn synchronize_wallet_owned_direct_hns(
         .synchronize_wallet_name_proofs(name_proof_now_unix)
         .map_err(|_| direct_hns_not_ready("direct HNS name proof refresh is unavailable"))?;
     ensure_wallet_hns_sync_not_cancelled(sync_control)?;
-    let mut snapshot = controller
-        .synchronize()
-        .map_err(|_| direct_hns_not_ready("direct HNS wallet scan is still catching up"))?;
+    let mut snapshot = match controller.synchronize() {
+        Ok(snapshot) => snapshot,
+        Err(MobileWalletError::ServiceFailure {
+            code: ServiceErrorCode::RuntimeFailure,
+            message,
+        }) if message.ends_with(
+            "direct wallet index watch set does not cover the requested derivation scripts",
+        ) =>
+        {
+            let now = HnsReadSystemClock
+                .now_unix()
+                .map_err(|_| wallet_runtime_failure("direct HNS clock is unavailable"))?;
+            if coordinator
+                .extend_wallet_restore_watch_set(now)
+                .map_err(|_| direct_hns_not_ready("direct HNS wallet watch set is unavailable"))?
+            {
+                return Err(direct_hns_not_ready(
+                    "direct HNS wallet watch set extended; scan is catching up",
+                ));
+            }
+            return Err(direct_hns_not_ready(
+                "direct HNS wallet restoration frontier is exhausted",
+            ));
+        }
+        Err(_) => {
+            return Err(direct_hns_not_ready(
+                "direct HNS wallet scan is still catching up",
+            ));
+        }
+    };
     ensure_wallet_hns_sync_not_cancelled(sync_control)?;
     if controller
         .rebroadcast_dropped_hns_sends()

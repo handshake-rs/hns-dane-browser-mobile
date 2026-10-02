@@ -10,6 +10,8 @@
 )]
 
 mod icann_locked_names;
+mod shared_hns_sync;
+pub use shared_hns_sync::register_wallet_header_transport;
 pub mod shakescape_reachability;
 
 pub use shakescape_reachability::{
@@ -15841,26 +15843,37 @@ fn run_sync_once(
         }
     }
 
-    let runner = HeaderSyncRunner::with_config(
-        network,
-        TcpHeaderPeerConnector,
-        mobile_header_sync_runner_config(network_kind, timeout),
-    );
-    let result = runner
-        .sync_once_parallel_and_persist_with_completion_time_and_progress(
-            &mut coordinator,
-            &mut peers,
-            &peer_store,
-            now_unix_seconds(),
-            now_unix_seconds,
-            |progress| {
-                on_progress(
-                    progress.best_height.map(|height| height.0),
-                    progress.accepted,
-                );
-            },
-        )
-        .map_err(|error| format!("sync headers: {error}"))?;
+    let shared = shared_hns_sync::sync_with_wallet_transport(
+        network_kind,
+        &mut coordinator,
+        &mut peers,
+        &peer_store,
+        &mut on_progress,
+    )?;
+    let result = if let Some(result) = shared {
+        result
+    } else {
+        let runner = HeaderSyncRunner::with_config(
+            network,
+            TcpHeaderPeerConnector,
+            mobile_header_sync_runner_config(network_kind, timeout),
+        );
+        runner
+            .sync_once_parallel_and_persist_with_completion_time_and_progress(
+                &mut coordinator,
+                &mut peers,
+                &peer_store,
+                now_unix_seconds(),
+                now_unix_seconds,
+                |progress| {
+                    on_progress(
+                        progress.best_height.map(|height| height.0),
+                        progress.accepted,
+                    );
+                },
+            )
+            .map_err(|error| format!("sync headers: {error}"))?
+    };
     let best = coordinator
         .chain()
         .best_header()

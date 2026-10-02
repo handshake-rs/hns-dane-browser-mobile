@@ -34,10 +34,13 @@ hns-browser-observability = "=0.3.0"
 hns-browser-runtime = "=0.2.2"
 hns-icann-dane = "=0.2.2"
 hns-loopback-proxy = { package = "hns-browser-loopback-proxy", version = "=0.2.3", default-features = false, features = ["mobile"] }
-# Pin one published wallet cohort so FFI, mobile, and shared types agree.
+# Unchanged wallet APIs remain on their existing release. Pin only the two
+# implementation fixes needed by this app; compatible transitive ranges unify them.
 hns-wallet-ffi = "=0.4.1"
 hns-wallet-mobile = "=0.4.1"
 hns-wallet-types = "=0.4.1"
+hns-wallet-hns = "=0.4.2"
+hns-wallet-market = "=0.4.2"
 hns-mobile-platform-runtime = { path = "crates/hns-mobile-platform-runtime" }
 hns-namespace-resolution = "=0.2.3"
 hns-resolution-policy = "=0.3.0"

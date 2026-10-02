@@ -926,6 +926,9 @@ impl AndroidWalletController {
             Self::Lifecycle(controller) => controller,
             _ => return None,
         };
+        hns_mobile_platform_runtime::register_wallet_header_transport(
+            coordinator.public_header_transport(),
+        );
         let backend = coordinator.backend().clone();
         match lifecycle.into_hns_value_with_wallet_owned_direct_shakedex(database_key, backend) {
             Ok(controller) => {
@@ -3109,7 +3112,7 @@ impl AndroidWalletController {
                 // forces an avoidable second historical scan.
                 let now_unix = HnsReadSystemClock.now_unix()?;
                 if coordinator
-                    .extend_wallet_restore_watch_set(now_unix)
+                    .prepare_wallet_restore_watch_set(now_unix)
                     .map_err(MobileWalletError::DirectHns)?
                 {
                     android_log_wallet_scan_metrics("wallet_hns_scan stage=watch_set_preexpanded");
