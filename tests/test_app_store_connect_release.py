@@ -479,6 +479,11 @@ class LocalReleaseSafetyTests(unittest.TestCase):
                 {},
             )
             release_client.verify_release_automation_diff(release)
+            release_client.verify_screenshot_source(release, automation_commit)
+            with self.assertRaisesRegex(
+                release_client.ReleaseError, "screenshot source must be between"
+            ):
+                release_client.verify_screenshot_source(release, "b" * 40)
 
             (repository / "README.md").write_text("changed source\n", encoding="utf-8")
             git("add", "README.md")
@@ -493,6 +498,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
                 {},
             )
             release_client.verify_release_automation_diff(docs_release)
+            release_client.verify_screenshot_source(docs_release, automation_commit)
 
             source = repository / "android/app/build.gradle.kts"
             source.parent.mkdir(parents=True)
@@ -1127,9 +1133,11 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn('.path == ".github/workflows/ios-screenshots.yml"', workflow)
         self.assertIn(
             "name: ios-app-store-live-screenshots-"
-            "${{ inputs.expected_artifact_commit }}",
+            "${{ env.SCREENSHOT_SOURCE_COMMIT }}",
             workflow,
         )
+        self.assertIn('git merge-base --is-ancestor "$EXPECTED_ARTIFACT_COMMIT" "$screenshot_commit"', workflow)
+        self.assertIn('git merge-base --is-ancestor "$screenshot_commit" "$EXPECTED_COMMIT"', workflow)
         self.assertIn(
             "if: ${{ inputs.mode != 'discover' && "
             "inputs.confirm_screenshot_replacement != '' }}",
@@ -1139,7 +1147,8 @@ class WorkflowSafetyTests(unittest.TestCase):
             'if [[ -n "$CONFIRM_SCREENSHOT_REPLACEMENT" ]]; then',
             workflow,
         )
-        self.assertIn('--expected-commit "$EXPECTED_ARTIFACT_COMMIT"', workflow)
+        self.assertIn('--expected-commit "$SCREENSHOT_SOURCE_COMMIT"', workflow)
+        self.assertIn('--expected-screenshot-commit "$SCREENSHOT_SOURCE_COMMIT"', workflow)
         self.assertIn('test "$(git rev-parse HEAD)" = "$EXPECTED_COMMIT"', workflow)
         self.assertIn("git status --porcelain --untracked-files=all", workflow)
         self.assertLess(

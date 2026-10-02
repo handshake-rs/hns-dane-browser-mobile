@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       expected_artifact_commit:
-        description: Exact signed IPA source commit; also the screenshot source when replacing them
+        description: Exact signed IPA source commit
         required: true
         type: string
       expected_upload_run_id:
@@ -16,7 +16,7 @@ on:
         required: false
         type: string
       expected_screenshot_run_id:
-        description: Successful live iOS screenshots run for the artifact commit (required to replace screenshots)
+        description: Successful live iOS screenshots run from current main's capture-only descendant (required to replace screenshots)
         required: false
         type: string
       mode:
@@ -178,7 +178,11 @@ jobs:
               docs/play-store-readiness.md|\
               docs/production-readiness-audit.md|\
               scripts/app_store_connect_release.py|\
-              tests/test_app_store_connect_release.py)
+              scripts/generate-ios-app-store-screenshots.sh|\
+              scripts/ios_screenshot_tools.py|\
+              ios/HnsDaneBrowserScreenshotTests/AppStoreScreenshotTests.swift|\
+              tests/test_app_store_connect_release.py|\
+              tests/test_ios_screenshot_tools.py)
                 ;;
               *)
                 unexpected+=("$changed_path")
@@ -249,13 +253,14 @@ jobs:
               exit 2
             }
 
-      - name: Validate the exact-commit screenshot run
+      - name: Validate the capture-only screenshot run
         if: ${{ inputs.confirm_screenshot_replacement != '' }}
         env:
           EXPECTED_SCREENSHOT_RUN_ID: ${{ inputs.expected_screenshot_run_id }}
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
           EXPECTED_ARTIFACT_COMMIT: ${{ inputs.expected_artifact_commit }}
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
         run: |
           set -euo pipefail
           [[ "$EXPECTED_SCREENSHOT_RUN_ID" =~ ^[1-9][0-9]*$ ]]
@@ -267,33 +272,38 @@ jobs:
              and .conclusion == "success"
              and .path == ".github/workflows/ios-screenshots.yml"' \
             <<<"$run_json" >/dev/null
-          screenshot_artifact="ios-app-store-live-screenshots-${EXPECTED_ARTIFACT_COMMIT}"
+          screenshot_commit="$(jq -r '.head_sha' <<<"$run_json")"
+          [[ "$screenshot_commit" =~ ^[0-9a-f]{40}$ ]]
+          git merge-base --is-ancestor "$EXPECTED_ARTIFACT_COMMIT" "$screenshot_commit"
+          git merge-base --is-ancestor "$screenshot_commit" "$EXPECTED_COMMIT"
+          screenshot_artifact="ios-app-store-live-screenshots-${screenshot_commit}"
           jq -e \
             --arg screenshot_artifact "$screenshot_artifact" \
             '([.artifacts[] | select(
                 .name == $screenshot_artifact and .expired == false and .size_in_bytes > 0
               )] | length) == 1' \
             <<<"$artifacts_json" >/dev/null
+          printf 'SCREENSHOT_SOURCE_COMMIT=%s\n' "$screenshot_commit" >>"$GITHUB_ENV"
 
-      - name: Download exact-commit App Store screenshots
+      - name: Download capture-commit App Store screenshots
         if: ${{ inputs.mode != 'discover' && inputs.confirm_screenshot_replacement != '' }}
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: ios-app-store-live-screenshots-${{ inputs.expected_artifact_commit }}
+          name: ios-app-store-live-screenshots-${{ env.SCREENSHOT_SOURCE_COMMIT }}
           path: build/app-store-live-screenshots
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
           run-id: ${{ inputs.expected_screenshot_run_id }}
 
-      - name: Verify screenshots came from the exact release commit
+      - name: Verify screenshots came from the capture commit
         if: ${{ inputs.mode != 'discover' && inputs.confirm_screenshot_replacement != '' }}
         env:
-          EXPECTED_ARTIFACT_COMMIT: ${{ inputs.expected_artifact_commit }}
+          SCREENSHOT_SOURCE_COMMIT: ${{ env.SCREENSHOT_SOURCE_COMMIT }}
         run: |
           for family in iphone ipad; do
             python3 scripts/ios_screenshot_tools.py verify-live \
               --directory "build/app-store-live-screenshots/$family" \
-              --expected-commit "$EXPECTED_ARTIFACT_COMMIT"
+              --expected-commit "$SCREENSHOT_SOURCE_COMMIT"
           done
 
       - name: Recheck current main before materializing the API key
@@ -333,6 +343,7 @@ jobs:
           CONFIRM_SUBMIT: ${{ inputs.confirm_submit }}
           EXPECTED_COMMIT: ${{ inputs.expected_commit }}
           EXPECTED_ARTIFACT_COMMIT: ${{ inputs.expected_artifact_commit }}
+          SCREENSHOT_SOURCE_COMMIT: ${{ env.SCREENSHOT_SOURCE_COMMIT }}
           HNS_ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
           HNS_ASC_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
           MODE: ${{ inputs.mode }}
@@ -354,6 +365,7 @@ jobs:
             if [[ -n "$CONFIRM_SCREENSHOT_REPLACEMENT" ]]; then
               arguments+=(
                 --screenshots-dir build/app-store-live-screenshots
+                --expected-screenshot-commit "$SCREENSHOT_SOURCE_COMMIT"
                 --confirm-screenshot-replacement "$CONFIRM_SCREENSHOT_REPLACEMENT"
               )
             fi
