@@ -12,7 +12,7 @@ The proof-backed path does not trust a single peer, a recursive HNS resolver's a
 - DNSSEC validation failure: fail closed.
 - TLSA exists but DANE validation fails: fail closed.
 - ICANN TLSA is derived only after HTTPS/SVCB service-port and protocol selection: TCP uses `_port._tcp.host.`, while HTTP/3 uses `_port._udp.host.`. A DNSSEC-secure TLSA RRset is enforced. Authenticated absence and a proven insecure delegation may select WebPKI; bogus or indeterminate DNSSEC, malformed TLSA, timeout, and resolver errors fail closed instead of becoming absence.
-- Experimental stateless DANE certificate evidence is off by default and retained only as legacy research code. It cannot be combined with the immutable dual-root prepared-plan boundary without adding a second resolution authority. Enabling it on a prepared browser request therefore fails closed before an origin response is exposed; it never falls back to a post-selection live resolver.
+- Experimental stateless DANE certificate evidence is off by default. It cannot be combined with the immutable dual-root prepared-plan boundary without adding a second resolution authority. Enabling it on a prepared browser request therefore fails closed before an origin response is exposed; it never falls back to a post-selection live resolver.
 - Sync stale: block HNS secure state and show a sync-specific browser error.
 - Sync attempts that make no progress must distinguish up-to-date peers from all-peer failure.
 - Raw `bestPeerHeight` and the estimated mainnet tip are diagnostic only.
@@ -112,60 +112,16 @@ The iOS tab surface is metadata-only and count-bounded. It retains no inactive `
 
 ## Native wallet and dormant website-provider boundary
 
-The current local Android/iOS stack links the exact pinned
-`hns-wallet-mobile` controller to app-native create, restore, open, status,
-unlock, lock, one-time recovery, destroy, and single-account controls. Both
-shells compose a wallet-owned direct HNS peer controller for synchronized
-balance, structurally distinct receive targets, history, names, send review and
-broadcast, and closed name/Shakedex actions. Historical HNWR-v1 and current
-HNWR-v2 use separate exact five- and six-field decoders, and native approval and
-result bundles also use closed, bounded schemas. The controller is not a browser
-provider: no wallet secret, action, approval token, or method enters
-WebView/WKWebView. These controls are not in the current public
-Play, GitHub, or App Store binaries; the underlying lifecycle tranche passed its
-fresh-install Android exercise at
-`571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. Historical `0.5.8` source
-`f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI run
-`31402758394` and a fresh Pixel 9 install, and documentation-only descendant
-`ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI run
-`31411048376`; those are historical `0.5.8` results. Historical pre-ECH HNWR-v1
-code-bearing source `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
-`31433931682`, including Android instrumentation and the complete Apple gate.
-Its exact debug APK is artifact `9080493058`, SHA-256
-`7ea4c5b7cb4e2713287bf90794a6bb706311d0bb8fbb7348f94875ce615cc8fb`,
-package `com.denuoweb.hnsdane.debug`, `0.5.9-debug` / code `50`, with
-`arm64-v8a` and `x86_64` and default Android Debug APK-v2 signing. It is not
-store signed. The exact APK installed on a Pixel 9 (`tokay`), Android 17 / API
-37. An incompatible historical code `49` debug signer was rejected before the
-authorized uninstall removed only the debug package/data; production remained
-installed and untouched. The on-device digest matched, cold launch succeeded,
-and the native wallet screen showed the no-wallet controls and fail-closed read
-projection. No wallet, secret, account, credentialed read, or value action ran.
-Signed artifacts, current screenshots, store declaration/upload, installed
-Android send-review qualification, and the physical-iPhone matrix remain
-release gates. The currently reported Android regression is being handled
-without deleting or resetting the existing wallet database.
-
-HNWR configuration is loopback-only and accepts a bounded mutable scoped
-authorization value that is consumed and wiped. Output is bounded and its
-version-specific closed JSON shape, canonical values, exact equal nonzero
-account identities, distinct target purposes, unique transaction/name
-identities, coherent heights, and envelope length are validated before UI
-publication. The product currently creates no such compatibility
-configuration; its shipping wallet reads instead use the separate wallet-owned
-direct coordinator. The browser proxy credential is not reused as wallet
-authority. The app provisions no scoped indexed backend. A pruned indexed/authenticated
-node can return indexed confirmation/history, and an existing wallet may reuse its authenticated
-retained raw bytes. Fresh restore additionally needs archive-capable raw
-transaction bytes or another durable wallet-relevant raw-transaction source
-behind the dedicated scoped loopback gateway. The trusted-native exact-text name
-import uses only that legacy gateway, stays unavailable without it, and never
-enters provider or renderer data. Website-provider and HNSA/HNSR service-role
-gates remain independently false; shipping native value, name, offer, and
-atomic-swap actions do not acquire authority through this compatibility seam.
+Both platform shells expose the pinned wallet controller through native screens.
+Direct peer synchronization supplies authenticated balance, history, names,
+receive targets, reviewed sends, and Shakescape offers. Browser header requests
+reuse live wallet peer sessions while retaining independent validation. Wallet
+reopen continues from authenticated scan coverage. Native results use bounded
+closed schemas, and no wallet action or secret enters page JavaScript.
+Website-provider and HNSA/HNSR service-role gates remain disabled.
 
 The dormant cross-platform HRM/HNSA wallet consumer does not weaken those
-gates. It accepts no raw or legacy authority object and cannot derive service
+gates. It accepts no raw authority object and cannot derive service
 identity from network or renderer input. A future broker must issue an exact
 `hns.named-service/v1` observation and hold its current subject-aggregate or
 fenced lease through the one-shot callback. Platform admission binds that
@@ -219,13 +175,8 @@ synchronization runs off the main actor and stale completion is suppressed.
 Lifecycle callbacks also detach controller and lease authority immediately,
 then serialize native lock/destruction and any incomplete-wallet deletion on a
 background queue. The exact lease remains held until that work finishes, and
-foreground reentry cannot reacquire it early. Historical HNWR-v1 source passed
-its exact Apple app/simulator CI in `31433931682`; that run does not qualify
-HNWR-v2. XCTest covers retirement queue/lease behavior and
-stale-completion publication-authority predicates, not an end-to-end
-credentialed native read in flight. Enabling read configuration still requires
-the missing scoped credential/backend/data boundary, and physical-iPhone
-qualification remains open.
+foreground reentry cannot reacquire it early. Qualify retirement, storage leases,
+and stale-completion suppression on the signed physical iOS candidate.
 
 The website-provider sources remain containment projections. Website schema 1,
 private provider ABI 2, and public approval schema 3 are independent version
@@ -250,7 +201,7 @@ booleans, or page data.
 The P2P DNS relay is an untrusted transport beneath the existing proof-backed
 delegated resolver. Mobile relay consumption is off by default and requires
 explicit requester opt-in, while preserving an independent preference already
-chosen by an existing installation. A legacy compatibility preference is
+chosen by an existing installation. An unsupported compatibility preference is
 revoked and never becomes relay consent. The relay is
 considered only after current locally validated headers and a matching Urkel
 proof have produced an acceptable HNS NS/DS delegation and direct
@@ -405,7 +356,7 @@ does not by itself change peer score or start a cooldown. See
 - No HNS address presence with missing required TLSA may be reclassified as
   authenticated HNS absence; it is a root failure that prevents silent ICANN
   selection.
-- No recursive HNS DoH endpoint may be selected implicitly, inherited from a historical key, contacted while the new setting is blank, bootstrapped through system DNS, or used after bogus DNSSEC, invalid DNS, a DNS response code, or stale/missing HNS proof state. An explicitly configured endpoint is generation-bound and its answers still require local DNSSEC, TLSA, and DANE.
+- No recursive HNS DoH endpoint may be selected implicitly, inherited from a retired setting key, contacted while the new setting is blank, bootstrapped through system DNS, or used after bogus DNSSEC, invalid DNS, a DNS response code, or stale/missing HNS proof state. An explicitly configured endpoint is generation-bound and its answers still require local DNSSEC, TLSA, and DANE.
 - No unbounded or panic-prone X.509 parsing for DANE SPKI selector matching.
 - No QUIC downgrade without an explicit policy event.
 - No local gateway listener beyond loopback and no fixed browser proxy port in normal app startup. Android and iOS intentionally apply the authenticated Rust proxy to their browser data store/WebView without failover to a direct DNS-named origin route. Neither platform keeps a browser proxy listener after its owning foreground browser lifecycle is revoked.
@@ -473,7 +424,7 @@ does not by itself change peer score or start a cooldown. See
   origin-SNI failure. A certificate-association mismatch is marked by the
   verifier and carried through HTTP/1.1, HTTP/2, HTTP/3, and TLS Upgrade as the
   typed DANE failure; that marker alone does not claim origin-SNI failure.
-- No legacy P2P relay status may invent a registry fingerprint or protocol
+- No P2P relay status may invent a registry fingerprint or protocol
   version that was not retained from negotiation. A successful path whose
   exact evidence is unavailable or unrepresentable is reported explicitly as
   canonical-status unavailable.

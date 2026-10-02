@@ -1,15 +1,11 @@
 # Wallet sync patch candidates
 
-The October 1, 2026 wallet release (`aad2a95`) incremented all sixteen
-packages for a peer-quorum change in `hns-wallet-hns` (`b74368f`). New wallet
-releases select one package per upload and use independent package versions.
-
 This cleanup needs two packages:
 
 | Package | Candidate | Reason |
 | --- | --- | --- |
 | `hns-wallet-hns` | 0.4.2 | Idle socket maintenance, public transport sharing, and scan resume |
-| `hns-wallet-market` | 0.4.2 | Existing legacy offer-record compatibility fix (`e35e203`, formatted by `ced7061`) |
+| `hns-wallet-market` | 0.4.2 | Authenticated offer persistence and decoding |
 
 The other fourteen wallet packages remain at 0.4.1. The Android and iOS
 controllers register the same weak public-header transport with the shared
@@ -31,7 +27,7 @@ background; this change does not promise persistent background connectivity.
 Wallet sync prepares the bounded restoration window for a first scan, then
 resumes an authenticated saved scan frontier. An actual missing-watch failure
 can expand coverage and rewind on either platform. New HTLC interests and
-other required historical coverage changes retain their explicit replay path.
+other required coverage changes retain their explicit replay path.
 A saved scan never establishes fresh header agreement by itself.
 
 ## Local qualification
@@ -56,7 +52,7 @@ artifacts against the published checksums. Until that handoff, a fresh normal
 registry-only mobile build cannot resolve the candidates.
 
 Local host Rust checks cover both FFI crates, the shared runtime, real peer
-Ping/Pong and header reuse, scan reopen, and legacy offer decoding. They do
+Ping/Pong and header reuse, scan reopen, and authenticated offer decoding. They do
 not replace device validation of installed Android/iOS builds. Diagnostic
 logs are retained as read-only evidence; wallet data must not be cleared to
 validate scan resume.

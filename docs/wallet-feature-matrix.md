@@ -27,45 +27,11 @@ Website JavaScript has no access to any operation below.
 | Shakescape V1 listener, pair, retry, service, replace, disconnect | Wallet-owned foreground worker with bounded frame bursts and prompt live-session replay | Wallet-owned protected-foreground timer with bounded frame bursts, authenticated-traffic priority, and prompt live-session replay | Exact IP-literal endpoints, bounded transport bundles, replacement/disconnect tests, recent discovered peers, and authenticated public rendezvous compatibility | Final iPhone public-network and lifecycle interruption exercise |
 | Release wallet dashboard | Locked state exposes only Wallet; unlocked state exposes Names, Wallet, Bitcoin, and Shakedex | Locked state exposes only Wallet; unlocked state exposes Names, Wallet, Bitcoin, and Shakedex | The boundary check requires both immutable UI gates to stay equal and enabled; value actions remain disabled until exact native prerequisites are satisfied | Final exact-candidate two-device and physical-iPhone exercises |
 
-## Current send qualification
+## Installed qualification
 
-The 2026-08-25 Pixel 9 exercise proved that review reached native preparation
-and that the app submitted the signed transaction to connected peers. It did
-not prove miner admission: later synchronization classified the transaction as
-dropped/unconfirmed and the wallet rescanned from its block-zero birthday.
-Local mempool presentation therefore remains pending state, not confirmation.
-
-Four later local-main fixes are stacked but not installed in that exercise:
-
-- exact serialized bytes are retained and reused for bounded dropped-send
-  resubmission;
-- an exactly proven internal change-gap extension updates the embedded watch
-  set without discarding authenticated scan coverage or transaction history;
-  and
-- a successful socket write remains a durable `broadcast` submission during a
-  short propagation window. It becomes `mempool` only after a connected peer
-  returns the transaction and `confirmed` only after verified block inclusion.
-  The submitted transaction remains visible from its encrypted workflow while
-  awaiting that peer response; and
-- direct mainnet fee selection now uses the canonical HSD normal-wallet floor
-  of 100,000 dollarydoos per 1,000 policy virtual bytes instead of confusing
-  the 1,000-dollarydoo protocol relay minimum with a miner-targeted estimate.
-  Testnet and regtest retain HSD's 20,000-dollarydoo normal-wallet floor.
-
-The UI describes the entered fee as a cap because raising it does not itself
-set the final fee. For the next single-input mainnet send exercise, use at least
-a 0.05 HNS cap; native preparation still fails closed if the size-derived fee
-would exceed it.
-
-The previously dropped low-fee transaction retains its exact approved bytes
-and remains visible as dropped, but automatic recovery now skips it when those
-bytes no longer satisfy the current wallet fee policy. That incompatibility no
-longer makes every later synchronization fail. Its short input reservation is
-still released by normal reconciliation, allowing a separately reviewed send
-to select the confirmed unspent coin again if peers continue to report the old
-transaction absent.
-
-The send row remains incomplete until an installed build demonstrates no
-unnecessary birthday rescan and the transaction is observed in a verified
-block. The broader goal also remains incomplete until the physical-iPhone and
-controlled name/marketplace device journeys above have evidence.
+Qualify the final signed Android and iOS builds against the feature rows above.
+For a send, verify exact network/account, current chain evidence, amount, fee,
+native review, explicit approval, durable intent, and observed broadcast state.
+A prepared artifact or successful socket write does not prove confirmation.
+Test cancellation, retry, restart, peer failure, and protected-background paths
+without clearing the existing wallet or device diagnostics.

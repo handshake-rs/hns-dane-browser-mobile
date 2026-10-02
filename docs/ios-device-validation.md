@@ -71,54 +71,28 @@ Presenting an unrelated certificate, another host's certificate, or a stopped ge
 
 - Repeat the Android parity cases for GET, POST, uploads, range requests, redirects, cookies, JavaScript fetch/XHR, Service Workers, WebSockets, downloads, HTTP/1.1, HTTP/2, HTTP/3 origin transport, IPv4, and IPv6.
 - Exercise `https://denuoweb/` for proof-anchored authoritative DoH and a second HNS origin whose direct authoritative path is unavailable; verify independently enabled P2P and user-configured recursive recovery paths in their exact order, then verify blank/off recovery fails closed and compare bounded security traces with Android.
-- Verify the strict HNS trust invariant, absence of any implicit/default recursive HNS resolver and HNS WebPKI fallback, independent requester/recovery opt-ins, permanent historical-key tombstoning, endpoint and ICANN-bootstrap validation, terminal bogus/invalid/stale cases, stateless-DANE fail-closed behavior, sync progress, cache clearing, proof details, download handoff, sharing, accessibility labels, and Dynamic Type.
+- Verify the strict HNS trust invariant, absence of any implicit/default recursive HNS resolver and HNS WebPKI fallback, independent requester/recovery opt-ins, generation-bound setting revocation, endpoint and ICANN-bootstrap validation, terminal bogus/invalid/stale cases, stateless-DANE fail-closed behavior, sync progress, cache clearing, proof details, download handoff, sharing, accessibility labels, and Dynamic Type.
 
-### Native non-value wallet
+### Native wallet
 
-The complete simulator gate passed for historical `0.5.8` application source
-`f21bee1c3afccd06604dc99fccb51528e2441055` in Required CI run `31402758394`,
-and documentation-only commit
-`ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed the full matrix again in
-manual run `31411048376`. Those runs predate the HNWR projection. Historical
-code-bearing `0.5.9` source
-`893ba8271787f1ab7247fa78ed8787462b5542fc` passed the complete Apple
-ABI/XCFramework/app/simulator gate and Required CI in run `31433931682`.
-Earlier HNWR-v2 code-bearing source
-`986accb7d86d220af63187031e629a9ce69d71e5` passed the complete Apple gate and
-Required CI in full run `31807520618`; CodeQL runs `31807519998` and
-`31807520229` also passed. That historical evidence predates wallet pin
-`2061a27` and HNWI-v1. Earlier application source
-`adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed the complete manually
-dispatched CI matrix in run `31835813994`, including the complete Apple
-ABI/XCFramework/app/simulator gate and aggregate Required CI; CodeQL runs
-`31833858421` and `31833858650` also passed. Neither the historical nor current
-hosted CI is signed physical-device evidence.
-The following matrix remains an optional installed-iPhone qualification
-activity for the exact `1.0.0` release checkout:
-
-- On a fresh install, open Settings → Handshake wallet and confirm the screen
-  reports no local wallet without announcing a website provider.
-- Create a wallet only while screen capture is inactive. Confirm the recovery
-  phrase appears once, cannot be copied through ordinary controls, and the
-  incomplete database is removed if the app backgrounds before confirmation.
-- After securely recording and confirming the phrase, exercise open, user-
-  presence unlock, one non-value account identity, lock, process restart, and
-  network isolation.
-- Restore on a separate empty network scope and confirm the input and visible
-  recovery text clear when the screen backgrounds or protected data becomes
-  unavailable.
-- Confirm strict balance, payment-receive, name-transfer-receive, history,
-  tracked-name, and module rows remain visibly unavailable because no scoped
-  credential/backend is installed. There
-  Confirm the exact-text name-import control is visibly unavailable for the same
-  missing backend and cannot be invoked. There is no send/value,
-  website-provider, settlement, exchange, HNSA/HNSR, or P2P-marketplace control.
-- Exercise background/close while a deliberately delayed native read holds the
-  controller and prove lifecycle teardown never blocks the main actor before any
-  read configuration is enabled in the product.
-- Record the Swift/UIKit managed-text limitation: app-owned mutable buffers are
-  wiped and fields are cleared, but deterministic zeroization of framework-
-  managed recovery text is not claimed.
+- Create and restore within the selected network scope. Confirm one-time recovery
+  display, protected input, incomplete-wallet cleanup, and native unlock/lock.
+- Open an existing wallet and confirm its saved scan resumes without replaying
+  completed coverage. Verify actual missing coverage triggers the bounded
+  expansion and recovery path.
+- Exercise balance, receive/QR, history, tracked names, and exact-text import
+  only after fresh verified synchronization. Confirm queued callbacks cannot
+  update a retired wallet controller.
+- Review an HNS and Bitcoin send, cancel a review, approve exact terms, and
+  verify durable broadcast/recovery without repeating an approved spend.
+- Exercise a bilateral BTC/HNS swap through restart, protected-data loss,
+  resumption, and refund conditions. Confirm peer messages never replace local
+  chain evidence or native approval.
+- Background or close while a delayed native scan owns the controller. Confirm
+  immediate authority revocation and teardown off the main actor.
+- Confirm website content cannot obtain wallet methods, secrets, or approvals.
+- Clear app-owned mutable recovery buffers and fields on retirement. Do not
+  claim deterministic zeroization of UIKit-managed text.
 
 ## Apple References
 

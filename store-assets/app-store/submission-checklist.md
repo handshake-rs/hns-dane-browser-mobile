@@ -1,39 +1,41 @@
 # App Store submission checklist
 
-Candidate: iOS `1.0.12`, build `75`, `com.denuoweb.hnsdane.ios`, iPhone/iPad,
-compatible Apple-silicon Macs, Free,
-automatic release after approval.
+Candidate: iOS `1.0.13`, build `76`, `com.denuoweb.hnsdane.ios`, iPhone/iPad
+and compatible Apple-silicon Macs. Read the configured release mode and live
+App Store Connect state before submission.
 
 ## Source and artifact
 
-- [x] Increment every iOS candidate, metadata, test, and workflow version surface to `1.0.12` / build `75` while retaining the independently versioned Android and Rust releases.
-- [ ] Read back App Store Connect before replacement and withdraw or supersede
-  the attached `1.0.10` / build `73` submission only if its live state requires it.
-- [x] Keep the rejected/unapproved `com.apple.developer.web-browser` capability out of this candidate while registering `http`/`https` and directly handling incoming targets for the renewed request.
-- [x] Keep `com.apple.developer.browser.app-installation` absent until Apple approves it; exact `marketplace-kit` navigation now remains in WebKit for MarketplaceKit validation.
-- [ ] Push the exact candidate and require all repository, Rust, Android, Apple, Required CI, and CodeQL gates to pass.
-- [ ] Build and sign the IPA from that exact commit; record its digest, identity, signing, encryption declaration, and processing state.
-- [ ] Confirm the selected App Store Connect build is `VALID` and unexpired.
+- [ ] Verify every candidate version/build surface with the source validator.
+- [ ] Qualify the exact source with the Rust, Android, Apple, and security gates.
+- [ ] Build and verify the signed IPA's digest, identity, signing, encryption
+  declaration, and processing state against that source.
+- [ ] Verify the selected App Store Connect build is `VALID` and unexpired.
+- [ ] Verify that only approved entitlements are present in the signed artifact.
 
 ## Listing and privacy
 
-- [x] Describe the native noncustodial HNS wallet, direct peer synchronization, receive/QR, guarded send, and protected deletion.
-- [x] State that websites cannot access the wallet; disclose supported name operations and capability-gated native Shakedex and Bitcoin controls.
-- [x] Use `https://shakescape.com/` for product/support and `https://shakescape.com/privacy/` for privacy.
-- [x] Explain that camera access is user-initiated and QR data is processed on-device.
-- [ ] Reconcile App Privacy, unrestricted web access, financial-feature/category, content-rights, export, DSA/trader, price, availability, and routing answers against the exact binary.
+- [ ] Describe native HNS/Bitcoin synchronization, receive/QR, approved sends,
+  names, Shakescape offers, swap recovery, and protected wallet deletion.
+- [ ] State that websites cannot access wallet authority or secrets.
+- [ ] Use `https://shakescape.com/` for product/support and
+  `https://shakescape.com/privacy/` for privacy.
+- [ ] Explain user-initiated camera QR processing on device.
+- [ ] Reconcile privacy, web access, financial-feature/category, content-rights,
+  export, trader, price, availability, and routing answers with the exact binary.
 
 ## Screenshots
 
-- [ ] Replace the retained historical screenshots with exact-commit iPhone and iPad captures of the current UI.
-- [ ] Show the native wallet entry without any recovery phrase, account identifier, address, balance, or transaction identifier.
-- [ ] Use accepted 6.5-inch iPhone and 13-inch iPad resolutions with no alpha channel.
-- [ ] Run `python3 store-assets/app-store/validate.py --expected-commit SHA` successfully.
+- [ ] Capture and validate current iPhone and iPad screenshots from that source.
+- [ ] Show wallet onboarding without a recovery phrase, account identifier,
+  address, balance, or transaction identifier.
+- [ ] Validate accepted dimensions and opaque images.
+- [ ] Run `python3 store-assets/app-store/validate.py --expected-commit SHA`.
 
 ## Review and release
 
-- [ ] Paste the reviewed metadata and review notes and provide a real review contact.
-- [ ] Read back metadata, questionnaire answers, screenshots, review details, version, and build relationship.
-- [ ] Confirm **Make this app available on Mac** remains enabled in App Store Connect.
-- [ ] Attach everything to the same versioned commit and verify automatic release after approval.
-- [ ] Intentionally submit only after all gates above pass and archive the final readback.
+- [ ] Provide reviewed metadata, review notes, and complete private contact details.
+- [ ] Read back screenshots, metadata, declarations, version, and selected build.
+- [ ] Verify supported device families and the intended release mode.
+- [ ] Submit only after all required gates pass and submission is authorized.
+- [ ] Read back the resulting submission state before reporting delivery.

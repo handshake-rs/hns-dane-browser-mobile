@@ -1,8 +1,7 @@
 # App Store metadata
 
 This directory contains the reviewed listing source for iOS `1.0.13` / build
-`76`, bundle ID `com.denuoweb.hnsdane.ios`. The preceding iOS release and its
-screenshots predate this candidate and are not evidence for it.
+`76`, bundle ID `com.denuoweb.hnsdane.ios`. Validate screenshots and signed artifacts against this exact candidate.
 
 - Version: `1.0.13`
 - Build: `76`
@@ -31,9 +30,8 @@ Canonical metadata files are the text files in `en-US/`. Product, support, and
 privacy URLs must use `https://shakescape.com/`; `review-notes.txt` must explain
 the native wallet and camera QR flow accurately.
 
-The legacy screenshots under `../screenshots/en-US/` are retained historical
-iPhone-only assets. Generate fresh exact-commit iPhone and iPad sets after the
-final version increment, then run:
+Generate exact-commit iPhone and iPad screenshots after the final version
+increment, then validate and stage them:
 
 ```sh
 python3 store-assets/app-store/validate.py --metadata-only

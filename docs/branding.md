@@ -1,7 +1,5 @@
 # Shakescape Brand Guide
 
-Updated: 2026-08-20
-
 ## Public identity
 
 **Shakescape** is the public product name on Android, iOS, browser-extension
@@ -10,10 +8,9 @@ surfaces, current store listings, and customer-facing documentation.
 Use **Shakescape Wallet** for the website-provider display label and
 **Shakescape Setup** for the desktop setup application's visible name.
 
-The rebrand does not change compatibility-sensitive identifiers. Existing
-application IDs, bundle IDs, source packages, project and target names,
-repository URLs, website slugs, storage paths, native-host IDs, provider IDs,
-binary names, archive names, and local certificate identities remain stable.
+Application IDs, bundle IDs, source packages, storage paths, native-host IDs,
+and certificate identities are stable contracts and require explicit coordinated
+changes independently of visible product naming.
 
 ## Visual system
 

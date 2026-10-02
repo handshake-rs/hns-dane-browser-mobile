@@ -27,23 +27,11 @@ execution, and protected deletion. Websites have no wallet-provider access.
 - Expected upload artifact:
   `dist/play-store/hns-dane-browser-v1.0.13-play-upload-signed.aab`
 
-Six phone screenshots were refreshed on a Pixel 9 at 1080 x 2424 from the
-prior `1.0.2-debug` / code `54` application. They cover the Shakescape ICANN
-site, the proof-backed `shakescape/` HNS site, browser navigation, Handshake
-settings, build diagnostics, and a verified HNS proof. The older local-start
-and locked-wallet captures are intentionally excluded from the canonical
-listing set. The screenshots are listing source only and are not evidence that
-the release APK or Play-signed AAB has passed release signing or
-installed-device gates.
+Capture screenshots from the exact shipping candidate. Review browser navigation,
+Handshake settings, proof details, and wallet onboarding without exposing secrets
+or user identifiers. Verify the signed AAB independently before any upload.
 
-The 144,692,488-byte, three-ABI signed AAB passed the protected bundle gate and
-has SHA-256
-`9ac5e6a89442c52c9bc598535bb5abda83a3ea17d3a345f562abf75738856dfe`.
-Android Publisher edit `04351495318173077620` replaced the live en-US phone
-screenshot inventory with these six canonical images, and a fresh edit read
-back exactly six. Play Console Data safety, financial-feature answers, the
-foreground `dataSync` declaration, and listing text remain independently
-reviewable in Play Console. Android Publisher edit `07303019632521856332`
-uploaded code `55`, assigned it to production with status `completed`, and
-committed successfully without replacing listing assets. A post-commit
-`generatedApks/55` request returned HTTP `200`.
+Reconcile Data safety, financial-feature answers, foreground `dataSync`, and
+listing text with the shipping implementation and saved Play Console answers.
+After an authorized upload, read back version code, track, release status, and
+asset inventory through a fresh store query.

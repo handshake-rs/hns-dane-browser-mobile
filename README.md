@@ -8,7 +8,7 @@ wallet, and direct peer-to-peer ShakeDex name and HNS/BTC swap workflows.
 - [Google Play](https://play.google.com/store/apps/details?id=com.denuoweb.hnsdane)
 - [Apple App Store](https://apps.apple.com/us/app/hns-dane-browser/id6791914326)
 
-The 1.0.12 release source is Android code `64` and iOS build `75`. iOS
+The configured 1.0.13 source uses Android code `65` and iOS build `76`. iOS
 distribution follows Apple approval through the App Store. The repository’s
 embedded Rust workspace is private to the application and is not published as
 a crate.
@@ -127,17 +127,17 @@ Repository layout:
 - `android/` — Kotlin browser and native wallet application.
 - `ios/` — Swift/UIKit and `WKWebView` application.
 - `docs/` — architecture, security, release, device-validation, sync, and
-  feature-matrix evidence.
+  feature-matrix guidance.
 - `fixtures/` — bounded cross-language protocol fixtures.
 - `scripts/` — validation, native builds, store upload, and release helpers.
 
 The application consumes protocol code from `hns-rs`, browser/light-client
 code from `hns-dane-engine`, and wallet code from `hns-wallet-rs`. Current
-repository source pins the checksum-bearing registry cohorts `hns-rs 0.5.0`,
-engine mobile-wallet `0.2.6`, and wallet `0.4.0`. The app version is
-`1.0.12`; exact
-source and checksum provenance is recorded in
-[the released dependency cohort](docs/released-dependency-cohort.md).
+repository source selects protocol `0.5.0`, engine light-client `0.2.6`,
+wallet API packages `0.4.1`, and HNS/marketplace `0.4.2` source candidates.
+Platform application versions are `1.0.13`; the Rust runtime is `1.0.2`.
+[Dependency requirements](docs/released-dependency-cohort.md) and
+[release readiness](docs/release-readiness.md) define the delivery gates.
 
 ## Security boundaries
 

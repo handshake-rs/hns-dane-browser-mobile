@@ -11,31 +11,11 @@ The committed application identity is:
 - Current release candidate: `1.0.13` (`76`); upload and review submission pending fresh screenshots
 - Device families: iPhone and iPad; compatible iOS-on-Apple-silicon-Mac use is permitted by the target
 
-Build `75` includes the redesigned Wallet overview and focused Names, Bitcoin,
-and ShakeDex flows. It consumes the published `hns-wallet-rs 0.4.0` crate cohort,
-including the HNS sync retry and guarded name/swap settlement fixes. Android
-verified that a wallet progressed from birthday block 349,207 to a verified
-snapshot at 349,324. That Android observation does not qualify the Apple build:
-its exact source passed the protected Apple gate before upload. The existing
-App Store screenshots were retained: the replacement capture timed out waiting
-for current Handshake headers after its only attempted CI simulator peer failed.
-The qualified fallback [upload run](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/36873286693)
-signed and uploaded build `75` from source
-`bb29154c4e9586d5d932ea009846bcc2410bac15`. Its retained IPA is 82,208,076
-bytes with SHA-256 `fbe1a8a32f52bd0b37eeb2a08cd72f173271417744a8616c6cd00cfcc6c4da11`.
-App Store Connect reported the build `VALID`; the
-[submission run](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/36878254671)
-verified version metadata and entered `WAITING_FOR_REVIEW`. The
-[release-policy readback](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/36879071378)
-confirmed `AFTER_APPROVAL`. That submission was later withdrawn because the
-carried-forward screenshots showed the outdated omnibar; build `75` remains
-`VALID`, and the `1.0.13` update is awaiting new screenshots and upload.
-
-Website-provider and HNSA/HNSR service roles remain unavailable. Native wallet
-send, name, and swap actions require their existing sync and user-approval gates.
-The unapproved default-browser and MarketplaceKit app-installation entitlements
-remain absent. A physical-iPhone repetition can be recorded separately in
-`docs/ios-device-validation.md`.
+Native send, name, and swap actions require verified synchronization and
+user approval. Website-provider and HNSA/HNSR service roles are unavailable.
+The target omits default-browser and MarketplaceKit installation entitlements.
+Qualify the selected source using [release readiness](release-readiness.md)
+and the [device procedure](ios-device-validation.md).
 
 ## One-time Apple setup
 
@@ -47,7 +27,7 @@ remain absent. A physical-iPhone repetition can be recorded separately in
    this account-level switch must still be read back before submission.
 3. In App Store Connect **Users and Access → Integrations → App Store Connect API**, enable API access if needed and create a **team** API key for CI.
 4. Download the `.p8` private key once. Record its 10-character Key ID and issuer UUID. Never commit the key, attach it to an issue, paste it into chat, or publish it as a workflow artifact.
-5. Create an Apple Distribution certificate and an App Store provisioning profile for the explicit App ID. Export the certificate and private key as a password-protected `.p12` that macOS Keychain can import. Use Keychain Access, or OpenSSL 3's legacy-compatible PKCS#12 export mode instead of its default PBES2/AES encoding. App Store profiles contain no registered devices, so this setup does not require an iPhone.
+5. Create an Apple Distribution certificate and an App Store provisioning profile for the explicit App ID. Export the certificate and private key as a password-protected `.p12` that macOS Keychain can import. Use Keychain Access, or a PKCS#12 export format supported by the macOS Keychain importer. App Store profiles contain no registered devices, so this setup does not require an iPhone.
 
 Apple's export-compliance questionnaire must be completed deliberately. The app embeds Rust implementations of industry-standard TLS, DNSSEC, and DANE cryptography rather than limiting encryption to Apple's operating-system APIs, so the answer and any required documentation must come from App Store Connect's current questionnaire.
 
@@ -128,6 +108,10 @@ The workflow then:
 
 ## Apply metadata and submit through the API
 
+Set `review_contact_source_version` to an approved App Store version with complete
+private review contact details. Verify that reference through App Store Connect
+before dispatching; the workflow copies the contact without printing it.
+
 After the upload run succeeds and build `75` finishes processing, use the
 separate protected workflow. Its default `discover` mode performs authenticated
 GET requests only. Pin both the exact current `main` automation commit and the
@@ -151,7 +135,7 @@ gh workflow run ios-app-store-submit.yml \
   -f expected_commit="$expected_commit" \
   -f expected_artifact_commit="$artifact_commit" \
   -f mode=discover \
-  -f review_contact_source_version=1.0.4 \
+  -f review_contact_source_version="$review_contact_source_version" \
   -f confirm_account_readiness=false
 ```
 
@@ -170,7 +154,7 @@ gh workflow run ios-app-store-submit.yml \
   -f expected_artifact_commit="$artifact_commit" \
   -f expected_upload_run_id="$upload_run_id" \
   -f mode=submit \
-  -f review_contact_source_version=1.0.4 \
+  -f review_contact_source_version="$review_contact_source_version" \
   -f confirm_metadata=APPLY_METADATA_1.0.13_76 \
   -f confirm_submit=SUBMIT_FOR_REVIEW_1.0.13_76 \
   -f confirm_account_readiness=true
@@ -187,13 +171,12 @@ gh workflow run ios-app-store-submit.yml \
   -f expected_artifact_commit="$artifact_commit" \
   -f expected_upload_run_id="$upload_run_id" \
   -f mode=auto-release \
-  -f review_contact_source_version=1.0.4 \
+  -f review_contact_source_version="$review_contact_source_version" \
   -f confirm_auto_release=SET_AUTO_RELEASE_1.0.13_76 \
   -f confirm_account_readiness=true
 ```
 
-The `1.0.13` submission requires new screenshots because the previous set
-shows an outdated omnibar. Capture the shipping Release runtime from the exact
+The `1.0.13` submission requires screenshots from its exact candidate. Capture the shipping Release runtime from the exact
 artifact commit, review the resulting iPhone and iPad images, and pass the
 successful screenshot run ID with
 `-f confirm_screenshot_replacement=REPLACE_SCREENSHOTS_1.0.13_76` in the
@@ -204,96 +187,12 @@ completed an HNS navigation while that network blocks outbound TCP 12038.
 
 If the exact build is not yet `VALID`, the workflow fails closed before
 submission and can be rerun after processing. It copies the private review
-contact fields from the preceding `1.0.4` version only if they are
+contact fields from the configured reference version only if they are
 complete; it never prints them. App/account-level declarations that the API
 client deliberately does not mutate must be retained as separate readback
 evidence.
 
-Apple associates the uploaded build with the app record using its bundle ID,
-version, and build number. Build `49` is superseded. Builds `50`–`56` were not
-uploaded; their live runs identified and
-closed provisional-connection recovery, factual readiness, superseded
-navigation, and compressed negative-evidence timing gaps. Build `57` expands
-the permitted compressed negative-evidence names, samples freshness after root
-resolution, keeps semantic Proof Details selection stable during sync polling,
-and forces an origin revalidation when a cached main frame has no new Rust
-status. Exact-head Apple CI run `30454904736` and live Release screenshot run
-`30454926117` passed at
-`d926561091634cd69fc9b7e79a4b76003fa4ee47`; the four-image provenance records
-current headers, DANE-verified HNS, same-navigation Proof Details, and
-authenticated ICANN WebPKI. Protected upload run `30456522039` then passed its
-complete unsigned gate, signed and uploaded build `57`, and retained artifact
-`8726372341`. The verified IPA is 47,930,601 bytes with SHA-256
-`efea01f912035d0e2cde880a59cbe9e5b2e3f546e781fa5d9606942629225345`;
-its bundle ID, version/build, historical iPhone-only family, App Store profile, disabled
-debug entitlement, icon, and encryption declaration all match the release.
-Public GitHub Release `v0.5.5` publishes that exact IPA as asset `494101433`
-beside the verified code 46 APK.
-
-Build `72` was a historical candidate. Historical HNWR application-source CI,
-CodeQL, lockfile/notices, and the complete Apple app/simulator gate remain
-retained historical evidence. The earlier HNWR-v2 code-bearing source
-`986accb7d86d220af63187031e629a9ce69d71e5` passed its own complete platform
-matrix in run `31807520618`. Earlier application source
-`adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed the complete manually
-dispatched Rust, Android, Apple, and Required CI matrix in run `31835813994`;
-CodeQL runs `31833858421` and `31833858650` also passed. This is exact-source
-build, test, and static-analysis evidence only, not a signed product, screenshot
-set, store declaration/readback, upload/submission, or physical-iPhone result.
-For build `75`, the protected upload workflow passed the complete exact-checkout
-gate before credential materialization. The attempted live screenshot capture
-failed because its CI simulator could not establish a current Handshake header
-sync; [diagnostics](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/36859077111)
-were retained. A second run reused the successful gate and preserved the
-existing App Store screenshots. Its signed IPA provenance and App Store Connect
-readback are recorded above. App Privacy and category declarations still require
-periodic live reconciliation outside the guarded version-metadata client.
-
-The same protected run completed successfully and retained repeat live-capture
-artifact `8727084963` as corroborating workflow evidence. It is not the staged
-or submitted set: the reviewed App Store images remain the cleaner
-single-attempt captures from run `30454926117`.
-
-Build `57` declares `ITSAppUsesNonExemptEncryption = false` because the build
-uses only industry-standard cryptography and excludes France from
-App Store availability. Do not add an export-compliance code to this build.
-Before enabling France, complete the French encryption declaration; after
-Apple approves it, add the supplied export-compliance code to the next build.
-
-## Release gate after upload
-
-For `1.0.4`, protected upload workflow
-[`33714480005`](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/33714480005)
-passed the complete fresh Apple gate, signed and uploaded replacement build
-`65`, and retained the IPA artifact. App Store Connect subsequently reported
-the build `VALID`. Protected submission workflow
-[`33717460159`](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/33717460159)
-reconciled version metadata, selected build `65`, preserved the existing
-screenshots, and submitted the update after build `64` was withdrawn. The
-readback at that time reported `WAITING_FOR_REVIEW`, `releaseType=MANUAL`, and
-`reviewType=APP_STORE`; that is historical evidence and does not describe the
-current `1.0.13` / build `76` candidate.
-
-The `0.5.5` version-managed metadata, current iPhone screenshots, App Review
-details, content-rights declaration, and build `57` were reconciled through
-App Store Connect and passed API readback. The aligned hosted privacy policy
-was verified separately; app/account-level privacy, age-rating, DSA, pricing,
-availability, and routing fields were not managed or read by the guarded
-client. The version has `releaseType=MANUAL` and `reviewType=APP_STORE`; the
-direct submission entered
-`WAITING_FOR_REVIEW` on 2026-07-29. The upload and submission paths did not
-create TestFlight groups or distribute the build to testers.
-
-Apple published `1.0.3` on 2026-09-02. Apple's public lookup reports it as the
-current version. Earlier `0.5.5` review and manual-release values are retained
-as historical upload chronology, not current availability.
-
-Owning an iPhone is not required to archive, sign, upload, or submit. An
-independently installed signed build may be exercised on a real iPhone in a
-future qualification cycle, but no TestFlight distribution is part of this
-release.
-That absence does not block App Store submission, though installed-iOS and
-ecosystem qualification remain open; record the matrix from
-`docs/ios-device-validation.md` when completed. MacInCloud is only a fallback if
-an account-specific problem cannot be resolved through the developer portals
-and GitHub Actions logs.
+After upload, read back the bundle ID, version, build number, processing state,
+screenshot families, and selected review build. Apply submission or automatic
+release only through the guarded workflow after the candidate's required gates
+and account declarations are verified.

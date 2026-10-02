@@ -35,8 +35,7 @@ android_expected_files=(
   "store-assets/play-store/metadata/README.md"
   "store-assets/play-store/metadata/en-US/release-notes.txt"
   "docs/play-store-readiness.md"
-  "docs/production-readiness-audit.md"
-  "docs/supply-chain-audit.md"
+  "docs/release-readiness.md"
   "$diagnostic_test"
 )
 

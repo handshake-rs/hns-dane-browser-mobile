@@ -1,127 +1,18 @@
 # Mobile native wallet and website-provider boundary
 
-This checkout contains two deliberately separate surfaces:
+Both platform shells use the pinned `hns-wallet-mobile` controller for create,
+restore, open, unlock, lock, recovery, and a single local Handshake account.
+Native screens expose synchronized balance, receive targets, history, names,
+reviewed sends, and Shakescape pairing and offers. The browser reuses the
+wallet's live peer transport while independently validating its headers and
+proofs. Wallet loading resumes from authenticated scan coverage; expanded
+watch sets use the explicit discovery path.
 
-- Android and iOS app-native wallet controls backed by the published,
-  checksum-bearing `hns-wallet-mobile 0.3.1` release; and
-- a website-facing wallet-provider projection that remains dormant and cannot
-  mutate WebView or WKWebView.
+The confirmed balance, pending outgoing amount, and available balance are
+separate integer values. Send approvals bind the exact transaction and fee.
+Native controls and wallet authority never enter page JavaScript.
 
-That wallet release consumes the reviewed `hns-rs 0.5.0` graph and the coherent
-engine light-client `0.2.6` release cohort. The lockfile and generated
-notices bind the complete protocol → wallet chain;
-[released-dependency-cohort.md](released-dependency-cohort.md) records the
-published registry checksums.
-
-The configured Android `1.0.11` candidate is code `63`, with embedded Rust `1.0.2`,
-and the configured iOS `1.0.11` candidate is build `74`. Historical `0.5.8` application source
-`f21bee1c3afccd06604dc99fccb51528e2441055` passed exact Required CI run
-`31402758394`, including Android build/unit/native instrumentation,
-Rust/supply-chain, and the complete Apple
-ABI/XCFramework/app/simulator gate, after the underlying native-wallet tranche
-passed a fresh-install Pixel 9 lifecycle exercise. Documentation-only descendant
-`ce9c09a40117142d3a26ff1196c2dec3f5e06139` then passed the same full matrix in
-manual CI run `31411048376`. That evidence predates the HNWR read projection and
-remains historical. Historical HNWR-v1 code-bearing `0.5.9` source
-`893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
-`31433931682`, including its HNWR-v1 Android and complete Apple gates.
-Earlier HNWR-v2 code-bearing source
-`986accb7d86d220af63187031e629a9ce69d71e5` passed full CI
-`31807520618`, including repository policy, Rust/supply-chain, Android
-build/unit, API 37 native instrumentation, the complete Apple
-ABI/XCFramework/app/simulator gate, and Required CI. CodeQL runs `31807519998`
-and `31807520229` also passed. Earlier application source
-`adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed the complete manually
-dispatched CI matrix in run `31835813994`: repository policy,
-Rust/supply-chain, Android build/unit, API 37 native-runtime instrumentation,
-the complete Apple ABI/XCFramework/app/simulator gate, and aggregate Required
-CI all succeeded. CodeQL runs `31833858421` and `31833858650` also passed.
-Historical debug artifact `9222123624` has artifact-archive SHA-256
-`0c057ba339b64401671e406a3fd9015e254444d4c4b5ac051578819415a8081c`, expires
-2026-08-17, and is debug-only rather than store signed.
-Exact debug APK artifact `9080493058` has SHA-256
-`7ea4c5b7cb4e2713287bf90794a6bb706311d0bb8fbb7348f94875ce615cc8fb`;
-inspection confirms `com.denuoweb.hnsdane.debug`, `0.5.9-debug` / code `50`,
-minimum API 30, target API 37, `arm64-v8a` + `x86_64`, and default Android
-Debug APK-v2 signing.
-It is not store signed. The exact APK installed and cold-launched on a Pixel 9
-(`tokay`), Android 17 / API 37. The incompatible historical code `49` debug
-update failed safely; the authorized reinstall removed only the debug
-package/data and left production installed and untouched. The on-device digest
-matched. `WalletActivity` showed the no-wallet controls and fail-closed read
-projection with disabled value/marketplace copy. No wallet was created/restored
-and no secret, account, credentialed sync, or value action ran. Signing, fresh
-commit-bound screenshots, store declaration/readback and submission,
-credentialed wallet qualification, and the physical-iPhone matrix remain open.
-
-The public Google Play `0.5.6` / code `47`, GitHub Android `0.5.7` / code `48`,
-and App Store `0.5.5` / build `57` binaries predate the native controller and
-remain historical wallet-free releases.
-
-## Native app controls in the current local main stack
-
-Both platform shells now link a narrow native controller for:
-
-- create and one-time recovery display;
-- restore from a recovery phrase;
-- open, status, unlock, lock, and controller destruction;
-- exactly one local Handshake account identity;
-- a strict native projection and UI for synchronized HNS balance,
-  one account-zero payment/name receive target, transaction history,
-  tracked names, and module status;
-- a wallet-owned direct HNS peer path for synchronization, local receive
-  derivation, exact send review/reject/approval/broadcast, and rollback-floor
-  journaling; and
-- closed native name transfer/finalization and Shakedex offer/purchase actions
-  with exact local approval summaries and bounded result decoding.
-
-The direct path publishes wallet state only after verified peer agreement and
-keeps partial catch-up distinct from a spendable snapshot. It does not require
-the older scoped-loopback credential/indexed backend. Android and iOS also
-expose a wallet-owned Shakescape V1 listener, explicit IP-literal pairing,
-bounded peer servicing, replacement, and disconnect. iOS declares the local
-network purpose required by the platform and services the transport only while
-the protected foreground wallet owns authority. Exact-text name import uses
-verified direct name-proof synchronization when the direct value controller is
-active; the older loopback implementation remains a compatibility path.
-
-None of these controls is connected to page JavaScript. No website provider is
-installed or announced, and no page can invoke a native action. Active HNSA or
-HNSR authority and mainnet cross-chain settlement remain disabled. The current
-direct-wallet stack is unreleased and still requires the full Apple
-build/simulator/physical-device matrix and broader signed Android release
-qualification.
-
-Android send review and peer submission were exercised on a Pixel 9 on
-2026-08-25 against exact installed source `2156746`. The signer-matched ARM64 debug APK
-updated `com.denuoweb.hnsdane.debug` in place without changing its original
-first-install time or package sandbox. The retained log sequence showed a
-verified snapshot at height `344267`, preparation of one one-time send
-approval, no process restart, no native exception, no rollback-floor error,
-and no immediate zero-height rescan. The device then reported peer submission
-and a post-broadcast snapshot refresh, but later synchronization classified the
-transaction as dropped/unconfirmed after another birthday rescan. The displayed
-local mempool state did not prove remote miner admission, so this is not a
-successful-send qualification. The mobile stack now pins exact-byte
-dropped-send resubmission plus a forward-only internal-change watch-set update
-that preserves verified scan coverage and transaction history. Installed-device
-confirmation of both fixes remains open.
-
-That test also exposed a presentation defect: the native `balance` field is a
-confirmed-chain coin total, so it remains unchanged while an outgoing
-transaction is only in the mempool. Calling that value “confirmed spendable”
-overstated immediately available funds even though the native value workflow
-still fences the pending spend. Source `fd34715` fixes both platform shells by
-deriving pending outgoing value from the same strict transaction snapshot and
-showing confirmed-on-chain, pending-outgoing, and available-after-pending
-amounts separately with exact integer arithmetic. Once the transaction is
-confirmed and synchronized, its negative effect moves into the confirmed
-chain balance and is no longer subtracted a second time. The same source also
-fixes iOS receive copying so UIKit places only the raw native-validated payment
-or name-transfer target on the local pasteboard, never its heading or
-derivation metadata. These `fd34715` changes passed Android debug unit tests,
-the portable runtime-boundary audit, and the 17-test Apple C-ABI/export gate;
-the complete Xcode/UIKit test gate remains open.
+## Platform storage and lifecycle
 
 Android uses a non-exported `WalletActivity`, a narrow JNI bridge, bounded
 monotonic native handles, and `AndroidWalletKeyStore`. The 32-byte database key
@@ -157,7 +48,7 @@ New-wallet creation does not ask the user to invent a birthday. Android and
 iOS automatically persist the independently validated bundled snapshot height
 for mainnet creation and retain block 0 for testnet/regtest, where no equivalent
 bundled snapshot is installed. Restore remains the only flow with a
-user-supplied birthday because an existing seed can have historical activity.
+user-supplied birthday because an existing seed can have earlier activity.
 
 iOS uses `RustNativeWallet`, the stable Apple C ABI, a native
 `WalletViewController`, and `WalletKeychainStore`. The create-only 32-byte
@@ -192,38 +83,17 @@ catch-up is reported separately from a complete spendable snapshot. Android
 and iOS require the exact current wallet identity, storage lease, lifecycle
 authority, and operation generation before publishing direct-wallet output.
 
-The older scoped-loopback boundary remains available for compatibility.
-Trusted exact-text name import can also use the direct wallet: both native ABIs
-first acquire the exact verified name proof from the direct coordinator and
-then commit the canonical import through the same bounded mobile controller.
+Both native ABIs import exact-text names by acquiring a verified proof from the
+direct coordinator and committing the canonical import through the mobile
+controller. Android uses bounded HNWR-v3 results and HNWP-v1 pages of at most 64
+names; the UI renders 20 names per page. iOS uses its bounded HNWR-v2 projection.
+Each decoder validates exact fields, account identity, purpose, ordering,
+canonical values, coherent heights, and output bounds before publication.
 
-The Rust JNI and Apple C ABI compose
-`MobileHnsReadController<HnsNodeRpcBackend>` only after an already durable wallet
-is reopened. Configuration accepts one nonzero IPv4 loopback port plus a bounded
-mutable authorization value; remote host, URL, and proxy inputs do not exist.
-The authorization buffer is consumed and wiped. A successful synchronization
-returns one bounded read envelope carrying strict JSON for balance, one
-account-zero ordinary-payment/name receive target, transaction history, known
-names, and coherent tip-bound module status. Android HNWR-v3 carries only the
-first authenticated name page plus `knownNameCount` and
-`knownNamesComplete`; subsequent HNWP-v1 pages contain at most 64 names and are
-read from the controller's retained authenticated result without synchronizing
-again. The Android UI renders only 20 names per page. It can therefore retain
-and page thousands of discovered names without serializing or rendering the
-whole collection in one snapshot. iOS remains on HNWR-v2 in this tranche.
-Both platforms preserve HNWR-v1 as its exact historical five-field shape and
-reject cross-version shapes, malformed headers, unknown fields, unequal or zero
-target accounts, conflated targets, duplicate identities, noncanonical values,
-inconsistent heights, and oversized output before UI publication.
-
-Neither application silently reuses the browser's ordinary authenticated proxy
-as wallet authority. A pruned node with wallet indexing and
-scoped RPC authentication can serve indexed confirmation/history and
-authenticated raw bytes retained by an existing wallet. Fresh restore
-additionally needs archive-capable raw transaction bytes or another durable
-wallet-relevant raw-transaction source behind the dedicated scoped loopback
-gateway. This backend is not provisioned by the current product; that does not
-disable the separately composed direct-wallet path. Known names remain
+The browser proxy does not grant wallet authority. Direct wallet scanning
+verifies canonical blocks from ordinary peers and does not require a scoped
+indexed RPC backend.
+Known names remain
 unchanged until verified direct scanning or a successful trusted-native import
 commits canonical evidence.
 
@@ -255,18 +125,9 @@ service: actual process suspension
 can pause both networking and UI polling. On process resume, the worker
 continues and the screen reconnects to its process-owned progress; after
 termination, the next operation resumes from the durable direct-HNS checkpoint
-and monotonic floor journal. Earlier source
-`986accb7d86d220af63187031e629a9ce69d71e5` passed its exact Apple
-app/simulator CI in `31807520618`. Earlier application source
-`adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed the complete manually
-dispatched CI matrix, including the full Apple gate and aggregate Required CI,
-in run `31835813994`; CodeQL runs `31833858421` and `31833858650` also passed.
-XCTest covers the retirement queue/lease behavior and stale-completion
-publication-authority predicates. New closed direct send/name/Shakedex decoders
-have source tests, while an exact current Xcode run and physical-iPhone
-qualification remain open. Only the compatibility loopback name-import path
-requires the separate scoped credential/indexed backend/data boundary; the
-direct proof-backed path does not.
+and monotonic floor journal. Qualify cancellation, storage leases, stale
+completion suppression, direct reads, and process-resume behavior on the exact
+signed Android and iOS candidates.
 
 A restored wallet birthday may be above the bundled or partially synchronized
 local header tip. That is a normal header-only catch-up state: public progress
@@ -290,10 +151,10 @@ with `-` and `_` only internally and the five reserved names rejected.
 
 Android acquires and verifies every requested direct name proof before making
 one atomic account/name-store commit. It then performs exactly one synchronized
-refresh for the complete import, never one refresh per name. Before historical
+refresh for the complete import, never one refresh per name. Before full
 wallet activity scanning, the direct coordinator idempotently expands the
 restoration watch set to its required derivation frontier once. A newly
-expanded wallet therefore has at most one historical scan. If only the name
+expanded wallet therefore has at most one discovery scan. If only the name
 projection is still catching up, Android keeps the prior verified balance and
 marks the name result incomplete instead of clearing the complete read
 projection.
@@ -357,9 +218,9 @@ parsing and validation remain future broker work.
 
 This is a consumer contract, not an HRM/HNSA implementation or authority
 projection. Kotlin and Swift accept no raw commitment, envelope, delegation,
-endpoint, URL, provider, or legacy-record input and perform no CBOR, hashing,
+endpoint, URL, provider, or caller-authored record input and perform no CBOR, hashing,
 signature, rollback-store, or application-profile validation. The published
-legacy authority crate is not a dependency, and no sibling or unpublished
+superseded authority crate is not a dependency, and no sibling or unpublished
 `hns-rs`/`hns-node-rs` checkout is consumed. Shipping uses an immutable
 unavailable source because there is no qualified mobile broker or assigned
 wallet application profile. The HRM/HNSA consumer, provider, approval, wallet
@@ -454,53 +315,20 @@ from an older provider session cannot publish into or revoke a newer session.
 The bridge no longer accepts a caller-selected event name and arbitrary
 payload.
 
-## Remaining integration and qualification
+## Integration and qualification
 
-The historical `0.5.8` application source at
-`f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI run
-`31402758394`; its CodeQL and quality workflows are also green. This evidence
-predates the `0.5.9` synchronized-read tranche. The pre-ECH `0.5.9` source passed
-full CI `31433931682`; the earlier HNWR-v2/ECH-and-sync-telemetry code-bearing
-source passed full platform CI `31807520618` and both CodeQL runs. Exact current
-application source `adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed the
-complete manually dispatched Rust, Android, Apple, and Required CI matrix in run
-`31835813994`; CodeQL runs `31833858421` and `31833858650` also passed. Before
-release, fresh App Store screenshots must be bound to the
-exact release checkout selected for signing, signed artifacts must pass their
-archive gates, and both stores' privacy/category answers must be reconciled
-with the native local data and visible unavailable read rows. Those release
-gates do not authorize the dormant website projection, a read
-credential/backend, or any value capability.
+Run the Rust and platform qualification matrix from [release readiness](release-readiness.md)
+and the [device guide](ios-device-validation.md) against the exact source selected
+for signing. Verify create/restore, process reopen, scan continuation, peer
+maintenance, explicit watch expansion, pending-send balances, and lifecycle
+revocation on both mobile platforms. Store screenshots and signed artifacts
+must identify that same candidate.
 
-Enabling the website boundary still requires the generated and reviewed
-provider/service JNI and C bindings, a canonical engine result carrying exact
-origin, namespace-decision fingerprint, browser-authority validity and
-generation, an opaque wallet-engine context, real permission persistence,
-native approval UI, a typed event producer, and controller lifecycle
-installation/revocation. Mobile must not reconstruct that authority from a
-URL, toolbar state, proxy readiness, booleans, or JSON. Private ABI framing,
-session/restart/channel sequencing, and opaque-handle ownership remain
-wallet-runtime responsibilities and are not reimplemented here.
+Enabling a website provider requires reviewed provider/service JNI and C
+bindings, canonical engine authority for the exact origin and namespace
+decision, permission persistence, native approval UI, typed events, and
+lifecycle installation/revocation. Mobile must consume that authority rather
+than reconstruct it from URLs, toolbar state, proxy readiness, booleans, or JSON.
 
-Seed phrases, private keys, passphrases, preimages, database keys, capability
-material, and authority handles never enter WebView/WKWebView JavaScript or the
-public approval/event projections. The native controller does not weaken that
-boundary.
-
-The underlying lifecycle tranche has portable Rust, bridge, and platform
-coverage, passed the complete macOS ABI/XCFramework/app/simulator workflow, and
-passed a fresh Android reinstall with create/confirm/unlock/lock/process-reopen
-and mainnet/testnet storage isolation. The exact historical `0.5.8`
-repin/version/metadata commit passed remote CI. The HNWR-v2 projection has
-focused Rust, Kotlin, and Swift coverage and its earlier source passed exact full
-CI `31807520618`. The HNWI-v1 consumer has focused Rust and Kotlin coverage, and
-earlier application source `adb9c506fe88c82b0317fd60c12fd6a9702753ed`
-passed the complete manually dispatched Rust, Android, Apple, and Required CI
-matrix in run `31835813994`; CodeQL runs `31833858421` and `31833858650` also
-passed. Historical HNWR-v1 exact debug APK evidence still covers only
-the installed shell and fail-closed UI projection described above. The current
-product still needs backend/data,
-credentialed read, and create/restore lifecycle qualification. Signed-product
-gates, current screenshots, store declaration readback/upload, and the
-physical-iPhone matrix remain. Those facts are not evidence that the published
-apps contain these controls.
+Seed phrases, private keys, database keys, preimages, capability material, and
+authority handles never enter WebView/WKWebView JavaScript or public events.

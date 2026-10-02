@@ -124,7 +124,7 @@ RELEASE_AUTOMATION_ALLOWLIST = frozenset(
         "README.md",
         "docs/ios-app-store-release.md",
         "docs/play-store-readiness.md",
-        "docs/production-readiness-audit.md",
+        "docs/release-readiness.md",
         "scripts/app_store_connect_release.py",
         "scripts/generate-ios-app-store-screenshots.sh",
         "scripts/ios_screenshot_tools.py",

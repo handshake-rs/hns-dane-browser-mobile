@@ -237,7 +237,7 @@ invalid DNSSEC, invalid negative proof, invalid TLSA, or a failed DANE match.
 
 New installs leave `Experimental HNS peer DNS relay` off until the browser user
 opts in; existing installations retain their independent relay-requester
-preference. Startup migration permanently tombstones the historical recursive
+preference. Startup migration permanently tombstones the unsupported recursive
 HNS DoH key without converting it into relay consent or into the distinct,
 blank-by-default configured-recovery key. Relay provenance is
 `p2p_dns_relay`, distinct from direct authoritative DNS, proof-anchored
@@ -256,7 +256,7 @@ manual path cannot invoke the host operating system's DNS.
 
 The checked-in fast topology has four separate *scripted Handshake peer roles*:
 `hsd-proof` (no relay bit), `hsd-relay-good` (ready relay with DNS-network
-access), `hsd-relay-bad` (deterministic failure), and `hsd-legacy` (ordinary
+access), `hsd-relay-bad` (deterministic failure), and the ordinary-node fixture (ordinary
 capability behavior). It uses the real nine-byte Handshake framing, regtest
 magic, version/verack negotiation, and the private packet bytes, but those four
 containers are not blockchain-owning `hsd` processes. The authoritative

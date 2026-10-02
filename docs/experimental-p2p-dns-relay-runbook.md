@@ -45,7 +45,7 @@ The default command starts these separate roles:
 | `hsd-proof` | no | P2P | Handshake/proof-source role; never receives a relay request |
 | `hsd-relay-good` | yes | P2P + DNS | Reuses one connection and follows truncated UDP with TCP |
 | `hsd-relay-bad` | yes | P2P | Returns deterministic mismatch/disconnect/timeout/BUSY/oversize cases |
-| `hsd-legacy` | no | P2P | Handshakes without the bit and never receives the private packet |
+| the ordinary-node fixture | no | P2P | Handshakes without the bit and never receives the private packet |
 
 The browser-test container joins only the internal P2P and origin bridges. The
 authoritative server exists only on the internal DNS bridge. The good relay is
@@ -116,7 +116,7 @@ The four real roles are:
 | `hsd-owner-good` | yes | yes | Mines/registers the name, supplies proofs, and completes recursive relay DNS |
 | `hsd-proof` | no | no | Independent synchronized proof-capable FullNode |
 | `hsd-relay-bad` | yes | no | Advertises the relay but applies the default private-authority refusal |
-| `hsd-legacy` | no | no | Independent synchronized node without the experimental capability |
+| the ordinary-node fixture | no | no | Independent synchronized node without the experimental capability |
 
 The native `hns-runtime-full-tier` binary first requires a real failed exchange
 through `hsd-relay-bad` and a successful retry through `hsd-owner-good`. It then
@@ -125,7 +125,7 @@ verifies the current-tip Urkel inclusion proof, derives the delegation from the
 registered resource, validates the child DS/DNSKEY/RRSIG chain locally, matches
 TLSA/DANE locally, and receives HTTPS 200 from a loopback origin. The
 experimental relay is enabled, explicit recursive recovery remains blank, and
-unsupported legacy compatibility is absent from the runtime policy. A
+unsupported compatibility is absent from the runtime policy. A
 reachable zero-contact sentinel is configured and must observe zero
 connections.
 
@@ -207,7 +207,7 @@ height/tip/tree root, each node's positive proof and decoded-resource evidence,
 the registered resource, and signed-zone parameters;
 `full-tier-proof.json` is the runtime's current-tip proof evidence; and
 `full-tier-result.json` records Urkel, DNSSEC, DANE, HTTPS, real-relay failover,
-and legacy-zero-contact outcomes. `full-browser-network.json` must show blocked
+and unsupported-peer zero-contact outcomes. `full-browser-network.json` must show blocked
 UDP and TCP port 53 for both authoritative and external probes.
 
 If a run fails, retain the artifact directory and rerun with `--keep`. Check
