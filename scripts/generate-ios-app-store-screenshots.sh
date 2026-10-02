@@ -167,7 +167,8 @@ if ! xcodebuild \
   -parallel-testing-enabled NO \
   -maximum-parallel-testing-workers 1 \
   -only-testing:HnsDaneBrowserScreenshotTests/LiveAppStoreScreenshotTests/testLiveSubmissionScreenshots \
-  CODE_SIGNING_ALLOWED=NO \
+  CODE_SIGNING_ALLOWED=YES \
+  CODE_SIGN_IDENTITY=- \
   test; then
   mkdir -p -- "$DIAGNOSTICS_DIR"
   if [[ -d "$RESULT_BUNDLE" ]]; then
