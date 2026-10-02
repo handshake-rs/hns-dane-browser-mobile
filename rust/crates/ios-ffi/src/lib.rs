@@ -188,6 +188,10 @@ const WALLET_HNS_SYNC_SCANNING: u8 = 3;
 const WALLET_HNS_SYNC_FINALIZING: u8 = 4;
 const IOS_DIRECT_SHAKESCAPE_LISTEN_PORT: u16 = 12_038;
 const IOS_DIRECT_SHAKESCAPE_SOCKET_TIMEOUT: Duration = Duration::from_secs(2);
+// An explicit user pairing may wait for the other mobile app's next listener
+// tick. Keep background maintenance short, but allow the foreground handshake
+// the direct peer coordinator's normal eight-second connection window.
+const IOS_DIRECT_SHAKESCAPE_PAIR_TIMEOUT: Duration = Duration::from_secs(8);
 const IOS_SHAKESCAPE_HSD_PEER_MAINTENANCE_INTERVAL_SECONDS: u64 = 30;
 const IOS_SHAKESCAPE_ACTIVE_SWAP_RECONCILIATION_INTERVAL_SECONDS: u64 = 15;
 // Initial negotiation already replays complete durable recovery state. Keep
@@ -2171,6 +2175,60 @@ impl NativeWalletController {
         let Ok(now_unix) = HnsReadSystemClock.now_unix() else {
             return false;
         };
+        // Admit an already connected socket before HNS maintenance and board
+        // discovery. Those operations can consume the remote's short handshake
+        // deadline even though the listener is ready to answer.
+        if let Some(listener) = shakescape_listener.as_ref() {
+            let Ok(floor) = coordinator.rollback_floor() else {
+                return false;
+            };
+            let admitted = match listener.accept_next_mobile(floor.height, now_unix) {
+                Ok(peer) => peer,
+                Err(_) => return false,
+            };
+            if let Some(admitted) = admitted {
+                match admitted {
+                    HnsInboundMobilePeer::Network(peer) => {
+                        let network_service_ready = coordinator
+                            .minimal_network_service_ready(now_unix)
+                            .unwrap_or(false);
+                        if network_service_ready
+                            && inbound_network_peers.len() < MAX_IOS_INBOUND_NETWORK_PEERS
+                        {
+                            inbound_network_peers.push(peer);
+                            return true;
+                        }
+                    }
+                    HnsInboundMobilePeer::Shakescape(mut peer) => {
+                        if usize::from(shakescape_peer.is_some())
+                            .saturating_add(shakescape_replication_peers.len())
+                            >= MAX_IOS_DIRECT_SHAKESCAPE_PEERS
+                        {
+                            return false;
+                        }
+                        if controller
+                            .begin_wallet_owned_direct_shakedex(&mut peer)
+                            .and_then(|_| {
+                                controller.announce_wallet_owned_direct_shakedex(&mut peer)
+                            })
+                            .and_then(|_| {
+                                shakescape_sessions
+                                    .announce_direct_offer_inventory(&mut peer, now_unix)
+                            })
+                            .is_err()
+                        {
+                            return false;
+                        }
+                        if shakescape_peer.is_none() {
+                            *shakescape_peer = Some(peer);
+                        } else {
+                            shakescape_replication_peers.push(peer);
+                        }
+                        return true;
+                    }
+                }
+            }
+        }
         if let Some(peer) = shakescape_peer.as_mut() {
             match service_connected_shakescape_peer(
                 peer,
@@ -2309,7 +2367,7 @@ impl NativeWalletController {
             Ok(_) | Err(HnsDirectPeerError::NoReadyPeers) => {}
             Err(_) => return false,
         }
-        let Some(listener) = shakescape_listener.as_ref() else {
+        let Some(_listener) = shakescape_listener.as_ref() else {
             return false;
         };
         let Ok(floor) = coordinator.rollback_floor() else {
@@ -2373,41 +2431,7 @@ impl NativeWalletController {
                 return true;
             }
         }
-        let admitted = match listener.accept_next_mobile(floor.height, now_unix) {
-            Ok(Some(peer)) => peer,
-            Ok(None) | Err(_) => return false,
-        };
-        let mut peer = match admitted {
-            HnsInboundMobilePeer::Network(peer) => {
-                if network_service_ready
-                    && inbound_network_peers.len() < MAX_IOS_INBOUND_NETWORK_PEERS
-                {
-                    inbound_network_peers.push(peer);
-                    return true;
-                }
-                return false;
-            }
-            HnsInboundMobilePeer::Shakescape(peer) => peer,
-        };
-        if usize::from(shakescape_peer.is_some()).saturating_add(shakescape_replication_peers.len())
-            >= MAX_IOS_DIRECT_SHAKESCAPE_PEERS
-        {
-            return false;
-        }
-        if controller
-            .begin_wallet_owned_direct_shakedex(&mut peer)
-            .and_then(|_| controller.announce_wallet_owned_direct_shakedex(&mut peer))
-            .and_then(|_| shakescape_sessions.announce_direct_offer_inventory(&mut peer, now_unix))
-            .is_err()
-        {
-            return false;
-        }
-        if shakescape_peer.is_none() {
-            *shakescape_peer = Some(peer);
-        } else {
-            shakescape_replication_peers.push(peer);
-        }
-        true
+        false
     }
 
     fn connect_direct_shakescape_peer(
@@ -2444,7 +2468,7 @@ impl NativeWalletController {
             };
         };
         let mut config = HnsDirectPeerConfig::for_network(controller.account_config().network);
-        config.connect_timeout = IOS_DIRECT_SHAKESCAPE_SOCKET_TIMEOUT;
+        config.connect_timeout = IOS_DIRECT_SHAKESCAPE_PAIR_TIMEOUT;
         config.allow_private_addresses = true;
         config.static_peers.push(address);
         let mut peer =
@@ -5631,11 +5655,14 @@ pub unsafe extern "C" fn hns_browser_wallet_service_direct_shakescape(
             let entry = wallet_entry(wallet)?;
             let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
             ensure_wallet_active(&entry)?;
+            // Transport must remain serviceable even when a persisted market
+            // record needs recovery. Reconciliation still reports its error,
+            // but it cannot starve an inbound peer's handshake first.
+            let serviced = entry.controller.service_direct_shakescape_once();
             let reconciled = entry
                 .controller
                 .reconcile_direct_offer_lifecycle()
                 .map_err(|_| FfiFailure::internal())?;
-            let serviced = entry.controller.service_direct_shakescape_once();
             let hns_watch_set_changed = entry
                 .controller
                 .install_active_hns_htlc_watch_set()

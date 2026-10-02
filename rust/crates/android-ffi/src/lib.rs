@@ -207,6 +207,9 @@ const ANDROID_DIRECT_SHAKESCAPE_LISTEN_PORT: u16 = 12_038;
 /// Keep one accepted wallet-peer service tick short enough that a lock or
 /// controller retirement never waits behind a long-lived peer exchange.
 const ANDROID_DIRECT_SHAKESCAPE_SOCKET_TIMEOUT: Duration = Duration::from_secs(2);
+// Explicit user pairing can wait for the peer app's next listener tick. Keep
+// unattended maintenance bounded by the shorter socket deadline above.
+const ANDROID_DIRECT_SHAKESCAPE_PAIR_TIMEOUT: Duration = Duration::from_secs(8);
 const ANDROID_SHAKESCAPE_HSD_PEER_MAINTENANCE_INTERVAL_SECONDS: u64 = 30;
 /// A live atomic swap must rebuild a relay's volatile maker/taker route after
 /// either endpoint or the relay reconnects. Each wallet replays only its own
@@ -2929,7 +2932,7 @@ impl AndroidWalletController {
             }
         };
         let mut config = HnsDirectPeerConfig::for_network(controller.account_config().network);
-        config.connect_timeout = ANDROID_DIRECT_SHAKESCAPE_SOCKET_TIMEOUT;
+        config.connect_timeout = ANDROID_DIRECT_SHAKESCAPE_PAIR_TIMEOUT;
         // Private addresses are admitted only through this exact, local-user
         // pairing action. This permits LAN/ADB two-wallet qualification while
         // ordinary discovery remains subject to the public-peer policy.
