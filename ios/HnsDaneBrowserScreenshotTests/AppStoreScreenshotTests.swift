@@ -3,9 +3,8 @@ import XCTest
 
 /// Captures App Store submission candidates from the unmodified shipping
 /// runtime. This test deliberately does not set HNS_APP_STORE_SCREENSHOT_SCENE.
-/// All four images are captured from the shipping Release UI. The hosted Mac
-/// network blocks the Handshake peer port, so this submission set shows live
-/// app surfaces that do not claim a completed HNS navigation.
+/// All four images are captured from the shipping Release UI after current
+/// Handshake admission and an authenticated HNS navigation complete.
 final class LiveAppStoreScreenshotTests: XCTestCase {
     private static let hnsURL = "https://shakescape/"
     private static let webPKIURL = "https://shakescape.com/"
@@ -344,6 +343,24 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
             )
         }
         assertNoNavigationAlert()
+        // A WebKit navigation can replace its accessibility tree after the
+        // first rendered-page observation. Require the page and its verified
+        // result together again before capturing, including after a reload.
+        XCTAssertTrue(
+            waitUntil(
+                description: "authenticated rendered page for \(expectedHost)",
+                timeout: timeout,
+                condition: {
+                    webView.exists
+                        && expectedPageText.exists
+                        && self.app.buttons["Reload"].exists
+                        && (address.value as? String) == expectedIdleAddress
+                        && expectedSecurity.matches(
+                            security.label.trimmingCharacters(in: .whitespacesAndNewlines)
+                        )
+                }
+            )
+        )
         let finalSecurityLabel = security.label.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
