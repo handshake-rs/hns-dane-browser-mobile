@@ -88,6 +88,8 @@ for script in scripts/*.sh; do
   bash -n "$script"
 done
 
+python3 scripts/verify_wallet_source.py
+
 "${CARGO[@]}" metadata --locked --manifest-path rust/Cargo.toml --no-deps --format-version 1 >/dev/null
 "${CARGO[@]}" metadata --locked --manifest-path rust/fuzz/Cargo.toml --no-deps --format-version 1 >/dev/null
 "${CARGO[@]}" metadata --locked --manifest-path tools/hns-header-snapshot-exporter/Cargo.toml --no-deps --format-version 1 >/dev/null

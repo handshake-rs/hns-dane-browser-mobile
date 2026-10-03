@@ -41,15 +41,17 @@ qualification command at a time; the lockfile backup is scoped to that run.
 
 ## Registry handoff
 
-Both 0.4.2 versions are unpublished source candidates. Mobile manifests pin
-these two patches while keeping existing mobile, FFI, and type packages at
-0.4.1. Qualification uses temporary Cargo path overrides for the local wallet
-source; these overrides must not become registry dependency declarations.
-The checked-in mobile lockfile remains the last registry-backed lockfile.
-After the two qualified package uploads, refresh that lockfile from crates.io,
-check that only the two wallet packages changed versions, and build the mobile
-artifacts against the published checksums. Until that handoff, a fresh normal
-registry-only mobile build cannot resolve the candidates.
+The two 0.4.2 packages are source candidates. Clean mobile builds use the
+immutable wallet revision `1737dd439c4a13ec6bcbed4bc056733252e4c1e1` through
+explicit Cargo overrides. The remaining wallet packages keep their 0.4.1
+versions. The source verifier requires the exact package set, versions, and
+revision in both the manifest and lockfile; it rejects floating revisions,
+mixed wallet sources, and unrelated Git dependencies.
+
+After the two qualified package uploads, remove the wallet source overrides,
+refresh the lockfile from crates.io, and require the published checksums.
+Only HNS and market need new package versions. Regenerate third-party notices
+and run the complete locked mobile gate for that delivery graph.
 
 Local host Rust checks cover both FFI crates, the shared runtime, real peer
 Ping/Pong and header reuse, scan reopen, and authenticated offer decoding. They do

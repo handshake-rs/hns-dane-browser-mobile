@@ -89,3 +89,20 @@ panic = "abort"
 [profile.ios-release]
 inherits = "release"
 panic = "unwind"
+
+# Reviewed immutable wallet source; only HNS and market advance to 0.4.2.
+[patch.crates-io]
+hns-wallet-bdk-kyoto = { git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "1737dd439c4a13ec6bcbed4bc056733252e4c1e1", version = "=0.4.1" }
+hns-wallet-bip157 = { git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "1737dd439c4a13ec6bcbed4bc056733252e4c1e1", version = "=0.4.1" }
+hns-wallet-bitcoin-kyoto = { git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "1737dd439c4a13ec6bcbed4bc056733252e4c1e1", version = "=0.4.1" }
+hns-wallet-chain-api = { git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "1737dd439c4a13ec6bcbed4bc056733252e4c1e1", version = "=0.4.1" }
+hns-wallet-ffi = { git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "1737dd439c4a13ec6bcbed4bc056733252e4c1e1", version = "=0.4.1" }
+hns-wallet-hns = { git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "1737dd439c4a13ec6bcbed4bc056733252e4c1e1", version = "=0.4.2" }
+hns-wallet-host = { git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "1737dd439c4a13ec6bcbed4bc056733252e4c1e1", version = "=0.4.1" }
+hns-wallet-market = { git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "1737dd439c4a13ec6bcbed4bc056733252e4c1e1", version = "=0.4.2" }
+hns-wallet-mobile = { git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "1737dd439c4a13ec6bcbed4bc056733252e4c1e1", version = "=0.4.1" }
+hns-wallet-provider = { git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "1737dd439c4a13ec6bcbed4bc056733252e4c1e1", version = "=0.4.1" }
+hns-wallet-service = { git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "1737dd439c4a13ec6bcbed4bc056733252e4c1e1", version = "=0.4.1" }
+hns-wallet-shakedex = { git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "1737dd439c4a13ec6bcbed4bc056733252e4c1e1", version = "=0.4.1" }
+hns-wallet-store = { git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "1737dd439c4a13ec6bcbed4bc056733252e4c1e1", version = "=0.4.1" }
+hns-wallet-types = { git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "1737dd439c4a13ec6bcbed4bc056733252e4c1e1", version = "=0.4.1" }

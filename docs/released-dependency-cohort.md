@@ -1,8 +1,9 @@
 # Rust dependencies
 
-The mobile manifest declares exact ecosystem package requirements. Delivery
-uses registry sources and checksums; local candidate qualification uses the
-explicit temporary source overrides described in
+The mobile manifest declares exact ecosystem package requirements. Protocol and engine packages use registry sources and checksums. Wallet
+packages use one immutable reviewed source revision, with exact versions
+and lockfile provenance enforced by `scripts/verify_wallet_source.py`. Local
+candidate qualification uses the temporary overrides described in
 [wallet-sync-candidates.md](wallet-sync-candidates.md).
 
 | Dependency | Source requirement |
@@ -18,16 +19,19 @@ patches without republishing unchanged consumer packages. Cargo aliases such
 as `hns-core`, `hns-chain`, `hns-p2p`, and `hns-urkel` refer to the corresponding
 `hns-browser-*` packages.
 
-The mobile registry lockfile remains the delivery baseline until the candidate
-packages can be resolved with actual registry checksums. The candidate helper
-checks local sources and restores that lockfile afterward:
+Clean builds resolve the checked-in lockfile without a sibling checkout or
+package publication. The wallet source is pinned to
+`1737dd439c4a13ec6bcbed4bc056733252e4c1e1`; only HNS and market advance to
+0.4.2. The candidate helper can check local changes and restores that lockfile:
 
 ```sh
 python3 scripts/qualify-wallet-candidates.py /path/to/hns-wallet-rs test
 python3 scripts/qualify-wallet-candidates.py /path/to/hns-wallet-rs clippy
+python3 scripts/verify_wallet_source.py
 python3 tests/test_release_safety.py
 ```
 
-Do not commit a sibling-path dependency or a temporary Cargo patch table.
-After the registry handoff, run the complete locked mobile gate against the
-qualified commit and inspect the resulting dependency graph.
+Do not commit sibling-path dependencies or floating source overrides. Registry
+handoff replaces the reviewed wallet source with published checksums after
+only the two changed packages are qualified and uploaded. Regenerate notices
+and run the complete locked mobile gate against the resulting graph.

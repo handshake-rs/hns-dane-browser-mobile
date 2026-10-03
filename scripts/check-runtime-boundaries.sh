@@ -17,9 +17,17 @@ for shared_crate in hns-mobile-platform-runtime; do
     exit 1
   fi
 
-  if grep -Eq '^(hns-dane-engine|hns-dane|hns-dnssec|hns-light-chain|hns-p2p-transport|openssl|openssl-sys) v[0-9]' <<<"$dependency_tree"; then
+  if grep -Eq '^(hns-dane-engine|hns-dane|hns-dnssec|hns-p2p-transport|openssl|openssl-sys) v[0-9]' <<<"$dependency_tree"; then
     echo "ERROR: $shared_crate contains the host engine facade or its non-mobile OpenSSL closure." >&2
-    grep -E '^(hns-dane-engine|hns-dane|hns-dnssec|hns-light-chain|hns-p2p-transport|openssl|openssl-sys) v[0-9]' <<<"$dependency_tree" >&2
+    grep -E '^(hns-dane-engine|hns-dane|hns-dnssec|hns-p2p-transport|openssl|openssl-sys) v[0-9]' <<<"$dependency_tree" >&2
+    exit 1
+  fi
+
+  # The reviewed SQLite light-chain package is part of the mobile graph.
+  # Continue rejecting other versions as well as every OpenSSL/host facade.
+  if matches="$(grep -E '^hns-light-chain v' <<<"$dependency_tree" | grep -Ev '^hns-light-chain v0\.2\.6([ (]|$)' || true)" && [[ -n "$matches" ]]; then
+    echo "ERROR: $shared_crate contains an unreviewed light-chain version." >&2
+    printf '%s\n' "$matches" >&2
     exit 1
   fi
 

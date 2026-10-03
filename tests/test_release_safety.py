@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 import tempfile
 import textwrap
 import tomllib
@@ -27,10 +28,12 @@ SCREENSHOT_UI_TEST = (
 )
 SCREENSHOT_TOOLS = ROOT / "scripts" / "ios_screenshot_tools.py"
 APP_STORE_VALIDATOR = ROOT / "store-assets" / "app-store" / "validate.py"
+sys.path.insert(0, str(ROOT / "scripts"))
+from verify_wallet_source import WALLET_SOURCE, verify_repository
 
 
 class ReleaseCandidateMetadataTests(unittest.TestCase):
-    def test_clean_builds_use_checksum_bearing_registry_cohorts(self) -> None:
+    def test_clean_builds_use_reviewed_locked_sources(self) -> None:
         for relative in (
             "scripts/verify-supply-chain.sh",
             "scripts/build-rust-android.sh",
@@ -44,7 +47,8 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertFalse((ROOT / "scripts/prepare-source-cohort.sh").exists())
 
         manifest_source = (ROOT / "rust/Cargo.toml").read_text(encoding="utf-8")
-        self.assertNotIn("[patch.crates-io]", manifest_source)
+        verify_repository()
+        self.assertIn("python3 scripts/verify_wallet_source.py", (ROOT / "scripts/verify-supply-chain.sh").read_text())
         self.assertNotIn("../../hns-wallet-rs", manifest_source)
         self.assertNotIn("../../hns-dane-engine", manifest_source)
         self.assertNotIn("../../hns-rs", manifest_source)
@@ -158,9 +162,12 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertEqual(locked_by_name["hns-wallet-mobile"]["version"], "0.4.1")
         self.assertEqual(
             locked_by_name["hns-wallet-mobile"]["source"],
-            "registry+https://github.com/rust-lang/crates.io-index",
+            WALLET_SOURCE,
         )
-        self.assertIn("checksum", locked_by_name["hns-wallet-mobile"])
+        self.assertNotIn("checksum", locked_by_name["hns-wallet-mobile"])
+        for package in ("hns-wallet-hns", "hns-wallet-market"):
+            self.assertEqual(locked_by_name[package]["version"], "0.4.2")
+            self.assertEqual(locked_by_name[package]["source"], WALLET_SOURCE)
 
         lockfile = (ROOT / "rust/Cargo.lock").read_text(encoding="utf-8")
         self.assertIn(

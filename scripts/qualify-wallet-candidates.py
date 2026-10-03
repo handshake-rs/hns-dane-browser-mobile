@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Qualify unpublished wallet patches without replacing the registry lockfile."""
+"""Qualify unpublished wallet patches without replacing the checked-in lockfile."""
 
 import argparse
 import json
@@ -36,8 +36,8 @@ with tempfile.TemporaryDirectory(prefix="wallet-candidate-") as temporary:
     common = ["--manifest-path", "rust/Cargo.toml", "--workspace", "--all-targets", "--config", str(config)]
     cargo = ["cargo", "+1.98.1"]
     try:
-        # Resolve candidate sources locally first; the saved registry lockfile
-        # intentionally cannot name checksums for unpublished package versions.
+        # Resolve local candidate sources; restore the immutable delivery graph
+        # after qualification, including when a check fails.
         subprocess.run(cargo + ["check"] + common, cwd=mobile_root, check=True)
         if args.mode != "check":
             command = cargo + [args.mode] + common + ["--locked"]

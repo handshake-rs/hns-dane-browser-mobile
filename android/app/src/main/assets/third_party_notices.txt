@@ -27,13 +27,13 @@ Generated input SHA-256:
   scripts/mit-0-license.txt = 0ffe1339d2b91556bf0c380453d8504e972f066adcfda678bd9ddd2986a57c58
   android/app/src/main/assets/fonts/Orbitron-VariableFont_wght.ttf = f42db2dd16e642258e35782916eceb1dcdbea06fb958d77ad71dc5963587e8fd
   android/app/src/main/assets/fonts/OFL-Orbitron.txt = dd6fdb6716fd179d1fe891759efb3f9200753fdf6abf513b55b712c4ae16e512
-  rust/Cargo.toml = ef5fb0f77bafd000c68074995cf2a30212917111201ff54e596a09cd6b093aaa
-  rust/Cargo.lock = d41a33be1fa3077c510e8d9a1a07574329184dd789810173ebfb9e70afddd7d4
+  rust/Cargo.toml = dcb56a22a6c9eeed9e9c00b160d6836956516dbe7605e509ca77984a250f5aa9
+  rust/Cargo.lock = b4d0d20193d44a318343d34f0be436ce5c62794f832ffd38efe14848b843b6fb
   android/gradle/libs.versions.toml = 6e6aa686c60e39364e82418f57bb4e2cb0b1cdc420db5dc20dcb48b9f9e58214
   android/app/gradle.lockfile = af2b566239607d09657d3a5930a2d60e9a765d3a1cae7bbf212080b592766ab3
   android/gradle/verification-metadata.xml = 904a6b05ddaea646070bd1a7d077a5bcaf415cb3c71605e5549042e60651df52
   rust/crates/android-ffi/Cargo.toml = 7b9d094fb71e56aa3b967bad12dc40cae284878c0459a69c40eeebee128a4cba
-  rust/crates/hns-mobile-platform-runtime/Cargo.toml = f505fd405c3760b41bae07dfd8f46c5182c83b5b055b1febb2afedf946f797a7
+  rust/crates/hns-mobile-platform-runtime/Cargo.toml = 427b6430fef31acd63ea2eafb92d98a878db3d445a82ae1f8a715a1c64de5aab
   rust/crates/ios-ffi/Cargo.toml = 43803888cb9a38bf9aa28544fdaddcc6a658e4ca36edde10befbd2b0bf1fcb6d
 
 ANDROID RUNTIME COMPONENTS (42)
@@ -245,9 +245,9 @@ RUST COMPONENTS (393)
   hns-wallet-bitcoin-kyoto 0.4.1 | MIT OR Apache-2.0
   hns-wallet-chain-api 0.4.1 | MIT OR Apache-2.0
   hns-wallet-ffi 0.4.1 | MIT OR Apache-2.0
-  hns-wallet-hns 0.4.1 | MIT OR Apache-2.0
+  hns-wallet-hns 0.4.2 | MIT OR Apache-2.0
   hns-wallet-host 0.4.1 | MIT OR Apache-2.0
-  hns-wallet-market 0.4.1 | MIT OR Apache-2.0
+  hns-wallet-market 0.4.2 | MIT OR Apache-2.0
   hns-wallet-mobile 0.4.1 | MIT OR Apache-2.0
   hns-wallet-provider 0.4.1 | MIT OR Apache-2.0
   hns-wallet-service 0.4.1 | MIT OR Apache-2.0
@@ -3051,9 +3051,9 @@ Applies to:
   - Rust crate hns-wallet-bitcoin-kyoto 0.4.1
   - Rust crate hns-wallet-chain-api 0.4.1
   - Rust crate hns-wallet-ffi 0.4.1
-  - Rust crate hns-wallet-hns 0.4.1
+  - Rust crate hns-wallet-hns 0.4.2
   - Rust crate hns-wallet-host 0.4.1
-  - Rust crate hns-wallet-market 0.4.1
+  - Rust crate hns-wallet-market 0.4.2
   - Rust crate hns-wallet-mobile 0.4.1
   - Rust crate hns-wallet-provider 0.4.1
   - Rust crate hns-wallet-service 0.4.1
@@ -7590,9 +7590,9 @@ Applies to:
   - Rust crate hns-wallet-bitcoin-kyoto 0.4.1
   - Rust crate hns-wallet-chain-api 0.4.1
   - Rust crate hns-wallet-ffi 0.4.1
-  - Rust crate hns-wallet-hns 0.4.1
+  - Rust crate hns-wallet-hns 0.4.2
   - Rust crate hns-wallet-host 0.4.1
-  - Rust crate hns-wallet-market 0.4.1
+  - Rust crate hns-wallet-market 0.4.2
   - Rust crate hns-wallet-mobile 0.4.1
   - Rust crate hns-wallet-provider 0.4.1
   - Rust crate hns-wallet-service 0.4.1
