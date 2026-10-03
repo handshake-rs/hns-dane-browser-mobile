@@ -17,26 +17,17 @@ The target omits default-browser and MarketplaceKit installation entitlements.
 Qualify the selected source using [release readiness](release-readiness.md)
 and the [device procedure](ios-device-validation.md).
 
-## Prepare a signed IPA
+## Prepare a release
 
-The protected upload workflow supports `archive_only=true`. This runs the full
-Apple gate, checks the exact current main commit, signs and verifies the archive,
-and retains the IPA with its SHA-256 and source provenance. It exits before the
-App Store Connect upload. The existing upload mode remains the default and
-requires `confirm_upload=true`.
+Qualify the exact `main` source with the normal unsigned CI gates, verify the
+candidate version/build and published dependencies, and validate the metadata.
+Run installed-device checks and review the live store state before delivery.
 
-```sh
-expected_commit="$(git rev-parse HEAD)"
-gh workflow run ios-app-store-upload.yml \
-  --repo handshake-rs/hns-dane-browser-mobile --ref main \
-  -f expected_commit="$expected_commit" \
-  -f archive_only=true -f confirm_upload=false -f capture_screenshots=false
-```
-
-The local helper accepts `HNS_IOS_ARCHIVE_ONLY=true` together with a nonempty
-`HNS_IOS_IPA_OUTPUT_PATH` on the configured macOS signing host. Both preparation
-and upload retain the identity, entitlement, provisioning, and source checks.
-Screenshots, App Store upload, and review submission retain their separate gates.
+Sign and export the IPA as part of an actual authorized App Store Connect upload.
+A separate signed IPA export and an IPA attachment to a GitHub Release are not
+required for release preparation or routine commits. Google Play uses the
+Android App Bundle; its upload-signed bundle is prepared for the selected Play
+release rather than for every commit.
 
 ## One-time Apple setup
 
@@ -92,8 +83,9 @@ immediately before Apple's irreversible upload call. A global upload lease also
 prevents two different commit-keyed runs from signing or uploading concurrently.
 The workflow uploads the build to App Store Connect and retains the same App
 Store-signed IPA plus a SHA-256/size/source-commit provenance record as a
-private, commit-keyed workflow artifact for seven days so the release operator
-can publish it with the matching GitHub Release.
+commit-keyed workflow artifact for seven days as upload verification evidence.
+That retention does not call for attaching the IPA to a GitHub Release. Users
+install the iOS release through the App Store.
 
 ```sh
 expected_commit="$(git rev-parse HEAD)"
@@ -133,7 +125,7 @@ Set `review_contact_source_version` to an approved App Store version with comple
 private review contact details. Verify that reference through App Store Connect
 before dispatching; the workflow copies the contact without printing it.
 
-After the upload run succeeds and build `75` finishes processing, use the
+After the upload run succeeds and build `77` finishes processing, use the
 separate protected workflow. Its default `discover` mode performs authenticated
 GET requests only. Pin both the exact current `main` automation commit and the
 signed-artifact commit from the successful upload run. They may differ only by

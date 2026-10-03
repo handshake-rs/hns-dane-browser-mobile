@@ -53,9 +53,10 @@ its manifest and lockfile digests.
   source CI run and artifact provenance, not that earlier result.
 - Candidate identity is Android 1.0.14/code 66 and iOS 1.0.14/build 77. The
   embedded private Rust runtime retains its independent 1.0.2 version.
-- The Apple preparation workflow can sign/export an IPA in archive-only mode.
-  Shell execution tests verify that this mode cannot invoke the final store
-  upload and that stale source fails before upload in either mode.
+- iOS source qualification uses the normal unsigned Apple gate. Signing and IPA
+  export belong to an actual authorized App Store Connect upload. Separate
+  signed IPA exports and GitHub IPA attachments are not part of routine commit
+  or release preparation.
 
 ## Qualification limits
 
@@ -65,9 +66,10 @@ eliminated. No Android device was connected during this audit, and no new
 physical iPhone/iPad pass is claimed. Existing diagnostic files were read only;
 no device logs or application data were cleared.
 
-Use the final candidate’s Rust, Android, and Apple gate results and signed
-artifact provenance for build qualification. Installed-device lifecycle,
+Use the final candidate’s Rust, Android, and Apple gate results for source
+qualification, and verify signed artifacts during actual store delivery.
+Installed-device lifecycle,
 network recovery, approved value actions, and bilateral swap recovery remain
 necessary before claiming device qualification. Store upload, screenshot/listing
 reconciliation, declarations, and review submission follow the existing release
-procedures and are separate from preparing signed artifacts.
+procedures and are separate from source and metadata preparation.
