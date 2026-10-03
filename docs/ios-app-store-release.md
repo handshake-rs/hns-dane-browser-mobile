@@ -8,7 +8,7 @@ The committed application identity is:
 - Bundle ID: `com.denuoweb.hnsdane.ios`
 - Display name: `Shakescape`
 - Deployment floor: iOS 17.0
-- Current release candidate: `1.0.14` (`77`); upload and review submission pending fresh screenshots
+- Current release candidate: `1.0.14` (`77`); uploaded, review submission pending fresh verified screenshots
 - Device families: iPhone and iPad; compatible iOS-on-Apple-silicon-Mac use is permitted by the target
 
 Native send, name, and swap actions require verified synchronization and
@@ -138,6 +138,12 @@ current screenshots untouched. `submit` then creates or safely resumes a Review
 Submission containing only this App Store version and marks it submitted as its
 final mutation.
 
+If the preceding `1.0.13` version is still an unsubmitted
+`PREPARE_FOR_SUBMISSION` draft, the client advances that same record to `1.0.14`
+before applying the candidate metadata. It checks current main, refuses an
+active review or conflicting draft states, and verifies the exact resource ID
+and version after the update. Previously released versions are preserved.
+
 ```sh
 expected_commit="$(git rev-parse HEAD)"
 artifact_commit=REPLACE_WITH_SUCCESSFUL_UPLOAD_RUN_HEAD_SHA
@@ -194,9 +200,12 @@ artifact commit, review the resulting iPhone and iPad images, and pass the
 successful screenshot run ID with
 `-f confirm_screenshot_replacement=REPLACE_SCREENSHOTS_1.0.14_77` in the
 metadata step. The guarded client replaces and verifies both device-family
-sets before submission. The new set shows Browser, Settings, Handshake
-settings, and Wallet onboarding. It does not claim that the hosted CI network
-completed an HNS navigation while that network blocks outbound TCP 12038.
+sets before submission. The new set shows a successfully rendered,
+DANE-verified HNS page, Settings, Handshake settings, and Wallet onboarding.
+The capture requires current authenticated headers and exact navigation/security
+evidence. A runner network that blocks Handshake peers cannot satisfy that gate;
+retain its diagnostics and resolve network access before using its images
+for submission.
 
 If the exact build is not yet `VALID`, the workflow fails closed before
 submission and can be rerun after processing. It copies the private review

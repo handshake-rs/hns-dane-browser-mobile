@@ -608,6 +608,124 @@ class SubmissionSafetyTests(unittest.TestCase):
             allow_screenshot_replacement=allow_screenshot_replacement,
         )
 
+    def test_advance_previous_draft_preserves_record_and_checks_source(self):
+        api = mock.Mock()
+        manager = self.make_manager(api)
+        manager.release = release_client.LocalRelease(
+            ROOT, "b" * 40, "b" * 40, "1.0.14", "77", {}
+        )
+        previous = resource(
+            "appStoreVersions", "previous", versionString="1.0.13",
+            appStoreState="PREPARE_FOR_SUBMISSION",
+            appVersionState="PREPARE_FOR_SUBMISSION",
+        )
+        advanced = resource(
+            "appStoreVersions", "previous", versionString="1.0.14",
+            appStoreState="PREPARE_FOR_SUBMISSION",
+            appVersionState="PREPARE_FOR_SUBMISSION",
+        )
+        api.request.return_value = {"data": advanced}
+        with (
+            mock.patch.object(manager, "find_version", return_value=previous),
+            mock.patch.object(manager, "active_review_submissions", return_value=[]),
+            mock.patch.object(release_client, "verify_exact_current_main") as verify,
+        ):
+            self.assertEqual(manager._advance_1_0_13_draft("app"), advanced)
+        verify.assert_called_once_with(manager.release)
+        api.request.assert_called_once_with(
+            "PATCH", "/v1/appStoreVersions/previous",
+            body={"data": {
+                "type": "appStoreVersions", "id": "previous",
+                "attributes": {"versionString": "1.0.14"},
+            }},
+        )
+
+    def test_metadata_apply_uses_advanced_draft_instead_of_creating_another_version(self):
+        api = mock.Mock()
+        manager = self.make_manager(api)
+        manager.release = release_client.LocalRelease(
+            ROOT, "b" * 40, "b" * 40, "1.0.14", "77", {"copyright": "2026 Denuo Web"}
+        )
+        previous = resource(
+            "appStoreVersions", "previous", versionString="1.0.13",
+            appVersionState="PREPARE_FOR_SUBMISSION",
+        )
+        advanced = resource(
+            "appStoreVersions", "previous", versionString="1.0.14",
+            appVersionState="PREPARE_FOR_SUBMISSION",
+        )
+        api.request.return_value = {"data": advanced}
+        with (
+            mock.patch.object(manager, "find_app", return_value=resource("apps", "app")),
+            mock.patch.object(manager, "find_version", side_effect=[None, previous]),
+            mock.patch.object(manager, "active_review_submissions", return_value=[]),
+            mock.patch.object(manager, "find_build", return_value=None),
+            mock.patch.object(release_client, "verify_exact_current_main"),
+            self.assertRaisesRegex(release_client.ReleaseError, "processed.*build 77"),
+        ):
+            manager.apply_metadata()
+        self.assertEqual(
+            [call.args[:2] for call in api.request.call_args_list],
+            [("PATCH", "/v1/appStoreVersions/previous"),
+             ("PATCH", "/v1/appStoreVersions/previous")],
+        )
+
+    def test_draft_advance_refuses_active_review_and_conflicting_states(self):
+        for state, reviews in (
+            ("PREPARE_FOR_SUBMISSION", [resource("reviewSubmissions", "review", state="IN_REVIEW")]),
+            ("IN_REVIEW", []),
+        ):
+            with self.subTest(state=state, reviews=bool(reviews)):
+                api = mock.Mock()
+                manager = self.make_manager(api)
+                previous = resource(
+                    "appStoreVersions", "previous", versionString="1.0.13",
+                    appStoreState="PREPARE_FOR_SUBMISSION", appVersionState=state,
+                )
+                with (
+                    mock.patch.object(manager, "find_version", return_value=previous),
+                    mock.patch.object(manager, "active_review_submissions", return_value=reviews),
+                    self.assertRaises(release_client.ReleaseError),
+                ):
+                    manager._advance_1_0_13_draft("app")
+                api.request.assert_not_called()
+
+    def test_draft_advance_leaves_released_and_absent_versions_untouched(self):
+        for previous in (None, resource(
+            "appStoreVersions", "previous", versionString="1.0.13",
+            appStoreState="READY_FOR_SALE", appVersionState="READY_FOR_DISTRIBUTION",
+        )):
+            with self.subTest(previous=previous):
+                api = mock.Mock()
+                manager = self.make_manager(api)
+                with mock.patch.object(manager, "find_version", return_value=previous):
+                    self.assertIsNone(manager._advance_1_0_13_draft("app"))
+                api.request.assert_not_called()
+
+    def test_draft_advance_rejects_wrong_identity_or_version_readback(self):
+        previous = resource(
+            "appStoreVersions", "previous", versionString="1.0.13",
+            appStoreState="PREPARE_FOR_SUBMISSION",
+        )
+        for returned_id, returned_version in (("other", "1.0.14"), ("previous", "1.0.13")):
+            with self.subTest(id=returned_id, version=returned_version):
+                api = mock.Mock()
+                api.request.return_value = {"data": resource(
+                    "appStoreVersions", returned_id, versionString=returned_version,
+                    appStoreState="PREPARE_FOR_SUBMISSION",
+                )}
+                manager = self.make_manager(api)
+                manager.release = release_client.LocalRelease(
+                    ROOT, "b" * 40, "b" * 40, "1.0.14", "77", {}
+                )
+                with (
+                    mock.patch.object(manager, "find_version", return_value=previous),
+                    mock.patch.object(manager, "active_review_submissions", return_value=[]),
+                    mock.patch.object(release_client, "verify_exact_current_main"),
+                    self.assertRaisesRegex(release_client.ReleaseError, "exact 1.0.14"),
+                ):
+                    manager._advance_1_0_13_draft("app")
+
     def test_new_submission_creates_exact_version_item_and_submits_last(self):
         api = FakeApi()
         manager = self.make_manager(api)

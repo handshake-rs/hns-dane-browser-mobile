@@ -1,0 +1,219 @@
+name: Android Store Screenshots
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_commit:
+        description: Exact current main commit to capture
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-store-screenshots-${{ inputs.expected_commit }}
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    name: Capture the Release Android interface for Play
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Validate the exact main request
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          DISPATCH_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$DISPATCH_COMMIT" == "$EXPECTED_COMMIT" ]]
+
+      - name: Check out the exact source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.expected_commit }}
+          persist-credentials: false
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install pinned build tools
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.98.1 --profile minimal
+          rustup target add --toolchain 1.98.1 x86_64-linux-android
+          cargo +1.98.1 install cargo-ndk --version 4.1.2 --locked
+          "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" \
+            "cmdline-tools;22.0" "platforms;android-37.0" \
+            "build-tools;36.1.0" "ndk;28.2.13676358"
+          mv "${ANDROID_SDK_ROOT}/cmdline-tools/latest" \
+            "${RUNNER_TEMP}/android-cmdline-tools-preinstalled"
+          ln -s "${ANDROID_SDK_ROOT}/cmdline-tools/22.0" \
+            "${ANDROID_SDK_ROOT}/cmdline-tools/latest"
+          [[ "$("${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --version)" == "22.0" ]]
+
+      - name: Build the shipping Release configuration for the emulator
+        env:
+          ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/28.2.13676358
+          ANDROID_NDK_ROOT: /usr/local/lib/android/sdk/ndk/28.2.13676358
+          HNS_ANDROID_NDK_VERSION: 28.2.13676358
+        run: |
+          set -euo pipefail
+          ./scripts/check-version-consistency.sh
+          python3 scripts/verify_wallet_source.py
+          ./gradlew -p android :app:assembleRelease -Phns.androidAbis=x86_64 --no-daemon
+          # This disposable identity installs the Release UI in the simulator.
+          # The verified ARM Play bundle keeps its established upload signer.
+          keytool -genkeypair -keystore "$RUNNER_TEMP/capture.jks" \
+            -storepass android -keypass android -alias capture -keyalg RSA \
+            -keysize 2048 -validity 2 -dname "CN=Ephemeral Screenshot Capture"
+          "${ANDROID_SDK_ROOT}/build-tools/36.1.0/apksigner" sign \
+            --ks "$RUNNER_TEMP/capture.jks" --ks-key-alias capture \
+            --ks-pass pass:android --key-pass pass:android \
+            --out "$RUNNER_TEMP/shakescape-capture.apk" \
+            android/app/build/outputs/apk/release/app-release-unsigned.apk
+          "${ANDROID_SDK_ROOT}/build-tools/36.1.0/apksigner" verify \
+            "$RUNNER_TEMP/shakescape-capture.apk"
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Prepare the bounded screenshot capture
+        run: |
+          cat >"$RUNNER_TEMP/capture_android.py" <<'PY'
+          import atexit, datetime, hashlib, json, os, pathlib, re, struct, subprocess, time
+          import xml.etree.ElementTree as ET
+          
+          def command(*args):
+              return subprocess.check_output(args, timeout=60)
+          
+          commit = os.environ['EXPECTED_COMMIT']
+          assert command('git', 'rev-parse', 'HEAD').decode().strip() == commit
+          assert not command('git', 'status', '--porcelain', '--untracked-files=all').strip()
+          devices = command('adb', 'devices').decode().splitlines()[1:]
+          serials = [line.split()[0] for line in devices if line.endswith('\tdevice')]
+          assert len(serials) == 1 and serials[0].startswith('emulator-')
+          serial = serials[0]
+          def adb(*args):
+              return command('adb', '-s', serial, *args)
+
+          output = pathlib.Path('build/android-store-screenshots')
+          output.mkdir(parents=True, exist_ok=True)
+          def preserve_logs():
+              stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+              try:
+                  (output / f'device-logcat-{stamp}.txt').write_bytes(adb('logcat', '-d'))
+              except subprocess.SubprocessError:
+                  print('Unable to export the existing emulator log stream.')
+          atexit.register(preserve_logs)
+          apk = pathlib.Path(os.environ['RUNNER_TEMP']) / 'shakescape-capture.apk'
+          package = 'com.denuoweb.hnsdane'
+          adb('install', str(apk))
+          installed = adb('shell', 'dumpsys', 'package', package).decode()
+          assert re.search(r'\bversionCode=66\b', installed)
+          assert re.search(r'\bversionName=1\.0\.14\s', installed)
+          assert not re.search(r'pkgFlags=\[[^\]]*\bDEBUGGABLE\b', installed)
+          manifest = {'sourceCommit': commit, 'version': '1.0.14', 'versionCode': 66,
+                      'buildType': 'release', 'abi': 'x86_64', 'emulator': True,
+                      'installedApkSha256': hashlib.sha256(apk.read_bytes()).hexdigest(),
+                      'signingPurpose': 'ephemeral simulator installation only',
+                      'capturedAt': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                      'images': []}
+          sequence = 0
+          def tree():
+              global sequence
+              sequence += 1
+              device_path = f'/sdcard/shakescape-store-capture-{sequence}.xml'
+              adb('shell', 'uiautomator', 'dump', device_path)
+              data = adb('shell', 'cat', device_path)
+              (output / f'ui-{sequence:03}.xml').write_bytes(data)
+              return ET.fromstring(data)
+          def tap(label, description=False):
+              for attempt in range(20):
+                  nodes = [node for node in tree().iter('node')
+                           if node.get('package') == package
+                           and node.get('class', '').startswith('android.widget.')
+                           and node.get('content-desc' if description else 'text') == label]
+                  if len(nodes) == 1:
+                      bounds = list(map(int, re.findall(r'\d+', nodes[0].get('bounds', ''))))
+                      assert len(bounds) == 4
+                      adb('shell', 'input', 'tap', str((bounds[0]+bounds[2])//2), str((bounds[1]+bounds[3])//2))
+                      time.sleep(1)
+                      return
+                  time.sleep(1)
+              raise RuntimeError(f'Expected one visible {label!r} control')
+          def capture(family, name, expected_size):
+              data = adb('exec-out', 'screencap', '-p')
+              assert data[:8] == b'\x89PNG\r\n\x1a\n'
+              assert struct.unpack('>II', data[16:24]) == expected_size
+              relative = f'{family}/{name}.png'
+              path = output / relative
+              path.parent.mkdir(exist_ok=True)
+              path.write_bytes(data)
+              manifest['images'].append({'file': relative, 'sha256': hashlib.sha256(data).hexdigest(),
+                                         'width': expected_size[0], 'height': expected_size[1]})
+          for family, width, height, density in (
+              ('phoneScreenshots', 1080, 2400, 420),
+              ('sevenInchScreenshots', 1200, 1920, 320),
+              ('tenInchScreenshots', 1600, 2560, 280),
+          ):
+              adb('shell', 'wm', 'size', f'{width}x{height}')
+              adb('shell', 'wm', 'density', str(density))
+              adb('shell', 'am', 'start', '-n', package+'/.ui.LauncherActivity')
+              time.sleep(5)
+              tap('Browser menu', description=True)
+              capture(family, '01-browser-menu', (width, height))
+              tap('Browser')
+              capture(family, '02-browser-settings', (width, height))
+              adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
+              tap('Browser menu', description=True)
+              tap('Handshake')
+              capture(family, '03-handshake-settings', (width, height))
+              adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
+              tap('Browser menu', description=True)
+              tap('Wallet')
+              for attempt in range(20):
+                  labels = {node.get('text') for node in tree().iter('node')}
+                  if {'Create wallet', 'Restore wallet'} <= labels:
+                      break
+                  time.sleep(1)
+              else:
+                  raise RuntimeError('Native wallet onboarding was not visible')
+              capture(family, '04-wallet-onboarding', (width, height))
+              adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
+          # The registered exit handler preserves timestamped logs on failure too.
+          (output / 'manifest.json').write_text(json.dumps(manifest, indent=2)+'\n')
+          assert len(manifest['images']) == 12
+          print(json.dumps(manifest, indent=2))
+          PY
+
+      - name: Capture fresh phone and tablet screens
+        uses: ReactiveCircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2.37.0
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+        with:
+          api-level: "37.0"
+          target: google_apis
+          arch: x86_64
+          channel: stable
+          pre-emulator-launch-script: adb start-server
+          script: python3 "$RUNNER_TEMP/capture_android.py"
+
+      - name: Retain screenshots and provenance
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: android-store-screenshots-${{ inputs.expected_commit }}
+          path: build/android-store-screenshots
+          if-no-files-found: warn
+          retention-days: 14

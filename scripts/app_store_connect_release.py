@@ -120,6 +120,7 @@ REQUIRED_REVIEW_CONTACT_FIELDS = (
 )
 RELEASE_AUTOMATION_ALLOWLIST = frozenset(
     {
+        ".github/workflows/android-store-screenshots.yml",
         ".github/workflows/ios-app-store-submit.yml",
         "README.md",
         "docs/ios-app-store-release.md",
@@ -1062,6 +1063,8 @@ class ReleaseManager:
         app = self.find_app()
         app_id = _resource_id(app, "apps")
         version = self.find_version(app_id, self.release.version)
+        if version is None and self.release.version == "1.0.14":
+            version = self._advance_1_0_13_draft(app_id)
         if version is None and self.release.version == "1.0.13":
             withdrawn = self.find_version(app_id, "1.0.12")
             if withdrawn is not None:
@@ -1203,6 +1206,46 @@ class ReleaseManager:
             result["screenshotCount"] = sum(len(paths) for paths in requested_sets.values())
             result["screenshotFamilies"] = sorted(requested_sets)
         return result
+
+    def _advance_1_0_13_draft(self, app_id: str) -> dict[str, Any] | None:
+        """Reuse the exact preceding unsubmitted draft for this release."""
+        previous = self.find_version(app_id, "1.0.13")
+        if previous is None:
+            return None
+        attributes = _resource_attributes(previous)
+        states = {
+            value
+            for value in (
+                attributes.get("appStoreState"),
+                attributes.get("appVersionState"),
+            )
+            if isinstance(value, str)
+        }
+        if "PREPARE_FOR_SUBMISSION" not in states:
+            return None
+        if states != {"PREPARE_FOR_SUBMISSION"}:
+            raise ReleaseError("the preceding 1.0.13 draft has conflicting states")
+        if self.active_review_submissions(app_id):
+            raise ReleaseError("cannot advance the 1.0.13 draft during an active review")
+        previous_id = _resource_id(previous, "appStoreVersions")
+        verify_exact_current_main(self.release)
+        document = self.api.request(
+            "PATCH",
+            f"/v1/appStoreVersions/{previous_id}",
+            body={"data": {
+                "type": "appStoreVersions",
+                "id": previous_id,
+                "attributes": {"versionString": self.release.version},
+            }},
+        )
+        advanced = _data_resource(document, "appStoreVersions")
+        if (
+            _resource_id(advanced, "appStoreVersions") != previous_id
+            or _resource_attributes(advanced).get("versionString") != self.release.version
+        ):
+            raise ReleaseError("the draft advance did not read back as the exact 1.0.14 version")
+        self._assert_version_editable(advanced)
+        return advanced
 
     def _assert_version_editable(self, version: dict[str, Any]) -> None:
         attrs = _resource_attributes(version)
