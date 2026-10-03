@@ -1,19 +1,20 @@
 # App Store metadata
 
-This directory contains the reviewed listing source for iOS `1.0.13` / build
-`76`, bundle ID `com.denuoweb.hnsdane.ios`. Validate screenshots and signed artifacts against this exact candidate.
+This directory contains the reviewed listing source for iOS `1.0.14` / build
+`77`, bundle ID `com.denuoweb.hnsdane.ios`. Validate screenshots and signed artifacts against this exact candidate.
 
-- Version: `1.0.13`
-- Build: `76`
+- Version: `1.0.14`
+- Build: `77`
 
-This update starts Wallet sync and name actions when the required two-peer
-verification quorum is ready instead of waiting for reserve connections. The app registers
+This update reuses Wallet peers for browser synchronization, connects reserve
+peers concurrently, resumes authenticated scans, and reads previously saved
+ShakeScape offers. It consumes the published HNS and marketplace wallet patches. The app registers
 `http` and `https` URL schemes, routes incoming URLs directly, and keeps exact
 `marketplace-kit` navigation in WebKit. The managed default-browser and
 MarketplaceKit app-installation entitlements remain absent pending Apple
 approval.
 
-Build 76 retains the protected, owner-only native-wallet storage boundary and
+Build 77 retains the protected, owner-only native-wallet storage boundary and
 uses one hsd/Bob-compatible account-zero receive chain for ordinary HNS and
 Handshake name ownership. The iOS shell, Apple C ABI, and native wallet all use
 that single receive contract.

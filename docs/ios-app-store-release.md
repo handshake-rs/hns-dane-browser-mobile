@@ -8,7 +8,7 @@ The committed application identity is:
 - Bundle ID: `com.denuoweb.hnsdane.ios`
 - Display name: `Shakescape`
 - Deployment floor: iOS 17.0
-- Current release candidate: `1.0.13` (`76`); upload and review submission pending fresh screenshots
+- Current release candidate: `1.0.14` (`77`); upload and review submission pending fresh screenshots
 - Device families: iPhone and iPad; compatible iOS-on-Apple-silicon-Mac use is permitted by the target
 
 Native send, name, and swap actions require verified synchronization and
@@ -16,6 +16,27 @@ user approval. Website-provider and HNSA/HNSR service roles are unavailable.
 The target omits default-browser and MarketplaceKit installation entitlements.
 Qualify the selected source using [release readiness](release-readiness.md)
 and the [device procedure](ios-device-validation.md).
+
+## Prepare a signed IPA
+
+The protected upload workflow supports `archive_only=true`. This runs the full
+Apple gate, checks the exact current main commit, signs and verifies the archive,
+and retains the IPA with its SHA-256 and source provenance. It exits before the
+App Store Connect upload. The existing upload mode remains the default and
+requires `confirm_upload=true`.
+
+```sh
+expected_commit="$(git rev-parse HEAD)"
+gh workflow run ios-app-store-upload.yml \
+  --repo handshake-rs/hns-dane-browser-mobile --ref main \
+  -f expected_commit="$expected_commit" \
+  -f archive_only=true -f confirm_upload=false -f capture_screenshots=false
+```
+
+The local helper accepts `HNS_IOS_ARCHIVE_ONLY=true` together with a nonempty
+`HNS_IOS_IPA_OUTPUT_PATH` on the configured macOS signing host. Both preparation
+and upload retain the identity, entitlement, provisioning, and source checks.
+Screenshots, App Store upload, and review submission retain their separate gates.
 
 ## One-time Apple setup
 
@@ -155,8 +176,8 @@ gh workflow run ios-app-store-submit.yml \
   -f expected_upload_run_id="$upload_run_id" \
   -f mode=submit \
   -f review_contact_source_version="$review_contact_source_version" \
-  -f confirm_metadata=APPLY_METADATA_1.0.13_76 \
-  -f confirm_submit=SUBMIT_FOR_REVIEW_1.0.13_76 \
+  -f confirm_metadata=APPLY_METADATA_1.0.14_77 \
+  -f confirm_submit=SUBMIT_FOR_REVIEW_1.0.14_77 \
   -f confirm_account_readiness=true
 ```
 
@@ -172,14 +193,14 @@ gh workflow run ios-app-store-submit.yml \
   -f expected_upload_run_id="$upload_run_id" \
   -f mode=auto-release \
   -f review_contact_source_version="$review_contact_source_version" \
-  -f confirm_auto_release=SET_AUTO_RELEASE_1.0.13_76 \
+  -f confirm_auto_release=SET_AUTO_RELEASE_1.0.14_77 \
   -f confirm_account_readiness=true
 ```
 
-The `1.0.13` submission requires screenshots from its exact candidate. Capture the shipping Release runtime from the exact
+The `1.0.14` submission requires screenshots from its exact candidate. Capture the shipping Release runtime from the exact
 artifact commit, review the resulting iPhone and iPad images, and pass the
 successful screenshot run ID with
-`-f confirm_screenshot_replacement=REPLACE_SCREENSHOTS_1.0.13_76` in the
+`-f confirm_screenshot_replacement=REPLACE_SCREENSHOTS_1.0.14_77` in the
 metadata step. The guarded client replaces and verifies both device-family
 sets before submission. The new set shows Browser, Settings, Handshake
 settings, and Wallet onboarding. It does not claim that the hosted CI network

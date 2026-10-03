@@ -12,6 +12,11 @@ on:
         required: true
         default: false
         type: boolean
+      archive_only:
+        description: Prepare and retain a signed IPA without uploading to App Store Connect
+        required: true
+        default: false
+        type: boolean
       capture_screenshots:
         description: Capture a replacement App Store screenshot set; leave false to retain the current set
         required: true
@@ -37,7 +42,7 @@ concurrency:
 jobs:
   upload:
     name: Validate, sign, and upload
-    if: ${{ github.ref == 'refs/heads/main' && inputs.confirm_upload }}
+    if: ${{ github.ref == 'refs/heads/main' && (inputs.confirm_upload || inputs.archive_only) }}
     concurrency:
       group: global-ios-app-store-upload-lease
       cancel-in-progress: false
@@ -247,6 +252,7 @@ jobs:
           HNS_ASC_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
           HNS_IOS_DISTRIBUTION_P12_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_P12_PASSWORD }}
           HNS_IOS_IPA_OUTPUT_PATH: ${{ runner.temp }}/hns-dane-browser-ios-app-store.ipa
+          HNS_IOS_ARCHIVE_ONLY: ${{ inputs.archive_only }}
           HNS_RELEASE_EXPECTED_COMMIT: ${{ inputs.expected_commit }}
         run: ./scripts/upload-ios-app-store.sh
 

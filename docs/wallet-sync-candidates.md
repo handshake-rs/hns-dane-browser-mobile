@@ -1,8 +1,8 @@
-# Wallet sync patch candidates
+# Published wallet synchronization patches
 
-This cleanup needs two packages:
+The mobile application consumes these two published patches:
 
-| Package | Candidate | Reason |
+| Package | Version | Reason |
 | --- | --- | --- |
 | `hns-wallet-hns` | 0.4.2 | Idle socket maintenance, public transport sharing, and scan resume |
 | `hns-wallet-market` | 0.4.2 | Authenticated offer persistence and decoding |
@@ -45,17 +45,17 @@ Run `./scripts/check.sh` for the complete Rust, ABI, fuzz, and supply-chain gate
 
 ## Registry handoff
 
-The two 0.4.2 packages are source candidates. Clean mobile builds use the
-immutable wallet revision `1737dd439c4a13ec6bcbed4bc056733252e4c1e1` through
-explicit Cargo overrides. The remaining wallet packages keep their 0.4.1
-versions. The source verifier requires the exact package set, versions, and
-revision in both the manifest and lockfile; it rejects floating revisions,
-mixed wallet sources, and unrelated Git dependencies.
+Both packages were published as 0.4.2 from audited wallet source
+`5789a88caeb6b0410e0f472bedd1047a01cf9edc`. The HNS patch also negotiates
+browser reserve peers concurrently, preventing stalled handshakes from imposing
+serial browser delays. A real-socket regression test requires both candidate
+connections to begin before either handshake is released.
 
-After the two qualified package uploads, remove the wallet source overrides,
-refresh the lockfile from crates.io, and require the published checksums.
-Only HNS and market need new package versions. Regenerate third-party notices
-and run the complete locked mobile gate for that delivery graph.
+The mobile manifest and lockfile use registry sources for every selected wallet
+package. The unchanged API and consumer packages remain on 0.4.1. The source
+verifier requires exact versions and the reviewed published archive checksums;
+local paths, Git dependencies, and source overrides are rejected. Third-party
+notices are generated from that delivery graph.
 
 Local host Rust checks cover both FFI crates, the shared runtime, real peer
 Ping/Pong and header reuse, scan reopen, and authenticated offer decoding. They do

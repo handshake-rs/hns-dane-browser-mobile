@@ -1,16 +1,16 @@
 # Release readiness
 
-The configured Android application is `1.0.13`, version code `65`. The iOS
-application is `1.0.13`, build `76`. The shared Rust runtime is `1.0.2`.
+The configured Android application is `1.0.14`, version code `66`. The iOS
+application is `1.0.14`, build `77`. The shared Rust runtime is `1.0.2`.
 Platform releases and Rust package releases have independent versions.
 
 ## Required before delivery
 
 - Qualify the exact source commit with the portable checks, strict Rust lint,
   Android build/unit/instrumentation gates, and complete Apple gate.
-- Resolve the selected wallet patch candidates through the registry handoff in
+- Verify the published wallet patches described in
   [wallet-sync-candidates.md](wallet-sync-candidates.md). Preserve unchanged
-  package versions and verify the resulting registry checksums.
+  package versions and verify the reviewed registry checksums.
 - Build signed platform artifacts from the qualified source. Verify package or
   bundle identity, version/build, signing identity, ABI contents, and symbols.
 - Capture current screenshots from that same source and validate image

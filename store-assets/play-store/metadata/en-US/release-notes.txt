@@ -1,1 +1,1 @@
-1.0.13 starts Wallet sync once two independent Handshake peers are ready, without waiting for extra reserve connections. The same peer improvement applies to Wallet name actions on Android and iOS.
+1.0.14 reuses Wallet peer connections for browser sync, connects reserve peers concurrently, resumes saved wallet scans, and restores compatibility with saved ShakeScape offers. Includes updated published wallet dependencies for Android and iOS.
