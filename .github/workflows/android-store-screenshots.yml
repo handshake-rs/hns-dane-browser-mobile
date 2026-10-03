@@ -67,7 +67,7 @@ jobs:
           set -euo pipefail
           ./scripts/check-version-consistency.sh
           python3 scripts/verify_wallet_source.py
-          ./gradlew -p android :app:assembleRelease -Phns.androidAbis=x86_64 --no-daemon
+          ./android/gradlew -p android :app:assembleRelease -Phns.androidAbis=x86_64 --no-daemon
           # This disposable identity installs the Release UI in the simulator.
           # The verified ARM Play bundle keeps its established upload signer.
           keytool -genkeypair -keystore "$RUNNER_TEMP/capture.jks" \

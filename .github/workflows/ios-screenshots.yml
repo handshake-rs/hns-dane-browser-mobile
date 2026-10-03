@@ -11,8 +11,13 @@ on:
         description: Why a fresh live submission set is needed
         required: false
         type: string
+      diagnostics_run_id:
+        description: Export retained xcresult diagnostics from this failed capture run instead of capturing again
+        required: false
+        type: string
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -22,6 +27,7 @@ concurrency:
 jobs:
   capture:
     name: Capture live Release runtime on iPhone and iPad simulators
+    if: ${{ inputs.diagnostics_run_id == '' }}
     runs-on: macos-26
     timeout-minutes: 180
     steps:
@@ -85,4 +91,54 @@ jobs:
           name: ios-app-store-screenshot-diagnostics-${{ inputs.expected_commit }}
           path: build/ios-screenshot-diagnostics
           if-no-files-found: warn
+          retention-days: 7
+
+  diagnostics:
+    name: Export retained screenshot failure evidence
+    if: ${{ github.ref == 'refs/heads/main' && inputs.diagnostics_run_id != '' }}
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - name: Validate the exact diagnostic request
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          DISPATCH_COMMIT: ${{ github.sha }}
+          DIAGNOSTICS_RUN_ID: ${{ inputs.diagnostics_run_id }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$DISPATCH_COMMIT" == "$EXPECTED_COMMIT" ]]
+          [[ "$DIAGNOSTICS_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$DIAGNOSTICS_RUN_ID")"
+          jq -e '.event == "workflow_dispatch"
+            and .head_branch == "main"
+            and .path == ".github/workflows/ios-screenshots.yml"
+            and .conclusion == "failure"' <<<"$run_json" >/dev/null
+          diagnostic_commit="$(jq -r .head_sha <<<"$run_json")"
+          [[ "$diagnostic_commit" =~ ^[0-9a-f]{40}$ ]]
+          printf 'DIAGNOSTIC_COMMIT=%s\n' "$diagnostic_commit" >>"$GITHUB_ENV"
+
+      - name: Download the retained result bundle
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ios-app-store-screenshot-diagnostics-${{ env.DIAGNOSTIC_COMMIT }}
+          path: build/ios-screenshot-diagnostics
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.diagnostics_run_id }}
+
+      - name: Export existing attachments without changing the evidence
+        run: |
+          set -euo pipefail
+          xcrun xcresulttool export attachments \
+            --path build/ios-screenshot-diagnostics/Screenshots.xcresult \
+            --output-path build/ios-screenshot-export
+
+      - name: Retain exported attachments for inspection
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ios-screenshot-export-${{ inputs.diagnostics_run_id }}
+          path: build/ios-screenshot-export
+          if-no-files-found: error
           retention-days: 7
