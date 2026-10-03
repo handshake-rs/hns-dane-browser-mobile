@@ -1,6 +1,6 @@
 # Google Play metadata
 
-This directory contains the candidate listing source for Android `1.0.13` / code
+This directory contains the candidate listing source for Android `1.0.14` / code
 `65`, package `com.denuoweb.hnsdane`. Version numbers must be updated with the
 application manifest and upload script by `scripts/check-version-consistency.sh`.
 
@@ -15,7 +15,7 @@ execution, and protected deletion. Websites have no wallet-provider access.
 - App name: `en-US/title.txt`
 - Short description: `en-US/short-description.txt`
 - Full description: `en-US/full-description.txt`
-- 1.0.13 release notes: `en-US/release-notes.txt`
+- 1.0.14 release notes: `en-US/release-notes.txt`
 - Privacy policy: `https://shakescape.com/privacy/`
 - Support and product site: `https://shakescape.com/`
 
@@ -25,7 +25,7 @@ execution, and protected deletion. Websites have no wallet-provider access.
 - Feature graphic: `../hns-dane-browser-feature-graphic-1024x500.png`
 - Phone screenshots: `../screenshots/*.png`
 - Expected upload artifact:
-  `dist/play-store/hns-dane-browser-v1.0.13-play-upload-signed.aab`
+  `dist/play-store/hns-dane-browser-v1.0.14-play-upload-signed.aab`
 
 Capture screenshots from the exact shipping candidate. Review browser navigation,
 Handshake settings, proof details, and wallet onboarding without exposing secrets

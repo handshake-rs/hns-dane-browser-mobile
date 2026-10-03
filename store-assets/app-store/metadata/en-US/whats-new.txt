@@ -1,1 +1,1 @@
-Starts Wallet synchronization as soon as two independent Handshake peers are ready, without waiting for extra reserve connections. Wallet name actions use the same faster connection path.
+Reuses Wallet peer connections for browser sync, connects reserve peers concurrently, resumes saved wallet scans, and restores compatibility with saved ShakeScape offers. Includes updated published wallet dependencies.

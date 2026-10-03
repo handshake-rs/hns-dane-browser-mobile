@@ -11,6 +11,7 @@ DISTRIBUTION_P12_PATH="${HNS_IOS_DISTRIBUTION_P12_PATH:-}"
 DISTRIBUTION_P12_PASSWORD="${HNS_IOS_DISTRIBUTION_P12_PASSWORD:-}"
 APP_STORE_PROFILE_PATH="${HNS_IOS_APP_STORE_PROFILE_PATH:-}"
 IPA_OUTPUT_PATH="${HNS_IOS_IPA_OUTPUT_PATH:-}"
+ARCHIVE_ONLY="${HNS_IOS_ARCHIVE_ONLY:-false}"
 EXPECTED_COMMIT="${HNS_RELEASE_EXPECTED_COMMIT:-}"
 IOS_SDK_VERSION="26.5"
 FRAMEWORK_PATH="$ROOT_DIR/build/apple/HnsBrowserRuntime.xcframework"
@@ -20,6 +21,14 @@ fail() {
   echo "ERROR: $*" >&2
   exit 1
 }
+
+case "$ARCHIVE_ONLY" in
+  true|false) ;;
+  *) fail "HNS_IOS_ARCHIVE_ONLY must be true or false." ;;
+esac
+if [[ "$ARCHIVE_ONLY" == true && -z "$IPA_OUTPUT_PATH" ]]; then
+  fail "archive-only preparation requires HNS_IOS_IPA_OUTPUT_PATH."
+fi
 
 [[ "$(uname -s)" == "Darwin" ]] ||
   fail "the signed iOS archive and upload require macOS and Xcode."
@@ -414,6 +423,11 @@ if [[ -n "$IPA_OUTPUT_PATH" ]]; then
   printf 'Retained signed IPA for release publication: %s\n' "$IPA_OUTPUT_PATH"
 fi
 
+if [[ "$ARCHIVE_ONLY" == true ]]; then
+  verify_exact_current_main
+  echo "Prepared signed Shakescape $version ($build) IPA at $IPA_OUTPUT_PATH."
+  exit 0
+fi
 verify_exact_current_main
 xcodebuild \
   -exportArchive \
