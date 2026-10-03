@@ -38,7 +38,6 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
             "scripts/verify-supply-chain.sh",
             "scripts/build-rust-android.sh",
             "scripts/build-rust-ios.sh",
-            "scripts/build-rust.sh",
             "scripts/run-ios-gate.sh",
         ):
             source = (ROOT / relative).read_text(encoding="utf-8")

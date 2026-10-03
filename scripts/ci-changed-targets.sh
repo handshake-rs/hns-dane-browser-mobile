@@ -104,7 +104,6 @@ classify_path() {
       rust/.config/* | \
       rust/deny.toml | \
       tools/* | \
-      scripts/build-rust.sh | \
       scripts/fuzz-smoke.sh)
       rust=true
       ;;
@@ -152,8 +151,7 @@ classify_path() {
       docs/* | \
       dist/* | \
       store-assets/* | \
-      fixtures/*.md | \
-      scripts/audit-versions.sh)
+      fixtures/*.md)
       ;;
 
     # Unknown paths force all gates. New repository areas therefore cost an

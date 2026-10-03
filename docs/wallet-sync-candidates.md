@@ -32,12 +32,16 @@ A saved scan never establishes fresh header agreement by itself.
 
 ## Local qualification
 
-Run `python3 scripts/qualify-wallet-candidates.py /path/to/hns-wallet-rs`
-from this repository. Append `test` or `clippy` to run that gate after resolving
-and checking the candidate graph. The script uses temporary overrides for the
-local source and restores the original mobile lockfile even when Cargo fails.
-It requires the two explicit candidate versions shown above. Run one
-qualification command at a time; the lockfile backup is scoped to that run.
+The normal locked workspace checks qualify the exact wallet source used by
+both mobile platforms:
+
+```sh
+python3 scripts/verify_wallet_source.py
+cargo +1.98.1 clippy --manifest-path rust/Cargo.toml --workspace --all-targets --locked -- -D warnings
+cargo +1.98.1 test --manifest-path rust/Cargo.toml --workspace --all-targets --locked
+```
+
+Run `./scripts/check.sh` for the complete Rust, ABI, fuzz, and supply-chain gate.
 
 ## Registry handoff
 

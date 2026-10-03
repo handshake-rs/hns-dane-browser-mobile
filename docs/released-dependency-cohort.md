@@ -2,9 +2,8 @@
 
 The mobile manifest declares exact ecosystem package requirements. Protocol and engine packages use registry sources and checksums. Wallet
 packages use one immutable reviewed source revision, with exact versions
-and lockfile provenance enforced by `scripts/verify_wallet_source.py`. Local
-candidate qualification uses the temporary overrides described in
-[wallet-sync-candidates.md](wallet-sync-candidates.md).
+and lockfile provenance enforced by `scripts/verify_wallet_source.py`. See
+[wallet synchronization](wallet-sync-candidates.md) for behavior and validation.
 
 | Dependency | Source requirement |
 | --- | --- |
@@ -22,13 +21,12 @@ as `hns-core`, `hns-chain`, `hns-p2p`, and `hns-urkel` refer to the correspondin
 Clean builds resolve the checked-in lockfile without a sibling checkout or
 package publication. The wallet source is pinned to
 `1737dd439c4a13ec6bcbed4bc056733252e4c1e1`; only HNS and market advance to
-0.4.2. The candidate helper can check local changes and restores that lockfile:
+0.4.2. Validate the source and run the locked mobile gates:
 
 ```sh
-python3 scripts/qualify-wallet-candidates.py /path/to/hns-wallet-rs test
-python3 scripts/qualify-wallet-candidates.py /path/to/hns-wallet-rs clippy
 python3 scripts/verify_wallet_source.py
 python3 tests/test_release_safety.py
+./scripts/check.sh
 ```
 
 Do not commit sibling-path dependencies or floating source overrides. Registry
