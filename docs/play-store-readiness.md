@@ -97,10 +97,13 @@ python3 -m unittest -v tests/test_release_safety.py
 
 ## Store declarations and assets
 
-Read the saved Play Console answers and current field definitions before any
-submission. Reconcile them with the shipping manifest, local wallet storage,
-wrapped keys, browser history, downloads, peer synchronization, and user-approved
-broadcasts. Do not infer the live listing from a repository document.
+The owner confirmed on 2026-10-03 that the saved Play Console declarations are
+accurate for the current browser, native HNS/BTC wallet, name actions, and swaps.
+Use the [standing release confirmation](release-readiness.md#standing-release-instructions)
+for Data safety, financial features, content rating, target audience, and
+trader/account details. Do not repeat an accuracy audit or request another
+attestation before submission. Preserve these answers unless the owner requests
+an update.
 
 The non-exported `WalletSyncForegroundService` uses the `dataSync` type for a
 user-started bounded synchronization with a visible notification. Verify its
@@ -108,14 +111,14 @@ foreground/background behavior on the signed candidate.
 
 The app has no developer-operated account, analytics, advertising, or crash-upload
 service. Browser navigation and peer traffic expose the necessary network
-requests to their recipients. Review the WebView provider's services and current
-store definitions when completing Data safety and content ratings.
+requests to their recipients. These behaviors are covered by the confirmed
+store declarations.
 
 Use the metadata in `store-assets/play-store/metadata/` and screenshots from the
 exact shipping candidate. Review the native wallet onboarding and browser
-controls, privacy policy at <https://shakescape.com/privacy/>, content rating,
-category, and target audience before applying metadata. Store declarations and
-upload require explicit authorization and a verified signed bundle.
+controls and privacy policy at <https://shakescape.com/privacy/> before applying
+metadata. The confirmed account declarations are already settled. An authorized
+store delivery requires a verified signed bundle.
 
 After an authorized upload, read back the returned version code, track, release
 status, and listing. A successful local build does not establish store state.

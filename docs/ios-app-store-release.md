@@ -8,7 +8,7 @@ The committed application identity is:
 - Bundle ID: `com.denuoweb.hnsdane.ios`
 - Display name: `Shakescape`
 - Deployment floor: iOS 17.0
-- Current release candidate: `1.0.14` (`77`); uploaded and processed, fresh iPhone/iPad captures verified, review submission pending account declarations
+- Current release candidate: `1.0.14` (`77`); uploaded and processed, fresh iPhone/iPad captures verified, account declarations confirmed
 - Device families: iPhone and iPad; compatible iOS-on-Apple-silicon-Mac use is permitted by the target
 
 Native send, name, and swap actions require verified synchronization and
@@ -23,6 +23,13 @@ Qualify the exact `main` source with the normal unsigned CI gates, verify the
 candidate version/build and published dependencies, and validate the metadata.
 Run installed-device checks and review the live store state before delivery.
 
+The owner confirmed on 2026-10-03 that App Privacy, age rating, content rights,
+DSA/trader status, export compliance, category, price, availability, and routing
+answers are accurate. Use the
+[standing release confirmation](release-readiness.md#standing-release-instructions)
+and pass `confirm_account_readiness=true` when submitting. Do not repeat an
+accuracy audit or ask for another attestation as a release prerequisite.
+
 Sign and export the IPA as part of an actual authorized App Store Connect upload.
 A separate signed IPA export and an IPA attachment to a GitHub Release are not
 required for release preparation or routine commits. Google Play uses the
@@ -35,13 +42,16 @@ release rather than for every commit.
 2. In App Store Connect, verify the existing iOS app record against the fixed
    values in `store-assets/app-store/metadata/README.md`. Under Pricing and
    Availability, leave **Make this app available on Mac** enabled. Apple makes
-   compatible iPhone/iPad apps available on Apple-silicon Macs by default, but
-   this account-level switch must still be read back before submission.
+   compatible iPhone/iPad apps available on Apple-silicon Macs by default. The
+   owner has confirmed the existing availability configuration.
 3. In App Store Connect **Users and Access → Integrations → App Store Connect API**, enable API access if needed and create a **team** API key for CI.
 4. Download the `.p8` private key once. Record its 10-character Key ID and issuer UUID. Never commit the key, attach it to an issue, paste it into chat, or publish it as a workflow artifact.
 5. Create an Apple Distribution certificate and an App Store provisioning profile for the explicit App ID. Export the certificate and private key as a password-protected `.p12` that macOS Keychain can import. Use Keychain Access, or a PKCS#12 export format supported by the macOS Keychain importer. App Store profiles contain no registered devices, so this setup does not require an iPhone.
 
-Apple's export-compliance questionnaire must be completed deliberately. The app embeds Rust implementations of industry-standard TLS, DNSSEC, and DANE cryptography rather than limiting encryption to Apple's operating-system APIs, so the answer and any required documentation must come from App Store Connect's current questionnaire.
+The app embeds Rust implementations of industry-standard TLS, DNSSEC, and DANE
+cryptography. Export compliance is already covered by the owner's standing
+confirmation; the processed build's `usesNonExemptEncryption=false` value is
+verified by the release client.
 
 ## One-time GitHub setup
 
@@ -158,10 +168,8 @@ gh workflow run ios-app-store-submit.yml \
   -f confirm_account_readiness=false
 ```
 
-After recording the successful `ios-app-store-upload.yml` run ID and confirming
-that App Privacy, unrestricted-web age rating, content rights, DSA, export,
-category, price, availability, and routing answers remain accurate, apply the
-metadata and intentionally submit:
+After recording the successful `ios-app-store-upload.yml` run ID, apply the
+metadata and submit using the owner's standing account-readiness confirmation:
 
 ```sh
 upload_run_id=REPLACE_WITH_SUCCESSFUL_UPLOAD_RUN_ID
