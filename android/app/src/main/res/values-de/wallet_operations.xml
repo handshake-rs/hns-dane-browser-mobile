@@ -63,7 +63,7 @@
     <string name="wallet_reads_catching_up_headers">Header: Block %1$d. Wallet-Scan: %2$d von %3$d. Die Synchronisierung wird automatisch fortgesetzt.</string>
     <string name="wallet_reads_catching_up_before_birthday">Kopfzeilen: Block %1$d des Geburtstagsblocks %2$d. Der Wallet-Scan beginnt beim Geburtstagsblock.</string>
     <string name="wallet_reads_catching_up_scan">Überschriften sind aktuell. Wallet-Scan: %1$d von %2$d blockieren. Die Synchronisierung wird automatisch fortgesetzt.</string>
-    <string name="wallet_reads_catching_up_degraded">Die Kollegen waren sich im Block %1$d nicht einig. Die Synchronisierung wird mit anderen Peers erneut versucht.</string>
+    <string name="wallet_reads_catching_up_degraded">Warten auf verfügbare Peers bei Block %1$d. Die Synchronisierung wird erneut versucht.</string>
     <string name="wallet_reads_outbound_12038_blocked">Dieses Netzwerk scheint Handshake-Peers auf TCP-Port 12038 zu blockieren. Versuchen Sie es mit einem anderen Netzwerk oder VPN und synchronisieren Sie es dann erneut.</string>
     <string name="wallet_reads_balance_syncing">Balance wartet auf den Abschluss der aktiven Direct-Peer-Verifizierung und des Wallet-Scans.</string>
     <string name="wallet_pending_outgoing_recovery">Transaktion ausstehend. Synchronisieren Sie nach einem neuen Handshake-Block, damit Shakescape die ausgehende Transaktion abwickeln kann.</string>

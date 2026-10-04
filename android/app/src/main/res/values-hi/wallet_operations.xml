@@ -63,7 +63,7 @@
     <string name="wallet_reads_catching_up_headers">हेडर: %1$d को ब्लॉक करें। वॉलेट स्कैन: %3$d का %2$d। सिंक्रनाइज़ेशन स्वचालित रूप से जारी रहता है.</string>
     <string name="wallet_reads_catching_up_before_birthday">हेडर: जन्मदिन ब्लॉक %2$d का ब्लॉक %1$d। वॉलेट स्कैन जन्मदिन ब्लॉक पर शुरू होता है।</string>
     <string name="wallet_reads_catching_up_scan">हेडर चालू हैं. वॉलेट स्कैन: %2$d में से %1$d को ब्लॉक करें। सिंक्रनाइज़ेशन स्वचालित रूप से जारी रहता है.</string>
-    <string name="wallet_reads_catching_up_degraded">ब्लॉक %1$d पर सहकर्मी सहमत नहीं थे। अन्य साथियों के साथ सिंक्रोनाइज़ेशन पुनः प्रयास किया जाएगा।</string>
+    <string name="wallet_reads_catching_up_degraded">ब्लॉक %1$d पर उपलब्ध पीयर की प्रतीक्षा है। सिंक्रनाइज़ेशन फिर से प्रयास करेगा।</string>
     <string name="wallet_reads_outbound_12038_blocked">ऐसा प्रतीत होता है कि यह नेटवर्क TCP पोर्ट 12038 पर Handshake साथियों को ब्लॉक करता है। किसी अन्य नेटवर्क या वीपीएन का प्रयास करें, फिर फिर से सिंक्रोनाइज़ करें।</string>
     <string name="wallet_reads_balance_syncing">बैलेंस सक्रिय डायरेक्ट-पीयर सत्यापन और वॉलेट स्कैन समाप्त होने की प्रतीक्षा कर रहा है।</string>
     <string name="wallet_pending_outgoing_recovery">लेन-देन लंबित है. नए Handshake ब्लॉक के बाद सिंक्रोनाइज़ करें ताकि Shakescape आउटगोइंग लेनदेन का निपटान कर सके।</string>

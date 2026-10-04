@@ -63,7 +63,7 @@
     <string name="wallet_reads_catching_up_headers">Header: blok %1$d. Pemindaian dompet: %2$d dari %3$d. Sinkronisasi berlanjut secara otomatis.</string>
     <string name="wallet_reads_catching_up_before_birthday">Header: blok %1$d dari blok ulang tahun %2$d. Pemindaian dompet dimulai pada blok ulang tahun.</string>
     <string name="wallet_reads_catching_up_scan">Header terkini. Pemindaian dompet: blokir %1$d dari %2$d. Sinkronisasi berlanjut secara otomatis.</string>
-    <string name="wallet_reads_catching_up_degraded">Rekan-rekan tidak setuju di blok %1$d. Sinkronisasi akan dicoba lagi dengan rekan lainnya.</string>
+    <string name="wallet_reads_catching_up_degraded">Menunggu peer yang tersedia pada blok %1$d. Sinkronisasi akan dicoba lagi.</string>
     <string name="wallet_reads_outbound_12038_blocked">Jaringan ini tampaknya memblokir rekan Handshake pada port TCP 12038. Coba jaringan atau VPN lain, lalu sinkronkan lagi.</string>
     <string name="wallet_reads_balance_syncing">Saldo menunggu verifikasi rekan langsung aktif dan pemindaian dompet selesai.</string>
     <string name="wallet_pending_outgoing_recovery">Transaksi tertunda. Sinkronisasi setelah blok Handshake baru sehingga Shakescape dapat menyelesaikan transaksi keluar.</string>

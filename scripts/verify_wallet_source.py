@@ -16,7 +16,7 @@ WALLET_VERSIONS = {
     "hns-wallet-bitcoin-kyoto": "0.4.1",
     "hns-wallet-chain-api": "0.4.1",
     "hns-wallet-ffi": "0.4.1",
-    "hns-wallet-hns": "0.4.2",
+    "hns-wallet-hns": "0.4.3",
     "hns-wallet-host": "0.4.1",
     "hns-wallet-market": "0.4.2",
     "hns-wallet-mobile": "0.4.1",

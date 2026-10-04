@@ -63,7 +63,7 @@
     <string name="wallet_reads_catching_up_headers">Başlıklar: %1$d bloğu. Cüzdan taraması: %2$d veya %3$d. Senkronizasyon otomatik olarak devam eder.</string>
     <string name="wallet_reads_catching_up_before_birthday">Başlıklar: %2$d doğum günü bloğunun %1$d bloğu. Cüzdan taraması doğum günü bloğunda başlar.</string>
     <string name="wallet_reads_catching_up_scan">Başlıklar günceldir. Cüzdan taraması: %2$d\'nin %1$d\'sini engelleyin. Senkronizasyon otomatik olarak devam eder.</string>
-    <string name="wallet_reads_catching_up_degraded">Akranlar %1$d bloğunda aynı fikirde değildi. Senkronizasyon diğer eşlerle yeniden denenecek.</string>
+    <string name="wallet_reads_catching_up_degraded">%1$d bloğunda kullanılabilir eşler bekleniyor. Senkronizasyon yeniden denenecek.</string>
     <string name="wallet_reads_outbound_12038_blocked">Bu ağ, TCP bağlantı noktası 12038\'deki Handshake eşlerini engelliyor gibi görünüyor. Başka bir ağ veya VPN deneyin ve ardından yeniden senkronize edin.</string>
     <string name="wallet_reads_balance_syncing">Bakiye, etkin doğrudan eş doğrulamanın ve cüzdan taramasının tamamlanmasını bekliyor.</string>
     <string name="wallet_pending_outgoing_recovery">İşlem beklemede. Shakescape\'nin giden işlemi tamamlayabilmesi için yeni bir Handshake bloğundan sonra senkronize edin.</string>

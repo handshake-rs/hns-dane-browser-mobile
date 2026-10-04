@@ -63,7 +63,7 @@
     <string name="wallet_reads_catching_up_headers">כותרות: בלוק %1$d. סריקת ארנק: %2$d או %3$d. הסנכרון ממשיך באופן אוטומטי.</string>
     <string name="wallet_reads_catching_up_before_birthday">כותרות: בלוק %1$d של בלוק יום הולדת %2$d. סריקת הארנק מתחילה בבלוק יום ההולדת.</string>
     <string name="wallet_reads_catching_up_scan">הכותרות עדכניות. סריקת ארנק: חסום %1$d של %2$d. הסנכרון ממשיך באופן אוטומטי.</string>
-    <string name="wallet_reads_catching_up_degraded">עמיתים לא הסכימו בבלוק %1$d. הסנכרון ינסה שוב עם עמיתים אחרים.</string>
+    <string name="wallet_reads_catching_up_degraded">ממתין לעמיתים זמינים בבלוק %1$d. הסנכרון ינסה שוב.</string>
     <string name="wallet_reads_outbound_12038_blocked">נראה שרשת זו חוסמת עמיתים של Handshake ביציאת TCP 12038. נסה רשת אחרת או VPN, ולאחר מכן סנכרן שוב.</string>
     <string name="wallet_reads_balance_syncing">היתרה ממתינה לסיום האימות הישיר הפעיל וסריקת הארנק.</string>
     <string name="wallet_pending_outgoing_recovery">העסקה בהמתנה. סנכרן לאחר בלוק Handshake חדש כדי ש-Shakescape יוכל ליישב את העסקה היוצאת.</string>

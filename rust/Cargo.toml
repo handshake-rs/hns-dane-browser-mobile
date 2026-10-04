@@ -39,7 +39,7 @@ hns-loopback-proxy = { package = "hns-browser-loopback-proxy", version = "=0.2.3
 hns-wallet-ffi = "=0.4.1"
 hns-wallet-mobile = "=0.4.1"
 hns-wallet-types = "=0.4.1"
-hns-wallet-hns = "=0.4.2"
+hns-wallet-hns = "=0.4.3"
 hns-wallet-market = "=0.4.2"
 hns-mobile-platform-runtime = { path = "crates/hns-mobile-platform-runtime" }
 hns-namespace-resolution = "=0.2.3"

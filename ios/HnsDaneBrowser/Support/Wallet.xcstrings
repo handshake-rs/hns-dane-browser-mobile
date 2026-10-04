@@ -33281,127 +33281,127 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "لم يتفق الزملاء على الكتلة %1$d. ستتم إعادة محاولة المزامنة مع أقرانهم الآخرين."
+            "value": "في انتظار أقران متاحين عند الكتلة %1$d. ستتم إعادة محاولة المزامنة."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die Kollegen waren sich im Block %1$d nicht einig. Die Synchronisierung wird mit anderen Peers erneut versucht."
+            "value": "Warten auf verfügbare Peers bei Block %1$d. Die Synchronisierung wird erneut versucht."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Peers did not agree at block %1$d. Synchronization will retry with other peers."
+            "value": "Waiting for usable peers at block %1$d. Synchronization will retry."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Los pares no estuvieron de acuerdo en el bloque %1$d. La sincronización se volverá a intentar con otros pares."
+            "value": "Esperando pares disponibles en el bloque %1$d. Se reintentará la sincronización."
           }
         },
         "fa": {
           "stringUnit": {
             "state": "translated",
-            "value": "همتایان در بلوک %1$d موافق نبودند. همگام سازی با سایر همتایان دوباره امتحان می شود."
+            "value": "در انتظار همتایان در دسترس در بلوک %1$d. همگام‌سازی دوباره تلاش خواهد شد."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Les pairs n’étaient pas d’accord sur le bloc %1$d. La synchronisation va réessayer avec d'autres pairs."
+            "value": "En attente de pairs disponibles au bloc %1$d. La synchronisation sera réessayée."
           }
         },
         "he": {
           "stringUnit": {
             "state": "translated",
-            "value": "עמיתים לא הסכימו בבלוק %1$d. הסנכרון ינסה שוב עם עמיתים אחרים."
+            "value": "ממתין לעמיתים זמינים בבלוק %1$d. הסנכרון ינסה שוב."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "ब्लॉक %1$d पर सहकर्मी सहमत नहीं थे। अन्य साथियों के साथ सिंक्रोनाइज़ेशन पुनः प्रयास किया जाएगा।"
+            "value": "ब्लॉक %1$d पर उपलब्ध पीयर की प्रतीक्षा है। सिंक्रनाइज़ेशन फिर से प्रयास करेगा।"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rekan-rekan tidak setuju di blok %1$d. Sinkronisasi akan dicoba lagi dengan rekan lainnya."
+            "value": "Menunggu peer yang tersedia pada blok %1$d. Sinkronisasi akan dicoba lagi."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "I peer non erano d'accordo sul blocco %1$d. La sincronizzazione riproverà con altri peer."
+            "value": "In attesa di peer disponibili al blocco %1$d. La sincronizzazione verrà ritentata."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ピアはブロック %1$d で同意しませんでした。同期は他のピアと再試行されます。"
+            "value": "ブロック %1$d で利用可能なピアを待っています。同期を再試行します。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "피어들은 %1$d 블록에서 동의하지 않았습니다. 다른 피어와의 동기화가 다시 시도됩니다."
+            "value": "블록 %1$d에서 사용 가능한 피어를 기다리는 중입니다. 동기화를 다시 시도합니다."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Peers waren het niet eens met blok %1$d. Synchronisatie wordt opnieuw geprobeerd met andere peers."
+            "value": "Wachten op beschikbare peers bij blok %1$d. Synchronisatie wordt opnieuw geprobeerd."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Uczestnicy nie zgodzili się w bloku %1$d. Synchronizacja zostanie ponowiona z innymi urządzeniami równorzędnymi."
+            "value": "Oczekiwanie na dostępne węzły przy bloku %1$d. Synchronizacja zostanie ponowiona."
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Os pares não concordaram no bloco %1$d. A sincronização tentará novamente com outros pares."
+            "value": "Aguardando pares disponíveis no bloco %1$d. A sincronização será tentada novamente."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Коллеги не согласились с блоком %1$d. Синхронизация будет повторена с другими узлами."
+            "value": "Ожидание доступных узлов на блоке %1$d. Синхронизация будет повторена."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Akranlar %1$d bloğunda aynı fikirde değildi. Senkronizasyon diğer eşlerle yeniden denenecek."
+            "value": "%1$d bloğunda kullanılabilir eşler bekleniyor. Senkronizasyon yeniden denenecek."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Піри не дійшли згоди щодо блоку %1$d. Повторна спроба синхронізації з іншими вузлами."
+            "value": "Очікування доступних вузлів на блоці %1$d. Синхронізацію буде повторено."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Các đồng nghiệp không đồng ý ở khối %1$d. Đồng bộ hóa sẽ thử lại với các đồng nghiệp khác."
+            "value": "Đang chờ các nút khả dụng tại khối %1$d. Sẽ thử đồng bộ lại."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "同行们在区块 %1$d 上没有达成一致。将重试与其他对等方的同步。"
+            "value": "正在区块 %1$d 等待可用节点。将重试同步。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "同行們在區塊 %1$d 上沒有達成協議。將重試與其他對等方的同步。"
+            "value": "正在區塊 %1$d 等待可用節點。將重試同步。"
           }
         }
       }

@@ -63,7 +63,7 @@
     <string name="wallet_reads_catching_up_headers">Intestazioni: blocco %1$d. Scansione del portafoglio: %2$d di %3$d. La sincronizzazione continua automaticamente.</string>
     <string name="wallet_reads_catching_up_before_birthday">Intestazioni: blocco %1$d del blocco compleanno %2$d. La scansione del portafoglio inizia nel periodo del compleanno.</string>
     <string name="wallet_reads_catching_up_scan">Le intestazioni sono attuali. Scansione portafoglio: blocca %1$d di %2$d. La sincronizzazione continua automaticamente.</string>
-    <string name="wallet_reads_catching_up_degraded">I peer non erano d\'accordo sul blocco %1$d. La sincronizzazione riproverà con altri peer.</string>
+    <string name="wallet_reads_catching_up_degraded">In attesa di peer disponibili al blocco %1$d. La sincronizzazione verrà ritentata.</string>
     <string name="wallet_reads_outbound_12038_blocked">Questa rete sembra bloccare i peer Handshake sulla porta TCP 12038. Prova un\'altra rete o VPN, quindi sincronizza di nuovo.</string>
     <string name="wallet_reads_balance_syncing">Il saldo è in attesa del completamento della verifica attiva del peer diretto e della scansione del portafoglio.</string>
     <string name="wallet_pending_outgoing_recovery">Transazione in sospeso. Sincronizzare dopo un nuovo blocco Handshake in modo che Shakescape possa liquidare la transazione in uscita.</string>

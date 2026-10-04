@@ -4147,12 +4147,14 @@ final class WalletViewController: UIViewController {
         actions.append(WalletMenuAction(title: WalletCopy.text("wallet_swap_executions"),
             enabled: available, primary: hasActiveSwapOverview
         ) { [weak self] in self?.showShakescapeExecutions() })
-        actions.append(WalletMenuAction(title: WalletCopy.text("wallet_swap_available_offers"),
-            enabled: available && paired, primary: paired && !hasActiveSwapOverview
-        ) { [weak self] in self?.showAvailableDirectOffers() })
-        actions.append(WalletMenuAction(title: WalletCopy.text("wallet_ux_coin_offers"),
-            enabled: available && paired
-        ) { [weak self] in self?.showCoinOfferMenu() })
+        if paired {
+            actions.append(WalletMenuAction(title: WalletCopy.text("wallet_swap_available_offers"),
+                enabled: available, primary: !hasActiveSwapOverview
+            ) { [weak self] in self?.showAvailableDirectOffers() })
+            actions.append(WalletMenuAction(title: WalletCopy.text("wallet_ux_coin_offers"),
+                enabled: available
+            ) { [weak self] in self?.showCoinOfferMenu() })
+        }
         actions.append(WalletMenuAction(title: WalletCopy.text("wallet_swap_my_offers"), enabled: available
         ) { [weak self] in self?.showMyDirectOffers() })
         actions.append(WalletMenuAction(title: WalletCopy.text("wallet_ux_name_market"), enabled: available
@@ -4175,7 +4177,7 @@ final class WalletViewController: UIViewController {
     }
 
     private func showCoinOfferMenu() {
-        let ready = bitcoinStage == .sync
+        let ready = directShakescapeStatusSnapshot?.peerEndpoint != nil && bitcoinStage == .sync
         var actions: [WalletMenuAction] = []
         if !ready {
             actions.append(WalletMenuAction(title: WalletCopy.text("wallet_ux_bitcoin"), primary: true) {

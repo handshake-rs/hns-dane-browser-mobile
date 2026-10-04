@@ -1,10 +1,10 @@
 # App Store metadata
 
-This directory contains the reviewed listing source for iOS `1.0.14` / build
-`77`, bundle ID `com.denuoweb.hnsdane.ios`. Validate screenshots and signed artifacts against this exact candidate.
+This directory contains the reviewed listing source for iOS `1.0.15` / build
+`78`, bundle ID `com.denuoweb.hnsdane.ios`. Validate screenshots and signed artifacts against this exact candidate.
 
-- Version: `1.0.14`
-- Build: `77`
+- Version: `1.0.15`
+- Build: `78`
 
 This update reuses Wallet peers for browser synchronization, connects reserve
 peers concurrently, resumes authenticated scans, and reads previously saved

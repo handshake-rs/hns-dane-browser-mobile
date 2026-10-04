@@ -63,7 +63,7 @@
     <string name="wallet_reads_catching_up_headers">ヘッダー: ブロック %1$d。ウォレットのスキャン: %2$d/%3$d。同期は自動的に続行されます。</string>
     <string name="wallet_reads_catching_up_before_birthday">ヘッダー: 誕生日ブロック %2$d のブロック %1$d。ウォレットのスキャンは誕生日ブロックから始まります。</string>
     <string name="wallet_reads_catching_up_scan">ヘッダーは最新のものです。ウォレット スキャン: %1$d または %2$d をブロックします。同期は自動的に続行されます。</string>
-    <string name="wallet_reads_catching_up_degraded">ピアはブロック %1$d で同意しませんでした。同期は他のピアと再試行されます。</string>
+    <string name="wallet_reads_catching_up_degraded">ブロック %1$d で利用可能なピアを待っています。同期を再試行します。</string>
     <string name="wallet_reads_outbound_12038_blocked">このネットワークは、TCP ポート 12038 上の Handshake ピアをブロックしているようです。別のネットワークまたは VPN を試してから、再度同期してください。</string>
     <string name="wallet_reads_balance_syncing">残高は、アクティブなダイレクトピア検証とウォレットスキャンが完了するのを待っています。</string>
     <string name="wallet_pending_outgoing_recovery">トランザクションは保留中です。新しい Handshake ブロックの後に同期して、Shakescape が送信トランザクションを解決できるようにします。</string>

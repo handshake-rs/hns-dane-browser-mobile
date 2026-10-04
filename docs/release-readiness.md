@@ -1,7 +1,7 @@
 # Release readiness
 
-The configured Android application is `1.0.14`, version code `66`. The iOS
-application is `1.0.14`, build `77`. The shared Rust runtime is `1.0.2`.
+The configured Android application is `1.0.15`, version code `67`. The iOS
+application is `1.0.15`, build `78`. The shared Rust runtime is `1.0.2`.
 Platform releases and Rust package releases have independent versions.
 
 ## Standing release instructions

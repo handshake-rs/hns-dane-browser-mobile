@@ -63,7 +63,7 @@
     <string name="wallet_reads_catching_up_headers">الرؤوس: كتلة %1$d. مسح المحفظة: %2$d من %3$d. تستمر المزامنة تلقائيًا.</string>
     <string name="wallet_reads_catching_up_before_birthday">الرؤوس: الكتلة %1$d من كتلة عيد الميلاد %2$d. يبدأ فحص المحفظة في كتلة عيد الميلاد.</string>
     <string name="wallet_reads_catching_up_scan">الرؤوس حالية. مسح المحفظة: كتلة %1$d من %2$d. تستمر المزامنة تلقائيًا.</string>
-    <string name="wallet_reads_catching_up_degraded">لم يتفق الزملاء على الكتلة %1$d. ستتم إعادة محاولة المزامنة مع أقرانهم الآخرين.</string>
+    <string name="wallet_reads_catching_up_degraded">في انتظار أقران متاحين عند الكتلة %1$d. ستتم إعادة محاولة المزامنة.</string>
     <string name="wallet_reads_outbound_12038_blocked">يبدو أن هذه الشبكة تحظر أقران Handshake على منفذ TCP رقم 12038. جرب شبكة أخرى أو VPN، ثم قم بالمزامنة مرة أخرى.</string>
     <string name="wallet_reads_balance_syncing">الرصيد في انتظار انتهاء عملية التحقق المباشر من النظير وفحص المحفظة.</string>
     <string name="wallet_pending_outgoing_recovery">الصفقة معلقة. قم بالمزامنة بعد كتلة Handshake جديدة حتى يتمكن Shakescape من تسوية المعاملة الصادرة.</string>

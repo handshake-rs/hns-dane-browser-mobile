@@ -2552,10 +2552,12 @@ class WalletActivity : ComponentActivity() {
                     ))
                     add(WalletModalAction(getString(R.string.wallet_swap_executions), available,
                         ::showShakescapeExecutions, primary = hasLiveAtomicSwap()))
-                    add(WalletModalAction(getString(R.string.wallet_swap_available_offers), available && paired,
-                        ::showAvailableDirectOffers, primary = paired && !hasLiveAtomicSwap()))
-                    add(WalletModalAction(getString(R.string.wallet_ux_coin_offers), available && paired,
-                        ::showCoinOfferMenu))
+                    if (paired) {
+                        add(WalletModalAction(getString(R.string.wallet_swap_available_offers), available,
+                            ::showAvailableDirectOffers, primary = !hasLiveAtomicSwap()))
+                        add(WalletModalAction(getString(R.string.wallet_ux_coin_offers), available,
+                            ::showCoinOfferMenu))
+                    }
                     add(WalletModalAction(getString(R.string.wallet_swap_my_offers), available, ::showMyDirectOffers))
                     add(WalletModalAction(getString(R.string.wallet_ux_name_market), available, ::showNameMarketMenu))
                 }
@@ -2570,7 +2572,7 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun showCoinOfferMenu() {
-        val bitcoinReady = bitcoinStage() == BitcoinOverviewStage.Sync
+        val bitcoinReady = directShakescapePeerEndpoint != null && bitcoinStage() == BitcoinOverviewStage.Sync
         walletDetailDialog(
             title = getString(R.string.wallet_ux_coin_offers),
             rows = if (bitcoinReady) emptyList() else listOf(

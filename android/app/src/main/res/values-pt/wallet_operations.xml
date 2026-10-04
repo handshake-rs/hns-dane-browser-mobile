@@ -63,7 +63,7 @@
     <string name="wallet_reads_catching_up_headers">Cabeçalhos: bloco %1$d. Digitalização de carteira: %2$d de %3$d. A sincronização continua automaticamente.</string>
     <string name="wallet_reads_catching_up_before_birthday">Cabeçalhos: bloco %1$d do bloco de aniversário %2$d. A verificação da carteira começa no bloco de aniversário.</string>
     <string name="wallet_reads_catching_up_scan">Os cabeçalhos são atuais. Verificação de carteira: bloquear %1$d de %2$d. A sincronização continua automaticamente.</string>
-    <string name="wallet_reads_catching_up_degraded">Os pares não concordaram no bloco %1$d. A sincronização tentará novamente com outros pares.</string>
+    <string name="wallet_reads_catching_up_degraded">Aguardando pares disponíveis no bloco %1$d. A sincronização será tentada novamente.</string>
     <string name="wallet_reads_outbound_12038_blocked">Esta rede parece bloquear pares Handshake na porta 12038 TCP. Tente outra rede ou VPN e sincronize novamente.</string>
     <string name="wallet_reads_balance_syncing">O saldo está aguardando a conclusão da verificação ativa de pares diretos e da verificação da carteira.</string>
     <string name="wallet_pending_outgoing_recovery">Transação pendente. Sincronize após um novo bloco Handshake para que Shakescape possa liquidar a transação de saída.</string>

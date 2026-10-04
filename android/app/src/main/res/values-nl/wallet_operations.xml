@@ -63,7 +63,7 @@
     <string name="wallet_reads_catching_up_headers">Kopteksten: blok %1$d. Portemonneescan: %2$d of %3$d. De synchronisatie gaat automatisch verder.</string>
     <string name="wallet_reads_catching_up_before_birthday">Headers: blok %1$d van verjaardagsblok %2$d. De portemonneescan begint bij het verjaardagsblok.</string>
     <string name="wallet_reads_catching_up_scan">Headers zijn actueel. Portemonneescan: blokkeer %1$d van %2$d. De synchronisatie gaat automatisch verder.</string>
-    <string name="wallet_reads_catching_up_degraded">Peers waren het niet eens met blok %1$d. Synchronisatie wordt opnieuw geprobeerd met andere peers.</string>
+    <string name="wallet_reads_catching_up_degraded">Wachten op beschikbare peers bij blok %1$d. Synchronisatie wordt opnieuw geprobeerd.</string>
     <string name="wallet_reads_outbound_12038_blocked">Dit netwerk lijkt Handshake-peers op TCP-poort 12038 te blokkeren. Probeer een ander netwerk of VPN en synchroniseer opnieuw.</string>
     <string name="wallet_reads_balance_syncing">Het saldo wacht tot de actieve directe peer-verificatie en portefeuillescan zijn voltooid.</string>
     <string name="wallet_pending_outgoing_recovery">Transactie in behandeling. Synchroniseer na een nieuw Handshake-blok zodat Shakescape de uitgaande transactie kan afrekenen.</string>

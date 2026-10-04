@@ -63,7 +63,7 @@
     <string name="wallet_reads_catching_up_headers">Tiêu đề: khối %1$d. Quét ví: %2$d của %3$d. Đồng bộ hóa tiếp tục tự động.</string>
     <string name="wallet_reads_catching_up_before_birthday">Tiêu đề: khối %1$d của khối sinh nhật %2$d. Quá trình quét ví bắt đầu ở khối sinh nhật.</string>
     <string name="wallet_reads_catching_up_scan">Tiêu đề là hiện tại. Quét ví: chặn %1$d của %2$d. Đồng bộ hóa tiếp tục tự động.</string>
-    <string name="wallet_reads_catching_up_degraded">Các đồng nghiệp không đồng ý ở khối %1$d. Đồng bộ hóa sẽ thử lại với các đồng nghiệp khác.</string>
+    <string name="wallet_reads_catching_up_degraded">Đang chờ các nút khả dụng tại khối %1$d. Sẽ thử đồng bộ lại.</string>
     <string name="wallet_reads_outbound_12038_blocked">Mạng này dường như chặn các thiết bị ngang hàng Handshake trên cổng TCP 12038. Hãy thử một mạng hoặc VPN khác, sau đó đồng bộ hóa lại.</string>
     <string name="wallet_reads_balance_syncing">Số dư đang chờ quá trình xác minh ngang hàng trực tiếp và quét ví hoàn tất.</string>
     <string name="wallet_pending_outgoing_recovery">Giao dịch đang chờ xử lý. Đồng bộ hóa sau khối Handshake mới để Shakescape có thể giải quyết giao dịch gửi đi.</string>

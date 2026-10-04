@@ -63,7 +63,7 @@
     <string name="wallet_reads_catching_up_headers">헤더: %1$d를 차단합니다. 지갑 스캔: %3$d의 %2$d. 동기화는 자동으로 계속됩니다.</string>
     <string name="wallet_reads_catching_up_before_birthday">헤더: 생일 블록 %2$d의 블록 %1$d. 지갑 스캔은 생일 블록부터 시작됩니다.</string>
     <string name="wallet_reads_catching_up_scan">헤더는 최신입니다. 지갑 스캔: %2$d의 %1$d를 차단합니다. 동기화는 자동으로 계속됩니다.</string>
-    <string name="wallet_reads_catching_up_degraded">피어들은 %1$d 블록에서 동의하지 않았습니다. 다른 피어와의 동기화가 다시 시도됩니다.</string>
+    <string name="wallet_reads_catching_up_degraded">블록 %1$d에서 사용 가능한 피어를 기다리는 중입니다. 동기화를 다시 시도합니다.</string>
     <string name="wallet_reads_outbound_12038_blocked">이 네트워크는 TCP 포트 12038에서 Handshake 피어를 차단하는 것으로 보입니다. 다른 네트워크나 VPN을 시도한 후 다시 동기화하세요.</string>
     <string name="wallet_reads_balance_syncing">잔액은 활성 직접 피어 확인 및 지갑 스캔이 완료되기를 기다리고 있습니다.</string>
     <string name="wallet_pending_outgoing_recovery">거래가 보류 중입니다. Shakescape가 나가는 거래를 해결할 수 있도록 새로운 Handshake 블록 이후에 동기화합니다.</string>

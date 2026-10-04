@@ -217,6 +217,25 @@ enum IosDirectPeerService {
     Drop,
 }
 
+/// A local board read failure does not invalidate the negotiated socket.
+/// Keep the peer for retry while every offer still passes local validation.
+fn announce_connected_shakescape_inventory(
+    sessions: &MobileShakescapeSessionController,
+    peer: &mut HnsDirectShakescapePeer,
+    now: u64,
+) -> Result<(), MobileWalletError> {
+    match sessions.announce_direct_offer_inventory(peer, now) {
+        Ok(_) => Ok(()),
+        Err(error) if !error.invalidates_direct_shakescape_transport() => {
+            eprintln!(
+                "ShakeScape local inventory unavailable; authenticated peer retained: {error}"
+            );
+            Ok(())
+        }
+        Err(error) => Err(error),
+    }
+}
+
 /// Service authenticated board traffic before ordinary HSD discovery and
 /// reachability maintenance. Recovery can enqueue several bounded envelopes;
 /// keeping this path first lets UIKit drain them as one interactive burst.
@@ -2215,8 +2234,11 @@ impl NativeWalletController {
                                 controller.announce_wallet_owned_direct_shakedex(&mut peer)
                             })
                             .and_then(|_| {
-                                shakescape_sessions
-                                    .announce_direct_offer_inventory(&mut peer, now_unix)
+                                announce_connected_shakescape_inventory(
+                                    shakescape_sessions,
+                                    &mut peer,
+                                    now_unix,
+                                )
                             })
                             .is_err()
                         {
@@ -2370,32 +2392,17 @@ impl NativeWalletController {
             Ok(_) | Err(HnsDirectPeerError::NoReadyPeers) => {}
             Err(_) => return false,
         }
-        let Some(_listener) = shakescape_listener.as_ref() else {
-            return false;
-        };
         let Ok(floor) = coordinator.rollback_floor() else {
             return false;
         };
+        let connected_endpoints = shakescape_peer
+            .iter()
+            .chain(shakescape_replication_peers.iter())
+            .map(HnsDirectShakescapePeer::address)
+            .chain(shakescape_paired_endpoint.iter().copied())
+            .collect::<Vec<_>>();
         let peer_count = usize::from(shakescape_peer.is_some())
             .saturating_add(shakescape_replication_peers.len());
-        if peer_count < MAX_IOS_DIRECT_SHAKESCAPE_PEERS
-            && let Ok(Some(mut peer)) =
-                coordinator.connect_next_discovered_shakescape_peer(floor.height, now_unix)
-            && controller
-                .begin_wallet_owned_direct_shakedex(&mut peer)
-                .and_then(|_| controller.announce_wallet_owned_direct_shakedex(&mut peer))
-                .and_then(|_| {
-                    shakescape_sessions.announce_direct_offer_inventory(&mut peer, now_unix)
-                })
-                .is_ok()
-        {
-            if shakescape_peer.is_none() {
-                *shakescape_peer = Some(peer);
-            } else {
-                shakescape_replication_peers.push(peer);
-            }
-            return true;
-        }
         let paired_is_connected = shakescape_paired_endpoint.is_some_and(|endpoint| {
             shakescape_peer
                 .as_ref()
@@ -2406,6 +2413,7 @@ impl NativeWalletController {
         });
         let paired_reconnect_due = shakescape_paired_endpoint.filter(|_| {
             !paired_is_connected
+                && peer_count < MAX_IOS_DIRECT_SHAKESCAPE_PEERS
                 && shakescape_next_paired_reconnect_at.is_none_or(|next| now_unix >= next)
         });
         if let Some(address) = paired_reconnect_due {
@@ -2421,7 +2429,11 @@ impl NativeWalletController {
                     .begin_wallet_owned_direct_shakedex(&mut peer)
                     .and_then(|_| controller.announce_wallet_owned_direct_shakedex(&mut peer))
                     .and_then(|_| {
-                        shakescape_sessions.announce_direct_offer_inventory(&mut peer, now_unix)
+                        announce_connected_shakescape_inventory(
+                            shakescape_sessions,
+                            &mut peer,
+                            now_unix,
+                        )
                     })
                     .is_ok()
             {
@@ -2433,6 +2445,35 @@ impl NativeWalletController {
                 shakescape_next_paired_reconnect_at.take();
                 return true;
             }
+        }
+        if peer_count < MAX_IOS_DIRECT_SHAKESCAPE_PEERS
+            && let Ok(Some(mut peer)) = coordinator
+                .connect_next_discovered_shakescape_peer_excluding(
+                    floor.height,
+                    now_unix,
+                    &connected_endpoints,
+                )
+            && controller
+                .begin_wallet_owned_direct_shakedex(&mut peer)
+                .and_then(|_| controller.announce_wallet_owned_direct_shakedex(&mut peer))
+                .and_then(|_| {
+                    announce_connected_shakescape_inventory(
+                        shakescape_sessions,
+                        &mut peer,
+                        now_unix,
+                    )
+                })
+                .is_ok()
+        {
+            if shakescape_peer.is_none() {
+                if shakescape_paired_endpoint.is_none() {
+                    *shakescape_paired_endpoint = Some(peer.address());
+                }
+                *shakescape_peer = Some(peer);
+            } else {
+                shakescape_replication_peers.push(peer);
+            }
+            return true;
         }
         false
     }
@@ -2470,6 +2511,9 @@ impl NativeWalletController {
                 peer_endpoint: None,
             };
         };
+        *shakescape_paired_endpoint = Some(address);
+        *shakescape_next_paired_reconnect_at =
+            Some(now_unix.saturating_add(IOS_SHAKESCAPE_PAIRED_RECONNECT_INTERVAL_SECONDS));
         let mut config = HnsDirectPeerConfig::for_network(controller.account_config().network);
         config.connect_timeout = IOS_DIRECT_SHAKESCAPE_PAIR_TIMEOUT;
         config.allow_private_addresses = true;
@@ -2487,7 +2531,9 @@ impl NativeWalletController {
         if controller
             .begin_wallet_owned_direct_shakedex(&mut peer)
             .and_then(|_| controller.announce_wallet_owned_direct_shakedex(&mut peer))
-            .and_then(|_| shakescape_sessions.announce_direct_offer_inventory(&mut peer, now_unix))
+            .and_then(|_| {
+                announce_connected_shakescape_inventory(shakescape_sessions, &mut peer, now_unix)
+            })
             .is_err()
         {
             return IosDirectShakescapeConnectResult {
@@ -2998,7 +3044,7 @@ fn direct_hns_peer_config(network: HnsNetwork) -> HnsDirectPeerConfig {
         // Mainnet/testnet discovery is allowed to replace a bounded pool of
         // candidates. The direct wallet still requires independently agreed
         // headers before it treats any peer as chain authority.
-        config.target_peers = 4;
+        config.target_peers = 8;
         config.connect_timeout = Duration::from_secs(30);
     }
     config

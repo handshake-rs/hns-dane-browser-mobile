@@ -63,7 +63,7 @@
     <string name="wallet_reads_catching_up_headers">هدرها: بلوک %1$d. اسکن کیف پول: %2$d از %3$d. همگام سازی به صورت خودکار ادامه می یابد.</string>
     <string name="wallet_reads_catching_up_before_birthday">هدرها: بلوک %1$d بلوک تولد %2$d. اسکن کیف پول از بلوک تولد شروع می شود.</string>
     <string name="wallet_reads_catching_up_scan">سرصفحه ها جاری هستند. اسکن کیف پول: بلوک %1$d از %2$d. همگام سازی به صورت خودکار ادامه می یابد.</string>
-    <string name="wallet_reads_catching_up_degraded">همتایان در بلوک %1$d موافق نبودند. همگام سازی با سایر همتایان دوباره امتحان می شود.</string>
+    <string name="wallet_reads_catching_up_degraded">در انتظار همتایان در دسترس در بلوک %1$d. همگام‌سازی دوباره تلاش خواهد شد.</string>
     <string name="wallet_reads_outbound_12038_blocked">به نظر می رسد این شبکه همتایان Handshake را در درگاه TCP 12038 مسدود می کند. شبکه یا VPN دیگری را امتحان کنید، سپس دوباره همگام سازی کنید.</string>
     <string name="wallet_reads_balance_syncing">موجودی منتظر است تا تأیید مستقیم فعال و اسکن کیف پول به پایان برسد.</string>
     <string name="wallet_pending_outgoing_recovery">معامله در انتظار بعد از یک بلوک جدید Handshake همگام سازی کنید تا Shakescape بتواند تراکنش خروجی را تسویه کند.</string>

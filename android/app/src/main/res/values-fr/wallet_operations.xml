@@ -63,7 +63,7 @@
     <string name="wallet_reads_catching_up_headers">En-têtes : bloc %1$d. Analyse du portefeuille : %2$d ou %3$d. La synchronisation se poursuit automatiquement.</string>
     <string name="wallet_reads_catching_up_before_birthday">En-têtes : bloc %1$d du bloc anniversaire %2$d. L\'analyse du portefeuille commence au bloc d\'anniversaire.</string>
     <string name="wallet_reads_catching_up_scan">Les en-têtes sont à jour. Analyse du portefeuille : bloquez %1$d ou %2$d. La synchronisation se poursuit automatiquement.</string>
-    <string name="wallet_reads_catching_up_degraded">Les pairs n’étaient pas d’accord sur le bloc %1$d. La synchronisation va réessayer avec d\'autres pairs.</string>
+    <string name="wallet_reads_catching_up_degraded">En attente de pairs disponibles au bloc %1$d. La synchronisation sera réessayée.</string>
     <string name="wallet_reads_outbound_12038_blocked">Ce réseau semble bloquer les homologues Handshake sur le port TCP 12038. Essayez un autre réseau ou VPN, puis synchronisez à nouveau.</string>
     <string name="wallet_reads_balance_syncing">Le solde attend la fin de la vérification active par les pairs directs et de l’analyse du portefeuille.</string>
     <string name="wallet_pending_outgoing_recovery">Transaction en attente. Synchronisez après un nouveau bloc Handshake afin que Shakescape puisse régler la transaction sortante.</string>

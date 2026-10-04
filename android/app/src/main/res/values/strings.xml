@@ -403,7 +403,7 @@
     <string name="wallet_reads_catching_up_headers">Headers: block %1$d. Wallet scan: %2$d of %3$d. Synchronization continues automatically.</string>
     <string name="wallet_reads_catching_up_before_birthday">Headers: block %1$d of birthday block %2$d. The wallet scan starts at the birthday block.</string>
     <string name="wallet_reads_catching_up_scan">Headers are current. Wallet scan: block %1$d of %2$d. Synchronization continues automatically.</string>
-    <string name="wallet_reads_catching_up_degraded">Peers did not agree at block %1$d. Synchronization will retry with other peers.</string>
+    <string name="wallet_reads_catching_up_degraded">Waiting for usable peers at block %1$d. Synchronization will retry.</string>
     <string name="wallet_reads_outbound_12038_blocked">This network appears to block Handshake peers on TCP port 12038. Try another network or VPN, then synchronize again.</string>
     <string name="wallet_reads_ready">HNS wallet ready at block %1$d.</string>
     <string name="wallet_reads_balance_unavailable">Balance will appear after synchronization.</string>

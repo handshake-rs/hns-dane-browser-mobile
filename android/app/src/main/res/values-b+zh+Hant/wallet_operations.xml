@@ -63,7 +63,7 @@
     <string name="wallet_reads_catching_up_headers">標頭：塊 %1$d。錢包掃描：%2$d 或 %3$d。同步會自動繼續。</string>
     <string name="wallet_reads_catching_up_before_birthday">標頭：生日區塊 %2$d 的區塊 %1$d。錢包掃描從生日區塊開始。</string>
     <string name="wallet_reads_catching_up_scan">標題是最新的。錢包掃描：區塊%2$d的%1$d。同步會自動繼續。</string>
-    <string name="wallet_reads_catching_up_degraded">同行們在區塊 %1$d 上沒有達成協議。將重試與其他對等方的同步。</string>
+    <string name="wallet_reads_catching_up_degraded">正在區塊 %1$d 等待可用節點。將重試同步。</string>
     <string name="wallet_reads_outbound_12038_blocked">該網路似乎阻止了 TCP 連接埠 12038 上的 Handshake 對等點。請嘗試其他網路或 VPN，然後再次同步。</string>
     <string name="wallet_reads_balance_syncing">餘額正在等待主動直接對等驗證和錢包掃描完成。</string>
     <string name="wallet_pending_outgoing_recovery">交易待處理。在新的 Handshake 區塊之後同步，以便 Shakescape 可以結算傳出交易。</string>

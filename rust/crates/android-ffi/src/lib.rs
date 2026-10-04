@@ -171,9 +171,9 @@ const ANDROID_WALLET_HEADER_SEGMENT_METADATA_BYTES: u64 = 55;
 /// unbounded network task.
 const DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC: usize = 32;
 /// A header peer can legitimately close after answering one large batch. The
-/// public pool holds 12 peers and each agreement round uses exactly two
+/// public pool holds eight peers and each agreement round uses exactly two
 /// independent views, so allow six bounded rounds (the initial attempt plus
-/// five replacements) to rotate through that whole pool before presenting a
+/// five replacements) to rotate through that pool with overlap before presenting a
 /// resumable catch-up state to the user.
 const DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC: usize = 5;
 /// Each direct scan call verifies at most 2,000 wallet-filtered blocks. Keep
@@ -194,7 +194,7 @@ const DIRECT_HNS_WATCH_SET_EXTENSION_REQUIRED: &str =
 /// independently discovered peers than the library minimum. A stale DNS
 /// answer or an endpoint with another service on the Handshake port must not
 /// make the sole wallet sync attempt depend on the other candidates.
-const ANDROID_DIRECT_HNS_PUBLIC_TARGET_PEERS: usize = 4;
+const ANDROID_DIRECT_HNS_PUBLIC_TARGET_PEERS: usize = 8;
 /// The wallet's direct peer I/O deadline also bounds the local multi-peer
 /// header-agreement round. Eight seconds is insufficient for cold mobile TCP
 /// paths to return two full 2,000-header batches, so retain a bounded
@@ -241,6 +241,25 @@ enum AndroidDirectPeerService {
     Idle,
     Retain { board_changed: bool },
     Drop,
+}
+
+/// A local board read failure does not invalidate the negotiated socket.
+/// Keep the peer for retry while every offer still passes local validation.
+fn announce_connected_shakescape_inventory(
+    sessions: &MobileShakescapeSessionController,
+    peer: &mut HnsDirectShakescapePeer,
+    now: u64,
+) -> Result<(), MobileWalletError> {
+    match sessions.announce_direct_offer_inventory(peer, now) {
+        Ok(_) => Ok(()),
+        Err(error) if !error.invalidates_direct_shakescape_transport() => {
+            android_log_error(&format!(
+                "ShakeScape local inventory unavailable; authenticated peer retained: {error}"
+            ));
+            Ok(())
+        }
+        Err(error) => Err(error),
+    }
 }
 
 /// Service one already-negotiated board peer without running unrelated HSD
@@ -2536,8 +2555,11 @@ impl AndroidWalletController {
                                 controller.announce_wallet_owned_direct_shakedex(&mut peer)
                             })
                             .and_then(|_| {
-                                shakescape_sessions
-                                    .announce_direct_offer_inventory(&mut peer, now_unix)
+                                announce_connected_shakescape_inventory(
+                                    shakescape_sessions,
+                                    &mut peer,
+                                    now_unix,
+                                )
                             })
                             .is_err()
                         {
@@ -2788,9 +2810,6 @@ impl AndroidWalletController {
                 "wallet-owned ShakeScape address discovery failed: {error}"
             )),
         }
-        let Some(_listener) = shakescape_listener.as_ref() else {
-            return false;
-        };
         let height = match coordinator.rollback_floor() {
             Ok(floor) => floor.height,
             Err(error) => {
@@ -2800,33 +2819,14 @@ impl AndroidWalletController {
                 return false;
             }
         };
+        let connected_endpoints = shakescape_peer
+            .iter()
+            .chain(shakescape_replication_peers.iter())
+            .map(HnsDirectShakescapePeer::address)
+            .chain(shakescape_paired_endpoint.iter().copied())
+            .collect::<Vec<_>>();
         let peer_count = usize::from(shakescape_peer.is_some())
             .saturating_add(shakescape_replication_peers.len());
-        if peer_count < MAX_ANDROID_DIRECT_SHAKESCAPE_PEERS {
-            match coordinator.connect_next_discovered_shakescape_peer(height, now_unix) {
-                Ok(Some(mut peer)) => {
-                    if controller
-                        .begin_wallet_owned_direct_shakedex(&mut peer)
-                        .and_then(|_| controller.announce_wallet_owned_direct_shakedex(&mut peer))
-                        .and_then(|_| {
-                            shakescape_sessions.announce_direct_offer_inventory(&mut peer, now_unix)
-                        })
-                        .is_ok()
-                    {
-                        if shakescape_peer.is_none() {
-                            *shakescape_peer = Some(peer);
-                        } else {
-                            shakescape_replication_peers.push(peer);
-                        }
-                        return true;
-                    }
-                }
-                Ok(None) => {}
-                Err(error) => android_log_error(&format!(
-                    "wallet-owned discovered ShakeScape peer was unavailable: {error}"
-                )),
-            }
-        }
         let paired_is_connected = shakescape_paired_endpoint.is_some_and(|endpoint| {
             shakescape_peer
                 .as_ref()
@@ -2837,6 +2837,7 @@ impl AndroidWalletController {
         });
         let paired_reconnect_due = shakescape_paired_endpoint.filter(|_| {
             !paired_is_connected
+                && peer_count < MAX_ANDROID_DIRECT_SHAKESCAPE_PEERS
                 && shakescape_next_paired_reconnect_at.is_none_or(|next| now_unix >= next)
         });
         if let Some(address) = paired_reconnect_due {
@@ -2852,7 +2853,11 @@ impl AndroidWalletController {
                         .begin_wallet_owned_direct_shakedex(&mut peer)
                         .and_then(|_| controller.announce_wallet_owned_direct_shakedex(&mut peer))
                         .and_then(|_| {
-                            shakescape_sessions.announce_direct_offer_inventory(&mut peer, now_unix)
+                            announce_connected_shakescape_inventory(
+                                shakescape_sessions,
+                                &mut peer,
+                                now_unix,
+                            )
                         })
                         .is_ok()
                     {
@@ -2875,6 +2880,42 @@ impl AndroidWalletController {
                 }
                 Err(error) => android_log_error(&format!(
                     "wallet-owned paired Shakescape transport retry failed for {address}: {error}"
+                )),
+            }
+        }
+        if peer_count < MAX_ANDROID_DIRECT_SHAKESCAPE_PEERS {
+            match coordinator.connect_next_discovered_shakescape_peer_excluding(
+                height,
+                now_unix,
+                &connected_endpoints,
+            ) {
+                Ok(Some(mut peer)) => {
+                    if controller
+                        .begin_wallet_owned_direct_shakedex(&mut peer)
+                        .and_then(|_| controller.announce_wallet_owned_direct_shakedex(&mut peer))
+                        .and_then(|_| {
+                            announce_connected_shakescape_inventory(
+                                shakescape_sessions,
+                                &mut peer,
+                                now_unix,
+                            )
+                        })
+                        .is_ok()
+                    {
+                        if shakescape_peer.is_none() {
+                            if shakescape_paired_endpoint.is_none() {
+                                *shakescape_paired_endpoint = Some(peer.address());
+                            }
+                            *shakescape_peer = Some(peer);
+                        } else {
+                            shakescape_replication_peers.push(peer);
+                        }
+                        return true;
+                    }
+                }
+                Ok(None) => {}
+                Err(error) => android_log_error(&format!(
+                    "wallet-owned discovered ShakeScape peer was unavailable: {error}"
                 )),
             }
         }
@@ -2934,6 +2975,9 @@ impl AndroidWalletController {
                 };
             }
         };
+        *shakescape_paired_endpoint = Some(address);
+        *shakescape_next_paired_reconnect_at =
+            Some(now_unix.saturating_add(ANDROID_SHAKESCAPE_PAIRED_RECONNECT_INTERVAL_SECONDS));
         let mut config = HnsDirectPeerConfig::for_network(controller.account_config().network);
         config.connect_timeout = ANDROID_DIRECT_SHAKESCAPE_PAIR_TIMEOUT;
         // Private addresses are admitted only through this exact, local-user
@@ -2954,7 +2998,9 @@ impl AndroidWalletController {
         if let Err(error) = controller
             .begin_wallet_owned_direct_shakedex(&mut peer)
             .and_then(|_| controller.announce_wallet_owned_direct_shakedex(&mut peer))
-            .and_then(|_| shakescape_sessions.announce_direct_offer_inventory(&mut peer, now_unix))
+            .and_then(|_| {
+                announce_connected_shakescape_inventory(shakescape_sessions, &mut peer, now_unix)
+            })
         {
             android_log_error(&format!(
                 "wallet-owned Shakescape registry exchange failed for {address}: {error}"
@@ -3029,9 +3075,20 @@ impl AndroidWalletController {
                         coordinator,
                     );
                     let now_unix = HnsReadSystemClock.now_unix()?;
+                    let connect_started = std::time::Instant::now();
                     if let Err(error) = coordinator.connect_sync_quorum_available(now_unix) {
                         return direct_hns_transport_catchup(coordinator, "connection", error);
                     }
+                    android_log_info(
+                        "hns-peers",
+                        &format!(
+                            "sync peer quorum ready: connected={} target={} minimum={} elapsed_ms={}",
+                            coordinator.pool().peer_count().unwrap_or(0),
+                            coordinator.pool().config().target_peers,
+                            coordinator.pool().config().minimum_block_views,
+                            connect_started.elapsed().as_millis(),
+                        ),
+                    );
                     ensure_android_hns_sync_not_cancelled(sync_record)?;
                     publish_direct_hns_live_progress(
                         live_progress,
@@ -10137,10 +10194,10 @@ mod tests {
     }
 
     #[test]
-    fn direct_hns_public_peer_pool_has_one_reserve_quorum() {
+    fn direct_hns_public_peer_pool_races_four_quorums() {
         let public_quorum = android_direct_hns_peer_config(HnsNetwork::Mainnet).minimum_block_views;
         assert_eq!(public_quorum, 2);
-        assert_eq!(ANDROID_DIRECT_HNS_PUBLIC_TARGET_PEERS, 2 * public_quorum);
+        assert_eq!(ANDROID_DIRECT_HNS_PUBLIC_TARGET_PEERS, 4 * public_quorum);
     }
 
     #[test]

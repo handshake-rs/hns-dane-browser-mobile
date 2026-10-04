@@ -63,7 +63,7 @@
     <string name="wallet_reads_catching_up_headers">Nagłówki: blok %1$d. Skan portfela: %2$d z %3$d. Synchronizacja jest kontynuowana automatycznie.</string>
     <string name="wallet_reads_catching_up_before_birthday">Nagłówki: blok %1$d bloku urodzinowego %2$d. Skanowanie portfela rozpoczyna się w bloku urodzinowym.</string>
     <string name="wallet_reads_catching_up_scan">Nagłówki są aktualne. Skan portfela: blok %1$d z %2$d. Synchronizacja jest kontynuowana automatycznie.</string>
-    <string name="wallet_reads_catching_up_degraded">Uczestnicy nie zgodzili się w bloku %1$d. Synchronizacja zostanie ponowiona z innymi urządzeniami równorzędnymi.</string>
+    <string name="wallet_reads_catching_up_degraded">Oczekiwanie na dostępne węzły przy bloku %1$d. Synchronizacja zostanie ponowiona.</string>
     <string name="wallet_reads_outbound_12038_blocked">Wygląda na to, że ta sieć blokuje urządzenia równorzędne Handshake na porcie 12038 TCP. Spróbuj innej sieci lub VPN, a następnie zsynchronizuj ponownie.</string>
     <string name="wallet_reads_balance_syncing">Saldo oczekuje na zakończenie aktywnej weryfikacji bezpośredniej i skanowania portfela.</string>
     <string name="wallet_pending_outgoing_recovery">Transakcja oczekująca. Synchronizuj po nowym bloku Handshake, aby Shakescape mógł rozliczyć wychodzącą transakcję.</string>

@@ -62,8 +62,8 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
 
     def test_platform_identity_and_reviewed_registry_cohort(self) -> None:
         gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
-        self.assertRegex(gradle, r"(?m)^\s*versionName = \"1\.0\.14\"$")
-        self.assertRegex(gradle, r"(?m)^\s*versionCode = 66$")
+        self.assertRegex(gradle, r"(?m)^\s*versionName = \"1\.0\.15\"$")
+        self.assertRegex(gradle, r"(?m)^\s*versionCode = 67$")
         self.assertIn(
             '?: listOf("armeabi-v7a", "arm64-v8a")',
             gradle,
@@ -164,8 +164,8 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
             WALLET_SOURCE,
         )
         self.assertRegex(locked_by_name["hns-wallet-mobile"]["checksum"], r"^[0-9a-f]{64}$")
-        for package in ("hns-wallet-hns", "hns-wallet-market"):
-            self.assertEqual(locked_by_name[package]["version"], "0.4.2")
+        for package, version in (("hns-wallet-hns", "0.4.3"), ("hns-wallet-market", "0.4.2")):
+            self.assertEqual(locked_by_name[package]["version"], version)
             self.assertEqual(locked_by_name[package]["source"], WALLET_SOURCE)
 
         lockfile = (ROOT / "rust/Cargo.lock").read_text(encoding="utf-8")
@@ -204,8 +204,8 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertEqual(deny["advisories"]["ignore"], ["RUSTSEC-2024-0436"])
 
         project = (ROOT / "ios/project.yml").read_text(encoding="utf-8")
-        self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 1\.0\.14$")
-        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 77$")
+        self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 1\.0\.15$")
+        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 78$")
         self.assertIn('TARGETED_DEVICE_FAMILY: "1,2"', project)
         self.assertIn("SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: YES", project)
         self.assertIn("- sdk: SystemConfiguration.framework", project)

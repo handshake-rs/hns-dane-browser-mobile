@@ -63,7 +63,7 @@
     <string name="wallet_reads_catching_up_headers">Заголовки: блок %1$d. Скан кошелька: %2$d или %3$d. Синхронизация продолжится автоматически.</string>
     <string name="wallet_reads_catching_up_before_birthday">Заголовки: блок %1$d блока рождения %2$d. Сканирование кошелька начинается с блока дня рождения.</string>
     <string name="wallet_reads_catching_up_scan">Заголовки актуальны. Сканирование кошелька: заблокируйте %1$d %2$d. Синхронизация продолжится автоматически.</string>
-    <string name="wallet_reads_catching_up_degraded">Коллеги не согласились с блоком %1$d. Синхронизация будет повторена с другими узлами.</string>
+    <string name="wallet_reads_catching_up_degraded">Ожидание доступных узлов на блоке %1$d. Синхронизация будет повторена.</string>
     <string name="wallet_reads_outbound_12038_blocked">Похоже, что эта сеть блокирует узлы Handshake на порту 12038 TCP. Попробуйте другую сеть или VPN, затем выполните синхронизацию еще раз.</string>
     <string name="wallet_reads_balance_syncing">Баланс ожидает завершения активной прямой одноранговой проверки и сканирования кошелька.</string>
     <string name="wallet_pending_outgoing_recovery">Ожидается транзакция. Синхронизируйте после нового блока Handshake, чтобы Shakescape мог выполнить исходящую транзакцию.</string>

@@ -12,10 +12,12 @@ source overrides and Git dependencies, and requires one copy of each package.
 | Engine light-client and SQLite browser adapters | 0.2.6 |
 | Other engine packages | Exact package versions in `rust/Cargo.toml` |
 | `hns-wallet-ffi`, `hns-wallet-mobile`, `hns-wallet-types` | 0.4.1 |
-| `hns-wallet-hns`, `hns-wallet-market` | Published 0.4.2 |
+| `hns-wallet-hns` | Published 0.4.3 |
+| `hns-wallet-market` | Published 0.4.2 |
 
-Only HNS and market needed new package releases. Their published source is
-`5789a88caeb6b0410e0f472bedd1047a01cf9edc` in `hns-wallet-rs`. Compatible
+The HNS 0.4.3 peer-race/reconnect patch was published from
+`1c0ff8247e21e11522a8bc7a8caf7307386e0361` in `hns-wallet-rs`. The market
+0.4.2 patch remains at `5789a88caeb6b0410e0f472bedd1047a01cf9edc`. Compatible
 consumer requirements select those patches while the other wallet packages
 retain their existing versions. Cargo aliases such as `hns-core`, `hns-chain`,
 `hns-p2p`, and `hns-urkel` select the corresponding `hns-browser-*` packages.
