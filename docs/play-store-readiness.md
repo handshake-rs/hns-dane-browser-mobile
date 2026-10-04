@@ -123,11 +123,15 @@ status, and listing. A successful local build does not establish store state.
 The manual `android-store-screenshots.yml` workflow captures the shipping
 Release interface on Pixel 7, Nexus 7 (2013), and Nexus 10 emulator profiles.
 It builds one x86_64 APK for these captures, uses a disposable installation
-certificate, and retains twelve original PNGs, their source/version/checksum
+certificate, and retains nine original PNGs, their source/version/checksum
 manifest, interface trees, and timestamped device logs. The upload AAB keeps
 its separately verified Play upload signature. Existing device logs are never
-cleared. Screens show browser controls, settings, Handshake settings, and native
-wallet onboarding without creating a wallet or approving value actions.
+cleared. Screens show browser controls, settings, and Handshake settings. The
+workflow separately verifies native wallet onboarding without creating a wallet
+or approving value actions. Release wallet windows use `FLAG_SECURE`, so they
+are excluded from marketing captures while the shipping protection remains
+enabled. Every captured destination must expose its expected native controls
+before the frame is taken; still review the actual pixels before uploading.
 
 ```sh
 gh workflow run android-store-screenshots.yml --ref main \

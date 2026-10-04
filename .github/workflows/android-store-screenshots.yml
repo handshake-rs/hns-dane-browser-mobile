@@ -130,6 +130,7 @@ jobs:
                       'installedApkSha256': hashlib.sha256(apk.read_bytes()).hexdigest(),
                       'signingPurpose': 'ephemeral simulator installation only',
                       'capturedAt': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                      'walletOnboardingObservedFamilies': [],
                       'images': []}
           family = os.environ['CAPTURE_FAMILY']
           profile, dimensions = {
@@ -173,6 +174,15 @@ jobs:
                       return
                   time.sleep(1)
               raise RuntimeError(f'Expected one visible {label!r} control')
+          def wait_labels(*required):
+              for attempt in range(20):
+                  labels = {node.get('text') for node in tree().iter('node')
+                            if node.get('package') == package
+                            and node.get('class', '').startswith('android.widget.')}
+                  if set(required) <= labels:
+                      return
+                  time.sleep(1)
+              raise RuntimeError(f'Expected native destination controls: {required!r}')
           def capture(family, name, expected_size):
               data = adb('exec-out', 'screencap', '-p')
               assert data[:8] == b'\x89PNG\r\n\x1a\n'
@@ -191,28 +201,29 @@ jobs:
           assert b'Status: ok' in launch, launch
           time.sleep(5)
           tap('Browser menu', description=True)
+          wait_labels('Browser', 'Handshake', 'Wallet')
           capture(family, '01-browser-menu', dimensions)
           tap('Browser')
+          wait_labels('Homepage', 'Theme', 'App language')
           capture(family, '02-browser-settings', dimensions)
           adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
           tap('Browser menu', description=True)
           tap('Handshake')
+          wait_labels('Stateless DANE', 'Recovery DNS')
           capture(family, '03-handshake-settings', dimensions)
           adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
           tap('Browser menu', description=True)
           tap('Wallet')
-          for attempt in range(20):
-              labels = {node.get('text') for node in tree().iter('node')}
-              if {'Create wallet', 'Restore wallet'} <= labels:
-                  break
-              time.sleep(1)
-          else:
-              raise RuntimeError('Native wallet onboarding was not visible')
-          capture(family, '04-wallet-onboarding', dimensions)
+          wait_labels('Create wallet', 'Restore wallet')
+          # Release wallets protect their window with FLAG_SECURE. Preserve
+          # native onboarding evidence without producing a black store image
+          # or disabling the shipping protection.
+          (output / f'{family}-wallet-window.txt').write_bytes(adb('shell', 'dumpsys', 'window'))
+          manifest['walletOnboardingObservedFamilies'].append(family)
           adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
           # The registered exit handler preserves timestamped logs on failure too.
           (output / 'manifest.json').write_text(json.dumps(manifest, indent=2)+'\n')
-          assert len([image for image in manifest['images'] if image['file'].startswith(family+'/')]) == 4
+          assert len([image for image in manifest['images'] if image['file'].startswith(family+'/')]) == 3
           print(json.dumps(manifest, indent=2))
           PY
 
@@ -267,8 +278,11 @@ jobs:
           import json
           from pathlib import Path
           manifest = json.loads(Path('build/android-store-screenshots/manifest.json').read_text())
-          assert len(manifest['images']) == 12
-          assert len({image['file'] for image in manifest['images']}) == 12
+          assert len(manifest['images']) == 9
+          assert len({image['file'] for image in manifest['images']}) == 9
+          assert set(manifest['walletOnboardingObservedFamilies']) == {
+              'phoneScreenshots', 'sevenInchScreenshots', 'tenInchScreenshots',
+          }
           PYVERIFY
 
       - name: Retain screenshots and provenance
