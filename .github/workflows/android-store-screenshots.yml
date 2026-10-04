@@ -113,8 +113,10 @@ jobs:
               stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
               try:
                   (output / f'device-logcat-{stamp}.txt').write_bytes(adb('logcat', '-d'))
+                  (output / f'device-screen-{stamp}.png').write_bytes(adb('exec-out', 'screencap', '-p'))
+                  (output / f'device-window-{stamp}.txt').write_bytes(adb('shell', 'dumpsys', 'window'))
               except subprocess.SubprocessError:
-                  print('Unable to export the existing emulator log stream.')
+                  print('Unable to export all existing emulator diagnostics.')
           atexit.register(preserve_logs)
           apk = pathlib.Path(os.environ['RUNNER_TEMP']) / 'shakescape-capture.apk'
           package = 'com.denuoweb.hnsdane'
@@ -146,8 +148,15 @@ jobs:
               global sequence
               sequence += 1
               device_path = f'/sdcard/shakescape-store-capture-{sequence}.xml'
-              adb('shell', 'uiautomator', 'dump', device_path)
-              data = adb('shell', 'cat', device_path)
+              result = adb('shell', 'uiautomator', 'dump', device_path)
+              (output / f'{family}-dump-{sequence:03}.txt').write_bytes(result)
+              try:
+                  data = adb('shell', 'cat', device_path)
+              except subprocess.CalledProcessError:
+                  # A newly booted emulator can temporarily return a null root
+                  # without writing an XML file. Retry through the same bounded
+                  # native-control lookup; never substitute coordinates.
+                  return ET.Element('hierarchy')
               (output / f'{family}-ui-{sequence:03}.xml').write_bytes(data)
               return ET.fromstring(data)
           def tap(label, description=False):
@@ -175,7 +184,11 @@ jobs:
               path.write_bytes(data)
               manifest['images'].append({'file': relative, 'sha256': hashlib.sha256(data).hexdigest(),
                                          'width': actual_size[0], 'height': actual_size[1], 'hardwareProfile': profile})
-          adb('shell', 'am', 'start', '-n', package+'/.ui.LauncherActivity')
+          adb('shell', 'input', 'keyevent', 'KEYCODE_WAKEUP')
+          adb('shell', 'wm', 'dismiss-keyguard')
+          launch = adb('shell', 'am', 'start', '-W', '-n', package+'/.ui.LauncherActivity')
+          (output / f'{family}-launch.txt').write_bytes(launch)
+          assert b'Status: ok' in launch, launch
           time.sleep(5)
           tap('Browser menu', description=True)
           capture(family, '01-browser-menu', dimensions)
