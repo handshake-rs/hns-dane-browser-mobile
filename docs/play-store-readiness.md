@@ -49,7 +49,7 @@ Copy the `SHA256` certificate fingerprint into `HNS_DANE_BROWSER_UPLOAD_CERTIFIC
 Then run:
 
 ```sh
-./gradlew -p android :app:verifyPlayReleaseBundle
+./android/gradlew -p android :app:verifyPlayReleaseBundle
 ```
 
 `verifyPlayReleaseBundle` builds `android/app/build/outputs/bundle/release/app-release.aab`, first runs the unsigned structural gate, then reads every non-signature-metadata entry so Java cryptographically verifies its digest. It rejects an unexpected ABI/library inventory, non-16 KiB bundle or ELF alignment, malformed or weakly hardened ELF files, unstripped shipping libraries, missing/mismatched FULL debug symbols and Build IDs, local build paths, missing R8 mapping or notices, unsigned or mixed-signer content, and a signer that differs from the expected fingerprint. Regenerate third-party notices after version changes, rerun this gate, and copy the verified output to `dist/play-store/hns-dane-browser-v<release-version>-play-upload-signed.aab` before uploading.
@@ -119,3 +119,22 @@ upload require explicit authorization and a verified signed bundle.
 
 After an authorized upload, read back the returned version code, track, release
 status, and listing. A successful local build does not establish store state.
+
+The manual `android-store-screenshots.yml` workflow captures the shipping
+Release interface on Pixel 7, Nexus 7 (2013), and Nexus 10 emulator profiles.
+It builds one x86_64 APK for these captures, uses a disposable installation
+certificate, and retains twelve original PNGs, their source/version/checksum
+manifest, interface trees, and timestamped device logs. The upload AAB keeps
+its separately verified Play upload signature. Existing device logs are never
+cleared. Screens show browser controls, settings, Handshake settings, and native
+wallet onboarding without creating a wallet or approving value actions.
+
+```sh
+gh workflow run android-store-screenshots.yml --ref main \
+  -f expected_commit="$(git rev-parse HEAD)"
+```
+
+Review the actual captured pixels and verify the workflow/source manifest
+before replacing the live store assets. A saved draft preserves an uploaded
+bundle without submitting the candidate for review; the final production
+commit and its fresh readback are separate steps.
