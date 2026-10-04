@@ -1824,11 +1824,6 @@ final class WalletViewController: UIViewController {
                 DispatchQueue.main.async { [weak self, weak wallet] in
                     guard let self, let wallet, self.wallet === wallet,
                           self.bitcoinSyncInProgress, let progress else { return }
-                    let summary = WalletCopy.format("wallet_ux_sync_progress", Int(min(progress.completionBasisPoints, 10_000) / 100))
-                    if summary != self.bitcoinProgressSummary {
-                        self.bitcoinProgressSummary = summary
-                        self.renderWalletDashboard()
-                    }
                     let percentWhole = Int(progress.completionBasisPoints / 100)
                     let percentFraction = Int(progress.completionBasisPoints % 100)
                     let height = progress.chainHeight.map(String.init) ?? "—"
@@ -1845,16 +1840,30 @@ final class WalletViewController: UIViewController {
                             elapsed
                         )
                     case "syncing_filters":
-                        self.bitcoinStatusLabel.text = WalletCopy.format(
-                            "wallet_bitcoin_sync_progress",
-                            percentWhole,
-                            percentFraction,
-                            height,
-                            elapsed,
-                            WalletCopy.text("wallet_bitcoin_sync_eta_calculating"),
-                            Int(progress.processedFilterCount),
-                            Int(progress.matchedFilterCount)
-                        )
+                        if progress.completionBasisPoints == 0 {
+                            if let chainHeight = progress.chainHeight {
+                                self.bitcoinStatusLabel.text = WalletCopy.format(
+                                    "wallet_bitcoin_sync_discovering_with_headers",
+                                    Int(chainHeight), Int(progress.processedFilterCount), elapsed
+                                )
+                            } else {
+                                self.bitcoinStatusLabel.text = WalletCopy.format(
+                                    "wallet_bitcoin_sync_discovering",
+                                    Int(progress.processedFilterCount), elapsed
+                                )
+                            }
+                        } else {
+                            self.bitcoinStatusLabel.text = WalletCopy.format(
+                                "wallet_bitcoin_sync_progress",
+                                percentWhole,
+                                percentFraction,
+                                height,
+                                elapsed,
+                                WalletCopy.text("wallet_bitcoin_sync_eta_calculating"),
+                                Int(progress.processedFilterCount),
+                                Int(progress.matchedFilterCount)
+                            )
+                        }
                     case "fetching_blocks":
                         self.bitcoinStatusLabel.text = WalletCopy.format(
                             "wallet_bitcoin_sync_fetching_blocks",
@@ -1886,6 +1895,16 @@ final class WalletViewController: UIViewController {
                         self.bitcoinStatusLabel.text = WalletCopy.text(
                             "wallet_bitcoin_sync_failed"
                         )
+                    }
+                    // Header catch-up has no compact-filter percentage yet.
+                    // Keep its phase and height visible on the overview.
+                    let summary = progress.stage == "syncing_filters" &&
+                        progress.completionBasisPoints > 0
+                        ? WalletCopy.format("wallet_ux_sync_progress", Int(min(progress.completionBasisPoints, 10_000) / 100))
+                        : self.bitcoinStatusLabel.text ?? WalletCopy.text("wallet_bitcoin_syncing")
+                    if summary != self.bitcoinProgressSummary {
+                        self.bitcoinProgressSummary = summary
+                        self.renderWalletDashboard()
                     }
                     if !["ready", "failed"].contains(progress.stage),
                        let progressText = self.bitcoinStatusLabel.text {

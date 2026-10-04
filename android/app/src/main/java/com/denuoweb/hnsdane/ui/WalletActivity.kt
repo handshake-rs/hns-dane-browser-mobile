@@ -4464,15 +4464,26 @@ class WalletActivity : ComponentActivity() {
                             watcher.get() && walletBitcoinSyncInProgress &&
                             operationIsCurrent(epoch, lease) && walletHandle == handle
                         ) {
-                            val summary = getString(R.string.wallet_ux_sync_progress,
-                                progress.completionBasisPoints.coerceIn(0, 10_000) / 100)
+                            val phaseDetails = bitcoinSyncProgressText(progress, etaMillis)
+                            // Compact-filter progress remains zero while the
+                            // header chain catches up. Show the actual phase
+                            // and advancing height on the overview too.
+                            val summary = if (
+                                progress.stage == "syncing_filters" &&
+                                    progress.completionBasisPoints > 0L
+                            ) {
+                                getString(R.string.wallet_ux_sync_progress,
+                                    progress.completionBasisPoints.coerceIn(0, 10_000) / 100)
+                            } else {
+                                phaseDetails
+                            }
                             if (summary != bitcoinProgressSummary) {
                                 bitcoinProgressSummary = summary
                                 if (!showingNamesPage) renderWalletDashboard()
                             }
                             bitcoinStatusView.text = getString(
                                 R.string.wallet_bitcoin_sync_background_guidance,
-                                bitcoinSyncProgressText(progress, etaMillis),
+                                phaseDetails,
                             )
                         }
                     }
