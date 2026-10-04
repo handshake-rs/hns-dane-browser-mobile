@@ -1455,7 +1455,9 @@ class ReleaseManager:
             except ScreenshotSetMismatch:
                 if not self.allow_screenshot_replacement:
                     raise
-                self._replace_mismatching_screenshots(screenshot_set, existing)
+                self._replace_mismatching_screenshots(
+                    screenshot_set, existing, display_type=display_type
+                )
                 existing = []
         for path in (self.screenshot_paths or [])[len(existing) :]:
             self._upload_screenshot(screenshot_set_id, path)
@@ -1529,8 +1531,10 @@ class ReleaseManager:
         self,
         screenshot_set: dict[str, Any],
         resources: list[dict[str, Any]],
+        *,
+        display_type: str,
     ) -> None:
-        screenshot_set_id = self._validated_screenshot_set_id(screenshot_set)
+        screenshot_set_id = self._validated_screenshot_set_id(screenshot_set, display_type)
         expected_snapshot = self._screenshot_snapshot(resources)
         refreshed = self.screenshots(screenshot_set_id)
         if self._screenshot_snapshot(refreshed) != expected_snapshot:

@@ -8,7 +8,7 @@ The committed application identity is:
 - Bundle ID: `com.denuoweb.hnsdane.ios`
 - Display name: `Shakescape`
 - Deployment floor: iOS 17.0
-- Current release candidate: `1.0.14` (`77`); uploaded, review submission pending fresh verified screenshots
+- Current release candidate: `1.0.14` (`77`); uploaded and processed, fresh iPhone/iPad captures verified, review submission pending account declarations
 - Device families: iPhone and iPad; compatible iOS-on-Apple-silicon-Mac use is permitted by the target
 
 Native send, name, and swap actions require verified synchronization and

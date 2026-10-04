@@ -121,11 +121,11 @@ class FakeApi:
 
 
 class ScreenshotApi:
-    def __init__(self, screenshots):
+    def __init__(self, screenshots, *, display_type="APP_IPHONE_65", set_id="iphone-65-set"):
         self.screenshot_set_resource = resource(
             "appScreenshotSets",
-            "iphone-65-set",
-            screenshotDisplayType="APP_IPHONE_65",
+            set_id,
+            screenshotDisplayType=display_type,
         )
         self.screenshots = list(screenshots)
         self.other_display_type_resources = [
@@ -144,7 +144,7 @@ class ScreenshotApi:
         if path.endswith("/appScreenshotSets"):
             self.events.append(("LIST_SET", params))
             return [self.screenshot_set_resource]
-        if path == "/v1/appScreenshotSets/iphone-65-set/appScreenshots":
+        if path == f"/v1/appScreenshotSets/{self.screenshot_set_resource['id']}/appScreenshots":
             self.events.append(
                 ("LIST_SCREENSHOTS", tuple(item["id"] for item in self.screenshots))
             )
@@ -1045,6 +1045,53 @@ class SubmissionSafetyTests(unittest.TestCase):
                     for event in api.events
                 )
             )
+
+    def test_confirmed_ipad_replacement_uses_requested_display_type(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            screenshot = Path(temporary) / "01-browser.jpg"
+            screenshot.write_bytes(b"exact iPad screenshot")
+            display_type = release_client.SCREENSHOT_DISPLAY_TYPES["ipad"]
+            api = ScreenshotApi(
+                [complete_screenshot("old-ipad", "old.jpg")],
+                display_type=display_type,
+                set_id="ipad-129-set",
+            )
+            manager = self.make_manager(api, allow_screenshot_replacement=True)
+            manager.screenshot_paths = [screenshot]
+
+            def upload_exact(set_id, path):
+                self.assertEqual(set_id, "ipad-129-set")
+                self.assertEqual(api.screenshots, [])
+                api.events.append(("UPLOAD", path.name))
+                api.screenshots.append(
+                    complete_screenshot("new-ipad", path.name, path.read_bytes())
+                )
+
+            with mock.patch.object(manager, "_upload_screenshot", side_effect=upload_exact):
+                self.assertEqual(
+                    manager._ensure_screenshots("localization", display_type),
+                    "ipad-129-set",
+                )
+            self.assertEqual(
+                api.events[0],
+                ("LIST_SET", {"filter[screenshotDisplayType]": display_type, "limit": 2}),
+            )
+            self.assertEqual(
+                [event for event in api.events if event[0] == "DELETE"],
+                [("DELETE", "old-ipad")],
+            )
+            upload_index = api.events.index(("UPLOAD", screenshot.name))
+            self.assertEqual(api.events[upload_index - 1], ("LIST_SCREENSHOTS", ()))
+            self.assertEqual(api.other_display_type_resources[0]["id"], "unrelated-67")
+
+    def test_replacement_refuses_a_set_from_another_device_family(self):
+        api = ScreenshotApi([complete_screenshot("old-phone", "old.jpg")])
+        manager = self.make_manager(api, allow_screenshot_replacement=True)
+        with self.assertRaisesRegex(release_client.ReleaseError, "APP_IPAD_PRO_3GEN_129"):
+            manager._ensure_screenshots(
+                "localization", release_client.SCREENSHOT_DISPLAY_TYPES["ipad"]
+            )
+        self.assertFalse(any(event[0] == "DELETE" for event in api.events))
 
     def test_confirmed_replacement_refuses_incomplete_or_unsafe_resources(self):
         with tempfile.TemporaryDirectory() as temporary:
