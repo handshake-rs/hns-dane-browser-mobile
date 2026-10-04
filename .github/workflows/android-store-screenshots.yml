@@ -129,6 +129,18 @@ jobs:
                       'signingPurpose': 'ephemeral simulator installation only',
                       'capturedAt': datetime.datetime.now(datetime.timezone.utc).isoformat(),
                       'images': []}
+          family = os.environ['CAPTURE_FAMILY']
+          profile, dimensions = {
+              'phoneScreenshots': ('pixel_7', (1080, 2400)),
+              'sevenInchScreenshots': ('Nexus 7 2013', (1200, 1920)),
+              'tenInchScreenshots': ('Nexus 10', (1600, 2560)),
+          }[family]
+          manifest_path = output / 'manifest.json'
+          if manifest_path.exists():
+              previous = json.loads(manifest_path.read_text())
+              assert previous['sourceCommit'] == commit
+              assert previous['installedApkSha256'] == manifest['installedApkSha256']
+              manifest = previous
           sequence = 0
           def tree():
               global sequence
@@ -136,7 +148,7 @@ jobs:
               device_path = f'/sdcard/shakescape-store-capture-{sequence}.xml'
               adb('shell', 'uiautomator', 'dump', device_path)
               data = adb('shell', 'cat', device_path)
-              (output / f'ui-{sequence:03}.xml').write_bytes(data)
+              (output / f'{family}-ui-{sequence:03}.xml').write_bytes(data)
               return ET.fromstring(data)
           def tap(label, description=False):
               for attempt in range(20):
@@ -155,59 +167,96 @@ jobs:
           def capture(family, name, expected_size):
               data = adb('exec-out', 'screencap', '-p')
               assert data[:8] == b'\x89PNG\r\n\x1a\n'
-              assert struct.unpack('>II', data[16:24]) == expected_size
+              actual_size = struct.unpack('>II', data[16:24])
+              assert sorted(actual_size) == sorted(expected_size), (actual_size, expected_size)
               relative = f'{family}/{name}.png'
               path = output / relative
               path.parent.mkdir(exist_ok=True)
               path.write_bytes(data)
               manifest['images'].append({'file': relative, 'sha256': hashlib.sha256(data).hexdigest(),
-                                         'width': expected_size[0], 'height': expected_size[1]})
-          for family, width, height, density in (
-              ('phoneScreenshots', 1080, 2400, 420),
-              ('sevenInchScreenshots', 1200, 1920, 320),
-              ('tenInchScreenshots', 1600, 2560, 280),
-          ):
-              adb('shell', 'wm', 'size', f'{width}x{height}')
-              adb('shell', 'wm', 'density', str(density))
-              adb('shell', 'am', 'start', '-n', package+'/.ui.LauncherActivity')
-              time.sleep(5)
-              tap('Browser menu', description=True)
-              capture(family, '01-browser-menu', (width, height))
-              tap('Browser')
-              capture(family, '02-browser-settings', (width, height))
-              adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
-              tap('Browser menu', description=True)
-              tap('Handshake')
-              capture(family, '03-handshake-settings', (width, height))
-              adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
-              tap('Browser menu', description=True)
-              tap('Wallet')
-              for attempt in range(20):
-                  labels = {node.get('text') for node in tree().iter('node')}
-                  if {'Create wallet', 'Restore wallet'} <= labels:
-                      break
-                  time.sleep(1)
-              else:
-                  raise RuntimeError('Native wallet onboarding was not visible')
-              capture(family, '04-wallet-onboarding', (width, height))
-              adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
+                                         'width': actual_size[0], 'height': actual_size[1], 'hardwareProfile': profile})
+          adb('shell', 'am', 'start', '-n', package+'/.ui.LauncherActivity')
+          time.sleep(5)
+          tap('Browser menu', description=True)
+          capture(family, '01-browser-menu', dimensions)
+          tap('Browser')
+          capture(family, '02-browser-settings', dimensions)
+          adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
+          tap('Browser menu', description=True)
+          tap('Handshake')
+          capture(family, '03-handshake-settings', dimensions)
+          adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
+          tap('Browser menu', description=True)
+          tap('Wallet')
+          for attempt in range(20):
+              labels = {node.get('text') for node in tree().iter('node')}
+              if {'Create wallet', 'Restore wallet'} <= labels:
+                  break
+              time.sleep(1)
+          else:
+              raise RuntimeError('Native wallet onboarding was not visible')
+          capture(family, '04-wallet-onboarding', dimensions)
+          adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
           # The registered exit handler preserves timestamped logs on failure too.
           (output / 'manifest.json').write_text(json.dumps(manifest, indent=2)+'\n')
-          assert len(manifest['images']) == 12
+          assert len([image for image in manifest['images'] if image['file'].startswith(family+'/')]) == 4
           print(json.dumps(manifest, indent=2))
           PY
 
-      - name: Capture fresh phone and tablet screens
+      - name: Capture fresh phone screens
         uses: ReactiveCircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2.37.0
         env:
           EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          CAPTURE_FAMILY: phoneScreenshots
         with:
           api-level: "37.0"
           target: google_apis
           arch: x86_64
           channel: stable
+          profile: "pixel_7"
+          avd-name: phoneScreenshots
           pre-emulator-launch-script: adb start-server
           script: python3 "$RUNNER_TEMP/capture_android.py"
+
+      - name: Capture fresh seven-inch tablet screens
+        uses: ReactiveCircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2.37.0
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          CAPTURE_FAMILY: sevenInchScreenshots
+        with:
+          api-level: "37.0"
+          target: google_apis
+          arch: x86_64
+          channel: stable
+          profile: "Nexus 7 2013"
+          avd-name: sevenInchScreenshots
+          pre-emulator-launch-script: adb start-server
+          script: python3 "$RUNNER_TEMP/capture_android.py"
+
+      - name: Capture fresh ten-inch tablet screens
+        uses: ReactiveCircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2.37.0
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          CAPTURE_FAMILY: tenInchScreenshots
+        with:
+          api-level: "37.0"
+          target: google_apis
+          arch: x86_64
+          channel: stable
+          profile: "Nexus 10"
+          avd-name: tenInchScreenshots
+          pre-emulator-launch-script: adb start-server
+          script: python3 "$RUNNER_TEMP/capture_android.py"
+
+      - name: Verify all three captured families
+        run: |
+          python3 - <<'PYVERIFY'
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path('build/android-store-screenshots/manifest.json').read_text())
+          assert len(manifest['images']) == 12
+          assert len({image['file'] for image in manifest['images']}) == 12
+          PYVERIFY
 
       - name: Retain screenshots and provenance
         if: ${{ always() }}
