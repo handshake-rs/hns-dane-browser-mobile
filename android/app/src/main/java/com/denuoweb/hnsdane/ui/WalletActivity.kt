@@ -4432,10 +4432,10 @@ class WalletActivity : ComponentActivity() {
         bitcoinSyncProgressWatcher?.set(false)
         val watcher = AtomicBoolean(true)
         bitcoinSyncProgressWatcher = watcher
-        val startedAt = SystemClock.elapsedRealtime()
         thread(name = "bitcoin-wallet-sync-progress") {
-            var baselineWork: Long? = null
-            var baselineAt = startedAt
+            val etaEstimator = BitcoinSyncEta()
+            var diagnosticPhase: String? = null
+            var diagnosticFilterBucket = -1L
             while (
                 watcher.get() && walletBitcoinSyncInProgress &&
                 operationIsCurrent(epoch, lease) && walletHandle == handle
@@ -4443,21 +4443,24 @@ class WalletActivity : ComponentActivity() {
                 val progress = NativeWalletBridge.bitcoinSyncProgress(handle)
                 val now = SystemClock.elapsedRealtime()
                 if (progress != null) {
-                    val completedWork = progress.completionBasisPoints
-                    if (baselineWork == null && completedWork > 0L) {
-                        baselineWork = completedWork
-                        baselineAt = now
-                    }
-                    val baseline = baselineWork
-                    val etaMillis = if (baseline != null) {
-                        estimateBitcoinSyncRemainingMillis(
-                            completedWork = completedWork,
-                            totalWork = 10_000L,
-                            baselineWork = baseline,
-                            measurementMillis = now - baselineAt,
-                        )
-                    } else {
-                        null
+                    val etaMillis = etaEstimator.estimate(
+                        completedWork = progress.completionBasisPoints,
+                        nowMillis = now,
+                        scanningFilters = progress.stage == "syncing_filters",
+                    )
+                    val filterBucket = progress.processedFilterCount / 10_000L
+                    if (BuildConfig.DEBUG && (
+                            diagnosticPhase != progress.stage ||
+                                diagnosticFilterBucket != filterBucket
+                        )) {
+                        Log.i(TAG, "Bitcoin sync stage=${progress.stage} " +
+                            "height=${progress.chainHeight} " +
+                            "coverage=${progress.completionBasisPoints} " +
+                            "filters=${progress.processedFilterCount} " +
+                            "matches=${progress.matchedFilterCount} " +
+                            "blocks=${progress.downloadedBlockCount}")
+                        diagnosticPhase = progress.stage
+                        diagnosticFilterBucket = filterBucket
                     }
                     runOnUiThread {
                         if (
@@ -10402,6 +10405,33 @@ internal fun walletPendingPaymentContinuation(
         WalletPendingPaymentContinuation.Wait
     }
     else -> WalletPendingPaymentContinuation.Present
+}
+
+/** Estimates only the current filter pass; recovery can begin another pass. */
+internal class BitcoinSyncEta {
+    private var baselineWork: Long? = null
+    private var baselineAt = 0L
+    private var previousWork: Long? = null
+
+    fun estimate(completedWork: Long, nowMillis: Long, scanningFilters: Boolean): Long? {
+        if (!scanningFilters || previousWork?.let { completedWork < it } == true) {
+            baselineWork = null
+            previousWork = null
+        }
+        if (!scanningFilters) return null
+        previousWork = completedWork
+        if (baselineWork == null && completedWork > 0L) {
+            baselineWork = completedWork
+            baselineAt = nowMillis
+        }
+        val baseline = baselineWork ?: return null
+        return estimateBitcoinSyncRemainingMillis(
+            completedWork = completedWork,
+            totalWork = 10_000L,
+            baselineWork = baseline,
+            measurementMillis = nowMillis - baselineAt,
+        )
+    }
 }
 
 internal fun estimateBitcoinSyncRemainingMillis(

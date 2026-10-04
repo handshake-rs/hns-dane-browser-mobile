@@ -143,6 +143,26 @@ class BitcoinSyncProgressTest {
     }
 
     @Test
+    fun eta_restarts_its_measurement_when_recovery_scans_another_address_window() {
+        val estimator = BitcoinSyncEta()
+        assertNull(estimator.estimate(5_000, 0, true))
+        assertEquals(30_000L, estimator.estimate(7_000, 20_000, true))
+        assertNull(estimator.estimate(10_000, 50_000, true))
+        // Cumulative filters keep increasing, but current-pass coverage falls.
+        assertNull(estimator.estimate(2_500, 55_000, true))
+        assertEquals(65_000L, estimator.estimate(3_500, 65_000, true))
+    }
+
+    @Test
+    fun eta_does_not_include_time_spent_fetching_matched_blocks() {
+        val estimator = BitcoinSyncEta()
+        assertNull(estimator.estimate(9_000, 0, true))
+        assertNull(estimator.estimate(10_000, 5_000, false))
+        assertNull(estimator.estimate(2_500, 100_000, true))
+        assertEquals(30_000L, estimator.estimate(4_000, 107_500, true))
+    }
+
+    @Test
     fun durations_are_compact_and_stable() {
         assertEquals("0s", formatBitcoinSyncDuration(999))
         assertEquals("2m 3s", formatBitcoinSyncDuration(123_999))

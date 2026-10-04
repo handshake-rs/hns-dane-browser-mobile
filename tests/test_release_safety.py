@@ -152,13 +152,13 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertEqual(manifest["workspace"]["package"]["version"], "1.0.2")
         self.assertFalse(manifest["workspace"]["package"]["publish"])
         wallet = manifest["workspace"]["dependencies"]["hns-wallet-mobile"]
-        self.assertEqual(wallet, "=0.4.1")
+        self.assertEqual(wallet, "=0.4.2")
 
         with (ROOT / "rust/Cargo.lock").open("rb") as source:
             locked_packages = tomllib.load(source)["package"]
         locked_by_name = {package["name"]: package for package in locked_packages}
         self.assertEqual(locked_by_name["rustls"]["version"], "0.23.45")
-        self.assertEqual(locked_by_name["hns-wallet-mobile"]["version"], "0.4.1")
+        self.assertEqual(locked_by_name["hns-wallet-mobile"]["version"], "0.4.2")
         self.assertEqual(
             locked_by_name["hns-wallet-mobile"]["source"],
             WALLET_SOURCE,
