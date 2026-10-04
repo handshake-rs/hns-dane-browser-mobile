@@ -1289,10 +1289,15 @@ class WalletActivity : ComponentActivity() {
             }
         }
         dashboardContent.addView(settingsGroup {
+            // During HNS synchronization this opens only the cached status
+            // and cancellation action in showWalletDetails(). Keep that path
+            // reachable without enabling native wallet mutations.
+            val settingsAvailable = actionsAvailable ||
+                WalletHnsLiveSyncPresentationCache.canRequestCancellation(walletNetwork.id)
             addSettingsRow(navRow(
                 title = getString(R.string.wallet_ux_wallet_settings),
                 summary = getString(R.string.wallet_ux_wallet_settings_summary),
-            ) { showWalletDetails() }.disabledWhenWalletHandoff(!actionsAvailable))
+            ) { showWalletDetails() }.disabledWhenWalletHandoff(!settingsAvailable))
         })
     }
 
