@@ -14,7 +14,7 @@ ShakeScape offers. It consumes the published HNS and marketplace wallet patches.
 MarketplaceKit app-installation entitlements remain absent pending Apple
 approval.
 
-Build 77 retains the protected, owner-only native-wallet storage boundary and
+Build 78 retains the protected, owner-only native-wallet storage boundary and
 uses one hsd/Bob-compatible account-zero receive chain for ordinary HNS and
 Handshake name ownership. The iOS shell, Apple C ABI, and native wallet all use
 that single receive contract.

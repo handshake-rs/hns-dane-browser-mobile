@@ -1,6 +1,6 @@
 # App Store submission checklist
 
-Candidate: iOS `1.0.14`, build `77`, `com.denuoweb.hnsdane.ios`, iPhone/iPad
+Candidate: iOS `1.0.15`, build `78`, `com.denuoweb.hnsdane.ios`, iPhone/iPad
 and compatible Apple-silicon Macs. Read the configured release mode and live
 App Store Connect state before submission.
 
@@ -21,8 +21,8 @@ App Store Connect state before submission.
 - [ ] Use `https://shakescape.com/` for product/support and
   `https://shakescape.com/privacy/` for privacy.
 - [ ] Explain user-initiated camera QR processing on device.
-- [ ] Reconcile privacy, web access, financial-feature/category, content-rights,
-  export, trader, price, availability, and routing answers with the exact binary.
+- [x] Reuse the owner’s standing confirmation of the account declarations and
+  store configuration recorded on October 3, 2026 in the release guide.
 
 ## Screenshots
 

@@ -122,10 +122,10 @@ jobs:
           package = 'com.denuoweb.hnsdane'
           adb('install', str(apk))
           installed = adb('shell', 'dumpsys', 'package', package).decode()
-          assert re.search(r'\bversionCode=66\b', installed)
-          assert re.search(r'\bversionName=1\.0\.14\s', installed)
+          assert re.search(r'\bversionCode=67\b', installed)
+          assert re.search(r'\bversionName=1\.0\.15\s', installed)
           assert not re.search(r'pkgFlags=\[[^\]]*\bDEBUGGABLE\b', installed)
-          manifest = {'sourceCommit': commit, 'version': '1.0.14', 'versionCode': 66,
+          manifest = {'sourceCommit': commit, 'version': '1.0.15', 'versionCode': 67,
                       'buildType': 'release', 'abi': 'x86_64', 'emulator': True,
                       'installedApkSha256': hashlib.sha256(apk.read_bytes()).hexdigest(),
                       'signingPurpose': 'ephemeral simulator installation only',

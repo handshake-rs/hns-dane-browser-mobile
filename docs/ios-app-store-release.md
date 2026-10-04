@@ -148,11 +148,9 @@ current screenshots untouched. `submit` then creates or safely resumes a Review
 Submission containing only this App Store version and marks it submitted as its
 final mutation.
 
-If the preceding `1.0.13` version is still an unsubmitted
-`PREPARE_FOR_SUBMISSION` draft, the client advances that same record to `1.0.15`
-before applying the candidate metadata. It checks current main, refuses an
-active review or conflicting draft states, and verifies the exact resource ID
-and version after the update. Previously released versions are preserved.
+The metadata client checks current main and the exact candidate version before
+applying changes. An active review must be resolved before a successor can be
+submitted. Previously released versions are preserved.
 
 ```sh
 expected_commit="$(git rev-parse HEAD)"
