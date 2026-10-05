@@ -1,13 +1,14 @@
 # Published wallet synchronization patches
 
-The mobile application consumes these two published patches:
+The mobile application consumes these published patches:
 
 | Package | Version | Reason |
 | --- | --- | --- |
-| `hns-wallet-hns` | 0.4.2 | Idle socket maintenance, public transport sharing, and scan resume |
-| `hns-wallet-market` | 0.4.2 | Authenticated offer persistence and decoding |
+| `hns-wallet-hns` | 0.4.3 | Concurrent initial peer races, idle socket maintenance, public transport sharing, and reconnects |
+| `hns-wallet-bip157`, `hns-wallet-bitcoin-kyoto` | 0.4.2 | Durable Bitcoin header/filter caches and scan resume |
+| `hns-wallet-market`, `hns-wallet-mobile` | 0.5.0 | Seed-derived swap authority for both assets, both participants, and both offer directions |
 
-The other fourteen wallet packages remain at 0.4.1. The Android and iOS
+Other selected wallet packages remain at 0.4.1. The Android and iOS
 controllers register the same weak public-header transport with the shared
 browser runtime. Requests reuse the wallet's negotiated peer sockets and
 serialize with that socket's wallet requests. The browser still verifies
@@ -45,8 +46,11 @@ Run `./scripts/check.sh` for the complete Rust, ABI, fuzz, and supply-chain gate
 
 ## Registry handoff
 
-Both packages were published as 0.4.2 from audited wallet source
-`5789a88caeb6b0410e0f472bedd1047a01cf9edc`. The HNS patch also negotiates
+The original HNS/market 0.4.2 patches were published from audited wallet source
+`5789a88caeb6b0410e0f472bedd1047a01cf9edc`. Current patch sources and exact
+versions are recorded in [the dependency guide](released-dependency-cohort.md).
+Market/mobile 0.5.0 was published from
+`511ead402c7881d7b0046db41f45504b98f3053a`. The HNS patch also negotiates
 browser reserve peers concurrently, preventing stalled handshakes from imposing
 serial browser delays. A real-socket regression test requires both candidate
 connections to begin before either handshake is released.
@@ -62,3 +66,8 @@ Ping/Pong and header reuse, scan reopen, and authenticated offer decoding. They 
 not replace device validation of installed Android/iOS builds. Diagnostic
 logs are retained as read-only evidence; wallet data must not be cleared to
 validate scan resume.
+
+The 0.5.0 authority fix removes private offer intent and local wallet profile
+identity from key derivation. Automatic contract rediscovery after local
+wallet-data loss remains incomplete; retain local swap records until settlement.
+This release does not require a separate recovery-file workflow.

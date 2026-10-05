@@ -4,6 +4,10 @@ The configured Android application is `1.0.16`, version code `68`. The iOS
 application is `1.0.16`, build `79`. The shared Rust runtime is `1.0.2`.
 Platform releases and Rust package releases have independent versions.
 
+Version 1.0.16 has been delivered to Google Play production and submitted to
+App Store Connect. See [the verified delivery record](1.0.16-store-delivery.md)
+for source, build, qualification, and live submission evidence.
+
 ## Standing release instructions
 
 The owner confirmed on 2026-10-03 that the live App Store Connect and Google
