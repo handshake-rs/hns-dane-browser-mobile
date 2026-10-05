@@ -8,7 +8,7 @@ The committed application identity is:
 - Bundle ID: `com.denuoweb.hnsdane.ios`
 - Display name: `Shakescape`
 - Deployment floor: iOS 17.0
-- Current release candidate: `1.0.15` (`78`); prepared for qualification; standing account declarations confirmed
+- Current release candidate: `1.0.16` (`79`); prepared for qualification; standing account declarations confirmed
 - Device families: iPhone and iPad; compatible iOS-on-Apple-silicon-Mac use is permitted by the target
 
 Native send, name, and swap actions require verified synchronization and
@@ -135,7 +135,7 @@ Set `review_contact_source_version` to an approved App Store version with comple
 private review contact details. Verify that reference through App Store Connect
 before dispatching; the workflow copies the contact without printing it.
 
-After the upload run succeeds and build `78` finishes processing, use the
+After the upload run succeeds and build `79` finishes processing, use the
 separate protected workflow. Its default `discover` mode performs authenticated
 GET requests only. Pin both the exact current `main` automation commit and the
 signed-artifact commit from the successful upload run. They may differ only by
@@ -180,8 +180,8 @@ gh workflow run ios-app-store-submit.yml \
   -f expected_upload_run_id="$upload_run_id" \
   -f mode=submit \
   -f review_contact_source_version="$review_contact_source_version" \
-  -f confirm_metadata=APPLY_METADATA_1.0.15_78 \
-  -f confirm_submit=SUBMIT_FOR_REVIEW_1.0.15_78 \
+  -f confirm_metadata=APPLY_METADATA_1.0.16_79 \
+  -f confirm_submit=SUBMIT_FOR_REVIEW_1.0.16_79 \
   -f confirm_account_readiness=true
 ```
 
@@ -197,14 +197,15 @@ gh workflow run ios-app-store-submit.yml \
   -f expected_upload_run_id="$upload_run_id" \
   -f mode=auto-release \
   -f review_contact_source_version="$review_contact_source_version" \
-  -f confirm_auto_release=SET_AUTO_RELEASE_1.0.15_78 \
+  -f confirm_auto_release=SET_AUTO_RELEASE_1.0.16_79 \
   -f confirm_account_readiness=true
 ```
 
-The `1.0.15` submission requires screenshots from its exact candidate. Capture the shipping Release runtime from the exact
-artifact commit, review the resulting iPhone and iPad images, and pass the
+The `1.0.16` submission preserves the existing App Store screenshot sets by
+default. If replacing screenshots, capture the shipping Release runtime from
+the exact artifact commit, review the resulting iPhone and iPad images, and pass the
 successful screenshot run ID with
-`-f confirm_screenshot_replacement=REPLACE_SCREENSHOTS_1.0.15_78` in the
+`-f confirm_screenshot_replacement=REPLACE_SCREENSHOTS_1.0.16_79` in the
 metadata step. The guarded client replaces and verifies both device-family
 sets before submission. The new set shows a successfully rendered,
 DANE-verified HNS page, Settings, Handshake settings, and Wallet onboarding.

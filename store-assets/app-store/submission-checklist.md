@@ -1,6 +1,6 @@
 # App Store submission checklist
 
-Candidate: iOS `1.0.15`, build `78`, `com.denuoweb.hnsdane.ios`, iPhone/iPad
+Candidate: iOS `1.0.16`, build `78`, `com.denuoweb.hnsdane.ios`, iPhone/iPad
 and compatible Apple-silicon Macs. Read the configured release mode and live
 App Store Connect state before submission.
 

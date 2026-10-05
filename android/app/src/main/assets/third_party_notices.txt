@@ -27,8 +27,8 @@ Generated input SHA-256:
   scripts/mit-0-license.txt = 0ffe1339d2b91556bf0c380453d8504e972f066adcfda678bd9ddd2986a57c58
   android/app/src/main/assets/fonts/Orbitron-VariableFont_wght.ttf = f42db2dd16e642258e35782916eceb1dcdbea06fb958d77ad71dc5963587e8fd
   android/app/src/main/assets/fonts/OFL-Orbitron.txt = dd6fdb6716fd179d1fe891759efb3f9200753fdf6abf513b55b712c4ae16e512
-  rust/Cargo.toml = 3af9b1c9f606f0baa5c5f7b653bd2001cb5be306efe0da89829afcff147f3563
-  rust/Cargo.lock = 330d06d119e142dda89146d8f405c03d3d9e7083412489db675f8e51a37a2b1f
+  rust/Cargo.toml = 07b645556be2aff1dffcfeff0936be3531e4ce1d3fe7ef2fd3e67593ce1d68da
+  rust/Cargo.lock = c241c992460bad127e8ebf8fda16a5052c3eb5a8176a6b6c2d5b53232336892a
   android/gradle/libs.versions.toml = 6e6aa686c60e39364e82418f57bb4e2cb0b1cdc420db5dc20dcb48b9f9e58214
   android/app/gradle.lockfile = af2b566239607d09657d3a5930a2d60e9a765d3a1cae7bbf212080b592766ab3
   android/gradle/verification-metadata.xml = 904a6b05ddaea646070bd1a7d077a5bcaf415cb3c71605e5549042e60651df52
@@ -247,8 +247,8 @@ RUST COMPONENTS (393)
   hns-wallet-ffi 0.4.1 | MIT OR Apache-2.0
   hns-wallet-hns 0.4.3 | MIT OR Apache-2.0
   hns-wallet-host 0.4.1 | MIT OR Apache-2.0
-  hns-wallet-market 0.4.2 | MIT OR Apache-2.0
-  hns-wallet-mobile 0.4.2 | MIT OR Apache-2.0
+  hns-wallet-market 0.5.0 | MIT OR Apache-2.0
+  hns-wallet-mobile 0.5.0 | MIT OR Apache-2.0
   hns-wallet-provider 0.4.1 | MIT OR Apache-2.0
   hns-wallet-service 0.4.1 | MIT OR Apache-2.0
   hns-wallet-shakedex 0.4.1 | MIT OR Apache-2.0
@@ -3053,8 +3053,8 @@ Applies to:
   - Rust crate hns-wallet-ffi 0.4.1
   - Rust crate hns-wallet-hns 0.4.3
   - Rust crate hns-wallet-host 0.4.1
-  - Rust crate hns-wallet-market 0.4.2
-  - Rust crate hns-wallet-mobile 0.4.2
+  - Rust crate hns-wallet-market 0.5.0
+  - Rust crate hns-wallet-mobile 0.5.0
   - Rust crate hns-wallet-provider 0.4.1
   - Rust crate hns-wallet-service 0.4.1
   - Rust crate hns-wallet-shakedex 0.4.1
@@ -7592,8 +7592,8 @@ Applies to:
   - Rust crate hns-wallet-ffi 0.4.1
   - Rust crate hns-wallet-hns 0.4.3
   - Rust crate hns-wallet-host 0.4.1
-  - Rust crate hns-wallet-market 0.4.2
-  - Rust crate hns-wallet-mobile 0.4.2
+  - Rust crate hns-wallet-market 0.5.0
+  - Rust crate hns-wallet-mobile 0.5.0
   - Rust crate hns-wallet-provider 0.4.1
   - Rust crate hns-wallet-service 0.4.1
   - Rust crate hns-wallet-shakedex 0.4.1

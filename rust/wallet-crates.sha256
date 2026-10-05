@@ -5,8 +5,8 @@ b4a8091e60ad90a986ca8a2848f9415693aa23072073c270d95fafaa3d083490  hns-wallet-bip
 113e44c5515ca759c50fc631afd869e49dbe05313bc40d49e89ee8170e7f8385  hns-wallet-ffi-0.4.1.crate
 0130dba442c4131766b04a7d0fa81d56800e4b2eb710793f6a0843c385d33379  hns-wallet-hns-0.4.3.crate
 65422e8fa8b8e4abc2fc65eb722290579d9d1721ac1b2aa93eca9563c7c19ec6  hns-wallet-host-0.4.1.crate
-29fb8559d80b3075adca59c0c5d145363fb515338ee33f1a057b866cc2fa43de  hns-wallet-market-0.4.2.crate
-da17ad429b3c23c8174ed0db3ebc9e23ed6687c36a5cb89ceca4b52f3312df0d  hns-wallet-mobile-0.4.2.crate
+030e16ba8d23e346b89bb25557607c1a3537acd3de07238a5181a237c616b197  hns-wallet-market-0.5.0.crate
+56ee1efa5167e8e5beaa42fb048966c7ab3f4b54c94a8e7a8aafac40745ade28  hns-wallet-mobile-0.5.0.crate
 a5bc2274913f173d2a38090c42be7f06eac47991c1fac152190329f0fd1a3ead  hns-wallet-provider-0.4.1.crate
 bf63a6feb4226d586d8d6c21dede1864ec51cdc7bc8d55e83b9442deae1d7297  hns-wallet-service-0.4.1.crate
 6dca774e3764b6f9427ffa0e5abe5526e64970fcbb95794619e78e3ebf59d638  hns-wallet-shakedex-0.4.1.crate
