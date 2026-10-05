@@ -22,6 +22,17 @@ submission state through store readback.
 Commit release work directly to `main`. Sign iOS only for an actual App Store
 delivery; routine commits do not require a signed IPA or a GitHub Release.
 
+## Current release hold: swap seed recovery
+
+Do not submit the current candidate until restoring only the wallet seed also
+rediscovers funded swap contracts and permits a verified refund on both chains.
+Users must not be required to download or confirm a separate recovery file.
+The wallet repository's unpublished 0.5.0 candidate removes private offer
+identifiers and device-local profile IDs from key derivation. Automatic recovery
+of public contract terms and native end-to-end refund qualification remain
+outstanding. The installed app and registry dependencies remain on the prior
+published runtime. This hold does not change the standing declaration confirmation.
+
 ## Required before delivery
 
 - Qualify the exact source commit with the portable checks, strict Rust lint,

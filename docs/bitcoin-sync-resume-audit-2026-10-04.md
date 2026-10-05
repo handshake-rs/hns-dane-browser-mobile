@@ -32,10 +32,23 @@ regression tests exercise a 100% → 25% transition and block-fetching delay.
 Debug-only phase/counter logging is bounded by phase transitions and groups
 of 10,000 processed filters, and contains no account, script or peer identity.
 
-The shared core passed its full locked CI gate after publication. Mobile
-source/checksum, notices, version, runtime-boundary, localization and 120 Python
-checks passed; all-target Rust Clippy passed for Android and iOS interfaces.
-Local Android assembly/unit tests and the remaining native gate are still
-running. The owner requested that the old Bitcoin pass finish before the
-replacement APK is installed. Physical cold-restart verification is pending;
-this report does not claim it has already passed.
+The shared core passed its full locked CI gate after publication. The complete
+local mobile gate passed: 474 Android unit tests, 120 Python checks, localization
+checks for both platforms, 313 Rust workspace tests across Android/shared/iOS
+components, iOS ABI and header/export checks, strict lint, supply-chain, fuzz
+and snapshot checks. Remote CI run
+[37245274295](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/37245274295)
+passed all jobs, including Apple, for source f85d920.
+
+After the owner accidentally closed the old app, they authorized installing
+that fixed debug build and starting Bitcoin sync. The saved old scan had already
+completed at height 969923 with 314 confirmed sats. The new build preserved that
+wallet and caught up to height 969925 in 4.292 seconds. Read-only analysis of
+preserved encrypted database exports confirmed durable header, filter-header
+and raw-filter cache records. Device logs and application data were preserved.
+
+This verifies cache persistence and an installed-build catch-up. It does not
+reproduce interruption during a first cold recovery, because the previous scan
+had already completed. Shared-core interruption/replay tests cover that case.
+The device result must not be presented as an end-to-end funded-swap recovery
+test; swap seed recovery is a separate current release blocker.
