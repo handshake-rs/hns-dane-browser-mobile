@@ -4,11 +4,12 @@ The mobile application consumes these published patches:
 
 | Package | Version | Reason |
 | --- | --- | --- |
-| `hns-wallet-hns` | 0.4.4 | Concurrent initial peer races, idle socket maintenance, public transport sharing, and reconnects |
+| `hns-wallet-hns` | 0.4.5 | Concurrent initial peer races, idle socket maintenance, public transport sharing, reconnects, and recovery-publication expiry |
 | `hns-wallet-bip157` | 0.4.2 | Durable Bitcoin filter caches |
-| `hns-wallet-bitcoin-kyoto` | 0.4.3 | Durable scan resume and recoverable funding publications |
+| `hns-wallet-bitcoin-kyoto` | 0.4.4 | Durable scan resume and recoverable funding publications bounded by fresh funding authority |
 | `hns-wallet-chain-api`, `hns-wallet-service` | 0.4.2 | Public recovery terms and native recoverable funding |
-| `hns-wallet-market`, `hns-wallet-mobile` | 0.5.1 | Seed-only contract discovery, reclaim and verified settlement for both assets, participants and offer directions |
+| `hns-wallet-market` | 0.5.1 | Seed-only contract discovery, reclaim and verified settlement for both assets, participants and offer directions |
+| `hns-wallet-mobile` | 0.5.2 | Mobile funding gates and recovery for the current HNS and Bitcoin wallet crates |
 
 Other selected wallet packages remain at 0.4.1. The Android and iOS
 controllers register the same weak public-header transport with the shared

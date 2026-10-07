@@ -1,12 +1,12 @@
 b8cff983ed3a100fcdc131f9c42fd5ee8f03e9ef81aba3c885a3d1dc3aaf4a87  hns-wallet-bdk-kyoto-0.4.1.crate
 b4a8091e60ad90a986ca8a2848f9415693aa23072073c270d95fafaa3d083490  hns-wallet-bip157-0.4.2.crate
-23e5d5d8a2f59e30f3f00f28cca59ce9635aaf1e43d35b9247ada30f405db35d  hns-wallet-bitcoin-kyoto-0.4.3.crate
+da9fb3b69f0be580f174c1ab4e41d52016357bab4c909f57656c9d928c131e00  hns-wallet-bitcoin-kyoto-0.4.4.crate
 b9c1b338aa05356c7832290052e0a8cae924c0052d5cd479064ce6a9fa4821a5  hns-wallet-chain-api-0.4.2.crate
 113e44c5515ca759c50fc631afd869e49dbe05313bc40d49e89ee8170e7f8385  hns-wallet-ffi-0.4.1.crate
-e645b6960104a28d3a83bacd41f499206307dd97c881777f6c85ea5cf4028ec5  hns-wallet-hns-0.4.4.crate
+86021c3fd7d40687c9e8c0e10f738a3b6e4a3825214467f8e988b8f976ad8591  hns-wallet-hns-0.4.5.crate
 65422e8fa8b8e4abc2fc65eb722290579d9d1721ac1b2aa93eca9563c7c19ec6  hns-wallet-host-0.4.1.crate
 3fd6e41eb953d4206e4714b5d896336beea2b72ffa80ccb75e98d14b21c22b71  hns-wallet-market-0.5.1.crate
-e2b9cdef817c4135b02287f6cc0023fd05509f4b4ce31825f0b4db1d8bae7f9e  hns-wallet-mobile-0.5.1.crate
+3fb735b97ac8e00e1ad8c9cb240e5d8686b35c9e08e95c1cf72d6e1daaffb6d8  hns-wallet-mobile-0.5.2.crate
 a5bc2274913f173d2a38090c42be7f06eac47991c1fac152190329f0fd1a3ead  hns-wallet-provider-0.4.1.crate
 be3b4a69bb07c24f34cd19bcb37be47cccafc014f120be49d836e3c3c6e099c5  hns-wallet-service-0.4.2.crate
 6dca774e3764b6f9427ffa0e5abe5526e64970fcbb95794619e78e3ebf59d638  hns-wallet-shakedex-0.4.1.crate

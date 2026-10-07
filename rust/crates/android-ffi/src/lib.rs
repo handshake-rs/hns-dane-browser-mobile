@@ -240,16 +240,22 @@ fn promote_direct_shakescape_primary<T>(primary: &mut Option<T>, replicas: &mut 
 /// peer without discarding the previous primary when the bounded redundancy
 /// pool still has room. At capacity, replace one replica so an unavailable
 /// selected endpoint can still be retried instead of being starved forever by
-/// unrelated discovered connections.
+/// unrelated discovered connections. Re-pairing an existing endpoint replaces
+/// its socket without consuming a second pool slot.
 fn install_paired_direct_shakescape_primary<T>(
     primary: &mut Option<T>,
     replicas: &mut Vec<T>,
     paired: T,
     maximum_peers: usize,
+    same_endpoint: impl Fn(&T, &T) -> bool,
 ) -> bool {
+    let same_primary = primary
+        .as_ref()
+        .is_some_and(|current| same_endpoint(current, &paired));
+    replicas.retain(|replica| !same_endpoint(replica, &paired));
     let previous = primary.replace(paired);
     let replaced = previous.is_some();
-    if let Some(previous) = previous {
+    if let Some(previous) = previous.filter(|_| !same_primary) {
         if 1usize.saturating_add(replicas.len()) < maximum_peers {
             replicas.push(previous);
         } else if let Some(last) = replicas.last_mut() {
@@ -2897,6 +2903,7 @@ impl AndroidWalletController {
                             shakescape_replication_peers,
                             peer,
                             MAX_ANDROID_DIRECT_SHAKESCAPE_PEERS,
+                            |left, right| left.address() == right.address(),
                         );
                         shakescape_next_paired_reconnect_at.take();
                         android_log_info(
@@ -3048,6 +3055,7 @@ impl AndroidWalletController {
             shakescape_replication_peers,
             peer,
             MAX_ANDROID_DIRECT_SHAKESCAPE_PEERS,
+            |left, right| left.address() == right.address(),
         );
         let outcome = if replaced {
             AndroidDirectShakescapeConnectOutcome::Replaced
@@ -11042,6 +11050,7 @@ mod tests {
             &mut replicas,
             11,
             4,
+            |left, right| left == right,
         ));
         assert_eq!(primary, Some(11));
         assert_eq!(replicas, vec![9, 7]);
@@ -11051,8 +11060,27 @@ mod tests {
             &mut replicas,
             13,
             3,
+            |left, right| left == right,
         ));
         assert_eq!(primary, Some(13));
         assert_eq!(replicas, vec![9, 11]);
+        assert!(install_paired_direct_shakescape_primary(
+            &mut primary,
+            &mut replicas,
+            11,
+            3,
+            |left, right| left == right,
+        ));
+        assert_eq!(primary, Some(11));
+        assert_eq!(replicas, vec![9, 13]);
+        assert!(install_paired_direct_shakescape_primary(
+            &mut primary,
+            &mut replicas,
+            11,
+            3,
+            |left, right| left == right,
+        ));
+        assert_eq!(primary, Some(11));
+        assert_eq!(replicas, vec![9, 13]);
     }
 }

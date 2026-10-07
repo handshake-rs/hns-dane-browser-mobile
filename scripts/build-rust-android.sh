@@ -137,10 +137,11 @@ fi
 
 mkdir -p -- "$OUT_DIR"
 OUT_DIR="$(cd "$OUT_DIR" && pwd -P)"
+INTERNAL_BUILD_ROOT="${HOME:?HOME must be set}/.cache/codex/hns-dane-browser-mobile/android-build"
 case "$OUT_DIR" in
-  "$ROOT_DIR"/android/app/build/*) ;;
+  "$ROOT_DIR"/android/app/build/*|"$INTERNAL_BUILD_ROOT"/app/generated/rustJniLibs) ;;
   *)
-    echo "ERROR: refusing to clean native output outside android/app/build: $OUT_DIR" >&2
+    echo "ERROR: refusing to clean native output outside an approved Android build directory: $OUT_DIR" >&2
     exit 2
     ;;
 esac
@@ -222,7 +223,16 @@ if SCCACHE_BIN="$(command -v sccache 2>/dev/null)" && [[ -n "$SCCACHE_BIN" ]]; t
 fi
 
 cd "$ROOT_DIR/rust"
-ANDROID_CARGO_TARGET_DIR="$ROOT_DIR/android/app/build/rustTarget"
+ANDROID_CARGO_TARGET_DIR="${HNS_RUST_ANDROID_TARGET_DIR:-$ROOT_DIR/android/app/build/rustTarget}"
+mkdir -p -- "$ANDROID_CARGO_TARGET_DIR"
+ANDROID_CARGO_TARGET_DIR="$(cd "$ANDROID_CARGO_TARGET_DIR" && pwd -P)"
+case "$ANDROID_CARGO_TARGET_DIR" in
+  "$ROOT_DIR"/android/app/build/rustTarget|"$INTERNAL_BUILD_ROOT"/rustTarget) ;;
+  *)
+    echo "ERROR: refusing Android Cargo output outside an approved build directory: $ANDROID_CARGO_TARGET_DIR" >&2
+    exit 2
+    ;;
+esac
 for abi in "${ANDROID_ABIS[@]}"; do
   case "$abi" in
     armeabi-v7a)

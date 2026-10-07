@@ -24,3 +24,5 @@ registry-qualified seed-only swap recovery cohort described in
   discovered peers fill the eight-connection pool; make the selected peer the
   request/reply primary and retain the previous primary as redundancy when the
   pool has room.
+- Pin the published HNS 0.4.5, Bitcoin 0.4.4, and mobile-wallet 0.5.2 crate
+  cohort with the recovery-publication funding deadline fix.
