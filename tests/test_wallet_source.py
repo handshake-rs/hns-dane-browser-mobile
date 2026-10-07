@@ -32,12 +32,12 @@ class WalletSourceTests(unittest.TestCase):
         self.verify()
 
     def test_changed_manifest_version_fails(self):
-        self.edit("rust/Cargo.toml", 'hns-wallet-hns = "=0.4.4"', 'hns-wallet-hns = "=0.4.1"')
+        self.edit("rust/Cargo.toml", 'hns-wallet-hns = "=0.4.5"', 'hns-wallet-hns = "=0.4.1"')
         with self.assertRaisesRegex(ValueError, "exact published version"):
             self.verify()
 
     def test_floating_manifest_version_fails(self):
-        self.edit("rust/Cargo.toml", 'hns-wallet-hns = "=0.4.4"', 'hns-wallet-hns = "0.4.4"')
+        self.edit("rust/Cargo.toml", 'hns-wallet-hns = "=0.4.5"', 'hns-wallet-hns = "0.4.5"')
         with self.assertRaisesRegex(ValueError, "exact published version"):
             self.verify()
 
@@ -58,31 +58,31 @@ class WalletSourceTests(unittest.TestCase):
     def test_member_wallet_path_alias_fails(self):
         path = Path("rust/crates/example/Cargo.toml")
         (self.root / path).parent.mkdir(parents=True)
-        (self.root / path).write_text('[dependencies]\nwallet = { package = "hns-wallet-hns", version = "=0.4.4", path = "../../wallet" }\n')
+        (self.root / path).write_text('[dependencies]\nwallet = { package = "hns-wallet-hns", version = "=0.4.5", path = "../../wallet" }\n')
         with self.assertRaisesRegex(ValueError, "local wallet paths"):
             verify_repository(self.root, [Path("rust/Cargo.toml"), path])
 
     def test_git_locked_wallet_source_fails(self):
-        self.edit("rust/Cargo.lock", 'name = "hns-wallet-hns"\nversion = "0.4.4"\nsource = "' + WALLET_SOURCE + '"',
-                  'name = "hns-wallet-hns"\nversion = "0.4.4"\nsource = "git+https://example.invalid/wallet#deadbeef"')
+        self.edit("rust/Cargo.lock", 'name = "hns-wallet-hns"\nversion = "0.4.5"\nsource = "' + WALLET_SOURCE + '"',
+                  'name = "hns-wallet-hns"\nversion = "0.4.5"\nsource = "git+https://example.invalid/wallet#deadbeef"')
         with self.assertRaisesRegex(ValueError, "published wallet"):
             self.verify()
 
     def test_changed_locked_version_fails(self):
-        self.edit("rust/Cargo.lock", 'name = "hns-wallet-hns"\nversion = "0.4.4"', 'name = "hns-wallet-hns"\nversion = "0.4.1"')
+        self.edit("rust/Cargo.lock", 'name = "hns-wallet-hns"\nversion = "0.4.5"', 'name = "hns-wallet-hns"\nversion = "0.4.1"')
         with self.assertRaisesRegex(ValueError, "published wallet"):
             self.verify()
 
     def test_changed_locked_checksum_fails(self):
         checksum = next(line.split()[0] for line in (self.root / CHECKSUM_MANIFEST).read_text().splitlines()
-                        if line.endswith("hns-wallet-hns-0.4.4.crate"))
+                        if line.endswith("hns-wallet-hns-0.4.5.crate"))
         self.edit("rust/Cargo.lock", f'checksum = "{checksum}"', 'checksum = "' + "0" * 64 + '"')
         with self.assertRaisesRegex(ValueError, "checksum"):
             self.verify()
 
     def test_incomplete_checksum_manifest_fails(self):
         line = next(line for line in (self.root / CHECKSUM_MANIFEST).read_text().splitlines()
-                    if line.endswith("hns-wallet-hns-0.4.4.crate"))
+                    if line.endswith("hns-wallet-hns-0.4.5.crate"))
         self.edit(CHECKSUM_MANIFEST, line + "\n", "")
         with self.assertRaisesRegex(ValueError, "missing a reviewed"):
             self.verify()
