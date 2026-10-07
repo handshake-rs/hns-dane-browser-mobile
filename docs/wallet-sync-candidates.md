@@ -1,12 +1,14 @@
-# Published wallet synchronization patches
+# Published wallet synchronization and recovery patches
 
 The mobile application consumes these published patches:
 
 | Package | Version | Reason |
 | --- | --- | --- |
-| `hns-wallet-hns` | 0.4.3 | Concurrent initial peer races, idle socket maintenance, public transport sharing, and reconnects |
-| `hns-wallet-bip157`, `hns-wallet-bitcoin-kyoto` | 0.4.2 | Durable Bitcoin header/filter caches and scan resume |
-| `hns-wallet-market`, `hns-wallet-mobile` | 0.5.0 | Seed-derived swap authority for both assets, both participants, and both offer directions |
+| `hns-wallet-hns` | 0.4.4 | Concurrent initial peer races, idle socket maintenance, public transport sharing, and reconnects |
+| `hns-wallet-bip157` | 0.4.2 | Durable Bitcoin filter caches |
+| `hns-wallet-bitcoin-kyoto` | 0.4.3 | Durable scan resume and recoverable funding publications |
+| `hns-wallet-chain-api`, `hns-wallet-service` | 0.4.2 | Public recovery terms and native recoverable funding |
+| `hns-wallet-market`, `hns-wallet-mobile` | 0.5.1 | Seed-only contract discovery, reclaim and verified settlement for both assets, participants and offer directions |
 
 Other selected wallet packages remain at 0.4.1. The Android and iOS
 controllers register the same weak public-header transport with the shared
@@ -67,7 +69,10 @@ not replace device validation of installed Android/iOS builds. Diagnostic
 logs are retained as read-only evidence; wallet data must not be cleared to
 validate scan resume.
 
-The 0.5.0 authority fix removes private offer intent and local wallet profile
-identity from key derivation. Automatic contract rediscovery after local
-wallet-data loss remains incomplete; retain local swap records until settlement.
-This release does not require a separate recovery-file workflow.
+The 0.5.1 recovery implementation publishes complete public terms in ordinary
+transaction ancestors committed by the funded contract. A fresh seed restore
+discovers the exact contract and reconstructs reclaim authority without the
+original offers, local key allocations or an online counterparty. Per-chain
+verified observations also restore eligible public-secret claims. Signing
+still requires verified unspent evidence and consensus maturity. No recovery
+file or legacy derivation adapter is included.

@@ -1,7 +1,7 @@
 # Release readiness
 
-The configured Android application is `1.0.16`, version code `68`. The iOS
-application is `1.0.16`, build `79`. The shared Rust runtime is `1.0.2`.
+The configured Android application is `1.0.17`, version code `69`. The iOS
+application is `1.0.17`, build `80`. The shared Rust runtime is `1.0.2`.
 Platform releases and Rust package releases have independent versions.
 
 Version 1.0.16 has been delivered to Google Play production and submitted to
@@ -26,16 +26,19 @@ submission state through store readback.
 Commit release work directly to `main`. Sign iOS only for an actual App Store
 delivery; routine commits do not require a signed IPA or a GitHub Release.
 
-## Recovery limitation in this authorized release
+## Seed-only swap recovery
 
-The owner authorized version increments and store submission on 2026-10-04
-following disclosure that automatic recovery of contract terms after local
-wallet-data loss remains incomplete. That instruction supersedes the prior
-release hold. The 0.5.0 wallet market/mobile patches fix seed-derived signing
-authority for both assets, both participants and both offer directions. They
-do not claim complete seed-only contract rediscovery. Keep local swap records
-until settlement. No separate recovery-file workflow is required. Preserve
-this limitation in release notes; the standing declarations remain confirmed.
+Version 1.0.17 uses the published wallet recovery cohort described in
+[the dependency guide](released-dependency-cohort.md). Newly funded swap
+contracts commit to chain-visible public recovery terms. Restoring the seed
+reconstructs the exact contract and reclaim authority for both assets, both
+participants and both offer directions. Native signing still requires current
+verified evidence, an unspent contract and consensus maturity. Recovery has
+been qualified with funded synthetic transactions and fresh wallet profiles.
+
+The earlier statement that the owner accepted incomplete recovery was incorrect
+and has been removed. No legacy derivation adapter or recovery-file workflow
+is included.
 
 ## Required before delivery
 

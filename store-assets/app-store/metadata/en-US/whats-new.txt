@@ -1,3 +1,1 @@
-Improves initial wallet peer connections and automatic swap-peer reconnects. Resumes Bitcoin synchronization after app restarts and reuses verified filter data. Makes BTC/HNS swap keys reproducible from the recovery seed and public agreement for both offer directions.
-
-Keep local swap records until settlement: automatic contract rediscovery after app-data loss remains incomplete.
+Automatically rediscover newly funded Bitcoin/Handshake swap contracts after restoring the wallet seed. Recover reclaim actions for both assets and offer directions, verify refund maturity, and resume eligible claims from verified on-chain settlement evidence. Recovery publication fees are included in the approved total.

@@ -1876,12 +1876,19 @@ impl NativeWalletController {
         };
         for permit in shakescape_sessions.pending_hns_spend_verifications()? {
             let session_id = permit.session_id();
-            if let Some(spend) = controller.verified_shakescape_hns_spend(permit)? {
-                shakescape_sessions.apply_local_verified_hns_spend(
+            match controller.verified_shakescape_hns_spend(permit)? {
+                Some(spend) => {
+                    shakescape_sessions.apply_local_verified_hns_spend(
+                        session_id,
+                        spend,
+                        HnsReadSystemClock.now_unix()?,
+                    )?;
+                }
+                None => shakescape_sessions.invalidate_recovered_spend_observation(
                     session_id,
-                    spend,
+                    hns_wallet_types::ModuleId::Handshake,
                     HnsReadSystemClock.now_unix()?,
-                )?;
+                )?,
             }
         }
         Ok(())
@@ -1901,7 +1908,7 @@ impl NativeWalletController {
     fn apply_verified_bitcoin_spend(
         &mut self,
         session_id: SessionId,
-        spend: hns_wallet_mobile::VerifiedBitcoinHtlcSpendObservation,
+        spend: Option<hns_wallet_mobile::VerifiedBitcoinHtlcSpendObservation>,
     ) -> Result<(), MobileWalletError> {
         let Self::DirectHnsValue {
             shakescape_sessions,
@@ -1910,9 +1917,17 @@ impl NativeWalletController {
         else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        shakescape_sessions
-            .apply_local_verified_bitcoin_spend(session_id, spend, HnsReadSystemClock.now_unix()?)
-            .map(|_| ())
+        let now_unix = HnsReadSystemClock.now_unix()?;
+        match spend {
+            Some(spend) => shakescape_sessions
+                .apply_local_verified_bitcoin_spend(session_id, spend, now_unix)
+                .map(|_| ()),
+            None => shakescape_sessions.invalidate_recovered_spend_observation(
+                session_id,
+                hns_wallet_types::ModuleId::Bitcoin,
+                now_unix,
+            ),
+        }
     }
 
     fn cancel_btc_for_hns_offer(&mut self, offer_id: &str) -> Result<(), MobileWalletError> {
@@ -6317,7 +6332,6 @@ pub unsafe extern "C" fn hns_browser_wallet_shakescape_executions(
                             bitcoin
                                 .verified_shakescape_htlc_spend(session_id)
                                 .ok()
-                                .flatten()
                                 .map(|spend| (session_id, spend))
                         })
                         .collect()

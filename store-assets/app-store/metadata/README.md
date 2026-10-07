@@ -1,20 +1,23 @@
 # App Store metadata
 
-This directory contains the reviewed listing source for iOS `1.0.16` / build
-`79`, bundle ID `com.denuoweb.hnsdane.ios`. Validate screenshots and signed artifacts against this exact candidate.
+This directory contains the reviewed listing source for iOS `1.0.17` / build
+`80`, bundle ID `com.denuoweb.hnsdane.ios`. Validate screenshots and signed artifacts against this exact candidate.
 
-- Version: `1.0.16`
-- Build: `79`
+- Version: `1.0.17`
+- Build: `80`
 
-This update reuses Wallet peers for browser synchronization, connects reserve
-peers concurrently, resumes authenticated scans, and reads previously saved
-ShakeScape offers. It consumes the published HNS and marketplace wallet patches. The app registers
+This update adds automatic seed-only contract discovery and reclaim for newly
+funded BTC/HNS swaps in both offer directions. Public recovery terms are
+committed in ordinary funding ancestors; their fees are included in approval.
+Each native runtime independently verifies the exact unspent contract and
+refund maturity. It also restores eligible claims from verified public secrets.
+It consumes the published wallet recovery cohort. The app registers
 `http` and `https` URL schemes, routes incoming URLs directly, and keeps exact
 `marketplace-kit` navigation in WebKit. The managed default-browser and
 MarketplaceKit app-installation entitlements remain absent pending Apple
 approval.
 
-Build 79 retains the protected, owner-only native-wallet storage boundary and
+Build 80 retains the protected, owner-only native-wallet storage boundary and
 uses one hsd/Bob-compatible account-zero receive chain for ordinary HNS and
 Handshake name ownership. The iOS shell, Apple C ABI, and native wallet all use
 that single receive contract.
@@ -31,8 +34,8 @@ Canonical metadata files are the text files in `en-US/`. Product, support, and
 privacy URLs must use `https://shakescape.com/`; `review-notes.txt` must explain
 the native wallet and camera QR flow accurately.
 
-Generate exact-commit iPhone and iPad screenshots after the final version
-increment, then validate and stage them:
+Preserve the current iPhone and iPad screenshot sets by default. When replacing
+them, generate exact-commit screenshots, then validate and stage them:
 
 ```sh
 python3 store-assets/app-store/validate.py --metadata-only

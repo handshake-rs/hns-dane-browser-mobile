@@ -2377,15 +2377,19 @@ impl AndroidWalletController {
         };
         for permit in permits {
             let session_id = permit.session_id();
-            if let Ok(Some(spend)) = controller.verified_shakescape_hns_spend(permit)
-                && shakescape_sessions
-                    .apply_local_verified_hns_spend(
-                        session_id,
-                        spend,
-                        HnsReadSystemClock.now_unix().unwrap_or(0),
-                    )
-                    .is_err()
-            {
+            let now_unix = HnsReadSystemClock.now_unix().unwrap_or(0);
+            let result = match controller.verified_shakescape_hns_spend(permit) {
+                Ok(Some(spend)) => shakescape_sessions
+                    .apply_local_verified_hns_spend(session_id, spend, now_unix)
+                    .map(|_| ()),
+                Ok(None) => shakescape_sessions.invalidate_recovered_spend_observation(
+                    session_id,
+                    hns_wallet_types::ModuleId::Handshake,
+                    now_unix,
+                ),
+                Err(_) => continue,
+            };
+            if result.is_err() {
                 return false;
             }
         }
@@ -2414,7 +2418,7 @@ impl AndroidWalletController {
     fn apply_verified_bitcoin_spend(
         &mut self,
         session_id: SessionId,
-        spend: hns_wallet_mobile::VerifiedBitcoinHtlcSpendObservation,
+        spend: Option<hns_wallet_mobile::VerifiedBitcoinHtlcSpendObservation>,
     ) -> bool {
         let Self::DirectValue {
             shakescape_sessions,
@@ -2423,13 +2427,18 @@ impl AndroidWalletController {
         else {
             return false;
         };
-        shakescape_sessions
-            .apply_local_verified_bitcoin_spend(
+        let now_unix = HnsReadSystemClock.now_unix().unwrap_or(0);
+        match spend {
+            Some(spend) => shakescape_sessions
+                .apply_local_verified_bitcoin_spend(session_id, spend, now_unix)
+                .map(|_| ()),
+            None => shakescape_sessions.invalidate_recovered_spend_observation(
                 session_id,
-                spend,
-                HnsReadSystemClock.now_unix().unwrap_or(0),
-            )
-            .is_ok()
+                hns_wallet_types::ModuleId::Bitcoin,
+                now_unix,
+            ),
+        }
+        .is_ok()
     }
 
     /// Retry the wallet-owned listener while retaining every other controller
@@ -8183,7 +8192,6 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
                             bitcoin
                                 .verified_shakescape_htlc_spend(session_id)
                                 .ok()
-                                .flatten()
                                 .map(|spend| (session_id, spend))
                         })
                         .collect::<Vec<_>>()

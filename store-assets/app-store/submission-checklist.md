@@ -1,6 +1,6 @@
 # App Store submission checklist
 
-Candidate: iOS `1.0.16`, build `78`, `com.denuoweb.hnsdane.ios`, iPhone/iPad
+Candidate: iOS `1.0.17`, build `80`, `com.denuoweb.hnsdane.ios`, iPhone/iPad
 and compatible Apple-silicon Macs. Read the configured release mode and live
 App Store Connect state before submission.
 
@@ -26,7 +26,8 @@ App Store Connect state before submission.
 
 ## Screenshots
 
-- [ ] Capture and validate current iPhone and iPad screenshots from that source.
+- [ ] Preserve and read back existing iPhone/iPad sets, or capture and validate
+  replacements from the qualified source when replacement is requested.
 - [ ] Show wallet onboarding without a recovery phrase, account identifier,
   address, balance, or transaction identifier.
 - [ ] Validate accepted dimensions and opaque images.

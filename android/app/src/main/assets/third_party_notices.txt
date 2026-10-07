@@ -27,8 +27,8 @@ Generated input SHA-256:
   scripts/mit-0-license.txt = 0ffe1339d2b91556bf0c380453d8504e972f066adcfda678bd9ddd2986a57c58
   android/app/src/main/assets/fonts/Orbitron-VariableFont_wght.ttf = f42db2dd16e642258e35782916eceb1dcdbea06fb958d77ad71dc5963587e8fd
   android/app/src/main/assets/fonts/OFL-Orbitron.txt = dd6fdb6716fd179d1fe891759efb3f9200753fdf6abf513b55b712c4ae16e512
-  rust/Cargo.toml = 07b645556be2aff1dffcfeff0936be3531e4ce1d3fe7ef2fd3e67593ce1d68da
-  rust/Cargo.lock = c241c992460bad127e8ebf8fda16a5052c3eb5a8176a6b6c2d5b53232336892a
+  rust/Cargo.toml = a2bf7bb68e80c929b0bcc935adb6c3c69299d84c0ba7aac9dd366b7754e849f3
+  rust/Cargo.lock = f2ee37013a7f735c447a7d96cb0607bf07544acac99d07904d0023577d16b7be
   android/gradle/libs.versions.toml = 6e6aa686c60e39364e82418f57bb4e2cb0b1cdc420db5dc20dcb48b9f9e58214
   android/app/gradle.lockfile = af2b566239607d09657d3a5930a2d60e9a765d3a1cae7bbf212080b592766ab3
   android/gradle/verification-metadata.xml = 904a6b05ddaea646070bd1a7d077a5bcaf415cb3c71605e5549042e60651df52
@@ -242,15 +242,15 @@ RUST COMPONENTS (393)
   hns-urkel-proof 0.5.0 | MIT OR Apache-2.0
   hns-wallet-bdk-kyoto 0.4.1 | MIT OR Apache-2.0
   hns-wallet-bip157 0.4.2 | MIT OR Apache-2.0
-  hns-wallet-bitcoin-kyoto 0.4.2 | MIT OR Apache-2.0
-  hns-wallet-chain-api 0.4.1 | MIT OR Apache-2.0
+  hns-wallet-bitcoin-kyoto 0.4.3 | MIT OR Apache-2.0
+  hns-wallet-chain-api 0.4.2 | MIT OR Apache-2.0
   hns-wallet-ffi 0.4.1 | MIT OR Apache-2.0
-  hns-wallet-hns 0.4.3 | MIT OR Apache-2.0
+  hns-wallet-hns 0.4.4 | MIT OR Apache-2.0
   hns-wallet-host 0.4.1 | MIT OR Apache-2.0
-  hns-wallet-market 0.5.0 | MIT OR Apache-2.0
-  hns-wallet-mobile 0.5.0 | MIT OR Apache-2.0
+  hns-wallet-market 0.5.1 | MIT OR Apache-2.0
+  hns-wallet-mobile 0.5.1 | MIT OR Apache-2.0
   hns-wallet-provider 0.4.1 | MIT OR Apache-2.0
-  hns-wallet-service 0.4.1 | MIT OR Apache-2.0
+  hns-wallet-service 0.4.2 | MIT OR Apache-2.0
   hns-wallet-shakedex 0.4.1 | MIT OR Apache-2.0
   hns-wallet-store 0.4.1 | MIT OR Apache-2.0
   hns-wallet-types 0.4.1 | MIT OR Apache-2.0
@@ -3048,15 +3048,15 @@ Applies to:
   - Rust crate hns-urkel-proof 0.5.0
   - Rust crate hns-wallet-bdk-kyoto 0.4.1
   - Rust crate hns-wallet-bip157 0.4.2
-  - Rust crate hns-wallet-bitcoin-kyoto 0.4.2
-  - Rust crate hns-wallet-chain-api 0.4.1
+  - Rust crate hns-wallet-bitcoin-kyoto 0.4.3
+  - Rust crate hns-wallet-chain-api 0.4.2
   - Rust crate hns-wallet-ffi 0.4.1
-  - Rust crate hns-wallet-hns 0.4.3
+  - Rust crate hns-wallet-hns 0.4.4
   - Rust crate hns-wallet-host 0.4.1
-  - Rust crate hns-wallet-market 0.5.0
-  - Rust crate hns-wallet-mobile 0.5.0
+  - Rust crate hns-wallet-market 0.5.1
+  - Rust crate hns-wallet-mobile 0.5.1
   - Rust crate hns-wallet-provider 0.4.1
-  - Rust crate hns-wallet-service 0.4.1
+  - Rust crate hns-wallet-service 0.4.2
   - Rust crate hns-wallet-shakedex 0.4.1
   - Rust crate hns-wallet-store 0.4.1
   - Rust crate hns-wallet-types 0.4.1
@@ -7587,15 +7587,15 @@ Notice SHA-256: 7ee1222d909b6a4479b5845d6ae89574a8dde1a3832ea04b6952b075a491ec71
 Applies to:
   - Rust crate hns-wallet-bdk-kyoto 0.4.1
   - Rust crate hns-wallet-bip157 0.4.2
-  - Rust crate hns-wallet-bitcoin-kyoto 0.4.2
-  - Rust crate hns-wallet-chain-api 0.4.1
+  - Rust crate hns-wallet-bitcoin-kyoto 0.4.3
+  - Rust crate hns-wallet-chain-api 0.4.2
   - Rust crate hns-wallet-ffi 0.4.1
-  - Rust crate hns-wallet-hns 0.4.3
+  - Rust crate hns-wallet-hns 0.4.4
   - Rust crate hns-wallet-host 0.4.1
-  - Rust crate hns-wallet-market 0.5.0
-  - Rust crate hns-wallet-mobile 0.5.0
+  - Rust crate hns-wallet-market 0.5.1
+  - Rust crate hns-wallet-mobile 0.5.1
   - Rust crate hns-wallet-provider 0.4.1
-  - Rust crate hns-wallet-service 0.4.1
+  - Rust crate hns-wallet-service 0.4.2
   - Rust crate hns-wallet-shakedex 0.4.1
   - Rust crate hns-wallet-store 0.4.1
   - Rust crate hns-wallet-types 0.4.1
