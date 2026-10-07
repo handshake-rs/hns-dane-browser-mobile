@@ -236,6 +236,29 @@ fn promote_direct_shakescape_primary<T>(primary: &mut Option<T>, replicas: &mut 
     primary.is_some()
 }
 
+/// Make an explicitly selected or reconnecting endpoint the request/reply
+/// peer without discarding the previous primary when the bounded redundancy
+/// pool still has room. At capacity, replace one replica so an unavailable
+/// selected endpoint can still be retried instead of being starved forever by
+/// unrelated discovered connections.
+fn install_paired_direct_shakescape_primary<T>(
+    primary: &mut Option<T>,
+    replicas: &mut Vec<T>,
+    paired: T,
+    maximum_peers: usize,
+) -> bool {
+    let previous = primary.replace(paired);
+    let replaced = previous.is_some();
+    if let Some(previous) = previous {
+        if 1usize.saturating_add(replicas.len()) < maximum_peers {
+            replicas.push(previous);
+        } else if let Some(last) = replicas.last_mut() {
+            *last = previous;
+        }
+    }
+    replaced
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum AndroidDirectPeerService {
     Idle,
@@ -2846,7 +2869,6 @@ impl AndroidWalletController {
         });
         let paired_reconnect_due = shakescape_paired_endpoint.filter(|_| {
             !paired_is_connected
-                && peer_count < MAX_ANDROID_DIRECT_SHAKESCAPE_PEERS
                 && shakescape_next_paired_reconnect_at.is_none_or(|next| now_unix >= next)
         });
         if let Some(address) = paired_reconnect_due {
@@ -2870,11 +2892,12 @@ impl AndroidWalletController {
                         })
                         .is_ok()
                     {
-                        if shakescape_peer.is_none() {
-                            *shakescape_peer = Some(peer);
-                        } else {
-                            shakescape_replication_peers.push(peer);
-                        }
+                        install_paired_direct_shakescape_primary(
+                            shakescape_peer,
+                            shakescape_replication_peers,
+                            peer,
+                            MAX_ANDROID_DIRECT_SHAKESCAPE_PEERS,
+                        );
                         shakescape_next_paired_reconnect_at.take();
                         android_log_info(
                             "hns-shakescape",
@@ -2946,6 +2969,7 @@ impl AndroidWalletController {
             shakescape_paired_endpoint,
             shakescape_next_paired_reconnect_at,
             shakescape_peer,
+            shakescape_replication_peers,
             ..
         } = self
         else {
@@ -3019,18 +3043,22 @@ impl AndroidWalletController {
                 peer_endpoint: None,
             };
         }
-        let outcome = if shakescape_peer.is_some() {
+        let replaced = install_paired_direct_shakescape_primary(
+            shakescape_peer,
+            shakescape_replication_peers,
+            peer,
+            MAX_ANDROID_DIRECT_SHAKESCAPE_PEERS,
+        );
+        let outcome = if replaced {
             AndroidDirectShakescapeConnectOutcome::Replaced
         } else {
             AndroidDirectShakescapeConnectOutcome::Connected
         };
-        let peer_endpoint = peer.address();
         *shakescape_paired_endpoint = Some(address);
         shakescape_next_paired_reconnect_at.take();
-        *shakescape_peer = Some(peer);
         AndroidDirectShakescapeConnectResult {
             outcome,
-            peer_endpoint: Some(peer_endpoint),
+            peer_endpoint: Some(address),
         }
     }
 
@@ -11008,5 +11036,23 @@ mod tests {
         ));
         assert_eq!(primary, Some(7));
         assert_eq!(replicas, vec![9]);
+
+        assert!(install_paired_direct_shakescape_primary(
+            &mut primary,
+            &mut replicas,
+            11,
+            4,
+        ));
+        assert_eq!(primary, Some(11));
+        assert_eq!(replicas, vec![9, 7]);
+
+        assert!(install_paired_direct_shakescape_primary(
+            &mut primary,
+            &mut replicas,
+            13,
+            3,
+        ));
+        assert_eq!(primary, Some(13));
+        assert_eq!(replicas, vec![9, 11]);
     }
 }

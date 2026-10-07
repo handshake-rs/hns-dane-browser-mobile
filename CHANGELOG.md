@@ -18,3 +18,9 @@ registry-qualified seed-only swap recovery cohort described in
   evidence after reorganization, and resume a taker's remaining claim once its
   funded leg reveals the secret on-chain.
 - Preserve the peer reconnect and durable Bitcoin synchronization improvements.
+- Rotate iOS through the same bounded reserve-peer retries as Android when a
+  completed two-peer header round cannot agree.
+- Keep a user-selected swap peer eligible for automatic reconnect even when
+  discovered peers fill the eight-connection pool; make the selected peer the
+  request/reply primary and retain the previous primary as redundancy when the
+  pool has room.

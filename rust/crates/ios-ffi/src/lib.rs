@@ -176,6 +176,11 @@ const IOS_WALLET_HEADER_SEGMENT_MAGIC: &[u8; 11] = b"HNSWLTSEG01";
 const IOS_MAINNET_WALLET_CHECKPOINT_HEIGHT: u32 = 300_000;
 const IOS_WALLET_HEADER_SEGMENT_METADATA_BYTES: u64 = 55;
 const DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC: usize = 32;
+/// Rotate through the eight-peer reserve when a completed two-peer header
+/// round cannot agree. This matches Android's bounded recovery behavior and
+/// leaves the persisted chain fail-closed if independent agreement remains
+/// unavailable after the reserve has been sampled.
+const DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC: usize = 5;
 const DIRECT_HNS_MAX_SCAN_CHUNKS_PER_SYNC: usize = 32;
 // Match the direct coordinator's single atomic filtered-block request window.
 // Cancellation is checked between these calls, so a Stop request can prevent
@@ -208,6 +213,27 @@ fn promote_direct_shakescape_primary<T>(primary: &mut Option<T>, replicas: &mut 
         *primary = Some(replicas.swap_remove(0));
     }
     primary.is_some()
+}
+
+/// Prioritize an explicitly selected endpoint while retaining the old primary
+/// as redundancy whenever the bounded peer set has room. A full discovered
+/// pool must not permanently suppress retries of the user's selected peer.
+fn install_paired_direct_shakescape_primary<T>(
+    primary: &mut Option<T>,
+    replicas: &mut Vec<T>,
+    paired: T,
+    maximum_peers: usize,
+) -> bool {
+    let previous = primary.replace(paired);
+    let replaced = previous.is_some();
+    if let Some(previous) = previous {
+        if 1usize.saturating_add(replicas.len()) < maximum_peers {
+            replicas.push(previous);
+        } else if let Some(last) = replicas.last_mut() {
+            *last = previous;
+        }
+    }
+    replaced
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -2428,7 +2454,6 @@ impl NativeWalletController {
         });
         let paired_reconnect_due = shakescape_paired_endpoint.filter(|_| {
             !paired_is_connected
-                && peer_count < MAX_IOS_DIRECT_SHAKESCAPE_PEERS
                 && shakescape_next_paired_reconnect_at.is_none_or(|next| now_unix >= next)
         });
         if let Some(address) = paired_reconnect_due {
@@ -2452,11 +2477,12 @@ impl NativeWalletController {
                     })
                     .is_ok()
             {
-                if shakescape_peer.is_none() {
-                    *shakescape_peer = Some(peer);
-                } else {
-                    shakescape_replication_peers.push(peer);
-                }
+                install_paired_direct_shakescape_primary(
+                    shakescape_peer,
+                    shakescape_replication_peers,
+                    peer,
+                    MAX_IOS_DIRECT_SHAKESCAPE_PEERS,
+                );
                 shakescape_next_paired_reconnect_at.take();
                 return true;
             }
@@ -2504,6 +2530,7 @@ impl NativeWalletController {
             shakescape_paired_endpoint,
             shakescape_next_paired_reconnect_at,
             shakescape_peer,
+            shakescape_replication_peers,
             ..
         } = self
         else {
@@ -2556,18 +2583,22 @@ impl NativeWalletController {
                 peer_endpoint: None,
             };
         }
-        let outcome = if shakescape_peer.is_some() {
+        let replaced = install_paired_direct_shakescape_primary(
+            shakescape_peer,
+            shakescape_replication_peers,
+            peer,
+            MAX_IOS_DIRECT_SHAKESCAPE_PEERS,
+        );
+        let outcome = if replaced {
             IosDirectShakescapeConnectOutcome::Replaced
         } else {
             IosDirectShakescapeConnectOutcome::Connected
         };
-        let endpoint = peer.address();
         *shakescape_paired_endpoint = Some(address);
         shakescape_next_paired_reconnect_at.take();
-        *shakescape_peer = Some(peer);
         IosDirectShakescapeConnectResult {
             outcome,
-            peer_endpoint: Some(endpoint),
+            peer_endpoint: Some(address),
         }
     }
 
@@ -3498,6 +3529,7 @@ fn synchronize_wallet_owned_direct_hns(
     controller: &mut MobileHnsValueController<EmbeddedHnsBackend>,
     sync_control: &WalletHnsSyncControl,
 ) -> Result<MobileHnsReadSnapshot, FfiFailure> {
+    let mut header_agreement_recoveries = 0usize;
     for _ in 0..DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC {
         ensure_wallet_hns_sync_not_cancelled(sync_control)?;
         publish_direct_hns_public_progress(sync_control, WALLET_HNS_SYNC_CONNECTING, coordinator);
@@ -3512,10 +3544,24 @@ fn synchronize_wallet_owned_direct_hns(
         let header_now_unix = HnsReadSystemClock
             .now_unix()
             .map_err(|_| wallet_runtime_failure("direct HNS clock is unavailable"))?;
-        match coordinator
-            .synchronize_headers_once(header_now_unix)
-            .map_err(|_| direct_hns_not_ready("direct HNS header agreement is unavailable"))?
-        {
+        let progress = match coordinator.synchronize_headers_once(header_now_unix) {
+            Ok(progress) => progress,
+            Err(error)
+                if ios_direct_hns_header_agreement_should_retry(
+                    error.is_temporary_header_agreement_unavailable(),
+                    header_agreement_recoveries,
+                ) =>
+            {
+                header_agreement_recoveries = header_agreement_recoveries.saturating_add(1);
+                continue;
+            }
+            Err(_) => {
+                return Err(direct_hns_not_ready(
+                    "direct HNS header agreement is unavailable",
+                ));
+            }
+        };
+        match progress {
             hns_wallet_mobile::HnsHeaderRoundProgress::Committed(round) => {
                 ensure_wallet_hns_sync_not_cancelled(sync_control)?;
                 if round.accepted.is_empty() {
@@ -3660,6 +3706,14 @@ fn synchronize_wallet_owned_direct_hns(
     // temporarily unavailable, and the next synchronization retries recovery.
     let _ = controller.recover_shakedex_after_reconcile();
     Ok(snapshot)
+}
+
+fn ios_direct_hns_header_agreement_should_retry(
+    temporary_agreement_failure: bool,
+    completed_recoveries: usize,
+) -> bool {
+    temporary_agreement_failure
+        && completed_recoveries < DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC
 }
 
 unsafe fn wallet_visible_ascii(
@@ -9211,6 +9265,25 @@ mod tests {
     }
 
     #[test]
+    fn direct_hns_public_peer_pool_and_retry_budget_match_android() {
+        for network in [HnsNetwork::Mainnet, HnsNetwork::Testnet] {
+            let config = direct_hns_peer_config(network);
+            assert_eq!(config.minimum_block_views, 2);
+            assert_eq!(config.target_peers, 4 * config.minimum_block_views);
+        }
+        assert!(ios_direct_hns_header_agreement_should_retry(true, 0));
+        assert!(ios_direct_hns_header_agreement_should_retry(
+            true,
+            DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC - 1,
+        ));
+        assert!(!ios_direct_hns_header_agreement_should_retry(
+            true,
+            DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC,
+        ));
+        assert!(!ios_direct_hns_header_agreement_should_retry(false, 0));
+    }
+
+    #[test]
     fn shared_name_classification_and_hns_root_are_exposed() {
         let _guard = test_guard();
         let mut class = u32::MAX;
@@ -10174,5 +10247,23 @@ mod tests {
         ));
         assert_eq!(primary, Some(7));
         assert_eq!(replicas, vec![9]);
+
+        assert!(install_paired_direct_shakescape_primary(
+            &mut primary,
+            &mut replicas,
+            11,
+            4,
+        ));
+        assert_eq!(primary, Some(11));
+        assert_eq!(replicas, vec![9, 7]);
+
+        assert!(install_paired_direct_shakescape_primary(
+            &mut primary,
+            &mut replicas,
+            13,
+            3,
+        ));
+        assert_eq!(primary, Some(13));
+        assert_eq!(replicas, vec![9, 11]);
     }
 }
