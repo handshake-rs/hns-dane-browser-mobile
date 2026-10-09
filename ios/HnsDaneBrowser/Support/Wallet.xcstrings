@@ -56468,7 +56468,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "HNS مقفل (الحد الأدنى 0.100546 بما في ذلك احتياطي الرسوم)"
+            "value": "HNS مقفل (الحد الأدنى 0.500546 بما في ذلك احتياطي الرسوم)"
           }
         },
         "de": {
@@ -56480,7 +56480,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "HNS locked (minimum 0.100546 including fee reserve)"
+            "value": "HNS locked (minimum 0.500546 including fee reserve)"
           }
         },
         "es": {
@@ -56492,7 +56492,7 @@
         "fa": {
           "stringUnit": {
             "state": "translated",
-            "value": "HNS قفل شده است (حداقل 0.100546 با احتساب هزینه ذخیره)"
+            "value": "HNS قفل شده است (حداقل 0.500546 با احتساب هزینه ذخیره)"
           }
         },
         "fr": {
@@ -56504,13 +56504,13 @@
         "he": {
           "stringUnit": {
             "state": "translated",
-            "value": "HNS נעול (מינימום 0.100546 כולל רזרבה לתשלום)"
+            "value": "HNS נעול (מינימום 0.500546 כולל רזרבה לתשלום)"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "HNS लॉक किया गया (शुल्क आरक्षित सहित न्यूनतम 0.100546)"
+            "value": "HNS लॉक किया गया (शुल्क आरक्षित सहित न्यूनतम 0.500546)"
           }
         },
         "id": {
@@ -56528,13 +56528,13 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "HNS ロック済み (手数料準備金を含む最小 0.100546)"
+            "value": "HNS ロック済み (手数料準備金を含む最小 0.500546)"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "HNS 잠김(수수료 예비 포함 최소 0.100546)"
+            "value": "HNS 잠김(수수료 예비 포함 최소 0.500546)"
           }
         },
         "nl": {
@@ -56582,13 +56582,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "HNS 锁定（最低 0.100546 包括费用准备金）"
+            "value": "HNS 锁定（最低 0.500546 包括费用准备金）"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "HNS 鎖定（最低 0.100546 包括費用準備金）"
+            "value": "HNS 鎖定（最低 0.500546 包括費用準備金）"
           }
         }
       }
@@ -58040,7 +58040,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "HNS مقفل (الحد الأدنى 0.100546 بما في ذلك احتياطي الرسوم)"
+            "value": "HNS مقفل (الحد الأدنى 0.500546 بما في ذلك احتياطي الرسوم)"
           }
         },
         "de": {
@@ -58052,7 +58052,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "HNS locked (minimum 0.100546 including fee reserve)"
+            "value": "HNS locked (minimum 0.500546 including fee reserve)"
           }
         },
         "es": {
@@ -58064,7 +58064,7 @@
         "fa": {
           "stringUnit": {
             "state": "translated",
-            "value": "HNS قفل شده است (حداقل 0.100546 با احتساب هزینه ذخیره)"
+            "value": "HNS قفل شده است (حداقل 0.500546 با احتساب هزینه ذخیره)"
           }
         },
         "fr": {
@@ -58076,13 +58076,13 @@
         "he": {
           "stringUnit": {
             "state": "translated",
-            "value": "HNS נעול (מינימום 0.100546 כולל רזרבה לתשלום)"
+            "value": "HNS נעול (מינימום 0.500546 כולל רזרבה לתשלום)"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "HNS लॉक किया गया (शुल्क आरक्षित सहित न्यूनतम 0.100546)"
+            "value": "HNS लॉक किया गया (शुल्क आरक्षित सहित न्यूनतम 0.500546)"
           }
         },
         "id": {
@@ -58100,13 +58100,13 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "HNS ロック済み (手数料準備金を含む最小 0.100546)"
+            "value": "HNS ロック済み (手数料準備金を含む最小 0.500546)"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "HNS 잠김(수수료 예비 포함 최소 0.100546)"
+            "value": "HNS 잠김(수수료 예비 포함 최소 0.500546)"
           }
         },
         "nl": {
@@ -58154,13 +58154,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "HNS 锁定（最低 0.100546 包括费用准备金）"
+            "value": "HNS 锁定（最低 0.500546 包括费用准备金）"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "HNS 鎖定（最低 0.100546 包括費用準備金）"
+            "value": "HNS 鎖定（最低 0.500546 包括費用準備金）"
           }
         }
       }
@@ -69419,6 +69419,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Stopping sync…"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_hns_first_funding_prepare_failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Handshake HTLC funding was not prepared. The transaction fee may exceed this swap’s signed HNS fee reserve. Create a new offer with a larger HNS reserve before retrying."
           }
         }
       }

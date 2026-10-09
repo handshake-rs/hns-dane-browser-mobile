@@ -4990,18 +4990,7 @@ class WalletActivity : ComponentActivity() {
             lastAutomaticSwapHnsSyncFingerprint = null
             return false
         }
-        val fingerprint = buildString {
-            status.executions
-                .filter { it.state !in setOf("completed", "refunded", "failed") }
-                .sortedBy { it.sessionId }
-                .forEach {
-                    append(it.sessionId).append(':').append(it.revision).append(':')
-                        .append(it.state).append(';')
-                }
-            status.pendingAcceptances.sortedBy { it.sessionId }.forEach {
-                append(it.sessionId).append(':').append(it.createdAtUnix).append(';')
-            }
-        }
+        val fingerprint = walletActiveSwapSyncFingerprint(status)
         val previousFingerprint = lastAutomaticSwapHnsSyncFingerprint
         if (fingerprint != previousFingerprint) {
             lastAutomaticSwapHnsSyncFingerprint = fingerprint
@@ -5015,7 +5004,8 @@ class WalletActivity : ComponentActivity() {
         }
         val now = SystemClock.elapsedRealtime()
         if (
-            busy || walletHnsSyncInProgress || walletBitcoinSyncInProgress ||
+            pendingWalletAuthentication != null || busy ||
+                walletHnsSyncInProgress || walletBitcoinSyncInProgress ||
                 walletHandle == INVALID_HANDLE || !NativeWalletBridge.hasHnsReads(walletHandle)
         ) return false
         if (
@@ -5042,15 +5032,7 @@ class WalletActivity : ComponentActivity() {
             lastAutomaticSwapBitcoinSyncFingerprint = null
             return false
         }
-        val fingerprint = buildString {
-            liveExecutions.sortedBy { it.sessionId }.forEach {
-                append(it.sessionId).append(':').append(it.revision).append(':')
-                    .append(it.state).append(';')
-            }
-            status.pendingAcceptances.sortedBy { it.sessionId }.forEach {
-                append(it.sessionId).append(':').append(it.createdAtUnix).append(';')
-            }
-        }
+        val fingerprint = walletActiveSwapSyncFingerprint(status)
         if (fingerprint != lastAutomaticSwapBitcoinSyncFingerprint) {
             lastAutomaticSwapBitcoinSyncFingerprint = fingerprint
             lastAutomaticSwapBitcoinSyncAtElapsedMillis = Long.MIN_VALUE
@@ -5061,7 +5043,7 @@ class WalletActivity : ComponentActivity() {
         // Bitcoin funding actionable, must first establish Kyoto's durable
         // Ready checkpoint. The dashboard disables value actions while this
         // bounded scan owns the controller, so preparation cannot race it.
-        if (walletBitcoinSyncInProgress ||
+        if (pendingWalletAuthentication != null || walletBitcoinSyncInProgress ||
             bitcoinBirthdayResetInProgress || busy ||
             walletHandle == INVALID_HANDLE || !NativeWalletBridge.hasBitcoinValue(walletHandle)
         ) return false
@@ -5465,7 +5447,7 @@ class WalletActivity : ComponentActivity() {
                 ),
                 WalletActionInput(
                     R.string.wallet_swap_hns_fee_reserve_hint,
-                    initial = DEFAULT_HNS_MAXIMUM_FEE,
+                    initial = DEFAULT_HNS_SWAP_FEE_RESERVE,
                 ),
                 WalletActionInput(
                     R.string.wallet_swap_lifetime_hours_hint,
@@ -5577,7 +5559,7 @@ class WalletActivity : ComponentActivity() {
                 else R.string.wallet_swap_acceptance_hns_fee_reserve_hint,
                 numeric = bitcoin,
                 initial = if (bitcoin) NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS.toString()
-                else DEFAULT_HNS_MAXIMUM_FEE,
+                else DEFAULT_HNS_SWAP_FEE_RESERVE,
             )),
             summary = directOfferAcceptanceLabel(offer),
             primaryLabel = R.string.wallet_swap_acceptance_review,
@@ -5705,7 +5687,7 @@ class WalletActivity : ComponentActivity() {
                         )
                     }
                     val executionLabels = orderedExecutions.map {
-                        "${it.state.replace('_', ' ')} · ${it.offeredAmount} ${it.offeredAsset.uppercase()} → ${it.receivedAmount} ${it.receivedAsset.uppercase()} · ${it.sessionId.take(12)}…"
+                        "${it.state.replace('_', ' ')} · ${formatSwapAmount(it.offeredAsset, it.offeredAmount)} → ${formatSwapAmount(it.receivedAsset, it.receivedAmount)} · ${it.sessionId.take(12)}…"
                     }
                     val labels = (responseLabels + pendingLabels + executionLabels).toTypedArray()
                     // AlertDialog's message ScrollView and selectable ListView
@@ -5879,7 +5861,7 @@ class WalletActivity : ComponentActivity() {
                     listOf(WalletActionInput(
                         R.string.wallet_swap_hns_funding_fee_hint,
                         numeric = true,
-                        initial = DEFAULT_HNS_MAXIMUM_FEE_BASE_UNITS,
+                        initial = DEFAULT_HNS_SWAP_FEE_RESERVE_BASE_UNITS,
                     )),
                 ) { values ->
                     val fee = values.single().toLongOrNull()?.takeIf { it > 0L }
@@ -6197,7 +6179,11 @@ class WalletActivity : ComponentActivity() {
                     releaseStorageLeaseAfterOperation(lease)
                 } else if (approval == null) {
                     busy = false
-                    val failure = getString(R.string.wallet_swap_hns_funding_prepare_failed)
+                    val failure = getString(
+                        if (execution.firstChain == "handshake")
+                            R.string.wallet_ux_swap_hns_first_funding_prepare_failed
+                        else R.string.wallet_swap_hns_funding_prepare_failed,
+                    )
                     statusView.text = failure
                     swapActionStatusView.text = failure
                     renderWalletDashboard()
@@ -10187,6 +10173,8 @@ class WalletActivity : ComponentActivity() {
         const val MAX_SEND_RECIPIENT_BYTES = 512
         const val DEFAULT_HNS_MAXIMUM_FEE = "0.1"
         const val DEFAULT_HNS_MAXIMUM_FEE_BASE_UNITS = "100000"
+        const val DEFAULT_HNS_SWAP_FEE_RESERVE = "0.5"
+        const val DEFAULT_HNS_SWAP_FEE_RESERVE_BASE_UNITS = "500000"
         const val MAX_VALUE_ACTION_INPUT_CHARACTERS = 512
         const val MAX_RESOURCE_EDITOR_CHARACTERS = 4 * 1024
         const val DEFAULT_LISTING_LIFETIME_SECONDS = 7 * 24 * 60 * 60L
@@ -10221,6 +10209,27 @@ internal const val HNS_CATCHUP_PROGRESS_RETRY_DELAY_MILLIS = 2_000L
 internal const val HNS_CATCHUP_DEGRADED_RETRY_DELAY_MILLIS = 30_000L
 internal const val SWAP_HNS_AUTO_SYNC_INTERVAL_MILLIS = 2 * 60_000L
 internal const val WALLET_VALUE_ACTION_SNAPSHOT_REUSE_MILLIS = 60_000L
+
+/** Protocol revisions can change when an identical peer packet is replayed.
+ * Only a change in observable swap state should bypass the sync cadence. */
+internal fun walletActiveSwapSyncFingerprint(status: NativeShakescapeExecutionStatus): String =
+    buildString {
+        status.executions
+            .filter { it.state !in setOf("completed", "refunded", "failed") }
+            .sortedBy { it.sessionId }
+            .forEach {
+                append(it.sessionId).append(':').append(it.state).append(':')
+                    .append(it.localFundingState).append(':')
+                    .append(it.firstFundingConfirmed).append(':')
+                    .append(it.secondFundingConfirmed).append(':')
+                    .append(it.firstRedemptionConfirmed).append(':')
+                    .append(it.secondRedemptionConfirmed).append(':')
+                    .append(it.refundConfirmed).append(';')
+            }
+        status.pendingAcceptances.sortedBy { it.sessionId }.forEach {
+            append(it.sessionId).append(':').append(it.createdAtUnix).append(';')
+        }
+    }
 
 /**
  * Loading an existing execution journal immediately after a verified unlock

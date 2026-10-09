@@ -286,7 +286,7 @@
     <string name="wallet_swap_sell_btc">מכור את BTC עבור HNS</string>
     <string name="wallet_swap_sell_hns">מכור את HNS עבור BTC</string>
     <string name="wallet_swap_my_offers">הצעות ההחלפה הפעילות שלי של BTC/HNS</string>
-    <string name="wallet_swap_hns_offered_hint">HNS נעול (מינימום 0.100546 כולל רזרבה לתשלום)</string>
+    <string name="wallet_swap_hns_offered_hint">HNS נעול (מינימום 0.500546 כולל רזרבה לתשלום)</string>
     <string name="wallet_swap_btc_requested_hint">BTC נעול (sats, מינימום 1330 כולל רזרבה לתשלום)</string>
     <string name="wallet_swap_hns_fee_reserve_hint">עתודת עמלה HNS</string>
     <string name="wallet_swap_hns_prepare_failed">הרישום HNS-for-BTC לא הוכן. HNS המסונכרן חייב לכסות את הרישומים הפעילים ואת הסכום הנעול המלא הזה, הכולל את עתודת העמלות שלו.</string>
@@ -308,7 +308,7 @@
     <string name="wallet_swap_acceptance_sent">ההחלפה %1$s… התחילה. מועד אחרון למימון: %2$s (נותרו %3$s). ממתינים לחתימת הארנק האחר.</string>
     <string name="wallet_swap_cancel_direct_message">למשוך את %1$s?\n\n מזהה הצעה: %2$s. ביטול משחרר את ההזמנה המקומית אך לא יכול לבטל הפעלה שכבר התקבלה.</string>
     <string name="wallet_swap_btc_amount_hint">BTC נעול (sats, מינימום 1330 כולל רזרבה לתשלום)</string>
-    <string name="wallet_swap_hns_amount_hint">HNS נעול (מינימום 0.100546 כולל רזרבה לתשלום)</string>
+    <string name="wallet_swap_hns_amount_hint">HNS נעול (מינימום 0.500546 כולל רזרבה לתשלום)</string>
     <string name="wallet_swap_fee_reserve_hint">עתודת עמלה Bitcoin (sats, מינימום 1000)</string>
     <string name="wallet_swap_lifetime_hours_hint">משך חיים של רישום (שעות, 48-168)</string>
     <string name="wallet_swap_preparing">מכין רישום BTC-ל-HNS מדויק...</string>

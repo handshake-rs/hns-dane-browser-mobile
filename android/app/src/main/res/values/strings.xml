@@ -758,7 +758,7 @@
     <string name="wallet_swap_sell_hns">Sell HNS for BTC</string>
     <string name="wallet_swap_available_offers">Browse offers</string>
     <string name="wallet_swap_my_offers">My active BTC/HNS swap offers</string>
-    <string name="wallet_swap_hns_offered_hint">HNS locked (minimum 0.100546 including fee reserve)</string>
+    <string name="wallet_swap_hns_offered_hint">HNS locked (minimum 0.500546 including fee reserve)</string>
     <string name="wallet_swap_btc_requested_hint">BTC locked (sats, minimum 1330 including fee reserve)</string>
     <string name="wallet_swap_hns_fee_reserve_hint">HNS fee reserve</string>
     <string name="wallet_swap_hns_prepare_failed">The HNS-for-BTC listing was not prepared. Synchronized HNS must cover active listings and this complete locked amount, which includes its fee reserve.</string>
@@ -790,7 +790,7 @@
     <string name="wallet_swap_direct_cancelled">Direct offer cancelled.</string>
     <string name="wallet_swap_direct_cancel_failed">The direct offer was not cancelled.</string>
     <string name="wallet_swap_btc_amount_hint">BTC locked (sats, minimum 1330 including fee reserve)</string>
-    <string name="wallet_swap_hns_amount_hint">HNS locked (minimum 0.100546 including fee reserve)</string>
+    <string name="wallet_swap_hns_amount_hint">HNS locked (minimum 0.500546 including fee reserve)</string>
     <string name="wallet_swap_fee_reserve_hint">Bitcoin fee reserve (sats, minimum 1000)</string>
     <string name="wallet_swap_lifetime_hours_hint">Listing lifetime (hours, 48–168)</string>
     <string name="wallet_swap_preparing">Preparing exact BTC-for-HNS listing…</string>
@@ -903,6 +903,7 @@
     <string name="wallet_swap_hns_funding_fee_invalid">Enter a positive maximum HNS fee in dollarydoos.</string>
     <string name="wallet_swap_hns_funding_preparing">Preparing the exact session-bound Handshake HTLC…</string>
     <string name="wallet_swap_hns_funding_prepare_failed">Handshake HTLC funding was not prepared. The Bitcoin lock must first be independently confirmed and the fee must remain within the signed reserve.</string>
+    <string name="wallet_ux_swap_hns_first_funding_prepare_failed" translatable="false">Handshake HTLC funding was not prepared. The transaction fee may exceed this swap’s signed HNS fee reserve. Create a new offer with a larger HNS reserve before retrying.</string>
     <string name="wallet_swap_hns_funding_approval_title">Broadcast HNS funding?</string>
     <string name="wallet_swap_hns_funding_approval_message">Lock %1$s HNS. Network fee: %2$s HNS (maximum %3$s).\n\nTransaction: %4$s\nSession: %5$s\n\nBroadcast is irreversible. The swap advances after the HNS lock is confirmed.</string>
     <string name="wallet_swap_broadcast_hns_funding">Broadcast HNS funding</string>

@@ -286,7 +286,7 @@
     <string name="wallet_swap_sell_btc">فروش BTC برای HNS</string>
     <string name="wallet_swap_sell_hns">فروش HNS برای BTC</string>
     <string name="wallet_swap_my_offers">پیشنهادهای مبادله BTC/HNS فعال من</string>
-    <string name="wallet_swap_hns_offered_hint">HNS قفل شده است (حداقل 0.100546 با احتساب هزینه ذخیره)</string>
+    <string name="wallet_swap_hns_offered_hint">HNS قفل شده است (حداقل 0.500546 با احتساب هزینه ذخیره)</string>
     <string name="wallet_swap_btc_requested_hint">BTC قفل شده (sats، حداقل 1330 شامل ذخیره هزینه)</string>
     <string name="wallet_swap_hns_fee_reserve_hint">ذخیره هزینه HNS</string>
     <string name="wallet_swap_hns_prepare_failed">فهرست HNS-for-BTC آماده نشده است. HNS همگام‌سازی شده باید فهرست‌های فعال و این مبلغ قفل شده کامل را که شامل ذخیره هزینه آن می‌شود، پوشش دهد.</string>
@@ -308,7 +308,7 @@
     <string name="wallet_swap_acceptance_sent">مبادله %1$s… آغاز شد. مهلت تأمین مالی: %2$s (%3$s باقی‌مانده). در انتظار امضای کیف پول دیگر.</string>
     <string name="wallet_swap_cancel_direct_message">برداشت %1$s?\n\n شناسه پیشنهاد: %2$s. لغو رزرو محلی را آزاد می کند اما نمی تواند یک جلسه از قبل پذیرفته شده را لغو کند.</string>
     <string name="wallet_swap_btc_amount_hint">BTC قفل شده (sats، حداقل 1330 شامل ذخیره هزینه)</string>
-    <string name="wallet_swap_hns_amount_hint">HNS قفل شده است (حداقل 0.100546 با احتساب هزینه ذخیره)</string>
+    <string name="wallet_swap_hns_amount_hint">HNS قفل شده است (حداقل 0.500546 با احتساب هزینه ذخیره)</string>
     <string name="wallet_swap_fee_reserve_hint">ذخیره هزینه Bitcoin (sats، حداقل 1000)</string>
     <string name="wallet_swap_lifetime_hours_hint">طول عمر فهرست (ساعت، 48 تا 168)</string>
     <string name="wallet_swap_preparing">در حال آماده‌سازی فهرست دقیق BTC-برای-HNS…</string>

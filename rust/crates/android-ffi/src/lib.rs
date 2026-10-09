@@ -8971,10 +8971,13 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             let controller = record.controller_if_active()?;
             controller.pending_hns_swap_funding_session_id()?
         };
-        if let Some(reauthorization) = record
-            .controller_if_active()?
-            .authorize_hns_swap_funding(session_id, None)
-        {
+        // Drop the controller guard before taking it again for approval. An
+        // `if let` scrutinee keeps its temporaries alive through the branch.
+        let first_chain_reauthorization = {
+            let mut controller = record.controller_if_active()?;
+            controller.authorize_hns_swap_funding(session_id, None)
+        };
+        if let Some(reauthorization) = first_chain_reauthorization {
             let mut controller = record.controller_if_active()?;
             let mut bundle =
                 controller.approve_hns_for_btc_funding(token.0.as_str(), reauthorization)?;

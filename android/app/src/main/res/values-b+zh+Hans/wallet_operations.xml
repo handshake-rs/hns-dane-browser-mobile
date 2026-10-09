@@ -286,7 +286,7 @@
     <string name="wallet_swap_sell_btc">出售 BTC 换取 HNS</string>
     <string name="wallet_swap_sell_hns">出售 HNS 换取 BTC</string>
     <string name="wallet_swap_my_offers">我的有效 BTC/HNS 掉期报价</string>
-    <string name="wallet_swap_hns_offered_hint">HNS 锁定（最低 0.100546 包括费用准备金）</string>
+    <string name="wallet_swap_hns_offered_hint">HNS 锁定（最低 0.500546 包括费用准备金）</string>
     <string name="wallet_swap_btc_requested_hint">BTC 锁定（sats，最低 1330 含手续费）</string>
     <string name="wallet_swap_hns_fee_reserve_hint">HNS 费用储备金</string>
     <string name="wallet_swap_hns_prepare_failed">HNS-for-BTC 列表尚未准备好。同步HNS必须涵盖活跃列表和完整的锁定金额，其中包括其费用储备。</string>
@@ -308,7 +308,7 @@
     <string name="wallet_swap_acceptance_sent">交换 %1$s… 已开始。资金截止时间：%2$s（剩余 %3$s）。正在等待另一个钱包签名。</string>
     <string name="wallet_swap_cancel_direct_message">提现%1$s？\n\n优惠ID：%2$s。取消会释放本地预订，但无法取消已接受的会话。</string>
     <string name="wallet_swap_btc_amount_hint">BTC 锁定（sats，最低 1330 含手续费）</string>
-    <string name="wallet_swap_hns_amount_hint">HNS 锁定（最低 0.100546 包括费用准备金）</string>
+    <string name="wallet_swap_hns_amount_hint">HNS 锁定（最低 0.500546 包括费用准备金）</string>
     <string name="wallet_swap_fee_reserve_hint">Bitcoin 手续费储备金（sats，最低1000）</string>
     <string name="wallet_swap_lifetime_hours_hint">列表生命周期（小时，48–168）</string>
     <string name="wallet_swap_preparing">正在准备准确的 BTC-for-HNS 列表...</string>

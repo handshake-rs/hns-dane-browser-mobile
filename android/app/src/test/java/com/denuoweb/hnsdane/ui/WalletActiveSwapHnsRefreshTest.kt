@@ -1,10 +1,38 @@
 package com.denuoweb.hnsdane.ui
 
+import com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionStatus
+import com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionSummary
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
 class WalletActiveSwapHnsRefreshTest {
+    @Test
+    fun `peer replay revision does not force another chain scan`() {
+        val execution = NativeShakescapeExecutionSummary(
+            sessionId = "session", revision = 1, state = "first_funding_pending",
+            firstChain = "handshake", secondChain = "bitcoin",
+            offeredAsset = "hns", offeredAmount = 100_546,
+            receivedAsset = "btc", receivedAmount = 1_330,
+            localRole = "maker", fundingDeadlineUnix = 100,
+            firstFundingCutoffUnix = 100, firstRefundAtUnix = 200,
+            secondRefundAtUnix = 150, localFundingState = null,
+            firstFundingConfirmed = false, secondFundingConfirmed = false,
+            firstRedemptionConfirmed = false, secondRedemptionConfirmed = false,
+            refundConfirmed = false, lastVerifiedAtUnix = 1, failureReason = null,
+        )
+        fun fingerprint(value: NativeShakescapeExecutionSummary) =
+            walletActiveSwapSyncFingerprint(
+                NativeShakescapeExecutionStatus(listOf(value), emptyList(), emptyList(), null),
+            )
+
+        assertEquals(fingerprint(execution), fingerprint(execution.copy(revision = 2,
+            lastVerifiedAtUnix = 2)))
+        assertNotEquals(fingerprint(execution), fingerprint(execution.copy(
+            state = "first_funded", firstFundingConfirmed = true)))
+    }
+
     @Test
     fun `initial execution projection inherits the just verified snapshot`() {
         assertEquals(

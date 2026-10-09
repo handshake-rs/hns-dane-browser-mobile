@@ -10,10 +10,12 @@ import CoreImage
 
 private let defaultHnsMaximumFee = "0.1"
 private let defaultHnsMaximumFeeBaseUnits = "100000"
+private let defaultHnsSwapFeeReserve = "0.5"
+private let defaultHnsSwapFeeReserveBaseUnits = "500000"
 private let bitcoinHtlcReceiverDustSats: UInt64 = 330
 private let minimumBitcoinFeeReserveSats: UInt64 = 1_000
 private let hnsSwapReceiverDustDollarydoos: UInt64 = 546
-private let minimumHnsFeeReserveDollarydoos: UInt64 = 100_000
+private let minimumHnsFeeReserveDollarydoos: UInt64 = 500_000
 private let minimumBitcoinHtlcSats = bitcoinHtlcReceiverDustSats + minimumBitcoinFeeReserveSats
 private let minimumHnsSwapDollarydoos =
     hnsSwapReceiverDustDollarydoos + minimumHnsFeeReserveDollarydoos
@@ -2222,7 +2224,7 @@ final class WalletViewController: UIViewController {
                     label: WalletCopy.text("wallet_swap_hns_fee_reserve_hint"),
                     placeholder: WalletCopy.text("wallet_send_amount_label"),
                     keyboardType: .decimalPad,
-                    initialValue: defaultHnsMaximumFee
+                    initialValue: defaultHnsSwapFeeReserve
                 ),
                 WalletSheetFormField(
                     label: WalletCopy.text("wallet_swap_lifetime_hours_hint"),
@@ -2481,7 +2483,7 @@ final class WalletViewController: UIViewController {
                         : "wallet_action_maximum_fee_hint"
                 ),
                 keyboardType: reserveIsBitcoin ? .numberPad : .decimalPad,
-                initialValue: reserveIsBitcoin ? String(minimumBitcoinFeeReserveSats) : defaultHnsMaximumFee
+                initialValue: reserveIsBitcoin ? String(minimumBitcoinFeeReserveSats) : defaultHnsSwapFeeReserve
             )],
             primaryTitle: WalletCopy.text("wallet_swap_acceptance_review")
         ) { [weak self] fields in
@@ -3185,7 +3187,7 @@ final class WalletViewController: UIViewController {
         )
         alert.addTextField { field in
             field.placeholder = WalletCopy.text("wallet_swap_hns_funding_fee_hint")
-            field.text = defaultHnsMaximumFeeBaseUnits
+            field.text = defaultHnsSwapFeeReserveBaseUnits
             field.keyboardType = .numberPad
         }
         alert.addAction(UIAlertAction(
@@ -3223,7 +3225,9 @@ final class WalletViewController: UIViewController {
                         self.presentHnsForBtcFundingApproval(approval, wallet: wallet)
                     case .failure(let error):
                         self.swapActionStatusLabel.text = WalletCopy.text(
-                            "wallet_swap_hns_funding_prepare_failed"
+                            execution.firstChain == "handshake"
+                                ? "wallet_ux_swap_hns_first_funding_prepare_failed"
+                                : "wallet_swap_hns_funding_prepare_failed"
                         )
                         self.showError(error)
                     }
@@ -4895,7 +4899,10 @@ final class WalletViewController: UIViewController {
         let pending = status.pendingAcceptances.sorted { $0.sessionId < $1.sessionId }
         guard !live.isEmpty || !pending.isEmpty else { return nil }
         let executions = live.map {
-            "\($0.sessionId):\($0.revision):\($0.state)"
+            "\($0.sessionId):\($0.state):\(String(describing: $0.localFundingState)):" +
+                "\($0.firstFundingConfirmed):\($0.secondFundingConfirmed):" +
+                "\($0.firstRedemptionConfirmed):\($0.secondRedemptionConfirmed):" +
+                "\($0.refundConfirmed)"
         }
         let acceptances = pending.map {
             "\($0.sessionId):\($0.createdAtUnix)"
@@ -4924,7 +4931,8 @@ final class WalletViewController: UIViewController {
             )
             lastAutomaticSwapHnsSyncFingerprint = fingerprint
         }
-        guard !isOperating,
+        guard !walletAuthenticationInProgress,
+              !isOperating,
               !bitcoinSyncInProgress,
               walletAuthorityRequested,
               storageLease != nil,
@@ -4962,7 +4970,8 @@ final class WalletViewController: UIViewController {
            now < pausedUntil {
             return false
         }
-        guard !isOperating,
+        guard !walletAuthenticationInProgress,
+              !isOperating,
               !bitcoinSyncInProgress,
               !bitcoinBirthdayResetInProgress,
               walletAuthorityRequested,

@@ -286,7 +286,7 @@
     <string name="wallet_swap_sell_btc">بيع BTC لـ HNS</string>
     <string name="wallet_swap_sell_hns">بيع HNS لـ BTC</string>
     <string name="wallet_swap_my_offers">عروض المبادلة النشطة الخاصة بي BTC/HNS</string>
-    <string name="wallet_swap_hns_offered_hint">HNS مقفل (الحد الأدنى 0.100546 بما في ذلك احتياطي الرسوم)</string>
+    <string name="wallet_swap_hns_offered_hint">HNS مقفل (الحد الأدنى 0.500546 بما في ذلك احتياطي الرسوم)</string>
     <string name="wallet_swap_btc_requested_hint">BTC مقفل (sats، الحد الأدنى 1330 بما في ذلك احتياطي الرسوم)</string>
     <string name="wallet_swap_hns_fee_reserve_hint">احتياطي الرسوم HNS</string>
     <string name="wallet_swap_hns_prepare_failed">لم يتم إعداد قائمة HNS-for-BTC. يجب أن تغطي HNS المتزامنة القوائم النشطة وهذا المبلغ المقفل بالكامل، والذي يتضمن احتياطي الرسوم الخاص بها.</string>
@@ -308,7 +308,7 @@
     <string name="wallet_swap_acceptance_sent">بدأت المبادلة %1$s…. الموعد النهائي للتمويل: %2$s (متبقٍ %3$s). بانتظار توقيع المحفظة الأخرى.</string>
     <string name="wallet_swap_cancel_direct_message">هل تريد سحب %1$s؟ \n\n معرف العرض: %2$s. يؤدي الإلغاء إلى تحرير الحجز المحلي ولكن لا يمكن إلغاء جلسة تم قبولها بالفعل.</string>
     <string name="wallet_swap_btc_amount_hint">BTC مقفل (sats، الحد الأدنى 1330 بما في ذلك احتياطي الرسوم)</string>
-    <string name="wallet_swap_hns_amount_hint">HNS مقفل (الحد الأدنى 0.100546 بما في ذلك احتياطي الرسوم)</string>
+    <string name="wallet_swap_hns_amount_hint">HNS مقفل (الحد الأدنى 0.500546 بما في ذلك احتياطي الرسوم)</string>
     <string name="wallet_swap_fee_reserve_hint">احتياطي رسوم Bitcoin (sats، الحد الأدنى 1000)</string>
     <string name="wallet_swap_lifetime_hours_hint">عمر القائمة (ساعات، 48–168)</string>
     <string name="wallet_swap_preparing">جارٍ إعداد قائمة BTC الدقيقة لـ HNS...</string>

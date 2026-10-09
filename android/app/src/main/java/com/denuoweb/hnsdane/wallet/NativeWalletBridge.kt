@@ -26,7 +26,7 @@ internal object NativeWalletBridge {
     /** Lowest Bitcoin fee reserve accepted in direct atomic-swap terms. */
     const val MINIMUM_BITCOIN_FEE_RESERVE_SATS = 1_000L
     /** Lowest HNS fee reserve accepted in direct atomic-swap terms. */
-    const val MINIMUM_HNS_FEE_RESERVE_DOLLARYDOOS = 100_000L
+    const val MINIMUM_HNS_FEE_RESERVE_DOLLARYDOOS = 500_000L
     /** Smallest gross Bitcoin HTLC that remains spendable after its reserve. */
     const val MINIMUM_BITCOIN_HTLC_SATS =
         BITCOIN_HTLC_RECEIVER_DUST_SATS + MINIMUM_BITCOIN_FEE_RESERVE_SATS

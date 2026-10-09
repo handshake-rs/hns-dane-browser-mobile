@@ -92,9 +92,9 @@ class NativeBitcoinSyncProgressTest {
         assertEquals(1_000L, NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS)
         assertEquals(330L, NativeWalletBridge.BITCOIN_HTLC_RECEIVER_DUST_SATS)
         assertEquals(546L, NativeWalletBridge.HNS_SWAP_RECEIVER_DUST_DOLLARYDOOS)
-        assertEquals(100_000L, NativeWalletBridge.MINIMUM_HNS_FEE_RESERVE_DOLLARYDOOS)
+        assertEquals(500_000L, NativeWalletBridge.MINIMUM_HNS_FEE_RESERVE_DOLLARYDOOS)
         assertEquals(1_330L, NativeWalletBridge.MINIMUM_BITCOIN_HTLC_SATS)
-        assertEquals(100_546L, NativeWalletBridge.MINIMUM_HNS_SWAP_DOLLARYDOOS)
+        assertEquals(500_546L, NativeWalletBridge.MINIMUM_HNS_SWAP_DOLLARYDOOS)
 
         val rejected = NativeBitcoinWalletBundle.sendPreparation(bundle(
             """{"outcome":"rejected","reason":"fee_cap_below_minimum"}""",

@@ -286,7 +286,7 @@
     <string name="wallet_swap_sell_btc">HNS에 대해 BTC 판매</string>
     <string name="wallet_swap_sell_hns">BTC용 HNS 판매</string>
     <string name="wallet_swap_my_offers">내 활성 BTC/HNS 스왑 제안</string>
-    <string name="wallet_swap_hns_offered_hint">HNS 잠김(수수료 예비 포함 최소 0.100546)</string>
+    <string name="wallet_swap_hns_offered_hint">HNS 잠김(수수료 예비 포함 최소 0.500546)</string>
     <string name="wallet_swap_btc_requested_hint">BTC 잠김(sats, 수수료 예비 포함 최소 1330)</string>
     <string name="wallet_swap_hns_fee_reserve_hint">HNS 수수료 예비</string>
     <string name="wallet_swap_hns_prepare_failed">HNS-for-BTC 목록이 준비되지 않았습니다. 동기화된 HNS는 활성 목록과 수수료 준비금을 포함하여 전체 잠긴 금액을 포함해야 합니다.</string>
@@ -308,7 +308,7 @@
     <string name="wallet_swap_acceptance_sent">스왑 %1$s…이 시작되었습니다. 펀딩 마감: %2$s(%3$s 남음). 다른 지갑의 서명을 기다리는 중입니다.</string>
     <string name="wallet_swap_cancel_direct_message">%1$s 출금?\n\n제안 ID: %2$s. 취소하면 로컬 예약이 해제되지만 이미 수락된 세션은 취소할 수 없습니다.</string>
     <string name="wallet_swap_btc_amount_hint">BTC 잠김(sats, 수수료 예비 포함 최소 1330)</string>
-    <string name="wallet_swap_hns_amount_hint">HNS 잠김(수수료 예비 포함 최소 0.100546)</string>
+    <string name="wallet_swap_hns_amount_hint">HNS 잠김(수수료 예비 포함 최소 0.500546)</string>
     <string name="wallet_swap_fee_reserve_hint">Bitcoin 수수료 적립금 (sats, 최소 1000)</string>
     <string name="wallet_swap_lifetime_hours_hint">목록 수명(시간, 48~168)</string>
     <string name="wallet_swap_preparing">정확한 BTC-for-HNS 목록 준비 중…</string>
