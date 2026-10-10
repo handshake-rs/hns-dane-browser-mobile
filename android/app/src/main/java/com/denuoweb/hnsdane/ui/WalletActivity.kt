@@ -5027,6 +5027,12 @@ class WalletActivity : ComponentActivity() {
     ): Boolean {
         val terminal = setOf("completed", "refunded", "failed")
         val liveExecutions = status.executions.filter { it.state !in terminal }
+        // The maker must spend the already verified second-chain HTLC to reveal
+        // the secret. A fresh Bitcoin scan can monopolize the native wallet for
+        // many minutes (or exhaust a 32-bit device) and block that settlement.
+        if (liveExecutions.any { it.state == "both_funded" && it.localRole == "maker" }) {
+            return false
+        }
         if (liveExecutions.isEmpty() && status.pendingAcceptances.isEmpty()) {
             automaticSwapBitcoinSyncPausedUntilElapsedMillis = Long.MIN_VALUE
             lastAutomaticSwapBitcoinSyncFingerprint = null
