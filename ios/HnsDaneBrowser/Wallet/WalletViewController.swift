@@ -28,6 +28,15 @@ private let automaticSwapBitcoinStopGraceInterval: TimeInterval = 5 * 60
 private let maximumVisibleDirectShakescapePeers = 3
 private let showShakedexWalletCard = true
 
+/// The deadline alone cannot prove a maker's first-chain lock was never sent.
+private func swapExecutionHasUnverifiedMakerFunding(
+    _ execution: NativeShakescapeExecutionSummary, now: UInt64
+) -> Bool {
+    execution.state == "first_funding_pending" && execution.localRole == "maker" &&
+        now >= execution.fundingDeadlineUnix && !execution.firstFundingConfirmed &&
+        !["broadcast", "seen", "confirmed"].contains(execution.localFundingState ?? "")
+}
+
 /// Presents authenticated journal and confirmed-receive transitions without
 /// persisting wallet contents. UserDefaults contains random session IDs,
 /// presentation deadlines, and one-way account/transaction fingerprints;
@@ -2701,10 +2710,13 @@ final class WalletViewController: UIViewController {
                         status.bitcoinBroadcastRecovery
                     )
                     let terminal: Set<String> = ["completed", "refunded", "failed"]
+                    let now = UInt64(Date().timeIntervalSince1970)
                     let orderedExecutions = status.executions.sorted {
-                        let leftTerminal = terminal.contains($0.state)
-                        let rightTerminal = terminal.contains($1.state)
-                        if leftTerminal != rightTerminal { return !leftTerminal }
+                        let leftRank = swapExecutionHasUnverifiedMakerFunding($0, now: now)
+                            ? 2 : terminal.contains($0.state) ? 1 : 0
+                        let rightRank = swapExecutionHasUnverifiedMakerFunding($1, now: now)
+                            ? 2 : terminal.contains($1.state) ? 1 : 0
+                        if leftRank != rightRank { return leftRank < rightRank }
                         return $0.lastVerifiedAtUnix > $1.lastVerifiedAtUnix
                     }
                     let liveExecutions = orderedExecutions.filter {
@@ -2712,7 +2724,8 @@ final class WalletViewController: UIViewController {
                     }
                     if status.pendingOfferResponses.isEmpty,
                        status.pendingAcceptances.isEmpty, liveExecutions.count == 1,
-                       let execution = liveExecutions.first {
+                       let execution = liveExecutions.first,
+                       !swapExecutionHasUnverifiedMakerFunding(execution, now: now) {
                         self.showShakescapeExecution(execution, wallet: wallet)
                         return
                     }
@@ -2759,8 +2772,14 @@ final class WalletViewController: UIViewController {
                         })
                     }
                     for execution in orderedExecutions {
+                        let state = swapExecutionHasUnverifiedMakerFunding(execution, now: now)
+                            ? WalletCopy.format(
+                                "wallet_swap_stage_funding_recovery_pending",
+                                self.swapChainLabel(execution.firstChain)
+                            )
+                            : execution.state.replacingOccurrences(of: "_", with: " ")
                         alert.addAction(UIAlertAction(
-                            title: "\(self.shakescapeExecutionProgress(execution).summary) · \(execution.state.replacingOccurrences(of: "_", with: " ")) · \(execution.sessionId.prefix(12))…",
+                            title: "\(self.shakescapeExecutionProgress(execution).summary) · \(state) · \(execution.sessionId.prefix(12))…",
                             style: .default
                         ) { [weak self, weak wallet] _ in
                             guard let self, let wallet, self.wallet === wallet else { return }
@@ -5193,6 +5212,9 @@ final class WalletViewController: UIViewController {
             return WalletCopy.format(
                 "wallet_swap_stage_funding_closed_no_local_lock", refundAt
             )
+        }
+        if swapExecutionHasUnverifiedMakerFunding(execution, now: now) {
+            return WalletCopy.format("wallet_swap_stage_funding_recovery_pending", first)
         }
         return WalletCopy.text("wallet_swap_stage_unfunded_closed")
     }

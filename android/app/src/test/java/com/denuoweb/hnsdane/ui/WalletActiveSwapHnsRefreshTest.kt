@@ -10,6 +10,35 @@ import org.junit.Test
 
 class WalletActiveSwapHnsRefreshTest {
     @Test
+    fun `expired maker lock remains unresolved until native funding evidence settles it`() {
+        val pending = NativeShakescapeExecutionSummary(
+            sessionId = "old", revision = 1, state = "first_funding_pending",
+            firstChain = "handshake", secondChain = "bitcoin",
+            offeredAsset = "hns", offeredAmount = 100_546,
+            receivedAsset = "btc", receivedAmount = 1_330,
+            localRole = "maker", fundingDeadlineUnix = 200,
+            firstFundingCutoffUnix = 150, firstRefundAtUnix = 300,
+            secondRefundAtUnix = 250, localFundingState = null,
+            firstFundingConfirmed = false, secondFundingConfirmed = false,
+            firstRedemptionConfirmed = false, secondRedemptionConfirmed = false,
+            refundConfirmed = false, lastVerifiedAtUnix = 1, failureReason = null,
+        )
+        assertEquals(true, swapExecutionHasUnverifiedMakerFunding(pending, 201))
+        assertEquals(false, swapExecutionHasUnverifiedMakerFunding(pending, 199))
+        assertEquals(false, swapExecutionHasUnverifiedMakerFunding(pending.copy(
+            localFundingState = "broadcast"), 201))
+        assertEquals(false, swapExecutionHasUnverifiedMakerFunding(pending.copy(
+            firstFundingConfirmed = true), 201))
+        assertEquals(false, swapExecutionHasUnverifiedMakerFunding(pending.copy(
+            state = "failed"), 201))
+        assertEquals(false, swapExecutionHasUnverifiedMakerFunding(pending.copy(
+            localRole = "taker"), 201))
+        assertEquals(true, swapExecutionHasUnverifiedMakerFunding(pending.copy(
+            firstChain = "bitcoin", secondChain = "handshake",
+            offeredAsset = "btc", receivedAsset = "hns"), 201))
+    }
+
+    @Test
     fun `funding alerts require a pending local action in either swap direction`() {
         fun execution(role: String, state: String, fundingState: String? = null) =
             NativeShakescapeExecutionSummary(

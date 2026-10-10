@@ -4942,6 +4942,10 @@ class WalletActivity : ComponentActivity() {
                 R.string.wallet_swap_stage_funding_closed_no_local_lock,
                 refundAt,
             )
+            swapExecutionHasUnverifiedMakerFunding(execution, now) -> getString(
+                R.string.wallet_swap_stage_funding_recovery_pending,
+                first,
+            )
             else -> getString(R.string.wallet_swap_stage_unfunded_closed)
         }
     }
@@ -5695,9 +5699,14 @@ class WalletActivity : ComponentActivity() {
                 } else {
                     swapActionStatusView.text = bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery)
                     val terminalStates = setOf("completed", "refunded", "failed")
+                    val now = System.currentTimeMillis() / 1_000L
                     val orderedExecutions = status.executions.sortedWith(
                         compareBy<NativeShakescapeExecutionSummary> {
-                            it.state in terminalStates
+                            when {
+                                swapExecutionHasUnverifiedMakerFunding(it, now) -> 2
+                                it.state in terminalStates -> 1
+                                else -> 0
+                            }
                         }.thenByDescending { it.lastVerifiedAtUnix },
                     )
                     val liveExecutions = orderedExecutions.filterNot {
@@ -5705,7 +5714,8 @@ class WalletActivity : ComponentActivity() {
                     }
                     if (
                         status.pendingOfferResponses.isEmpty() &&
-                            status.pendingAcceptances.isEmpty() && liveExecutions.size == 1
+                            status.pendingAcceptances.isEmpty() && liveExecutions.size == 1 &&
+                            !swapExecutionHasUnverifiedMakerFunding(liveExecutions.single(), now)
                     ) {
                         showShakescapeExecution(liveExecutions.single())
                         return@runOnUiThread
@@ -5726,7 +5736,11 @@ class WalletActivity : ComponentActivity() {
                         )
                     }
                     val executionLabels = orderedExecutions.map {
-                        "${swapExecutionProgress(it).first} · ${it.state.replace('_', ' ')} · ${formatSwapAmount(it.offeredAsset, it.offeredAmount)} → ${formatSwapAmount(it.receivedAsset, it.receivedAmount)} · ${it.sessionId.take(12)}…"
+                        val stage = if (swapExecutionHasUnverifiedMakerFunding(it, now)) {
+                            getString(R.string.wallet_swap_stage_funding_recovery_pending,
+                                swapChainLabel(it.firstChain))
+                        } else it.state.replace('_', ' ')
+                        "${swapExecutionProgress(it).first} · $stage · ${formatSwapAmount(it.offeredAsset, it.offeredAmount)} → ${formatSwapAmount(it.receivedAsset, it.receivedAmount)} · ${it.sessionId.take(12)}…"
                     }
                     val labels = (responseLabels + pendingLabels + executionLabels).toTypedArray()
                     // AlertDialog's message ScrollView and selectable ListView
@@ -10284,6 +10298,15 @@ internal fun walletBitcoinBroadcastRecoveryPending(status: NativeShakescapeExecu
         it.unobservedPrepared > 0L || it.unobservedSubmissionStarted > 0L ||
             it.unobservedSubmitted > 0L
     } == true
+
+/** An expired maker reservation is unresolved until the native wallet proves no lock was sent. */
+internal fun swapExecutionHasUnverifiedMakerFunding(
+    execution: NativeShakescapeExecutionSummary,
+    nowUnix: Long,
+): Boolean = execution.state == "first_funding_pending" &&
+    execution.localRole == "maker" && nowUnix >= execution.fundingDeadlineUnix &&
+    !execution.firstFundingConfirmed &&
+    execution.localFundingState !in setOf("broadcast", "seen", "confirmed")
 
 /** Protocol revisions can change when an identical peer packet is replayed.
  * Only a change in observable swap state should bypass the sync cadence. */
