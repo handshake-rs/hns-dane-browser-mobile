@@ -2,12 +2,29 @@ package com.denuoweb.hnsdane.ui
 
 import com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionStatus
 import com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionSummary
+import com.denuoweb.hnsdane.wallet.NativeBitcoinBroadcastRecovery
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
 class WalletActiveSwapHnsRefreshTest {
+    @Test
+    fun `approved Bitcoin broadcast requires sync until chain observation`() {
+        fun status(prepared: Long, submitted: Long, observed: Long) =
+            NativeShakescapeExecutionStatus(
+                emptyList(), emptyList(), emptyList(),
+                NativeBitcoinBroadcastRecovery(
+                    totalApproved = 1, unobservedPrepared = prepared,
+                    unobservedSubmissionStarted = 0, unobservedSubmitted = submitted,
+                    observed = observed, highestAttemptCount = 1, lastChangedAtUnix = 1,
+                ),
+            )
+        assertEquals(true, walletBitcoinBroadcastRecoveryPending(status(1, 0, 0)))
+        assertEquals(true, walletBitcoinBroadcastRecoveryPending(status(0, 1, 0)))
+        assertEquals(false, walletBitcoinBroadcastRecoveryPending(status(0, 0, 1)))
+    }
+
     @Test
     fun `peer replay revision does not force another chain scan`() {
         val execution = NativeShakescapeExecutionSummary(

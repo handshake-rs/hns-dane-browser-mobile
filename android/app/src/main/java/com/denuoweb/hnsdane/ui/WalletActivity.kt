@@ -5027,18 +5027,26 @@ class WalletActivity : ComponentActivity() {
     ): Boolean {
         val terminal = setOf("completed", "refunded", "failed")
         val liveExecutions = status.executions.filter { it.state !in terminal }
+        val pendingBroadcastRecovery = walletBitcoinBroadcastRecoveryPending(status)
         // The maker must spend the already verified second-chain HTLC to reveal
         // the secret. A fresh Bitcoin scan can monopolize the native wallet for
         // many minutes (or exhaust a 32-bit device) and block that settlement.
-        if (liveExecutions.any { it.state == "both_funded" && it.localRole == "maker" }) {
+        // Once the exact approved spend is durably pending, a bounded scan
+        // establishes Kyoto's ready checkpoint for broadcast recovery.
+        if (liveExecutions.any { it.state == "both_funded" && it.localRole == "maker" } &&
+            !pendingBroadcastRecovery
+        ) {
             return false
         }
-        if (liveExecutions.isEmpty() && status.pendingAcceptances.isEmpty()) {
+        if (liveExecutions.isEmpty() && status.pendingAcceptances.isEmpty() &&
+            !pendingBroadcastRecovery
+        ) {
             automaticSwapBitcoinSyncPausedUntilElapsedMillis = Long.MIN_VALUE
             lastAutomaticSwapBitcoinSyncFingerprint = null
             return false
         }
-        val fingerprint = walletActiveSwapSyncFingerprint(status)
+        val fingerprint = walletActiveSwapSyncFingerprint(status) +
+            ":bitcoin_recovery=$pendingBroadcastRecovery"
         if (fingerprint != lastAutomaticSwapBitcoinSyncFingerprint) {
             lastAutomaticSwapBitcoinSyncFingerprint = fingerprint
             lastAutomaticSwapBitcoinSyncAtElapsedMillis = Long.MIN_VALUE
@@ -10215,6 +10223,12 @@ internal const val HNS_CATCHUP_PROGRESS_RETRY_DELAY_MILLIS = 2_000L
 internal const val HNS_CATCHUP_DEGRADED_RETRY_DELAY_MILLIS = 30_000L
 internal const val SWAP_HNS_AUTO_SYNC_INTERVAL_MILLIS = 2 * 60_000L
 internal const val WALLET_VALUE_ACTION_SNAPSHOT_REUSE_MILLIS = 60_000L
+
+internal fun walletBitcoinBroadcastRecoveryPending(status: NativeShakescapeExecutionStatus): Boolean =
+    status.bitcoinBroadcastRecovery?.let {
+        it.unobservedPrepared > 0L || it.unobservedSubmissionStarted > 0L ||
+            it.unobservedSubmitted > 0L
+    } == true
 
 /** Protocol revisions can change when an identical peer packet is replayed.
  * Only a change in observable swap state should bypass the sync cadence. */
