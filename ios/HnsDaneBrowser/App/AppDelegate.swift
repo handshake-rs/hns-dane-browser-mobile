@@ -40,9 +40,10 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationC
         }
         // Routine progress stays available in the list; verified actions and
         // outcomes interrupt other foreground work.
-        return notification.request.content.interruptionLevel == .passive
-            ? [.list]
-            : [.banner, .list, .sound]
+        if notification.request.content.interruptionLevel == .passive {
+            return [.list]
+        }
+        return [.banner, .list, .sound]
     }
 
     func userNotificationCenter(
