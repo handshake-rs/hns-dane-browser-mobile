@@ -856,6 +856,8 @@
     <string name="wallet_swap_stage_failed">Atomic swap failed · open the execution for the authenticated failure reason</string>
     <string name="wallet_swap_notification_channel">Atomic swaps</string>
     <string name="wallet_swap_notification_channel_description">Actionable funding, redemption, refund, and completion updates for locally verified atomic swaps.</string>
+    <string name="wallet_swap_notification_action_channel">Atomic swap actions</string>
+    <string name="wallet_swap_notification_action_channel_description">Alerts when a verified swap needs your approval or a funding deadline is near.</string>
     <string name="wallet_swap_notification_action_required">Atomic swap action required</string>
     <string name="wallet_swap_notification_updated">Atomic swap updated</string>
     <string name="wallet_swap_notification_offer_accepted">Your offer was accepted</string>

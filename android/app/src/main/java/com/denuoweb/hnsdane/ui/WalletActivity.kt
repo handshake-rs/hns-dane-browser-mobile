@@ -3569,8 +3569,8 @@ class WalletActivity : ComponentActivity() {
     /**
      * Runs while this app retains the unlocked direct-wallet session. Native
      * code holds the listener and rejects/forgets every board socket on lock
-     * or controller retirement; this worker remains app-foreground-only and
-     * never becomes an Android background wallet service.
+     * or controller retirement. An active swap may retain this worker with a
+     * visible foreground-service notification while the screen is off.
      */
     private fun startWalletOwnedDirectShakescapeWorker(
         handle: Long,
@@ -10258,7 +10258,7 @@ class WalletActivity : ComponentActivity() {
         const val LIVE_HNS_SYNC_PROGRESS_POLL_MILLIS = 500L
         const val MINIMUM_HNS_SYNC_STAGE_VISIBILITY_MILLIS = 3_000L
         const val BITCOIN_SYNC_PROGRESS_POLL_MILLIS = 1_000L
-        const val SWAP_BITCOIN_AUTO_SYNC_INTERVAL_MILLIS = 15 * 60_000L
+        const val SWAP_BITCOIN_AUTO_SYNC_INTERVAL_MILLIS = 2 * 60_000L
         // Stop must leave enough time to open, review, authenticate, and start
         // a Bitcoin value operation. Without this guard the 250 ms direct-peer
         // tick can immediately reacquire the controller after a successful

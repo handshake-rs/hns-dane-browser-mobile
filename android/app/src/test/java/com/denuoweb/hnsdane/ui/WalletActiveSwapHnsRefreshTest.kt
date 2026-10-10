@@ -10,6 +10,36 @@ import org.junit.Test
 
 class WalletActiveSwapHnsRefreshTest {
     @Test
+    fun `funding alerts require a pending local action in either swap direction`() {
+        fun execution(role: String, state: String, fundingState: String? = null) =
+            NativeShakescapeExecutionSummary(
+                sessionId = "session", revision = 1, state = state,
+                firstChain = "handshake", secondChain = "bitcoin",
+                offeredAsset = "hns", offeredAmount = 100_546,
+                receivedAsset = "btc", receivedAmount = 1_330,
+                localRole = role, fundingDeadlineUnix = 200,
+                firstFundingCutoffUnix = 150, firstRefundAtUnix = 300,
+                secondRefundAtUnix = 250, localFundingState = fundingState,
+                firstFundingConfirmed = false, secondFundingConfirmed = false,
+                firstRedemptionConfirmed = false, secondRedemptionConfirmed = false,
+                refundConfirmed = false, lastVerifiedAtUnix = 1, failureReason = null,
+            )
+
+        assertEquals(true, swapFundingActionRequired(execution("maker", "first_funding_pending"), 100))
+        assertEquals(false, swapFundingActionRequired(execution("maker", "first_funding_pending"), 151))
+        assertEquals(false, swapFundingActionRequired(execution("maker", "first_funding_pending", "broadcast"), 100))
+        assertEquals(true, swapFundingActionRequired(execution("taker", "first_funded"), 100))
+        assertEquals(true, swapFundingActionRequired(execution("taker", "first_funded").copy(
+            firstChain = "bitcoin", secondChain = "handshake",
+            offeredAsset = "btc", receivedAsset = "hns",
+        ), 100))
+        assertEquals(true, swapFundingActionRequired(execution("taker", "second_funding_pending"), 100))
+        assertEquals(false, swapFundingActionRequired(execution("taker", "second_funding_pending", "confirmed"), 100))
+        assertEquals(false, swapFundingActionRequired(execution("taker", "second_funding_pending"), 200))
+        assertEquals(false, swapFundingActionRequired(execution("maker", "first_funded"), 100))
+    }
+
+    @Test
     fun `approved Bitcoin broadcast requires sync until chain observation`() {
         fun status(prepared: Long, submitted: Long, observed: Long) =
             NativeShakescapeExecutionStatus(

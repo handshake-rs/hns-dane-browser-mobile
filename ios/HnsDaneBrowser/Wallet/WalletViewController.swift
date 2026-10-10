@@ -23,7 +23,7 @@ private let directShakescapeNetworkMaintenanceTicks = 30
 private let directShakescapeExecutionPollTicks = 5
 private let maximumDirectShakescapeFramesPerTick = 16
 private let automaticSwapHnsSyncInterval: TimeInterval = 2 * 60
-private let automaticSwapBitcoinSyncInterval: TimeInterval = 15 * 60
+private let automaticSwapBitcoinSyncInterval: TimeInterval = 2 * 60
 private let automaticSwapBitcoinStopGraceInterval: TimeInterval = 5 * 60
 private let maximumVisibleDirectShakescapePeers = 3
 private let showShakedexWalletCard = true
@@ -207,13 +207,6 @@ private final class AtomicSwapNotificationCoordinator {
         requestAuthorization: Bool
     ) {
         let now = UInt64(Date().timeIntervalSince1970)
-        let fundingStates: Set<String> = [
-            "terms_frozen",
-            "refunds_prepared",
-            "first_funding_pending",
-            "first_funded",
-            "second_funding_pending",
-        ]
         let previous = defaults.dictionary(forKey: fundingWarningsKey)
             as? [String: String] ?? [:]
         var scheduled: [String: String] = [:]
@@ -248,7 +241,7 @@ private final class AtomicSwapNotificationCoordinator {
                 )
             ))
         }
-        for execution in status.executions where fundingStates.contains(execution.state) {
+        for execution in status.executions where fundingActionRequired(execution, now: now) {
             let identifier = fundingWarningIdentifier(execution.sessionId)
             guard execution.fundingDeadlineUnix > 60 * 60 else {
                 center.removePendingNotificationRequests(withIdentifiers: [identifier])
@@ -366,19 +359,34 @@ private final class AtomicSwapNotificationCoordinator {
         if fundingStates.contains(execution.state), now >= execution.fundingDeadlineUnix {
             return "funding-expired"
         }
-        if fundingStates.contains(execution.state),
-           execution.fundingDeadlineUnix > now,
+        if fundingActionRequired(execution, now: now),
            execution.fundingDeadlineUnix - now <= 60 * 60 {
             return "funding-one-hour"
         }
-        if execution.state == "first_funded", execution.localRole == "taker" {
+        if fundingActionRequired(execution, now: now), execution.localRole == "taker" {
             return "second-funding-action"
         }
-        if execution.state == "first_funding_pending", execution.localRole == "maker",
-           now <= execution.firstFundingCutoffUnix {
+        if fundingActionRequired(execution, now: now), execution.localRole == "maker" {
             return "first-funding-action"
         }
         return execution.state
+    }
+
+    private func fundingActionRequired(
+        _ execution: NativeShakescapeExecutionSummary,
+        now: UInt64
+    ) -> Bool {
+        guard now < execution.fundingDeadlineUnix,
+              !["broadcast", "seen", "confirmed"].contains(execution.localFundingState ?? "")
+        else { return false }
+        switch execution.localRole {
+        case "maker":
+            return execution.state == "first_funding_pending" &&
+                now <= execution.firstFundingCutoffUnix
+        case "taker":
+            return ["first_funded", "second_funding_pending"].contains(execution.state)
+        default: return false
+        }
     }
 
     private func notificationRequiresAction(

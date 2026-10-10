@@ -60,7 +60,7 @@ internal class AtomicSwapFundingWarningReceiver : BroadcastReceiver() {
         private const val EXTRA_SESSION_ID = "session_id"
         private const val EXTRA_TITLE = "title"
         private const val EXTRA_TEXT = "text"
-        private const val CHANNEL_ID = "atomic_swaps"
+        private const val CHANNEL_ID = ATOMIC_SWAP_ACTION_CHANNEL_ID
         private const val NOTIFICATION_ID = 1
 
         fun schedule(
@@ -105,11 +105,11 @@ internal class AtomicSwapFundingWarningReceiver : BroadcastReceiver() {
             manager.createNotificationChannel(
                 NotificationChannel(
                     CHANNEL_ID,
-                    context.getString(R.string.wallet_swap_notification_channel),
-                    NotificationManager.IMPORTANCE_DEFAULT,
+                    context.getString(R.string.wallet_swap_notification_action_channel),
+                    NotificationManager.IMPORTANCE_HIGH,
                 ).apply {
                     description = context.getString(
-                        R.string.wallet_swap_notification_channel_description,
+                        R.string.wallet_swap_notification_action_channel_description,
                     )
                     lockscreenVisibility = Notification.VISIBILITY_PRIVATE
                 },

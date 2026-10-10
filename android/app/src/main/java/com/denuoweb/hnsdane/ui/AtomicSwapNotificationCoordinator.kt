@@ -14,6 +14,24 @@ import com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionStatus
 import com.denuoweb.hnsdane.wallet.NativeWalletReadSnapshot
 import java.security.MessageDigest
 
+internal const val ATOMIC_SWAP_ACTION_CHANNEL_ID = "atomic_swap_actions_v1"
+
+/** A funding alert is urgent only while this wallet can still submit its own lock. */
+internal fun swapFundingActionRequired(
+    execution: com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionSummary,
+    nowUnix: Long,
+): Boolean {
+    if (nowUnix >= execution.fundingDeadlineUnix ||
+        execution.localFundingState in setOf("broadcast", "seen", "confirmed")
+    ) return false
+    return when (execution.localRole) {
+        "maker" -> execution.state == "first_funding_pending" &&
+            nowUnix <= execution.firstFundingCutoffUnix
+        "taker" -> execution.state in setOf("first_funded", "second_funding_pending")
+        else -> false
+    }
+}
+
 /**
  * Publishes one durable, deduplicated notification for each meaningful atomic-swap stage.
  *
@@ -39,6 +57,18 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
             ).apply {
                 description = applicationContext.getString(
                     R.string.wallet_swap_notification_channel_description,
+                )
+                lockscreenVisibility = Notification.VISIBILITY_PRIVATE
+            },
+        )
+        manager.createNotificationChannel(
+            NotificationChannel(
+                ATOMIC_SWAP_ACTION_CHANNEL_ID,
+                applicationContext.getString(R.string.wallet_swap_notification_action_channel),
+                NotificationManager.IMPORTANCE_HIGH,
+            ).apply {
+                description = applicationContext.getString(
+                    R.string.wallet_swap_notification_action_channel_description,
                 )
                 lockscreenVisibility = Notification.VISIBILITY_PRIVATE
             },
@@ -266,7 +296,7 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
             }
         }
         status.executions.forEach { execution ->
-            if (execution.state !in FUNDING_STATES) return@forEach
+            if (!swapFundingActionRequired(execution, now)) return@forEach
             val target = if (execution.state in setOf("first_funded", "second_funding_pending")) {
                 execution.secondChain
             } else {
@@ -414,14 +444,20 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        return Notification.Builder(applicationContext, CHANNEL_ID)
+        return Notification.Builder(
+            applicationContext,
+            if (record.actionRequired) ATOMIC_SWAP_ACTION_CHANNEL_ID else CHANNEL_ID,
+        )
             .setSmallIcon(R.drawable.ic_launcher_monochrome)
             .setContentTitle(record.title)
             .setContentText(record.text)
             .setStyle(Notification.BigTextStyle().bigText(record.text))
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
-            .setCategory(Notification.CATEGORY_STATUS)
+            .setCategory(
+                if (record.actionRequired) Notification.CATEGORY_REMINDER
+                else Notification.CATEGORY_STATUS,
+            )
             .setVisibility(Notification.VISIBILITY_PRIVATE)
             .build()
     }
@@ -433,12 +469,12 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
         val fundingState = execution.state in FUNDING_STATES
         return when {
             fundingState && now >= execution.fundingDeadlineUnix -> "funding_expired"
-            fundingState && execution.fundingDeadlineUnix - now <= ONE_HOUR_SECONDS ->
+            swapFundingActionRequired(execution, now) &&
+                execution.fundingDeadlineUnix - now <= ONE_HOUR_SECONDS ->
                 "funding_one_hour"
-            execution.state == "first_funded" && execution.localRole == "taker" ->
+            swapFundingActionRequired(execution, now) && execution.localRole == "taker" ->
                 "second_funding_action"
-            execution.state == "first_funding_pending" && execution.localRole == "maker" &&
-                now <= execution.firstFundingCutoffUnix ->
+            swapFundingActionRequired(execution, now) && execution.localRole == "maker" ->
                 "first_funding_action"
             else -> execution.state
         }
