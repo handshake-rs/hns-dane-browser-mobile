@@ -326,12 +326,12 @@ class NativeBitcoinSyncProgressTest {
         val transaction = "34".repeat(32)
         val token = "56".repeat(32)
         val bitcoin = NativeBitcoinWalletBundle.swapSettlementApproval(bundle(
-            """{"actionToken":"$token","sessionId":"$session","action":"redeem","txid":"$transaction","inputAmountSats":330,"outputAmountSats":330,"feeSats":400,"maximumFeeSats":500,"expiresAtUnix":1700000000}""",
+            """{"actionToken":"$token","sessionId":"$session","action":"redeem","txid":"$transaction","inputAmountSats":1330,"outputAmountSats":1146,"feeSats":184,"maximumFeeSats":500,"expiresAtUnix":1700000000}""",
         ), bitcoin = true)
         requireNotNull(bitcoin)
         assertEquals("redeem", bitcoin.action)
-        assertEquals(330L, bitcoin.outputAmount)
-        assertEquals(400L, bitcoin.fee)
+        assertEquals(1146L, bitcoin.outputAmount)
+        assertEquals(184L, bitcoin.fee)
         bitcoin.close()
 
         val hns = NativeBitcoinWalletBundle.swapSettlementApproval(bundle(
@@ -342,10 +342,10 @@ class NativeBitcoinSyncProgressTest {
         hns.close()
 
         assertNull(NativeBitcoinWalletBundle.swapSettlementApproval(bundle(
-            """{"actionToken":"$token","sessionId":"$session","action":"redeem","txid":"$transaction","inputAmountSats":330,"outputAmountSats":329,"feeSats":400,"maximumFeeSats":500,"expiresAtUnix":1700000000}""",
+            """{"actionToken":"$token","sessionId":"$session","action":"redeem","txid":"$transaction","inputAmountSats":1330,"outputAmountSats":1330,"feeSats":184,"maximumFeeSats":500,"expiresAtUnix":1700000000}""",
         ), bitcoin = true))
         assertNull(NativeBitcoinWalletBundle.swapSettlementApproval(bundle(
-            """{"actionToken":"$token","sessionId":"$session","action":"redeem","txid":"$transaction","inputAmountSats":330,"outputAmountSats":330,"feeSats":501,"maximumFeeSats":500,"expiresAtUnix":1700000000}""",
+            """{"actionToken":"$token","sessionId":"$session","action":"redeem","txid":"$transaction","inputAmountSats":1330,"outputAmountSats":829,"feeSats":501,"maximumFeeSats":500,"expiresAtUnix":1700000000}""",
         ), bitcoin = true))
         assertNull(NativeBitcoinWalletBundle.swapSettlementApproval(bundle(
             """{"actionToken":"$token","sessionId":"$session","action":"steal","txid":"$transaction","inputAmountSats":10000,"outputAmountSats":9600,"feeSats":400,"maximumFeeSats":500,"expiresAtUnix":1700000000}""",

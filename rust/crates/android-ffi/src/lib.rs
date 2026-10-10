@@ -1863,14 +1863,19 @@ impl AndroidWalletController {
         else {
             return None;
         };
-        if redeem {
-            shakescape_sessions
-                .authorize_local_bitcoin_redeem(session_id)
-                .ok()
+        let authorization = if redeem {
+            shakescape_sessions.authorize_local_bitcoin_redeem(session_id)
         } else {
-            shakescape_sessions
-                .authorize_local_bitcoin_refund(session_id)
-                .ok()
+            shakescape_sessions.authorize_local_bitcoin_refund(session_id)
+        };
+        match authorization {
+            Ok(permit) => Some(permit),
+            Err(error) => {
+                android_log_error(&format!(
+                    "Bitcoin HTLC settlement authorization failed: {error}"
+                ));
+                None
+            }
         }
     }
 

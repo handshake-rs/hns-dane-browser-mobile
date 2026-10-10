@@ -621,16 +621,8 @@ internal object NativeBitcoinWalletBundle {
         val fee = positiveLong(json, feeKey)
         val maximumFee = positiveLong(json, maximumFeeKey)
         val expires = positiveLong(json, "expiresAtUnix")
-        val amountsMatch = when {
-            // Bitcoin redemptions preserve the entire HTLC value at the
-            // wallet-owned destination. A separate descriptor-wallet input
-            // pays the miner fee, so that fee must not be subtracted from the
-            // locked amount represented by `input`.
-            bitcoin && action == "redeem" -> input != null && output == input
-            input != null && output != null && fee != null ->
-                fee < input && input - fee == output
-            else -> false
-        }
+        val amountsMatch = input != null && output != null && fee != null &&
+            fee < input && input - fee == output
         if (session == null || transaction == null || action == null || input == null ||
             output == null || fee == null || maximumFee == null || expires == null ||
             fee > maximumFee || !amountsMatch
