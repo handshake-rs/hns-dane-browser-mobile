@@ -150,6 +150,9 @@ const MAX_WALLET_SHAKEDEX_QUERY_JSON_BYTES: usize = 4 * 1024;
 const MAX_WALLET_SHAKEDEX_RESULT_JSON_BYTES: usize = 256 * 1024;
 const MAX_WALLET_SHAKESCAPE_ENDPOINT_BYTES: usize = 128;
 const IOS_SHAKESCAPE_PAIRED_RECONNECT_INTERVAL_SECONDS: u64 = 5;
+/// Reserved first-party raw-TCP ingress; protocol negotiation still gates use.
+const IOS_SHAKESCAPE_BOOTSTRAP_ENDPOINT: &str = "35.212.156.128:12048";
+const IOS_SHAKESCAPE_BOOTSTRAP_RETRY_SECONDS: u64 = 60;
 const WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_MAGIC: &[u8; 4] = b"HNDS";
 const WALLET_DIRECT_SHAKESCAPE_CONNECT_BUNDLE_MAGIC: &[u8; 4] = b"HNDC";
 const WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_VERSION: u8 = 3;
@@ -946,6 +949,8 @@ enum NativeWalletController {
         shakescape_last_offer_inventory_at: Option<u64>,
         shakescape_paired_endpoint: Option<SocketAddr>,
         shakescape_next_paired_reconnect_at: Option<u64>,
+        shakescape_next_bootstrap_attempt_at: Option<u64>,
+        shakescape_bootstrap_disabled: bool,
         shakescape_peer: Option<HnsDirectShakescapePeer>,
         shakescape_replication_peers: Vec<HnsDirectShakescapePeer>,
         inbound_network_peers: Vec<HnsInboundNetworkPeer>,
@@ -1032,6 +1037,8 @@ impl NativeWalletController {
                 shakescape_last_offer_inventory_at,
                 shakescape_paired_endpoint,
                 shakescape_next_paired_reconnect_at,
+                shakescape_next_bootstrap_attempt_at,
+                shakescape_bootstrap_disabled,
                 shakescape_peer,
                 shakescape_replication_peers,
                 inbound_network_peers,
@@ -1047,6 +1054,8 @@ impl NativeWalletController {
                     shakescape_last_offer_inventory_at,
                     shakescape_paired_endpoint,
                     shakescape_next_paired_reconnect_at,
+                    shakescape_next_bootstrap_attempt_at,
+                    shakescape_bootstrap_disabled,
                     shakescape_peer,
                     shakescape_replication_peers,
                     inbound_network_peers,
@@ -1186,6 +1195,8 @@ impl NativeWalletController {
             shakescape_last_offer_inventory_at: None,
             shakescape_paired_endpoint: None,
             shakescape_next_paired_reconnect_at: None,
+            shakescape_next_bootstrap_attempt_at: None,
+            shakescape_bootstrap_disabled: false,
             shakescape_peer: None,
             shakescape_replication_peers: Vec::new(),
             inbound_network_peers: Vec::new(),
@@ -1249,6 +1260,7 @@ impl NativeWalletController {
             shakescape_public_endpoint,
             shakescape_last_peer_maintenance_at,
             shakescape_last_offer_inventory_at,
+            shakescape_next_bootstrap_attempt_at,
             shakescape_peer,
             shakescape_replication_peers,
             inbound_network_peers,
@@ -1261,6 +1273,7 @@ impl NativeWalletController {
             shakescape_public_endpoint.take();
             shakescape_last_peer_maintenance_at.take();
             shakescape_last_offer_inventory_at.take();
+            shakescape_next_bootstrap_attempt_at.take();
             shakescape_reachability.take();
             shakescape_listener.take();
             let _ = coordinator.retire_shakescape_advertisement();
@@ -1283,6 +1296,8 @@ impl NativeWalletController {
                 shakescape_last_offer_inventory_at: _,
                 shakescape_paired_endpoint: _,
                 shakescape_next_paired_reconnect_at: _,
+                shakescape_next_bootstrap_attempt_at: _,
+                shakescape_bootstrap_disabled: _,
                 shakescape_peer,
                 shakescape_replication_peers,
                 inbound_network_peers,
@@ -2200,6 +2215,7 @@ impl NativeWalletController {
             shakescape_replication_peers,
             shakescape_paired_endpoint,
             shakescape_next_paired_reconnect_at,
+            shakescape_bootstrap_disabled,
             ..
         } = self
         else {
@@ -2210,6 +2226,7 @@ impl NativeWalletController {
         shakescape_replication_peers.clear();
         let pairing_cleared = shakescape_paired_endpoint.take().is_some();
         shakescape_next_paired_reconnect_at.take();
+        *shakescape_bootstrap_disabled = true;
         disconnected || pairing_cleared
     }
 
@@ -2234,6 +2251,8 @@ impl NativeWalletController {
             shakescape_last_offer_inventory_at,
             shakescape_paired_endpoint,
             shakescape_next_paired_reconnect_at,
+            shakescape_next_bootstrap_attempt_at,
+            shakescape_bootstrap_disabled,
             shakescape_peer,
             shakescape_replication_peers,
             inbound_network_peers,
@@ -2523,6 +2542,43 @@ impl NativeWalletController {
                 shakescape_replication_peers.push(peer);
             }
             return true;
+        }
+        // Gossip is only a best-effort locator. Use the reserved first-party
+        // ingress for a bounded mainnet bootstrap, subject to the same exact
+        // Handshake and ShakeScape registry checks as discovered peers.
+        if peer_count < MAX_IOS_DIRECT_SHAKESCAPE_PEERS
+            && !*shakescape_bootstrap_disabled
+            && controller.account_config().network == HnsNetwork::Mainnet
+            && shakescape_next_bootstrap_attempt_at.is_none_or(|next| now_unix >= next)
+            && let Ok(address) = IOS_SHAKESCAPE_BOOTSTRAP_ENDPOINT.parse::<SocketAddr>()
+            && !connected_endpoints.contains(&address)
+        {
+            *shakescape_next_bootstrap_attempt_at =
+                Some(now_unix.saturating_add(IOS_SHAKESCAPE_BOOTSTRAP_RETRY_SECONDS));
+            let mut config = HnsDirectPeerConfig::for_network(HnsNetwork::Mainnet);
+            config.connect_timeout = IOS_DIRECT_SHAKESCAPE_SOCKET_TIMEOUT;
+            config.static_peers.push(address);
+            if let Ok(mut peer) =
+                HnsDirectShakescapePeer::connect(&config, address, floor.height, now_unix)
+                && controller
+                    .begin_wallet_owned_direct_shakedex(&mut peer)
+                    .and_then(|_| controller.announce_wallet_owned_direct_shakedex(&mut peer))
+                    .and_then(|_| {
+                        announce_connected_shakescape_inventory(
+                            shakescape_sessions,
+                            &mut peer,
+                            now_unix,
+                        )
+                    })
+                    .is_ok()
+            {
+                if shakescape_peer.is_none() {
+                    *shakescape_peer = Some(peer);
+                } else {
+                    shakescape_replication_peers.push(peer);
+                }
+                return true;
+            }
         }
         false
     }
