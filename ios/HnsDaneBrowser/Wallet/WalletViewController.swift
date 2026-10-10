@@ -2752,7 +2752,7 @@ final class WalletViewController: UIViewController {
                     }
                     for execution in orderedExecutions {
                         alert.addAction(UIAlertAction(
-                            title: "\(execution.state.replacingOccurrences(of: "_", with: " ")) · \(execution.sessionId.prefix(12))…",
+                            title: "\(self.shakescapeExecutionProgress(execution).summary) · \(execution.state.replacingOccurrences(of: "_", with: " ")) · \(execution.sessionId.prefix(12))…",
                             style: .default
                         ) { [weak self, weak wallet] _ in
                             guard let self, let wallet, self.wallet === wallet else { return }
@@ -2864,7 +2864,7 @@ final class WalletViewController: UIViewController {
         )
         let alert = UIAlertController(
             title: WalletCopy.text("wallet_swap_execution_title"),
-            message: message,
+            message: "\(shakescapeExecutionProgress(execution).summary)\n\(shakescapeExecutionProgress(execution).detail)\n\n\(message)",
             preferredStyle: .alert
         )
         alert.addAction(UIAlertAction(
@@ -4133,11 +4133,11 @@ final class WalletViewController: UIViewController {
             let terminal: Set<String> = ["completed", "refunded", "failed"]
             if let execution = status.executions.filter({ !terminal.contains($0.state) })
                 .max(by: { $0.lastVerifiedAtUnix < $1.lastVerifiedAtUnix }) {
-                lines.append(shakescapeExecutionStage(execution))
+                lines.append("\(shakescapeExecutionProgress(execution).summary) · \(shakescapeExecutionStage(execution))")
             } else if !status.pendingAcceptances.isEmpty || !status.pendingOfferResponses.isEmpty {
                 lines.append(WalletCopy.text("wallet_dashboard_swap_negotiating"))
             } else if let latest = status.executions.max(by: { $0.lastVerifiedAtUnix < $1.lastVerifiedAtUnix }) {
-                lines.append(shakescapeExecutionStage(latest))
+                lines.append("\(shakescapeExecutionProgress(latest).summary) · \(shakescapeExecutionStage(latest))")
             }
         }
         if lines.isEmpty {
@@ -4986,6 +4986,31 @@ final class WalletViewController: UIViewController {
         return bitcoinSyncInProgress
     }
 
+    private func shakescapeExecutionProgress(
+        _ execution: NativeShakescapeExecutionSummary
+    ) -> (summary: String, detail: String) {
+        let agreed = !["offer_published", "offer_acceptance_received", "offer_reserved", "failed"]
+            .contains(execution.state) || execution.firstFundingConfirmed ||
+            execution.secondFundingConfirmed
+        let maker = execution.localRole == "maker"
+        let milestones: [(Bool, String)] = [
+            (agreed, "Terms agreed"),
+            (execution.firstFundingConfirmed,
+             "\(maker ? "You" : "Other party") lock \(swapChainLabel(execution.firstChain))"),
+            (execution.secondFundingConfirmed,
+             "\(maker ? "Other party" : "You") lock \(swapChainLabel(execution.secondChain))"),
+            (execution.secondRedemptionConfirmed,
+             "\(maker ? "You" : "Other party") redeem \(swapChainLabel(execution.secondChain))"),
+            (execution.firstRedemptionConfirmed,
+             "\(maker ? "Other party" : "You") redeem \(swapChainLabel(execution.firstChain))"),
+        ]
+        let summary = "\(milestones.filter { $0.0 }.count) of \(milestones.count) steps completed"
+        let detail = milestones.map { milestone in
+            "\(milestone.0 ? "✓" : "○") \(milestone.1)"
+        }.joined(separator: "\n")
+        return (summary, detail)
+    }
+
     private func shakescapeExecutionStage(
         _ execution: NativeShakescapeExecutionSummary,
         includeBitcoinSync: Bool = true
@@ -5508,9 +5533,10 @@ final class WalletViewController: UIViewController {
                 self.refreshState()
                 switch outcome {
                 case .success(let result):
-                    self.readStatusLabel.text = WalletCopy.format(
-                        "wallet_shakedex_queries_result", result.displayJSON
-                    )
+                    self.readStatusLabel.text = [
+                        self.nameSaleProgress(result.displayJSON),
+                        WalletCopy.format("wallet_shakedex_queries_result", result.displayJSON)
+                    ].compactMap { $0 }.joined(separator: "\n\n")
                     if case .listOffers = query {
                         do {
                             self.showShakedexOfferPicker(try result.offerPage())
@@ -5590,9 +5616,46 @@ final class WalletViewController: UIViewController {
     }
 
     private func showNativeHnsResult(title: String, json: String) {
-        let alert = UIAlertController(title: title, message: json, preferredStyle: .alert)
+        let message = [nameSaleProgress(json), json].compactMap { $0 }
+            .joined(separator: "\n\n")
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_action_done"), style: .cancel))
         walletPresentationHost.present(alert, animated: true)
+    }
+
+    private func nameSaleProgress(_ json: String) -> String? {
+        guard let data = json.data(using: .utf8),
+              let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+            return nil
+        }
+        let session = (root["sellerSession"] as? [String: Any])
+            ?? (root["session"] as? [String: Any]) ?? root
+        let seller = (root["kind"] as? String) == "sellerOffer" ||
+            root["sellerSession"] != nil || session["publicationState"] != nil
+        let completed: Int
+        if seller {
+            switch session["stage"] as? String {
+            case "nameLockRequired": completed = 0
+            case "publicationQueued":
+                completed = ["relayAccepted", "directAnnounced"]
+                    .contains(session["publicationState"] as? String ?? "") ? 2 : 1
+            default: return nil
+            }
+        } else {
+            switch session["action"] as? String {
+            case "buyerFulfillment":
+                completed = (session["stage"] as? String) == "confirmed" ? 1 : 0
+            case "scriptFinalize":
+                completed = (session["stage"] as? String) == "confirmed" ? 2 : 1
+            default: return nil
+            }
+        }
+        let labels = seller ? ["Lock name", "Publish offer"]
+            : ["Confirm purchase", "Finalize ownership"]
+        let steps = labels.enumerated().map { index, label in
+            "\(index < completed ? "✓" : "○") \(label)"
+        }.joined(separator: "\n")
+        return "\(seller ? "Name offer" : "Name purchase"): \(completed) of 2 steps completed\n\(steps)"
     }
 
     @objc private func showWalletActivity() {

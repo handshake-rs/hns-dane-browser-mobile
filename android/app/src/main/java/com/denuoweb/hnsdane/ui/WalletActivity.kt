@@ -98,6 +98,7 @@ import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
+import org.json.JSONObject
 import com.denuoweb.hnsdane.wallet.MAX_HNS_BIRTHDAY_HEIGHT
 import com.denuoweb.hnsdane.wallet.ProcessWalletControllerRetirementFailures
 import com.denuoweb.hnsdane.wallet.ProcessWalletStorageOwnership
@@ -4704,7 +4705,7 @@ class WalletActivity : ComponentActivity() {
             startWalletForegroundSyncService("atomic swap monitoring")
         }
         activeShakescapeDashboardSummary = when {
-            execution != null -> swapExecutionStage(execution)
+            execution != null -> "${swapExecutionProgress(execution).first} · ${swapExecutionStage(execution)}"
             offerResponse != null -> getString(R.string.wallet_dashboard_swap_negotiating)
             pending != null -> getString(R.string.wallet_dashboard_swap_negotiating)
             else -> null
@@ -4712,7 +4713,7 @@ class WalletActivity : ComponentActivity() {
         shakedexExecutionStatusView.text = when {
             execution != null -> getString(
                 R.string.wallet_swap_status_active,
-                swapExecutionStage(execution),
+                "${swapExecutionProgress(execution).first} · ${swapExecutionStage(execution)}",
                 formatSwapAmount(execution.offeredAsset, execution.offeredAmount),
                 formatSwapAmount(execution.receivedAsset, execution.receivedAmount),
                 execution.sessionId.take(12),
@@ -4771,6 +4772,30 @@ class WalletActivity : ComponentActivity() {
     private fun swapExecutionNotificationStage(
         execution: NativeShakescapeExecutionSummary,
     ): String = swapExecutionStage(execution, includeBitcoinSync = false)
+
+    private fun swapExecutionProgress(execution: NativeShakescapeExecutionSummary): Pair<String, String> {
+        val agreed = execution.state !in setOf(
+            "offer_published", "offer_acceptance_received", "offer_reserved", "failed",
+        ) || execution.firstFundingConfirmed || execution.secondFundingConfirmed
+        val maker = execution.localRole == "maker"
+        val milestones = listOf(
+            agreed to "Terms agreed",
+            execution.firstFundingConfirmed to
+                "${if (maker) "You" else "Other party"} lock ${swapChainLabel(execution.firstChain)}",
+            execution.secondFundingConfirmed to
+                "${if (maker) "Other party" else "You"} lock ${swapChainLabel(execution.secondChain)}",
+            execution.secondRedemptionConfirmed to
+                "${if (maker) "You" else "Other party"} redeem ${swapChainLabel(execution.secondChain)}",
+            execution.firstRedemptionConfirmed to
+                "${if (maker) "Other party" else "You"} redeem ${swapChainLabel(execution.firstChain)}",
+        )
+        val count = milestones.count { it.first }
+        val summary = "$count of ${milestones.size} steps completed"
+        val detail = milestones.joinToString("\n") { (done, label) ->
+            "${if (done) "✓" else "○"} $label"
+        }
+        return summary to detail
+    }
 
     private fun swapExecutionStage(
         execution: NativeShakescapeExecutionSummary,
@@ -5701,7 +5726,7 @@ class WalletActivity : ComponentActivity() {
                         )
                     }
                     val executionLabels = orderedExecutions.map {
-                        "${it.state.replace('_', ' ')} · ${formatSwapAmount(it.offeredAsset, it.offeredAmount)} → ${formatSwapAmount(it.receivedAsset, it.receivedAmount)} · ${it.sessionId.take(12)}…"
+                        "${swapExecutionProgress(it).first} · ${it.state.replace('_', ' ')} · ${formatSwapAmount(it.offeredAsset, it.offeredAmount)} → ${formatSwapAmount(it.receivedAsset, it.receivedAmount)} · ${it.sessionId.take(12)}…"
                     }
                     val labels = (responseLabels + pendingLabels + executionLabels).toTypedArray()
                     // AlertDialog's message ScrollView and selectable ListView
@@ -5832,7 +5857,7 @@ class WalletActivity : ComponentActivity() {
         )
         val builder = walletAlertDialogBuilder()
             .setTitle(R.string.wallet_swap_execution_title)
-            .setMessage(message)
+            .setMessage("${swapExecutionProgress(execution).first}\n${swapExecutionProgress(execution).second}\n\n$message")
             .setNegativeButton(R.string.action_cancel, null)
         // Offer acceptance binds amounts, participants, and timeouts, but it
         // cannot safely approve a fee-selected transaction which does not yet
@@ -7632,9 +7657,10 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun showSubmittedValueActionResult(displayJson: String) {
+        val progress = nameSaleProgress(displayJson)
         walletAlertDialogBuilder()
             .setTitle(R.string.wallet_value_actions_result_title)
-            .setMessage(getString(R.string.wallet_value_actions_result, displayJson))
+            .setMessage(listOfNotNull(progress, getString(R.string.wallet_value_actions_result, displayJson)).joinToString("\n\n"))
             .setPositiveButton(android.R.string.ok, null)
             .show()
     }
@@ -7760,7 +7786,10 @@ class WalletActivity : ComponentActivity() {
                         offerPage.boardRevision,
                     )
                 } else {
-                    getString(R.string.wallet_shakedex_queries_result, result.displayJson)
+                    listOfNotNull(
+                        nameSaleProgress(result.displayJson),
+                        getString(R.string.wallet_shakedex_queries_result, result.displayJson),
+                    ).joinToString("\n\n")
                 }
                 shakedexQueryStatusView.text = message
                 Log.i(
@@ -7799,6 +7828,32 @@ class WalletActivity : ComponentActivity() {
             rows = listOf(getString(R.string.wallet_modal_details) to message),
         )
     }
+
+    private fun nameSaleProgress(displayJson: String): String? = runCatching {
+        val root = JSONObject(displayJson)
+        val session = root.optJSONObject("sellerSession") ?: root.optJSONObject("session") ?: root
+        val seller = root.optString("kind") == "sellerOffer" ||
+            root.has("sellerSession") || session.has("publicationState")
+        val completed = if (seller) {
+            when (session.optString("stage")) {
+                "nameLockRequired" -> 0
+                "publicationQueued" -> if (session.optString("publicationState") in
+                    setOf("relayAccepted", "directAnnounced")) 2 else 1
+                else -> return@runCatching null
+            }
+        } else {
+            when (session.optString("action")) {
+                "buyerFulfillment" -> if (session.optString("stage") == "confirmed") 1 else 0
+                "scriptFinalize" -> if (session.optString("stage") == "confirmed") 2 else 1
+                else -> return@runCatching null
+            }
+        }
+        val labels = if (seller) listOf("Lock name", "Publish offer")
+            else listOf("Confirm purchase", "Finalize ownership")
+        "${if (seller) "Name offer" else "Name purchase"}: $completed of 2 steps completed\n" +
+            labels.mapIndexed { index, label -> "${if (index < completed) "✓" else "○"} $label" }
+                .joinToString("\n")
+    }.getOrNull()
 
     private fun showShakedexOfferPicker(
         boardRevision: Long,
