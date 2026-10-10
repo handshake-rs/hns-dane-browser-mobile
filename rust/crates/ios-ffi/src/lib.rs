@@ -1593,13 +1593,23 @@ impl NativeWalletController {
         if !promote_direct_shakescape_primary(shakescape_peer, shakescape_replication_peers) {
             return Err(MobileWalletError::ControllerFailed);
         }
-        shakescape_sessions.approve_direct_offer_acceptance(
+        let now_unix = HnsReadSystemClock.now_unix()?;
+        let summary = shakescape_sessions.approve_direct_offer_acceptance(
             action_token,
             shakescape_peer
                 .as_mut()
                 .ok_or(MobileWalletError::ControllerFailed)?,
-            HnsReadSystemClock.now_unix()?,
-        )
+            now_unix,
+        )?;
+        // The maker may be attached through a replica relay instead of our
+        // primary. Replay the durable acceptance and proposal immediately.
+        for peer in shakescape_replication_peers {
+            if let Err(error) = shakescape_sessions.announce_direct_offer_inventory(peer, now_unix)
+            {
+                eprintln!("direct-offer acceptance could not reach a replica board peer: {error}");
+            }
+        }
+        Ok(summary)
     }
 
     fn reject_direct_offer_acceptance(

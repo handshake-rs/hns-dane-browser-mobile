@@ -1483,10 +1483,11 @@ impl AndroidWalletController {
             android_log_error("direct-offer acceptance approval has no authenticated board peer");
             return None;
         }
+        let now_unix = HnsReadSystemClock.now_unix().ok()?;
         let summary = match shakescape_sessions.approve_direct_offer_acceptance(
             action_token,
             shakescape_peer.as_mut()?,
-            HnsReadSystemClock.now_unix().ok()?,
+            now_unix,
         ) {
             Ok(summary) => summary,
             Err(error) => {
@@ -1494,6 +1495,17 @@ impl AndroidWalletController {
                 return None;
             }
         };
+        // The maker may be attached through a replica relay instead of our
+        // primary. Replay the durable acceptance and proposal on every board
+        // connection immediately, without waiting for periodic reconciliation.
+        for peer in shakescape_replication_peers {
+            if let Err(error) = shakescape_sessions.announce_direct_offer_inventory(peer, now_unix)
+            {
+                android_log_error(&format!(
+                    "direct-offer acceptance could not reach a replica board peer: {error}"
+                ));
+            }
+        }
         let mut json = serde_json::to_vec(&summary).ok()?;
         let bundle = bitcoin_json_bundle(json.as_slice());
         json.fill(0);
