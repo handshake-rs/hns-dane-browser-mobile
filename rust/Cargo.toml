@@ -37,7 +37,7 @@ hns-loopback-proxy = { package = "hns-browser-loopback-proxy", version = "=0.2.3
 # Pin the published peer, market, and restart-safe Bitcoin wallet releases.
 # Compatible transitive ranges select the reviewed transport and Kyoto patches.
 hns-wallet-ffi = "=0.4.1"
-hns-wallet-mobile = "=0.5.3"
+hns-wallet-mobile = "=0.5.4"
 hns-wallet-types = "=0.4.1"
 hns-wallet-hns = "=0.4.5"
 hns-wallet-market = "=0.5.1"
