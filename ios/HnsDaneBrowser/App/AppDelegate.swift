@@ -38,9 +38,11 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationC
         guard notification.request.content.categoryIdentifier == "ATOMIC_SWAP_STATUS" else {
             return []
         }
-        // Swap transitions are useful precisely while the wallet is doing
-        // other foreground work, so match Android's visible notification.
-        return [.banner, .list, .sound]
+        // Routine progress stays available in the list; verified actions and
+        // outcomes interrupt other foreground work.
+        return notification.request.content.interruptionLevel == .passive
+            ? [.list]
+            : [.banner, .list, .sound]
     }
 
     func userNotificationCenter(

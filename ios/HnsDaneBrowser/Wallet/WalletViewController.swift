@@ -240,6 +240,7 @@ private final class AtomicSwapNotificationCoordinator {
                 WalletCopy.format("wallet_swap_duration_hours_minutes", 1, 0)
             )
             content.sound = .default
+            content.interruptionLevel = .active
             content.categoryIdentifier = "ATOMIC_SWAP_STATUS"
             center.add(UNNotificationRequest(
                 identifier: identifier,
@@ -289,6 +290,7 @@ private final class AtomicSwapNotificationCoordinator {
                 String(execution.sessionId.prefix(12))
             )
             content.sound = .default
+            content.interruptionLevel = .active
             content.categoryIdentifier = "ATOMIC_SWAP_STATUS"
             center.add(UNNotificationRequest(
                 identifier: identifier,
@@ -490,7 +492,9 @@ private final class AtomicSwapNotificationCoordinator {
         let content = UNMutableNotificationContent()
         content.title = record.title
         content.body = record.body
-        content.sound = .default
+        let shouldAlert = record.actionRequired || record.historicalTerminal
+        content.interruptionLevel = shouldAlert ? .active : .passive
+        content.sound = shouldAlert ? .default : nil
         content.categoryIdentifier = "ATOMIC_SWAP_STATUS"
         center.add(
             UNNotificationRequest(
