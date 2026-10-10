@@ -105,11 +105,11 @@ internal class AtomicSwapFundingWarningReceiver : BroadcastReceiver() {
             manager.createNotificationChannel(
                 NotificationChannel(
                     CHANNEL_ID,
-                    context.getString(R.string.wallet_swap_notification_action_channel),
+                    context.getString(R.string.wallet_swap_notification_action_required),
                     NotificationManager.IMPORTANCE_HIGH,
                 ).apply {
                     description = context.getString(
-                        R.string.wallet_swap_notification_action_channel_description,
+                        R.string.wallet_swap_notification_channel_description,
                     )
                     lockscreenVisibility = Notification.VISIBILITY_PRIVATE
                 },

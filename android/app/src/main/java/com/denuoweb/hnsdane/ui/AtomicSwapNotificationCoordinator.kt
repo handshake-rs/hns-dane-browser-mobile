@@ -64,11 +64,11 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
         manager.createNotificationChannel(
             NotificationChannel(
                 ATOMIC_SWAP_ACTION_CHANNEL_ID,
-                applicationContext.getString(R.string.wallet_swap_notification_action_channel),
+                applicationContext.getString(R.string.wallet_swap_notification_action_required),
                 NotificationManager.IMPORTANCE_HIGH,
             ).apply {
                 description = applicationContext.getString(
-                    R.string.wallet_swap_notification_action_channel_description,
+                    R.string.wallet_swap_notification_channel_description,
                 )
                 lockscreenVisibility = Notification.VISIBILITY_PRIVATE
             },
