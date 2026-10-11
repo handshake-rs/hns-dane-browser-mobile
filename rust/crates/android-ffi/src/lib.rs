@@ -1764,6 +1764,54 @@ impl AndroidWalletController {
         }
     }
 
+    fn release_expired_local_hns_first_funding(&mut self) -> bool {
+        let Self::DirectValue {
+            controller,
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return false;
+        };
+        let Some(now_unix) = HnsReadSystemClock.now_unix().ok() else {
+            return false;
+        };
+        let permits = match shakescape_sessions.expired_local_hns_first_funding_permits(now_unix) {
+            Ok(permits) => permits,
+            Err(error) => {
+                android_log_error(&format!(
+                    "expired HNS-first swap enumeration failed: {error}"
+                ));
+                return false;
+            }
+        };
+        let mut changed = false;
+        for permit in permits {
+            match controller.prove_shakescape_hns_htlc_unfunded(&permit) {
+                Ok(Some(proof)) => {
+                    match shakescape_sessions.fail_expired_local_hns_first_funding(proof, now_unix)
+                    {
+                        Ok(()) => {
+                            android_log_info(
+                                "hns-shakescape",
+                                "released an expired HNS-first swap reservation after durable broadcast-journal absence",
+                            );
+                            changed = true;
+                        }
+                        Err(error) => android_log_error(&format!(
+                            "verified expired HNS-first swap cleanup failed: {error}"
+                        )),
+                    }
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    android_log_error(&format!("expired HNS-first swap proof failed: {error}"))
+                }
+            }
+        }
+        changed
+    }
+
     fn advance_local_first_funding_readiness(&mut self) -> bool {
         let Self::DirectValue {
             shakescape_sessions,
@@ -7642,6 +7690,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             "direct lifecycle stage=hns-settlement-resume start",
         );
         let resumed_hns = controller.resume_approved_hns_settlements();
+        let expired_hns_released = controller.release_expired_local_hns_first_funding();
         android_log_info(
             "hns-shakescape",
             "direct lifecycle stage=hns-watch-ack start",
@@ -7713,6 +7762,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
                 || funding_ready
                 || resumed
                 || resumed_hns
+                || expired_hns_released
                 || hns_watch_ready;
         };
         let registered = match record.bitcoin_try_if_active() {
@@ -7743,6 +7793,8 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         };
         if !registered {
             return reconciled
+                || expired_bitcoin_released
+                || expired_hns_released
                 || hns_watch_set_changed
                 || funding_ready
                 || resumed
@@ -7761,6 +7813,8 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             }
         });
         watch_acknowledged || reconciled
+            || expired_bitcoin_released
+            || expired_hns_released
             || hns_watch_set_changed
             || funding_ready
             || resumed

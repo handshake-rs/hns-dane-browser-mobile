@@ -1942,9 +1942,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-mobile"
-version = "0.5.5"
+version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8edc7a6ea7b29161c2f3bbbd880c75208339041b8a295b31875863c3c25817aa"
+checksum = "b87d0f429f1d4fee1b55f96330f297fe538a178a10e06e5a75ff74c04e7c763c"
 dependencies = [
  "bdk_wallet",
  "getrandom 0.3.4",

@@ -2091,6 +2091,44 @@ impl NativeWalletController {
             .fail_expired_local_bitcoin_first_funding(proof, HnsReadSystemClock.now_unix()?)
     }
 
+    fn release_expired_local_hns_first_funding(&mut self) -> bool {
+        let Self::DirectHnsValue {
+            controller,
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return false;
+        };
+        let Ok(now_unix) = HnsReadSystemClock.now_unix() else {
+            return false;
+        };
+        let permits = match shakescape_sessions.expired_local_hns_first_funding_permits(now_unix) {
+            Ok(permits) => permits,
+            Err(error) => {
+                eprintln!("expired HNS-first swap enumeration failed: {error}");
+                return false;
+            }
+        };
+        let mut changed = false;
+        for permit in permits {
+            match controller.prove_shakescape_hns_htlc_unfunded(&permit) {
+                Ok(Some(proof)) => {
+                    match shakescape_sessions.fail_expired_local_hns_first_funding(proof, now_unix)
+                    {
+                        Ok(()) => changed = true,
+                        Err(error) => {
+                            eprintln!("verified expired HNS-first swap cleanup failed: {error}")
+                        }
+                    }
+                }
+                Ok(None) => {}
+                Err(error) => eprintln!("expired HNS-first swap proof failed: {error}"),
+            }
+        }
+        changed
+    }
+
     fn advance_local_first_funding_readiness(&mut self) -> Result<bool, MobileWalletError> {
         let Self::DirectHnsValue {
             shakescape_sessions,
@@ -5887,6 +5925,7 @@ pub unsafe extern "C" fn hns_browser_wallet_service_direct_shakescape(
             hns_watch_set_changed,
             funding_ready,
             resumed_hns,
+            expired_hns_released,
             hns_watch_ready,
             expired_bitcoin_first,
             permit,
@@ -5911,6 +5950,7 @@ pub unsafe extern "C" fn hns_browser_wallet_service_direct_shakescape(
                 .advance_local_first_funding_readiness()
                 .map_err(|_| FfiFailure::internal())?;
             let resumed_hns = entry.controller.resume_approved_hns_settlements();
+            let expired_hns_released = entry.controller.release_expired_local_hns_first_funding();
             let hns_watch_ready = entry
                 .controller
                 .complete_next_counterparty_hns_watch()
@@ -5930,6 +5970,7 @@ pub unsafe extern "C" fn hns_browser_wallet_service_direct_shakescape(
                 hns_watch_set_changed,
                 funding_ready,
                 resumed_hns,
+                expired_hns_released,
                 hns_watch_ready,
                 expired_bitcoin_first,
                 permit,
@@ -6015,6 +6056,7 @@ pub unsafe extern "C" fn hns_browser_wallet_service_direct_shakescape(
                 || completed
                 || resumed
                 || resumed_hns
+                || expired_hns_released
                 || hns_watch_ready,
         );
         // SAFETY: Null was rejected above and the C contract requires writable output.
