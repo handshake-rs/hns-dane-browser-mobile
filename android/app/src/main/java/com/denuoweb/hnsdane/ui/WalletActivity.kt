@@ -4784,9 +4784,9 @@ class WalletActivity : ComponentActivity() {
                 "${if (maker) "You" else "Other party"} lock ${swapChainLabel(execution.firstChain)}",
             execution.secondFundingConfirmed to
                 "${if (maker) "Other party" else "You"} lock ${swapChainLabel(execution.secondChain)}",
-            execution.secondRedemptionConfirmed to
-                "${if (maker) "You" else "Other party"} redeem ${swapChainLabel(execution.secondChain)}",
             execution.firstRedemptionConfirmed to
+                "${if (maker) "You" else "Other party"} redeem ${swapChainLabel(execution.secondChain)}",
+            execution.secondRedemptionConfirmed to
                 "${if (maker) "Other party" else "You"} redeem ${swapChainLabel(execution.firstChain)}",
         )
         val count = milestones.count { it.first }

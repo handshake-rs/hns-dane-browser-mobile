@@ -5030,9 +5030,9 @@ final class WalletViewController: UIViewController {
              "\(maker ? "You" : "Other party") lock \(swapChainLabel(execution.firstChain))"),
             (execution.secondFundingConfirmed,
              "\(maker ? "Other party" : "You") lock \(swapChainLabel(execution.secondChain))"),
-            (execution.secondRedemptionConfirmed,
-             "\(maker ? "You" : "Other party") redeem \(swapChainLabel(execution.secondChain))"),
             (execution.firstRedemptionConfirmed,
+             "\(maker ? "You" : "Other party") redeem \(swapChainLabel(execution.secondChain))"),
+            (execution.secondRedemptionConfirmed,
              "\(maker ? "Other party" : "You") redeem \(swapChainLabel(execution.firstChain))"),
         ]
         let summary = "\(milestones.filter { $0.0 }.count) of \(milestones.count) steps completed"
