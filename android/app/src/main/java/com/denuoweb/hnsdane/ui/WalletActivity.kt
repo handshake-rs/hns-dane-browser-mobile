@@ -4243,6 +4243,12 @@ class WalletActivity : ComponentActivity() {
                         walletOperationMayPublish(epoch, lease, handle, authorityGeneration) &&
                         NativeWalletBridge.status(handle)?.locked == false
                 if (mayRetry) {
+                    // Consume this retry before beginOperation checks whether
+                    // another HNS synchronization is already active. Keeping
+                    // our own retry flag set makes the continuation reject
+                    // itself as busy after the first bounded checkpoint.
+                    retry.set(false)
+                    hnsCatchupRetry = null
                     Log.i(TAG, "Starting the scheduled direct HNS catch-up round")
                     synchronizeWalletReads()
                 } else {
