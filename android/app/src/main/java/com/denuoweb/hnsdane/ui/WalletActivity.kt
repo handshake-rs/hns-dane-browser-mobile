@@ -4059,8 +4059,6 @@ class WalletActivity : ComponentActivity() {
         // UI-thread preflight here can silently discard an explicit Sync tap.
         // The worker below waits for the controller and validates its state.
         WalletHnsLiveSyncPresentationCache.resumeAutomaticSync(walletNetwork.id)
-        hnsCatchupRetry?.set(false)
-        hnsCatchupRetry = null
         // A refresh must not erase the last authenticated projection before
         // its replacement exists. Keep it visible, but invalidate its
         // authority fence immediately so a stale balance can never prepare a
@@ -4071,6 +4069,11 @@ class WalletActivity : ComponentActivity() {
                 resetReads = false,
             )
         ) return
+        // A competing automatic refresh can fail to acquire the operation
+        // lease during the short catch-up gap. Keep that scheduled retry alive
+        // unless this refresh actually starts and takes over the scan.
+        hnsCatchupRetry?.set(false)
+        hnsCatchupRetry = null
         invalidateReadSnapshotAuthority()
         val presentationLease = WalletHnsLiveSyncPresentationCache.begin(
             walletNetwork.id,
@@ -5951,30 +5954,24 @@ class WalletActivity : ComponentActivity() {
             ) { _, _ ->
                 showSwapSettlementFeeForm(execution, "refund", bitcoin)
             }
-        } else if (execution.state in setOf("both_funded", "first_redeemed", "secret_observed")) {
-            builder.setPositiveButton(R.string.wallet_swap_settlement_actions) { _, _ ->
-                showSwapSettlementActions(execution)
+        } else if (
+            (execution.state == "both_funded" && execution.localRole == "maker") ||
+            (execution.state in setOf("first_redeemed", "secret_observed") &&
+                execution.localRole == "taker")
+        ) {
+            val bitcoin = if (execution.localRole == "maker") {
+                execution.secondChain == "bitcoin"
+            } else {
+                execution.firstChain == "bitcoin"
+            }
+            builder.setPositiveButton(
+                if (bitcoin) R.string.wallet_swap_redeem_bitcoin
+                else R.string.wallet_swap_redeem_hns,
+            ) { _, _ ->
+                showSwapSettlementFeeForm(execution, "redeem", bitcoin)
             }
         }
         builder.show()
-    }
-
-    private fun showSwapSettlementActions(execution: NativeShakescapeExecutionSummary) {
-        val actions = arrayOf(
-            getString(R.string.wallet_swap_redeem_hns),
-            getString(R.string.wallet_swap_redeem_bitcoin),
-            getString(R.string.wallet_swap_refund_hns),
-            getString(R.string.wallet_swap_refund_bitcoin),
-        )
-        walletAlertDialogBuilder()
-            .setTitle(R.string.wallet_swap_settlement_actions)
-            .setItems(actions) { _, index ->
-                val bitcoin = index == 1 || index == 3
-                val action = if (index < 2) "redeem" else "refund"
-                showSwapSettlementFeeForm(execution, action, bitcoin)
-            }
-            .setNegativeButton(R.string.action_cancel, null)
-            .show()
     }
 
     private fun showSwapSettlementFeeForm(

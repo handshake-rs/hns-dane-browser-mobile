@@ -2988,67 +2988,28 @@ final class WalletViewController: UIViewController {
                 }
             })
         }
-        if ["both_funded", "first_redeemed", "secret_observed"].contains(execution.state) {
-            alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_swap_settlement_actions"), style: .default) {
-                [weak self, weak wallet] _ in
+        if (execution.state == "both_funded" && execution.localRole == "maker") ||
+            (["first_redeemed", "secret_observed"].contains(execution.state) &&
+                execution.localRole == "taker") {
+            let bitcoin = execution.localRole == "maker"
+                ? execution.secondChain == "bitcoin"
+                : execution.firstChain == "bitcoin"
+            alert.addAction(UIAlertAction(
+                title: WalletCopy.text(bitcoin ? "wallet_swap_redeem_bitcoin" : "wallet_swap_redeem_hns"),
+                style: .default
+            ) { [weak self, weak wallet] _ in
                 guard let self, let wallet, self.wallet === wallet else { return }
-                self.showSwapSettlementActions(execution, wallet: wallet)
+                self.authenticateWalletAction(
+                    reason: WalletCopy.text("wallet_auth_transaction_message")
+                ) { [weak self, weak wallet] in
+                    guard let self, let wallet, self.wallet === wallet else { return }
+                    self.showSwapSettlementFee(
+                        execution, action: .redeem, bitcoin: bitcoin, wallet: wallet
+                    )
+                }
             })
         }
         walletPresentationHost.present(alert, animated: true)
-    }
-
-    private func showSwapSettlementActions(
-        _ execution: NativeShakescapeExecutionSummary, wallet: RustNativeWallet
-    ) {
-        authenticateWalletAction(
-            reason: WalletCopy.text("wallet_auth_transaction_message")
-        ) { [weak self, weak wallet] in
-            guard let self, let wallet, self.wallet === wallet else { return }
-            self.showSwapSettlementActionsAfterAuthentication(execution, wallet: wallet)
-        }
-    }
-
-    private func showSwapSettlementActionsAfterAuthentication(
-        _ execution: NativeShakescapeExecutionSummary, wallet: RustNativeWallet
-    ) {
-        let alert = UIAlertController(
-            title: WalletCopy.text("wallet_swap_settlement_actions"),
-            message: nil,
-            preferredStyle: .actionSheet
-        )
-        for (title, action, bitcoin) in [
-            (WalletCopy.text("wallet_swap_redeem_hns"), NativeSwapSettlementAction.redeem, false),
-            (WalletCopy.text("wallet_swap_redeem_bitcoin"), .redeem, true),
-            (WalletCopy.text("wallet_swap_refund_hns"), .refund, false),
-            (WalletCopy.text("wallet_swap_refund_bitcoin"), .refund, true),
-        ] {
-            alert.addAction(UIAlertAction(title: title, style: action == .refund ? .destructive : .default) {
-                [weak self, weak wallet] _ in
-                guard let self, let wallet, self.wallet === wallet else { return }
-                self.showSwapSettlementFee(
-                    execution, action: action, bitcoin: bitcoin, wallet: wallet
-                )
-            })
-        }
-        alert.addAction(UIAlertAction(
-            title: WalletCopy.text("wallet_action_cancel"),
-            style: .cancel
-        ))
-        let host = walletPresentationHost
-        if let popover = alert.popoverPresentationController {
-            host.loadViewIfNeeded()
-            guard let sourceView = host.view else { return }
-            popover.sourceView = sourceView
-            popover.sourceRect = CGRect(
-                x: sourceView.bounds.midX,
-                y: sourceView.bounds.midY,
-                width: 1,
-                height: 1
-            )
-            popover.permittedArrowDirections = []
-        }
-        host.present(alert, animated: true)
     }
 
     private func showSwapSettlementFee(
