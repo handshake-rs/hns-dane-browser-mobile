@@ -1,1 +1,1 @@
-1.0.18 Improved browser startup and connection status during Handshake synchronization.
+1.0.19 Keeps HNS wallet scanning after each saved checkpoint while headers are current.

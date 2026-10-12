@@ -1,6 +1,6 @@
 # Release readiness
 
-The configured Android application is `1.0.18`, version code `70`. The iOS
+The configured Android application is `1.0.19`, version code `71`. The iOS
 application is `1.0.18`, build `81`. The shared Rust runtime is `1.0.2`.
 Platform releases and Rust package releases have independent versions.
 
@@ -25,6 +25,13 @@ submission state through store readback.
 
 Commit release work directly to `main`. Sign iOS only for an actual App Store
 delivery; routine commits do not require a signed IPA or a GitHub Release.
+
+## Android HNS wallet continuation
+
+Version 1.0.19 lets a scheduled direct HNS wallet catch-up consume its own
+pending retry before checking whether another wallet operation is active.
+The next bounded scan round therefore starts automatically after a saved
+checkpoint. The iOS catch-up path already makes the equivalent transition.
 
 ## ICANN startup browsing
 

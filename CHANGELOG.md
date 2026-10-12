@@ -2,6 +2,14 @@
 
 This file describes the current application candidate.
 
+## 1.0.19 - 2026-10-12
+
+Android `1.0.19` / code `71` resumes direct HNS wallet scanning after each
+saved bounded checkpoint. The scheduled continuation now consumes its retry
+flag before the normal operation gate checks for another active sync. iOS
+remains at `1.0.18` / build `81`; its catch-up path already clears that flag
+before starting the next round.
+
 ## 1.0.18 - 2026-10-12
 
 Android `1.0.18` / code `70` and iOS `1.0.18` / build `81` use the

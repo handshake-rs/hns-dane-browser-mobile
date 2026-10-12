@@ -62,8 +62,8 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
 
     def test_platform_identity_and_reviewed_registry_cohort(self) -> None:
         gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
-        self.assertRegex(gradle, r"(?m)^\s*versionName = \"1\.0\.18\"$")
-        self.assertRegex(gradle, r"(?m)^\s*versionCode = 70$")
+        self.assertRegex(gradle, r"(?m)^\s*versionName = \"1\.0\.19\"$")
+        self.assertRegex(gradle, r"(?m)^\s*versionCode = 71$")
         self.assertIn(
             '?: listOf("armeabi-v7a", "arm64-v8a")',
             gradle,
