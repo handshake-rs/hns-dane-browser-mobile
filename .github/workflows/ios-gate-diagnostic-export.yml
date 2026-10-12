@@ -1,0 +1,54 @@
+name: iOS Gate Diagnostic Export
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: Failed iOS gate run ID with a retained diagnostics artifact
+        required: true
+        type: string
+
+permissions:
+  actions: read
+
+jobs:
+  export:
+    runs-on: macos-26
+    steps:
+      - name: Download the selected gate diagnostics
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_RUN_ID" =~ ^[0-9]+$ ]]
+          artifact_name="$(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/artifacts" \
+            --jq '[.artifacts[].name | select(startswith("ios-gate-diagnostics-"))] | first')"
+          [[ "$artifact_name" =~ ^[A-Za-z0-9._-]+$ ]]
+          gh run download "$SOURCE_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name "$artifact_name" \
+            --dir "$RUNNER_TEMP/source-diagnostics"
+
+      - name: Export failed browser test evidence
+        run: |
+          set -euo pipefail
+          result="$RUNNER_TEMP/source-diagnostics/DefaultBrowserNavigation.xcresult"
+          [[ -d "$result" ]]
+          output="$RUNNER_TEMP/browser-evidence"
+          mkdir -p "$output/attachments"
+          xcrun xcresulttool get test-results summary --path "$result" > "$output/summary.json"
+          xcrun xcresulttool get test-results tests --path "$result" > "$output/tests.json"
+          xcrun xcresulttool export attachments \
+            --path "$result" \
+            --output-path "$output/attachments"
+          find "$output" -type f -maxdepth 2 -print
+
+      - name: Retain exported evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-browser-gate-evidence-${{ inputs.source_run_id }}
+          path: ${{ runner.temp }}/browser-evidence/
+          retention-days: 7
+          if-no-files-found: error
