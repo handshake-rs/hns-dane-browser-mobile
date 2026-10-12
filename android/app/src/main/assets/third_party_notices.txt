@@ -27,8 +27,8 @@ Generated input SHA-256:
   scripts/mit-0-license.txt = 0ffe1339d2b91556bf0c380453d8504e972f066adcfda678bd9ddd2986a57c58
   android/app/src/main/assets/fonts/Orbitron-VariableFont_wght.ttf = f42db2dd16e642258e35782916eceb1dcdbea06fb958d77ad71dc5963587e8fd
   android/app/src/main/assets/fonts/OFL-Orbitron.txt = dd6fdb6716fd179d1fe891759efb3f9200753fdf6abf513b55b712c4ae16e512
-  rust/Cargo.toml = cdbe5bc26197bd946e8be1e7292b794ea1b4bfa82545d31a3d14bf9f69547372
-  rust/Cargo.lock = f51d362daea55981c6441bedb0e0d04273a4984a8684ca0c7a68f5c1347b4a2d
+  rust/Cargo.toml = 0736c40eada386b5ac616a6b342520f71af14b9d650cf853770f8d731386cd1e
+  rust/Cargo.lock = d8bd0febd6fa5db670ea5f8e2919bc1cd72f94113d5c05a22a6be1314d2cc56c
   android/gradle/libs.versions.toml = 6e6aa686c60e39364e82418f57bb4e2cb0b1cdc420db5dc20dcb48b9f9e58214
   android/app/gradle.lockfile = af2b566239607d09657d3a5930a2d60e9a765d3a1cae7bbf212080b592766ab3
   android/gradle/verification-metadata.xml = 904a6b05ddaea646070bd1a7d077a5bcaf415cb3c71605e5549042e60651df52
@@ -210,7 +210,7 @@ RUST COMPONENTS (393)
   hns-browser-dane 0.2.2 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-browser-dnssec 0.2.2 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-browser-gateway 0.2.3 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
-  hns-browser-loopback-proxy 0.2.3 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-loopback-proxy 0.2.4 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-browser-observability 0.3.0 | MIT OR Apache-2.0
   hns-browser-p2p 0.2.6 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-browser-primitives 0.2.2 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
@@ -822,7 +822,7 @@ Applies to:
   - Rust crate hns-browser-dane 0.2.2
   - Rust crate hns-browser-dnssec 0.2.2
   - Rust crate hns-browser-gateway 0.2.3
-  - Rust crate hns-browser-loopback-proxy 0.2.3
+  - Rust crate hns-browser-loopback-proxy 0.2.4
   - Rust crate hns-browser-p2p 0.2.6
   - Rust crate hns-browser-primitives 0.2.2
   - Rust crate hns-browser-resolver 0.2.6
