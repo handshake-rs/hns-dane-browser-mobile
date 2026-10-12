@@ -1,23 +1,20 @@
 # App Store metadata
 
-This directory contains the reviewed listing source for iOS `1.0.17` / build
-`80`, bundle ID `com.denuoweb.hnsdane.ios`. Validate screenshots and signed artifacts against this exact candidate.
+This directory contains the reviewed listing source for iOS `1.0.18` / build
+`81`, bundle ID `com.denuoweb.hnsdane.ios`. Validate screenshots and signed artifacts against this exact candidate.
 
-- Version: `1.0.17`
-- Build: `80`
+- Version: `1.0.18`
+- Build: `81`
 
-This update adds automatic seed-only contract discovery and reclaim for newly
-funded BTC/HNS swaps in both offer directions. Public recovery terms are
-committed in ordinary funding ancestors; their fees are included in approval.
-Each native runtime independently verifies the exact unspent contract and
-refund maturity. It also restores eligible claims from verified public secrets.
-It consumes the published wallet recovery cohort. The app registers
+This update lets the iOS browser load permanently reserved ICANN websites
+while Handshake headers synchronize, with WebKit WebPKI for HTTPS. It retains
+the published seed-only swap recovery cohort. The app registers
 `http` and `https` URL schemes, routes incoming URLs directly, and keeps exact
 `marketplace-kit` navigation in WebKit. The managed default-browser and
 MarketplaceKit app-installation entitlements remain absent pending Apple
 approval.
 
-Build 80 retains the protected, owner-only native-wallet storage boundary and
+Build 81 retains the protected, owner-only native-wallet storage boundary and
 uses one hsd/Bob-compatible account-zero receive chain for ordinary HNS and
 Handshake name ownership. The iOS shell, Apple C ABI, and native wallet all use
 that single receive contract.

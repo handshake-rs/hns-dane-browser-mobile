@@ -2,7 +2,7 @@
 
 #include <stddef.h>
 
-_Static_assert(HNS_BROWSER_ABI_VERSION == 1u, "unexpected ABI version");
+_Static_assert(HNS_BROWSER_ABI_VERSION == 2u, "unexpected ABI version");
 _Static_assert(HNS_BROWSER_WALLET_READ_BUNDLE_VERSION == 2u,
                "unexpected wallet read bundle version");
 _Static_assert(HNS_BROWSER_WALLET_NAME_IMPORT_BUNDLE_VERSION == 1u,
@@ -22,6 +22,11 @@ static void typecheck_api(void) {
         hns_browser_runtime_create;
     HnsBrowserResult (*proxy_start)(HnsBrowserRuntimeHandle, HnsBrowserSlice,
                                     HnsBrowserProxyHandle *) = hns_browser_proxy_start;
+    HnsBrowserResult (*bootstrap_start)(HnsBrowserRuntimeHandle,
+                                        HnsBrowserProxyHandle *) =
+        hns_browser_proxy_start_icann_bootstrap;
+    HnsBrowserResult (*bootstrap_eligible)(HnsBrowserSlice, uint8_t *) =
+        hns_browser_icann_bootstrap_eligible;
     HnsBrowserResult (*canonical_host)(HnsBrowserSlice, HnsBrowserBuffer *) =
         hns_browser_canonical_host;
     HnsBrowserResult (*proxy_stop)(HnsBrowserProxyHandle) =
@@ -81,6 +86,8 @@ static void typecheck_api(void) {
     (void)abi_version;
     (void)runtime_create;
     (void)proxy_start;
+    (void)bootstrap_start;
+    (void)bootstrap_eligible;
     (void)canonical_host;
     (void)proxy_stop;
     (void)wallet_create;

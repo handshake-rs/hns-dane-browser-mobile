@@ -17,7 +17,7 @@ use hns_mobile_platform_runtime::{
     DEFAULT_RESOURCE_CACHE_LIMIT_BYTES, MAX_HNS_DOH_RECOVERY_URL_BYTES, NetworkKind,
     ResolutionMode, RuntimeConfiguration, RuntimePolicy, ShakescapeReachabilityCascade,
     SyncOptions, browser_hns_root_label, canonical_browser_host, classify_browser_name,
-    core_version, diagnostics_json, normalize_hns_doh_recovery_url,
+    core_version, diagnostics_json, is_icann_bootstrap_eligible, normalize_hns_doh_recovery_url,
 };
 use hns_wallet_ffi::ServiceErrorCode;
 use hns_wallet_mobile::{
@@ -47,7 +47,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, TryLockError};
 use std::time::{Duration, Instant};
 
-pub const HNS_BROWSER_ABI_VERSION: u32 = 1;
+pub const HNS_BROWSER_ABI_VERSION: u32 = 2;
 
 pub type HnsBrowserResult = u32;
 pub const HNS_BROWSER_RESULT_OK: HnsBrowserResult = 0;
@@ -8334,12 +8334,45 @@ pub unsafe extern "C" fn hns_browser_proxy_start(
     hns_scope_root: HnsBrowserSlice,
     out_proxy: *mut HnsBrowserProxyHandle,
 ) -> HnsBrowserResult {
+    start_proxy_ffi(runtime, hns_scope_root, out_proxy, false)
+}
+
+#[unsafe(no_mangle)]
+/// Starts the authenticated ICANN-only bootstrap proxy. HTTPS origins remain
+/// opaque to the proxy and are validated by WebKit using WebPKI.
+/// # Safety
+/// `out_proxy` must point to one writable handle.
+pub unsafe extern "C" fn hns_browser_proxy_start_icann_bootstrap(
+    runtime: HnsBrowserRuntimeHandle,
+    out_proxy: *mut HnsBrowserProxyHandle,
+) -> HnsBrowserResult {
+    start_proxy_ffi(
+        runtime,
+        HnsBrowserSlice {
+            ptr: std::ptr::null(),
+            len: 0,
+        },
+        out_proxy,
+        true,
+    )
+}
+
+fn start_proxy_ffi(
+    runtime: HnsBrowserRuntimeHandle,
+    hns_scope_root: HnsBrowserSlice,
+    out_proxy: *mut HnsBrowserProxyHandle,
+    icann_bootstrap: bool,
+) -> HnsBrowserResult {
     ffi_call(|| {
         require_output(out_proxy)?;
         // SAFETY: Null was rejected above and the C contract requires writable output.
         unsafe { write_output(out_proxy, 0) };
         // SAFETY: This unsafe export carries the caller's readable-slice contract.
-        let scope = unsafe { optional_scope(hns_scope_root) }?;
+        let scope = if icann_bootstrap {
+            None
+        } else {
+            unsafe { optional_scope(hns_scope_root) }?
+        };
         let runtime_entry = runtime_entry(runtime)?;
         let _start_reservation = {
             let mut registry = handle_registry()
@@ -8386,15 +8419,21 @@ pub unsafe extern "C" fn hns_browser_proxy_start(
         let mailbox = Arc::new(MainFrameStatusMailbox::default());
         let observer: Arc<dyn BrowserProxyStatusObserver> = mailbox.clone();
         let policy_revision = runtime_entry.runtime.policy_revision();
-        let proxy = runtime_entry
-            .runtime
-            .start_whole_browser_proxy_with_observer(scope.as_deref(), observer)
-            .map_err(|_| {
-                FfiFailure::new(
-                    HNS_BROWSER_RESULT_PROXY_ERROR,
-                    "unable to start whole-browser proxy generation",
-                )
-            })?;
+        let proxy = (if icann_bootstrap {
+            runtime_entry
+                .runtime
+                .start_icann_bootstrap_proxy_with_observer(observer)
+        } else {
+            runtime_entry
+                .runtime
+                .start_whole_browser_proxy_with_observer(scope.as_deref(), observer)
+        })
+        .map_err(|_| {
+            FfiFailure::new(
+                HNS_BROWSER_RESULT_PROXY_ERROR,
+                "unable to start whole-browser proxy generation",
+            )
+        })?;
         let handle = next_monotonic_id(&NEXT_OBJECT_HANDLE)?;
         let entry = Arc::new(ProxyEntry {
             runtime_handle: runtime,
@@ -8447,6 +8486,22 @@ pub unsafe extern "C" fn hns_browser_proxy_start(
         }
         // SAFETY: Null was rejected above and the C contract requires writable output.
         unsafe { write_output(out_proxy, handle) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// `host` must remain readable for its length and `out_eligible` writable.
+pub unsafe extern "C" fn hns_browser_icann_bootstrap_eligible(
+    host: HnsBrowserSlice,
+    out_eligible: *mut u8,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_eligible)?;
+        unsafe { write_output(out_eligible, 0) };
+        let host = unsafe { input_str(host, MAX_NAME_INPUT_BYTES) }?;
+        unsafe { write_output(out_eligible, u8::from(is_icann_bootstrap_eligible(&host))) };
         Ok(())
     })
 }

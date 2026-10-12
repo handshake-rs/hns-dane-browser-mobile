@@ -2,6 +2,19 @@
 
 This file describes the current application candidate.
 
+## 1.0.18 - 2026-10-12
+
+Android `1.0.18` / code `70` and iOS `1.0.18` / build `81` use the
+published `hns-browser-loopback-proxy` 0.2.4 dependency.
+
+- Open permanently reserved ICANN websites through the authenticated iOS
+  loopback proxy while Handshake headers synchronize. HTTPS remains an opaque
+  CONNECT tunnel, with WebKit verifying the origin certificate using WebPKI.
+- Keep Handshake destinations behind verified header authority. Rotate the iOS
+  proxy to its normal dual-root validation after headers become authoritative,
+  and show the active validation path in browser security status.
+- Retain the 1.0.17 wallet and swap-recovery behavior on both platforms.
+
 ## 1.0.17 - 2026-10-07
 
 Android `1.0.17` / code `69` and iOS `1.0.17` / build `80` use the

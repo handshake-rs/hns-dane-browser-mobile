@@ -71,6 +71,31 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
         super.tearDown()
     }
 
+    func testDefaultBrowserRendersIcannHomepageWithoutWaitingForHeaders() {
+        app.launchEnvironment.removeValue(forKey: "HNS_APP_STORE_SCREENSHOT_SCENE")
+        app.launch()
+        let address = app.textFields["app-store-screenshot.address"]
+        XCTAssertTrue(address.waitForExistence(timeout: 20))
+        let security = app.staticTexts["app-store-screenshot.security"]
+        let page = app.webViews.firstMatch
+        XCTAssertTrue(
+            waitUntil(
+                description: "default ICANN homepage rendered",
+                timeout: 90,
+                timeoutEvidence: { " Security: \(security.label)" },
+                condition: {
+                    let value = address.value as? String ?? ""
+                    return value.contains("shakescape.com")
+                        && page.exists
+                        && page.staticTexts.count > 0
+                        && (security.label.contains("WebPKI verified")
+                            || security.label.contains("DANE verified"))
+                }
+            ),
+            "The default browser must render HTTPS content before a full Handshake sync"
+        )
+    }
+
     func testLiveSubmissionScreenshots() throws {
         let runtimeStatus = launchShippingRuntime(requireCurrentHeaders: true)
         let address = app.textFields["app-store-screenshot.address"]

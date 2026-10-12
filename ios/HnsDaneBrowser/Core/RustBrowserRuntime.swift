@@ -81,6 +81,14 @@ final class RustBrowserRuntime: BrowserRuntime {
         try? rustCanonicalHost(host)
     }
 
+    func isIcannBootstrapEligible(_ host: String) -> Bool {
+        var eligible: UInt8 = 0
+        let result = RustBridge.withUTF8Slice(host) { slice in
+            hns_browser_icann_bootstrap_eligible(slice, &eligible)
+        }
+        return result == HNS_BROWSER_RESULT_OK && eligible == 1
+    }
+
     static func canonicalHostText(_ host: String) throws -> String {
         var output = HnsBrowserBuffer()
         let result = RustBridge.withUTF8Slice(host) { slice in
@@ -111,6 +119,25 @@ final class RustBrowserRuntime: BrowserRuntime {
             throw RustBridgeError.invalidOutput("proxy handle is zero")
         }
 
+        do {
+            return try RustBrowserProxySession(handle: proxyHandle)
+        } catch {
+            _ = hns_browser_proxy_request_stop(proxyHandle)
+            _ = hns_browser_proxy_destroy(proxyHandle)
+            throw error
+        }
+    }
+
+    func startIcannBootstrapProxy() throws -> BrowserProxySession {
+        let handle = try liveHandle()
+        var proxyHandle: HnsBrowserProxyHandle = 0
+        try RustBridge.check(
+            hns_browser_proxy_start_icann_bootstrap(handle, &proxyHandle),
+            operation: "ICANN bootstrap proxy start"
+        )
+        guard proxyHandle != 0 else {
+            throw RustBridgeError.invalidOutput("bootstrap proxy handle is zero")
+        }
         do {
             return try RustBrowserProxySession(handle: proxyHandle)
         } catch {

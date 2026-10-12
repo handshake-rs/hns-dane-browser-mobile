@@ -1,1 +1,1 @@
-1.0.17 Automatically rediscovers newly funded BTC/HNS swap contracts after restoring the wallet seed. Restores reclaim actions for both assets and offer directions, verifies refund maturity, and resumes eligible claims from on-chain settlement evidence. Includes recovery-publication fees in the approved total.
+1.0.18 Browser startup reliability and updated shared runtime components.

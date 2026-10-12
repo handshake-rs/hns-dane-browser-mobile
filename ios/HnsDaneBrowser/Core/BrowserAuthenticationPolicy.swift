@@ -58,6 +58,13 @@ struct BrowserAuthenticationPolicy {
             if Self.isIPAddressLiteral(canonicalHost) {
                 return .performDefaultHandling
             }
+            if activeScope == .icannBootstrap,
+               liveProxy != nil,
+               runtime.isIcannBootstrapEligible(canonicalHost) {
+                // This generation uses opaque CONNECT. WebKit must validate
+                // the real origin certificate against its WebPKI trust store.
+                return .performDefaultHandling
+            }
             // Namespace selection is never inferred in Swift. The exact
             // live-generation host certificate pin proves this challenge came
             // from the retained Rust proxy after its dual-root policy.

@@ -1,7 +1,7 @@
 # Release readiness
 
-The configured Android application is `1.0.17`, version code `69`. The iOS
-application is `1.0.17`, build `80`. The shared Rust runtime is `1.0.2`.
+The configured Android application is `1.0.18`, version code `70`. The iOS
+application is `1.0.18`, build `81`. The shared Rust runtime is `1.0.2`.
 Platform releases and Rust package releases have independent versions.
 
 Version 1.0.16 has been delivered to Google Play production and submitted to
@@ -25,6 +25,15 @@ submission state through store readback.
 
 Commit release work directly to `main`. Sign iOS only for an actual App Store
 delivery; routine commits do not require a signed IPA or a GitHub Release.
+
+## ICANN startup browsing
+
+Version 1.0.18 updates the published mobile proxy dependency to 0.2.4.
+The iOS browser admits permanently reserved ICANN roots through its
+authenticated loopback proxy while Handshake headers synchronize. HTTPS uses
+opaque CONNECT and WebKit WebPKI in this period. Handshake names remain gated
+on verified headers; the browser rotates to its dual-root proxy once they are
+authoritative. The normal Android browser route remains unchanged.
 
 ## Seed-only swap recovery
 

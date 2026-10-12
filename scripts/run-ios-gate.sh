@@ -12,6 +12,7 @@ APPLE_TARGETS=(
 IOS_GATE_DIAGNOSTICS_DIR="$ROOT_DIR/build/ios-gate-diagnostics"
 IOS_GATE_RESULT_BUNDLE="$IOS_GATE_DIAGNOSTICS_DIR/HnsDaneBrowserTests.xcresult"
 IOS_ACCESSIBILITY_RESULT_BUNDLE="$IOS_GATE_DIAGNOSTICS_DIR/AccessibilityAudit.xcresult"
+IOS_DEFAULT_BROWSER_RESULT_BUNDLE="$IOS_GATE_DIAGNOSTICS_DIR/DefaultBrowserNavigation.xcresult"
 IOS_GATE_PHASE_FILE="$IOS_GATE_DIAGNOSTICS_DIR/phase.txt"
 
 fail() {
@@ -153,6 +154,17 @@ xcodebuild \
   -destination "platform=iOS Simulator,id=$simulator_id" \
   -resultBundlePath "$IOS_ACCESSIBILITY_RESULT_BUNDLE" \
   -only-testing:HnsDaneBrowserScreenshotTests/AccessibilityAuditTests/testBrowserChromePassesAutomatedAccessibilityAudit \
+  CODE_SIGNING_ALLOWED=NO \
+  test
+
+record_ios_gate_phase default-browser-navigation
+xcodebuild \
+  -project "$ROOT_DIR/ios/HnsDaneBrowser.xcodeproj" \
+  -scheme HnsDaneBrowserScreenshots \
+  -configuration Debug \
+  -destination "platform=iOS Simulator,id=$simulator_id" \
+  -resultBundlePath "$IOS_DEFAULT_BROWSER_RESULT_BUNDLE" \
+  -only-testing:HnsDaneBrowserScreenshotTests/LiveAppStoreScreenshotTests/testDefaultBrowserRendersIcannHomepageWithoutWaitingForHeaders \
   CODE_SIGNING_ALLOWED=NO \
   test
 

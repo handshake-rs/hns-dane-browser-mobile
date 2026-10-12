@@ -62,8 +62,8 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
 
     def test_platform_identity_and_reviewed_registry_cohort(self) -> None:
         gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
-        self.assertRegex(gradle, r"(?m)^\s*versionName = \"1\.0\.17\"$")
-        self.assertRegex(gradle, r"(?m)^\s*versionCode = 69$")
+        self.assertRegex(gradle, r"(?m)^\s*versionName = \"1\.0\.18\"$")
+        self.assertRegex(gradle, r"(?m)^\s*versionCode = 70$")
         self.assertIn(
             '?: listOf("armeabi-v7a", "arm64-v8a")',
             gradle,
@@ -208,8 +208,8 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertEqual(deny["advisories"]["ignore"], ["RUSTSEC-2024-0436"])
 
         project = (ROOT / "ios/project.yml").read_text(encoding="utf-8")
-        self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 1\.0\.17$")
-        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 80$")
+        self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 1\.0\.18$")
+        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 81$")
         self.assertIn('TARGETED_DEVICE_FAMILY: "1,2"', project)
         self.assertIn("SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: YES", project)
         self.assertIn("- sdk: SystemConfiguration.framework", project)
@@ -309,10 +309,8 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
     def test_store_and_privacy_copy_describes_direct_native_wallet(self) -> None:
         paths = (
             ROOT / "store-assets/play-store/metadata/en-US/full-description.txt",
-            ROOT / "store-assets/play-store/metadata/en-US/release-notes.txt",
             ROOT / "store-assets/app-store/metadata/en-US/description.txt",
             ROOT / "store-assets/app-store/metadata/en-US/review-notes.txt",
-            ROOT / "store-assets/app-store/metadata/en-US/whats-new.txt",
         )
         for path in paths:
             with self.subTest(path=path):
@@ -370,22 +368,27 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
             "exchange service",
         ):
             self.assertIn(marker, play)
+        for marker in (
+            "balance",
+            "payment qr code",
+            "guarded hns or bitcoin sends",
+            "websites cannot access or invoke the wallet",
+            "custodial exchange service",
+        ):
             self.assertIn(marker, app_store)
         self.assertNotIn("unfinished bitcoin", play)
         self.assertIn("bitcoin peers", play)
         self.assertIn("noncustodial btc/hns atomic swaps", play)
         for marker in (
-            "supported transfer/finalization actions",
-            "pair with a shakescape peer",
-            "noncustodial btc/hns atomic swaps",
+            "name transfer/finalization",
+            "pair with `relay.learnhns.com:12038`",
+            "participant-to-participant btc/hns atomic swaps",
         ):
             self.assertIn(marker, app_store)
-        for marker in (
-            "protected confirmation flow",
-            "recovery phrase",
-        ):
-            self.assertIn(marker, play)
-            self.assertIn(marker, app_store)
+        self.assertIn("protected confirmation flow", play)
+        self.assertIn("native review and approval", app_store)
+        self.assertIn("recovery phrase", play)
+        self.assertIn("recovery phrase", app_store)
 
 
 class IosReleaseWorkflowSafetyTests(unittest.TestCase):

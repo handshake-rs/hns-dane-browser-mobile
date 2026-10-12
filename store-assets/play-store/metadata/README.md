@@ -1,7 +1,7 @@
 # Google Play metadata
 
-This directory contains the candidate listing source for Android `1.0.17` / code
-`69`, package `com.denuoweb.hnsdane`. Version numbers must be updated with the
+This directory contains the candidate listing source for Android `1.0.18` / code
+`70`, package `com.denuoweb.hnsdane`. Version numbers must be updated with the
 application manifest and upload script by `scripts/check-version-consistency.sh`.
 
 The listing describes the shipping surface: dual-root browsing and one native,
@@ -15,7 +15,7 @@ execution, and protected deletion. Websites have no wallet-provider access.
 - App name: `en-US/title.txt`
 - Short description: `en-US/short-description.txt`
 - Full description: `en-US/full-description.txt`
-- 1.0.17 release notes: `en-US/release-notes.txt`
+- 1.0.18 release notes: `en-US/release-notes.txt`
 - Privacy policy: `https://shakescape.com/privacy/`
 - Support and product site: `https://shakescape.com/`
 
@@ -26,13 +26,14 @@ execution, and protected deletion. Websites have no wallet-provider access.
 - Historical phone screenshots: `../screenshots/*.png`; use a fresh verified
   `android-store-screenshots-<commit>` workflow artifact for this release.
 - Expected upload artifact:
-  `dist/play-store/hns-dane-browser-v1.0.17-play-upload-signed.aab`
+  `dist/play-store/hns-dane-browser-v1.0.18-play-upload-signed.aab`
 
 Capture screenshots from the exact shipping candidate. Review browser navigation,
 Handshake settings, proof details, and wallet onboarding without exposing secrets
 or user identifiers. Verify the signed AAB independently before any upload.
 
-Reconcile Data safety, financial-feature answers, foreground `dataSync`, and
-listing text with the shipping implementation and saved Play Console answers.
+Use the owner’s standing confirmation of the Data safety, financial-feature,
+foreground `dataSync`, and Play Console answers recorded in the release guide.
+Check the listing text against the shipping implementation.
 After an authorized upload, read back version code, track, release status, and
 asset inventory through a fresh store query.

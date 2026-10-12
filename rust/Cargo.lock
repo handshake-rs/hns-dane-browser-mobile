@@ -1369,9 +1369,9 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-loopback-proxy"
-version = "0.2.3"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d65d661d7a79ea9d097485af949e73c0c6d0129d57fbc1a1d95d3756c243266"
+checksum = "44e5c652a3ff6dbba7507b8d9d9f61f3c8036f0e6cd178ad2689bd9e4a3af2a5"
 dependencies = [
  "base64 0.22.1",
  "hns-browser-dane",

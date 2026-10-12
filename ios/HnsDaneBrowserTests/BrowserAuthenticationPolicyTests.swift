@@ -64,6 +64,27 @@ final class BrowserAuthenticationPolicyTests: XCTestCase {
         )
     }
 
+    func testBootstrapUsesWebKitWebPKIOnlyForReservedIcannRoot() {
+        let runtime = FakeRuntime(hostKind: .icann)
+        let proxy = FakeProxy()
+        let context = BrowserAuthenticationContext(
+            kind: .serverTrust(leafCertificateDER: nil),
+            host: "shakescape.com",
+            port: 443,
+            realm: nil
+        )
+        runtime.bootstrapEligible = true
+        XCTAssertEqual(
+            policy.evaluate(context, runtime: runtime, liveProxy: proxy, activeScope: .icannBootstrap),
+            .performDefaultHandling
+        )
+        runtime.bootstrapEligible = false
+        XCTAssertEqual(
+            policy.evaluate(context, runtime: runtime, liveProxy: proxy, activeScope: .icannBootstrap),
+            .cancel
+        )
+    }
+
     func testPublicIpLiteralTrustUsesWebKitDefault() {
         let runtime = FakeRuntime(hostKind: .icann)
         let context = BrowserAuthenticationContext(
@@ -184,6 +205,7 @@ final class BrowserAuthenticationPolicyTests: XCTestCase {
 
 final class FakeRuntime: BrowserRuntime {
     var hostKind: BrowserHostKind
+    var bootstrapEligible = false
     var installedSnapshotPath: String?
     var runtimePolicy = BrowserRuntimePolicy.default
 
@@ -198,6 +220,8 @@ final class FakeRuntime: BrowserRuntime {
     func classifyHost(_ host: String) -> BrowserHostKind { hostKind }
 
     func canonicalHost(_ host: String) -> String? { host.lowercased() }
+
+    func isIcannBootstrapEligible(_ host: String) -> Bool { bootstrapEligible }
 
     func startWholeWebKitProxy(hnsScopeRoot: String?) throws -> BrowserProxySession {
         FakeProxy()

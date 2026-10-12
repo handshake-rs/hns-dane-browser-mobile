@@ -1667,19 +1667,19 @@ final class BrowserViewController: UIViewController {
         ) {
         case .resume:
             isProxyAdmissionGranted = true
-            coordinator.resume()
+            coordinator.updateAuthorityAdmission(true)
             // A transient peer failure may have presented the retry placeholder
             // over an already installed WebView. Admission recovery must retire
             // that stale overlay so the authenticated page is visible again.
             placeholderLabel.isHidden = true
         case .suspend:
             isProxyAdmissionGranted = false
-            coordinator.suspend()
+            coordinator.updateAuthorityAdmission(false)
         case .unchanged:
             break
         }
         if !isProxyAdmissionGranted && !isHeaderResetInFlight {
-            placeholderLabel.isHidden = false
+            placeholderLabel.isHidden = coordinator.isBrowsingDuringHeaderSync
             let status = summary.requiresRetry
                 ? "Handshake header sync must recover before loading this address."
                 : "Waiting for authenticated Handshake headers before loading this address."

@@ -136,7 +136,6 @@ impl VerifiedResourceValueSink for ResolverResourceSink<'_> {
     }
 }
 pub use hns_transport::DEFAULT_MAX_REQUEST_BODY_BYTES;
-#[cfg(test)]
 use hns_transport::TransportLimits;
 use hns_transport::{
     EchConfigListCompatibility, OriginProtocol, OriginRequest, OriginResponse, OriginResponseHead,
@@ -203,6 +202,19 @@ pub fn classify_browser_name(input: &str) -> BrowserNameClass {
         NameClass::Icann => BrowserNameClass::Icann,
         NameClass::Search => BrowserNameClass::Search,
     }
+}
+
+/// ICANN roots permanently reserved before Handshake names could be claimed.
+/// This narrow set may use WebPKI during a fresh header sync; other DNS names
+/// still require the normal dual-root authority decision.
+pub fn is_icann_bootstrap_eligible(host: &str) -> bool {
+    let Some(host) = canonical_browser_host(host) else {
+        return false;
+    };
+    let Some(root) = host.rsplit('.').next() else {
+        return false;
+    };
+    host.contains('.') && is_hsd_icann_root_name(root)
 }
 
 pub fn classify_browser_host(input: &str) -> BrowserHostClass {
@@ -331,17 +343,12 @@ const ICANN_DOH_BOOTSTRAP_ADDRESSES: &[IpAddr] = &[
     IpAddr::V4(Ipv4Addr::new(1, 0, 0, 1)),
     IpAddr::V6(Ipv6Addr::new(0x2606, 0x4700, 0x4700, 0, 0, 0, 0, 0x1001)),
 ];
-#[cfg(test)]
 const WHOLE_BROWSER_DOH_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 const WHOLE_BROWSER_DOH_READ_TIMEOUT: Duration = Duration::from_secs(5);
-#[cfg(test)]
 const WHOLE_BROWSER_DOH_IO_POLL: Duration = Duration::from_millis(25);
 const WHOLE_BROWSER_TCP_READ_POLL: Duration = Duration::from_millis(25);
-#[cfg(test)]
 const WHOLE_BROWSER_DOH_MAX_REQUEST_BODY_BYTES: usize = DEFAULT_DNS_UDP_PAYLOAD;
-#[cfg(test)]
 const WHOLE_BROWSER_DOH_MAX_RESPONSE_HEADER_BYTES: usize = 16 * 1024;
-#[cfg(test)]
 const WHOLE_BROWSER_DOH_MAX_RESPONSE_BODY_BYTES: usize = u16::MAX as usize;
 const MAX_WHOLE_BROWSER_CNAME_CHAIN: usize = 8;
 const HNS_GATEWAY_STRICT_MODE_HEADER: &str = "X-HNS-Browser-Strict-Mode";
@@ -1151,7 +1158,56 @@ impl IcannNetwork for WholeBrowserIcannNetwork {
     }
 }
 
-#[cfg(test)]
+#[derive(Clone, Copy, Debug, Default)]
+struct BootstrapIcannNetwork;
+
+impl IcannNetwork for BootstrapIcannNetwork {
+    fn resolve(
+        &self,
+        host: &str,
+        port: u16,
+        cancellation: &ProxyCancellationToken,
+    ) -> Result<Vec<SocketAddr>, IcannNetworkError> {
+        if cancellation.is_cancelled() {
+            return Err(IcannNetworkError::Cancelled);
+        }
+        if !is_icann_bootstrap_eligible(host) {
+            return Err(IcannNetworkError::ResolutionFailed);
+        }
+        let qname = DnsName::from_ascii(host).map_err(|_| IcannNetworkError::ResolutionFailed)?;
+        let deadline =
+            Instant::now() + WHOLE_BROWSER_DOH_CONNECT_TIMEOUT + WHOLE_BROWSER_DOH_READ_TIMEOUT;
+        for record_type in [RecordType::A, RecordType::Aaaa] {
+            if let Ok(resolved) =
+                resolve_whole_browser_icann_family(&qname, record_type, cancellation, deadline)
+            {
+                let addresses: Vec<_> = resolved
+                    .into_iter()
+                    .filter(|address| is_publicly_routable(*address))
+                    .take(16)
+                    .map(|address| SocketAddr::new(address, port))
+                    .collect();
+                if !addresses.is_empty() {
+                    return Ok(addresses);
+                }
+            }
+        }
+        if cancellation.is_cancelled() {
+            return Err(IcannNetworkError::Cancelled);
+        }
+        Err(IcannNetworkError::ResolutionFailed)
+    }
+
+    fn connect(
+        &self,
+        address: SocketAddr,
+        timeout: Duration,
+        cancellation: &ProxyCancellationToken,
+    ) -> Result<Box<dyn ProxyTunnelIo>, IcannNetworkError> {
+        WholeBrowserIcannNetwork.connect(address, timeout, cancellation)
+    }
+}
+
 fn resolve_whole_browser_icann_family(
     qname: &DnsName,
     record_type: RecordType,
@@ -1189,7 +1245,6 @@ fn resolve_whole_browser_icann_family(
     )
 }
 
-#[cfg(test)]
 fn resolve_whole_browser_icann_family_with_fetch<C, F>(
     qname: &DnsName,
     record_type: RecordType,
@@ -1227,7 +1282,6 @@ where
     Err(IcannNetworkError::ResolutionFailed)
 }
 
-#[cfg(test)]
 fn check_whole_browser_resolution_control<C>(
     is_cancelled: &C,
     deadline: Instant,
@@ -1245,7 +1299,6 @@ where
         .ok_or(IcannNetworkError::ResolutionFailed)
 }
 
-#[cfg(test)]
 const fn whole_browser_doh_transport_limits() -> TransportLimits {
     TransportLimits {
         max_request_body_bytes: WHOLE_BROWSER_DOH_MAX_REQUEST_BODY_BYTES,
@@ -1254,7 +1307,6 @@ const fn whole_browser_doh_transport_limits() -> TransportLimits {
     }
 }
 
-#[cfg(test)]
 fn whole_browser_doh_answer_from_body(
     qname: &DnsName,
     record_type: RecordType,
@@ -3214,6 +3266,25 @@ impl BrowserRuntime {
         hns_scope_root: Option<&str>,
         observer: Arc<dyn BrowserProxyStatusObserver>,
     ) -> Result<BrowserProxy, BrowserProxyError> {
+        self.start_browser_proxy_with_observer(hns_scope_root, observer, false)
+    }
+
+    /// Starts a temporary authenticated proxy for permanently reserved ICANN
+    /// roots while Handshake headers are not yet authoritative. HTTPS remains
+    /// an opaque CONNECT tunnel, so WebKit validates the origin with WebPKI.
+    pub fn start_icann_bootstrap_proxy_with_observer(
+        &self,
+        observer: Arc<dyn BrowserProxyStatusObserver>,
+    ) -> Result<BrowserProxy, BrowserProxyError> {
+        self.start_browser_proxy_with_observer(None, observer, true)
+    }
+
+    fn start_browser_proxy_with_observer(
+        &self,
+        hns_scope_root: Option<&str>,
+        observer: Arc<dyn BrowserProxyStatusObserver>,
+        icann_bootstrap: bool,
+    ) -> Result<BrowserProxy, BrowserProxyError> {
         let hns_scope = hns_scope_root.map(HostScope::new).transpose()?;
         let generation = self
             .inner
@@ -3231,12 +3302,22 @@ impl BrowserRuntime {
             authority_binding,
             observer,
         };
+        let config = if icann_bootstrap {
+            ProxyConfig::whole_browser_icann_bootstrap(instance)
+        } else {
+            ProxyConfig::whole_browser(instance, hns_scope)
+        };
+        let icann_network: Arc<dyn IcannNetwork> = if icann_bootstrap {
+            Arc::new(BootstrapIcannNetwork)
+        } else {
+            Arc::new(WholeBrowserIcannNetwork)
+        };
         let running = match RunningProxy::start_with_metadata_observer_and_icann_network(
-            ProxyConfig::whole_browser(instance, hns_scope),
+            config,
             Arc::new(self.proxy_backend_for(authority_binding)),
             Arc::new(NoopProxyObserver),
             Arc::new(metadata_observer),
-            Arc::new(WholeBrowserIcannNetwork),
+            icann_network,
         ) {
             Ok(running) => running,
             Err(error) => {
@@ -11606,7 +11687,6 @@ fn fetch_doh_message_at(
     ))
 }
 
-#[cfg(test)]
 fn fetch_doh_message_at_with_control<F>(
     http: &TcpHttpTransport,
     endpoint: &HnsDohEndpoint,
@@ -17768,6 +17848,16 @@ mod tests {
     }
 
     #[test]
+    fn icann_bootstrap_only_accepts_permanently_locked_roots() {
+        assert!(is_icann_bootstrap_eligible("shakescape.com"));
+        assert!(is_icann_bootstrap_eligible("WWW.Example.COM."));
+        assert!(!is_icann_bootstrap_eligible("shakescape"));
+        assert!(!is_icann_bootstrap_eligible("sub.shakescape"));
+        assert!(!is_icann_bootstrap_eligible("127.0.0.1"));
+        assert!(!is_icann_bootstrap_eligible("localhost"));
+    }
+
+    #[test]
     fn canonical_browser_host_uses_proxy_trust_boundary_normalization() {
         assert_eq!(
             canonical_browser_host("BÜCHER.Example."),
@@ -19675,6 +19765,30 @@ mod tests {
             .start_whole_browser_proxy(Some("example.com"))
             .unwrap();
         icann_scoped.stop();
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn icann_bootstrap_proxy_starts_before_handshake_headers_are_ready() {
+        let data_dir = temp_dir_path("browser-runtime-icann-bootstrap");
+        let runtime =
+            BrowserRuntime::open(RuntimeConfiguration::new(&data_dir, NetworkKind::Regtest))
+                .unwrap();
+        let proxy = runtime
+            .start_icann_bootstrap_proxy_with_observer(Arc::new(NoopBrowserProxyStatusObserver))
+            .unwrap();
+        assert_ne!(proxy.port(), 0);
+        assert_eq!(proxy.generation(), 1);
+        assert_eq!(
+            runtime
+                .inner
+                .canonical_authority
+                .lock()
+                .unwrap()
+                .authority_state(),
+            AuthorityState::Degraded
+        );
+        proxy.stop();
         cleanup_dir(&data_dir);
     }
 

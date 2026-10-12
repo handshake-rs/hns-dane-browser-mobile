@@ -287,6 +287,7 @@ enum BrowserHostKind: Equatable, Sendable {
 
 enum BrowserProxyScope: Equatable, Sendable {
     case wholeBrowser
+    case icannBootstrap
     case icann
     case handshakeRoot(String)
 }
@@ -1004,8 +1005,12 @@ protocol BrowserRuntime: AnyObject {
 
     func canonicalHost(_ host: String) -> String?
 
+    func isIcannBootstrapEligible(_ host: String) -> Bool
+
     /// Starts a whole-WebKit proxy. This can block and must run off the main actor.
     func startWholeWebKitProxy(hnsScopeRoot: String?) throws -> BrowserProxySession
+
+    func startIcannBootstrapProxy() throws -> BrowserProxySession
 
     /// Imports the bounded, uncompressed mainnet bootstrap snapshot at a private file path.
     func installHeaderSnapshot(at path: String) throws
@@ -1034,6 +1039,12 @@ protocol BrowserRuntime: AnyObject {
 }
 
 extension BrowserRuntime {
+    func isIcannBootstrapEligible(_ host: String) -> Bool { false }
+
+    func startIcannBootstrapProxy() throws -> BrowserProxySession {
+        throw BrowserCoreError.runtimeUnavailable("ICANN bootstrap proxy is unavailable")
+    }
+
     func exportWalletHeaderSnapshot(at path: String, targetHeight: UInt32) throws {
         throw BrowserCoreError.runtimeUnavailable("wallet header export is unavailable")
     }

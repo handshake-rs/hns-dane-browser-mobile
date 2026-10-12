@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define HNS_BROWSER_ABI_VERSION 1u
+#define HNS_BROWSER_ABI_VERSION 2u
 #define HNS_BROWSER_WALLET_READ_BUNDLE_VERSION 2u
 #define HNS_BROWSER_WALLET_NAME_IMPORT_BUNDLE_VERSION 1u
 
@@ -634,6 +634,12 @@ HnsBrowserResult hns_browser_proxy_start(
     HnsBrowserRuntimeHandle runtime,
     HnsBrowserSlice hns_scope_root,
     HnsBrowserProxyHandle *out_proxy);
+HnsBrowserResult hns_browser_proxy_start_icann_bootstrap(
+    HnsBrowserRuntimeHandle runtime,
+    HnsBrowserProxyHandle *out_proxy);
+HnsBrowserResult hns_browser_icann_bootstrap_eligible(
+    HnsBrowserSlice host,
+    uint8_t *out_eligible);
 HnsBrowserResult hns_browser_proxy_endpoint(
     HnsBrowserProxyHandle proxy,
     HnsBrowserProxyEndpoint *out_endpoint);

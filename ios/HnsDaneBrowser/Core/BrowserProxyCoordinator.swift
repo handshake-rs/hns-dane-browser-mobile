@@ -73,6 +73,7 @@ final class BrowserProxyCoordinator: NSObject {
     private var machine = BrowserProxyStateMachine()
     private var activeProxy: BrowserProxySession?
     private var activeScope: BrowserProxyScope?
+    private var isHandshakeAuthorityReady = false
     private var webView: WKWebView?
     private var addressObservation: NSKeyValueObservation?
     // UI/share state only. This value never grants proxy or navigation authority.
@@ -141,7 +142,7 @@ final class BrowserProxyCoordinator: NSObject {
     func navigate(rawValue: String) {
         guard !destroyed else { return }
         do {
-            let destination = try runtime.classifyNavigation(rawValue)
+            let destination = routedDestination(try runtime.classifyNavigation(rawValue))
             enqueue(
                 request: URLRequest(url: destination.url),
                 destination: destination,
@@ -150,6 +151,55 @@ final class BrowserProxyCoordinator: NSObject {
         } catch {
             delegate?.proxyCoordinator(self, didFail: error)
         }
+    }
+
+    var isBrowsingDuringHeaderSync: Bool {
+        !isHandshakeAuthorityReady && (
+            activeScope == .icannBootstrap ||
+            pendingNavigation?.destination.proxyScope == .icannBootstrap
+        )
+    }
+
+    func updateAuthorityAdmission(_ ready: Bool) {
+        guard !destroyed else { return }
+        isHandshakeAuthorityReady = ready
+        if let navigation = pendingNavigation ?? lastNavigation {
+            let destination = routedDestination(navigation.destination)
+            if destination.proxyScope != navigation.destination.proxyScope {
+                guard replayPolicy.allowsAutomaticReplay(
+                    httpMethod: navigation.request.httpMethod
+                ) else {
+                    suspend()
+                    return
+                }
+                enqueue(
+                    request: navigation.request,
+                    destination: destination,
+                    historyTarget: navigation.historyTarget
+                )
+                return
+            }
+            if ready || destination.proxyScope == .icannBootstrap {
+                resume()
+            } else {
+                suspend()
+            }
+        } else if ready {
+            resume()
+        } else {
+            suspend()
+        }
+    }
+
+    private func routedDestination(_ destination: BrowserDestination) -> BrowserDestination {
+        let bootstrap = !isHandshakeAuthorityReady &&
+            runtime.isIcannBootstrapEligible(destination.canonicalHost)
+        return BrowserDestination(
+            url: destination.url,
+            canonicalHost: destination.canonicalHost,
+            hostKind: destination.hostKind,
+            proxyScope: bootstrap ? .icannBootstrap : .wholeBrowser
+        )
     }
 
     func resume() {
@@ -280,6 +330,7 @@ final class BrowserProxyCoordinator: NSObject {
         destination: BrowserDestination,
         historyTarget: Int?
     ) {
+        let destination = routedDestination(destination)
         resetProvisionalFailureRecovery()
         activeProxy?.clearResolutionTrace()
         pendingNavigation = PendingNavigation(
@@ -288,7 +339,13 @@ final class BrowserProxyCoordinator: NSObject {
             historyTarget: historyTarget
         )
         delegate?.proxyCoordinator(self, didUpdateSecurity: .pending)
+        if !isHandshakeAuthorityReady && destination.proxyScope != .icannBootstrap {
+            suspend()
+        }
         execute(machine.queueNavigation(scope: destination.proxyScope))
+        if isHandshakeAuthorityReady || destination.proxyScope == .icannBootstrap {
+            resume()
+        }
     }
 
     private func discardUnsafePendingReplay() {
@@ -387,12 +444,18 @@ final class BrowserProxyCoordinator: NSObject {
                 switch scope {
                 case .wholeBrowser, .icann:
                     hnsRoot = nil
+                case .icannBootstrap:
+                    hnsRoot = nil
                 case .handshakeRoot(let root):
                     hnsRoot = root
                 }
-                result = .success(
-                    try runtime.startWholeWebKitProxy(hnsScopeRoot: hnsRoot)
-                )
+                let session: BrowserProxySession
+                if scope == .icannBootstrap {
+                    session = try runtime.startIcannBootstrapProxy()
+                } else {
+                    session = try runtime.startWholeWebKitProxy(hnsScopeRoot: hnsRoot)
+                }
+                result = .success(session)
             } catch {
                 result = .failure(error)
             }
@@ -740,6 +803,7 @@ final class BrowserProxyCoordinator: NSObject {
     }
 
     private func isAdmitted(_ destination: BrowserDestination, in webView: WKWebView) -> Bool {
+        let destination = routedDestination(destination)
         guard self.webView === webView,
               activeProxy != nil,
               activeScope == destination.proxyScope else {
@@ -776,6 +840,20 @@ final class BrowserProxyCoordinator: NSObject {
     private func updateSecurity(for url: URL) {
         guard let destination = try? runtime.classifyNavigation(url.absoluteString) else { return }
         let host = destination.canonicalHost
+        if activeScope == .icannBootstrap && runtime.isIcannBootstrapEligible(host) {
+            let https = url.scheme?.lowercased() == "https"
+            delegate?.proxyCoordinator(
+                self,
+                didUpdateSecurity: BrowserSecuritySummary(
+                    level: https ? .webPKI : .insecure,
+                    detail: https
+                        ? "WebPKI verified by WebKit · Handshake headers synchronizing"
+                        : "Plain HTTP · Handshake headers synchronizing"
+                )
+            )
+            refreshSyncStatus()
+            return
+        }
         // The exact native result is authoritative for both ICANN and Handshake HTTPS: a
         // DNS-named ICANN origin may be DANE verified, or use WebPKI only after the validating
         // resolver proves authenticated TLSA absence or an insecure delegation.
@@ -922,7 +1000,7 @@ extension BrowserProxyCoordinator: WKNavigationDelegate {
         }
 
         do {
-            let destination = try runtime.classifyNavigation(url.absoluteString)
+            let destination = routedDestination(try runtime.classifyNavigation(url.absoluteString))
             if isAdmitted(destination, in: webView) {
                 activeProxy?.clearResolutionTrace()
                 delegate?.proxyCoordinator(self, didUpdateSecurity: .pending)

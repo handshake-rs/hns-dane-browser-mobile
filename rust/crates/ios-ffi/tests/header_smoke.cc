@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <type_traits>
 
-static_assert(HNS_BROWSER_ABI_VERSION == 1u);
+static_assert(HNS_BROWSER_ABI_VERSION == 2u);
 static_assert(HNS_BROWSER_WALLET_READ_BUNDLE_VERSION == 2u);
 static_assert(HNS_BROWSER_WALLET_NAME_IMPORT_BUNDLE_VERSION == 1u);
 static_assert(std::is_standard_layout_v<HnsBrowserSlice>);
@@ -18,6 +18,8 @@ int main() {
     auto *abiVersion = &hns_browser_abi_version;
     auto *runtimeCreate = &hns_browser_runtime_create;
     auto *proxyStart = &hns_browser_proxy_start;
+    auto *bootstrapStart = &hns_browser_proxy_start_icann_bootstrap;
+    auto *bootstrapEligible = &hns_browser_icann_bootstrap_eligible;
     auto *canonicalHost = &hns_browser_canonical_host;
     auto *proxyStop = &hns_browser_proxy_request_stop;
     auto *walletCreate = &hns_browser_wallet_create;
@@ -39,6 +41,8 @@ int main() {
     (void)abiVersion;
     (void)runtimeCreate;
     (void)proxyStart;
+    (void)bootstrapStart;
+    (void)bootstrapEligible;
     (void)canonicalHost;
     (void)proxyStop;
     (void)walletCreate;
