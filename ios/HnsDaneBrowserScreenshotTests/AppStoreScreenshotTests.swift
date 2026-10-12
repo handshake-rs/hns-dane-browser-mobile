@@ -82,7 +82,10 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
             waitUntil(
                 description: "default ICANN homepage rendered",
                 timeout: 90,
-                timeoutEvidence: { " Security: \(security.label)" },
+                timeoutEvidence: {
+                    " Address: \(address.value ?? "<none>"); WebView: \(page.exists);"
+                        + " page text count: \(page.staticTexts.count); Security: \(security.label)"
+                },
                 condition: {
                     let value = address.value as? String ?? ""
                     return value.contains("shakescape.com")

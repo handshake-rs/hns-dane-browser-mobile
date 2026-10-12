@@ -746,10 +746,10 @@ final class BrowserProxyCoordinator: NSObject {
               let activeScope,
               case .active(_, let machineScope) = machine.phase,
               machineScope == activeScope,
-              let destination = try? runtime.classifyNavigation(url.absoluteString) else {
+              let classified = try? runtime.classifyNavigation(url.absoluteString) else {
             return false
         }
-        return destination.proxyScope == activeScope
+        return routedDestination(classified).proxyScope == activeScope
     }
 
     /// `WKWebView.url` is KVO-compliant and changes for History API mutations,
