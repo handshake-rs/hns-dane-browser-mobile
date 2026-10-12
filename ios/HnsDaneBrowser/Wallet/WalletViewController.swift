@@ -4961,12 +4961,16 @@ final class WalletViewController: UIViewController {
         }) {
             return false
         }
-        guard let fingerprint = liveAtomicSwapFingerprint(status) else {
+        let liveFingerprint = liveAtomicSwapFingerprint(status)
+        // An approved Bitcoin spend can still need a ready checkpoint after
+        // its swap journal becomes terminal. Keep that recovery scan alive.
+        guard liveFingerprint != nil || pendingBitcoinRecovery else {
             lastAutomaticSwapBitcoinSyncAtUptime = nil
             lastAutomaticSwapBitcoinSyncFingerprint = nil
             automaticSwapBitcoinSyncPausedUntilUptime = nil
             return false
         }
+        let fingerprint = "\(liveFingerprint ?? ""):bitcoin_recovery=\(pendingBitcoinRecovery)"
         if fingerprint != lastAutomaticSwapBitcoinSyncFingerprint {
             lastAutomaticSwapBitcoinSyncFingerprint = fingerprint
             lastAutomaticSwapBitcoinSyncAtUptime = nil
