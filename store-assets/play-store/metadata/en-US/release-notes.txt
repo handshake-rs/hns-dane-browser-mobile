@@ -1,1 +1,1 @@
-Improved browser startup and connection status during Handshake synchronization.
+1.0.18 Improved browser startup and connection status during Handshake synchronization.
