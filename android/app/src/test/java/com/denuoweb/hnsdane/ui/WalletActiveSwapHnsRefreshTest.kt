@@ -85,6 +85,52 @@ class WalletActiveSwapHnsRefreshTest {
     }
 
     @Test
+    fun `Bitcoin scans yield to actionable settlement but never strand approved broadcasts`() {
+        val execution = NativeShakescapeExecutionSummary(
+            sessionId = "session", revision = 1, state = "both_funded",
+            firstChain = "handshake", secondChain = "bitcoin",
+            offeredAsset = "hns", offeredAmount = 500_546,
+            receivedAsset = "btc", receivedAmount = 1_330,
+            localRole = "maker", fundingDeadlineUnix = 200,
+            firstFundingCutoffUnix = 150, firstRefundAtUnix = 300,
+            secondRefundAtUnix = 250, localFundingState = "confirmed",
+            firstFundingConfirmed = true, secondFundingConfirmed = true,
+            firstRedemptionConfirmed = false, secondRedemptionConfirmed = false,
+            refundConfirmed = false, lastVerifiedAtUnix = 1, failureReason = null,
+        )
+        fun status(
+            value: NativeShakescapeExecutionSummary,
+            recovery: NativeBitcoinBroadcastRecovery? = null,
+        ) = NativeShakescapeExecutionStatus(listOf(value), emptyList(), emptyList(), recovery)
+
+        assertEquals(true, walletSwapBitcoinScanShouldYieldToSettlement(status(execution)))
+        assertEquals(false, walletSwapBitcoinScanShouldYieldToSettlement(status(
+            execution.copy(localRole = "taker"),
+        )))
+        assertEquals(true, walletSwapBitcoinScanShouldYieldToSettlement(status(
+            execution.copy(state = "secret_observed", localRole = "taker",
+                firstRedemptionConfirmed = true),
+        )))
+        assertEquals(false, walletSwapBitcoinScanShouldYieldToSettlement(status(
+            execution.copy(state = "secret_observed", localRole = "taker"),
+        )))
+        assertEquals(false, walletSwapBitcoinScanShouldYieldToSettlement(status(
+            execution.copy(state = "secret_observed", localRole = "taker",
+                firstChain = "bitcoin", secondChain = "handshake",
+                firstRedemptionConfirmed = true),
+        )))
+        assertEquals(false, walletSwapBitcoinScanShouldYieldToSettlement(status(
+            execution.copy(state = "secret_observed", localRole = "taker",
+                firstRedemptionConfirmed = true),
+            NativeBitcoinBroadcastRecovery(
+                totalApproved = 1, unobservedPrepared = 0,
+                unobservedSubmissionStarted = 0, unobservedSubmitted = 1,
+                observed = 0, highestAttemptCount = 1, lastChangedAtUnix = 1,
+            ),
+        )))
+    }
+
+    @Test
     fun `peer replay revision does not force another chain scan`() {
         val execution = NativeShakescapeExecutionSummary(
             sessionId = "session", revision = 1, state = "first_funding_pending",

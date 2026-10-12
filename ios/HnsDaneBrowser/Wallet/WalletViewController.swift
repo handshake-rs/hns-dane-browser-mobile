@@ -4947,6 +4947,20 @@ final class WalletViewController: UIViewController {
     private func maybeStartAutomaticSwapBitcoinSync(
         _ status: NativeShakescapeExecutionStatus
     ) -> Bool {
+        let pendingBitcoinRecovery = status.bitcoinBroadcastRecovery.map {
+            $0.unobservedPrepared > 0 || $0.unobservedSubmissionStarted > 0 ||
+                $0.unobservedSubmitted > 0
+        } ?? false
+        // A bounded Bitcoin scan can occupy the wallet for minutes. Prioritize
+        // the maker's first redemption and HNS-chain final settlement while
+        // preserving recovery of any already approved Bitcoin broadcast.
+        if !pendingBitcoinRecovery && status.executions.contains(where: {
+            ($0.state == "both_funded" && $0.localRole == "maker") ||
+                ($0.firstChain == "handshake" && $0.firstRedemptionConfirmed &&
+                    ["first_redeemed", "secret_observed", "second_redeemed"].contains($0.state))
+        }) {
+            return false
+        }
         guard let fingerprint = liveAtomicSwapFingerprint(status) else {
             lastAutomaticSwapBitcoinSyncAtUptime = nil
             lastAutomaticSwapBitcoinSyncFingerprint = nil

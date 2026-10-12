@@ -5060,14 +5060,11 @@ class WalletActivity : ComponentActivity() {
         val terminal = setOf("completed", "refunded", "failed")
         val liveExecutions = status.executions.filter { it.state !in terminal }
         val pendingBroadcastRecovery = walletBitcoinBroadcastRecoveryPending(status)
-        // The maker must spend the already verified second-chain HTLC to reveal
-        // the secret. A fresh Bitcoin scan can monopolize the native wallet for
-        // many minutes (or exhaust a 32-bit device) and block that settlement.
-        // Once the exact approved spend is durably pending, a bounded scan
-        // establishes Kyoto's ready checkpoint for broadcast recovery.
-        if (liveExecutions.any { it.state == "both_funded" && it.localRole == "maker" } &&
-            !pendingBroadcastRecovery
-        ) {
+        // A new Bitcoin scan can hold the native wallet for minutes. Give an
+        // actionable redemption and the remaining HNS-chain confirmation the
+        // operation slot first. Exact approved Bitcoin broadcasts still need
+        // Kyoto's ready checkpoint and therefore override this pause.
+        if (walletSwapBitcoinScanShouldYieldToSettlement(status)) {
             return false
         }
         if (liveExecutions.isEmpty() && status.pendingAcceptances.isEmpty() &&
@@ -10295,6 +10292,15 @@ internal fun walletBitcoinBroadcastRecoveryPending(status: NativeShakescapeExecu
         it.unobservedPrepared > 0L || it.unobservedSubmissionStarted > 0L ||
             it.unobservedSubmitted > 0L
     } == true
+
+internal fun walletSwapBitcoinScanShouldYieldToSettlement(
+    status: NativeShakescapeExecutionStatus,
+): Boolean = !walletBitcoinBroadcastRecoveryPending(status) && status.executions.any {
+    (it.state == "both_funded" && it.localRole == "maker") ||
+        (it.firstChain == "handshake" && it.firstRedemptionConfirmed && it.state in setOf(
+            "first_redeemed", "secret_observed", "second_redeemed",
+        ))
+}
 
 /** An expired maker reservation is unresolved until the native wallet proves no lock was sent. */
 internal fun swapExecutionHasUnverifiedMakerFunding(
