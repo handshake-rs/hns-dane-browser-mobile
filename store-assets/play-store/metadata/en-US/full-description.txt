@@ -1,31 +1,23 @@
-Shakescape is a dual-root browser for ICANN and Handshake names. It synchronizes Handshake headers, verifies HNS proofs locally, resolves delegated names through authoritative DNS, and shows the DNSSEC, TLSA, DANE, and WebPKI evidence behind the selected connection.
+Shakescape brings ICANN and Handshake websites into one browser and shows how each connection was verified.
 
-Browser features:
-- HNS-aware address entry for names such as `example/` and `name.tld/`
-- Local Handshake proof verification and resolver caching
-- Proof-anchored authoritative DoH for HNS sites that publish authenticated bootstrap metadata
-- Optional requester-only HNS P2P DNS relay, off until explicitly enabled
-- Optional recursive HNS DoH recovery, blank by default and used only after eligible direct-resolution failures
-- Local DNSSEC, TLSA, and DANE validation for HNS answers from every admitted transport
-- Ordinary ICANN websites with locally validated DNS evidence and an authenticated WebPKI fallback when policy permits it
-- Resolver trace, HNS proof details, and TLSA inspection
-- Local controls for cookies, history, downloads, diagnostics, and resolver cache
+Browse:
+- Enter ordinary web addresses and Handshake names such as example/ and name.tld/
+- Verify Handshake headers and name proofs on your device
+- Inspect resolver paths, DNSSEC, TLSA, DANE, and WebPKI security details
+- Use optional HNS peer-to-peer DNS relay or DNS-over-HTTPS recovery
+- Manage tabs, history, downloads, cookies, and resolver data
 
-Native noncustodial wallet features:
-- Create or restore one device-local Shakescape wallet
-- Protect the wallet key with Android device security
-- Synchronize HNS balance and recent activity directly with Handshake peers
-- Synchronize Bitcoin with compact filters and relevant blocks from Bitcoin peers
-- Receive HNS with an address or payment QR code
-- Scan a Handshake payment QR code on the device
-- Review and approve guarded HNS sends with an explicit fee cap
-- Review and approve guarded Bitcoin sends
-- Import and search tracked Handshake names, edit raw resource records, and perform supported transfer/finalization actions
-- Set restoration birthday heights for bounded wallet recovery scans
-- Pair with a ShakeScape peer, publish or cancel signed BTC/HNS offers, and inspect available offers
-- Negotiate noncustodial BTC/HNS atomic swaps with durable stage, redemption, and refund recovery
-- Delete the encrypted local wallet through a protected confirmation flow
+Wallet and names:
+- Create or restore a device-local HNS and Bitcoin wallet protected by Android device security
+- Sync HNS balances and activity directly with Handshake peers
+- Sync Bitcoin with compact filters and relevant blocks from Bitcoin peers
+- Receive HNS by address or payment QR code, and review guarded HNS and Bitcoin sends
+- Track Handshake names, edit resource records, and transfer or finalize names
+- Delete the local wallet when needed
 
-Wallet operations are native-only. Websites cannot invoke wallet actions or read wallet state, and the app does not install a website wallet provider. Recovery phrases and private keys are not sent to Denuo Web, websites, advertising, or analytics services. The camera is used only after you choose the QR scanner, and the decoded payment address is processed on the device.
+ShakeScape offers and swaps:
+- Connect to peers and publish, inspect, or cancel signed BTC/HNS offers
+- Follow noncustodial BTC/HNS atomic swaps through funding, redemption, or refund
+- Resume swap progress after an interruption
 
-ShakeScape offer and atomic-swap controls require an unlocked, synchronized wallet and a compatible peer. Denuo Web does not take custody, choose counterparties, hold exchange balances, or guarantee settlement. Participants review and approve their own on-chain transactions, and the app resumes from a durable local execution journal after interruption. Shakescape has no developer-operated account, ads, analytics SDK, subscription, in-app purchase, custodial exchange service, or paid feature unlock. Donations are optional and do not unlock features.
+Wallet keys stay on your device. Websites cannot read the wallet or start native wallet actions. Sends and swap funding require your approval in the app. QR scanning is processed on the device. No sign-in is required.

@@ -1,1 +1,1 @@
-1.0.18 Browser startup reliability and updated shared runtime components.
+Improved browser startup and connection status during Handshake synchronization.

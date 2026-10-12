@@ -1,1 +1,1 @@
-Browse HNS with local proofs, DNSSEC, DANE, and an optional P2P relay.
+Browse Handshake and ICANN sites with local proofs and security details.

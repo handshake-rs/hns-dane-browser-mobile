@@ -1,1 +1,1 @@
-Ordinary websites can open while Handshake headers synchronize. HTTPS pages use WebKit's WebPKI validation during this startup period; Handshake names continue to wait for verified headers and use DANE after synchronization. Browser security status now identifies the active validation path.
+Ordinary HTTPS pages now open while Handshake headers synchronize. The address bar and security status stay in sync with the loaded page. Handshake names continue to use verified proofs and DANE.

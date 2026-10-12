@@ -1,31 +1,18 @@
-No sign-in is required. Shakescape has no developer-operated account, subscription, in-app purchase, advertising, analytics, custodial service, or custodial exchange service. It includes native, noncustodial HNS and Bitcoin wallet controls. A user can create or restore a wallet, synchronize public chain activity, receive HNS, scan a Handshake payment QR code, and review and approve guarded HNS or Bitcoin sends. The wallet also exposes tracked-name import and search, name transfer/finalization, raw resource records, direct signed ShakeScape offers, and participant-to-participant BTC/HNS atomic swaps. Denuo Web does not take custody, choose a counterparty, or control settlement. These controls require their native synchronization and peer prerequisites. Websites cannot access or invoke the wallet.
+Shakescape needs no account or sign-in. It combines a WKWebView browser with a native, noncustodial HNS and Bitcoin wallet. Websites cannot access the wallet. The app supports iPhone, iPad, and compatible Apple-silicon Macs.
 
-WKWebView uses an authenticated 127.0.0.1 loopback proxy; the app installs no VPN and changes no system proxy. This build does not include the managed default-browser or app-installation entitlements. It registers `http`/`https` and opens incoming web URLs at their requested target. While Handshake headers synchronize, permanently reserved ICANN roots use bounded ICANN resolution and WebKit WebPKI for HTTPS; Handshake names continue to wait for verified headers. Exact `marketplace-kit` navigation is left to WebKit for capability review.
+Browser review:
+1. Launch the app. The https://shakescape.com/ homepage opens while Handshake headers synchronize.
+2. Enter another ordinary HTTPS address. The page and address bar update, and the security label shows WebKit WebPKI verification during header synchronization.
+3. Enter https://shakescape/ to inspect a Handshake page. The bundled header snapshot supports proof-backed resolution while foreground synchronization continues; the security label shows the HNS resolver and DANE validation path.
+4. Open Settings to inspect resolver traces, proof details, and browser controls. HTTP pages are marked insecure.
 
-The app supports iPhone, iPad, and Apple-silicon Macs. Native surfaces support scalable text, VoiceOver, Voice Control, non-color status text, contrast/dark appearance, reduced motion, and keyboard commands. It has no first-party audio or video.
+Wallet review:
+1. Open Settings, then Handshake wallet. A fresh install shows wallet creation and restoration choices. If testing creation, record the recovery phrase to complete its confirmation step.
+2. After unlock and peer synchronization, the wallet shows HNS and Bitcoin balances, receive addresses, a payment QR code, guarded HNS and Bitcoin sends, and tracked-name actions. Value-changing actions require native review and approval.
+3. The ShakeScape card can connect to relay.learnhns.com:12038 for signed BTC/HNS offers and atomic swaps. Swap transactions need funded test wallets and show their funding deadline, stage, redemption, and refund status.
+4. The camera permission appears when the native QR scanner is opened. QR decoding stays on the device.
 
-Ordinary web test:
-1. Launch the app. Its default https://shakescape.com/ homepage should load before Handshake header synchronization completes.
-2. Confirm the page renders and the security label says WebPKI verified by WebKit while headers are synchronizing. Enter another ordinary HTTPS address to verify direct navigation.
-
-Handshake test:
-1. Enter https://shakescape/ and tap Go.
-2. The bundled Handshake header snapshot allows proof-backed resolution while foreground header synchronization continues.
-3. Confirm the security label identifies the HNS resolver and DANE validation path.
-4. Open Settings to inspect HNS resolution, synchronization, resolver trace, proof details, privacy policy, and source code.
-
-Native wallet test:
-1. Open Settings, then Handshake wallet.
-2. A fresh install reports that no wallet exists. Creating or restoring a wallet is optional. If Create is exercised, securely record and confirm the one-time recovery phrase.
-3. Unlock may take longer on older devices; controls show progress until signing authority is ready.
-4. The wallet syncs with Handshake and Bitcoin peers, shows balances, receive addresses and QR codes, and guarded sends. It tracks names and exposes transfer, finalize, and raw-record actions. Each value-changing action needs native review and approval; websites cannot open that approval.
-5. The ShakeScape card can pair with `relay.learnhns.com:12038`. Swaps require synchronized HNS/Bitcoin state and reviewer-controlled test funds. New swaps show their signed 24-hour funding deadline, live stage, and exact refund eligibility; no account or server balance is used.
-6. The camera permission is requested only after tapping the scanner in the native send form. The QR image and decoded Handshake address are processed on the device and are not uploaded.
-7. An unlocked wallet can be deleted after two destructive confirmations that identify the network/account and require typing DELETE. This removes the device-bound key before encrypted database files; it does not remove a recovery phrase saved elsewhere.
-
-Some review networks block Handshake traffic. Optional recovery paths are off by default and still require HNS proof, DNSSEC, TLSA, and DANE validation.
-
-HTTP pages are marked insecure.
+WKWebView uses an authenticated 127.0.0.1 loopback proxy; the app installs no VPN and changes no system proxy. While Handshake headers synchronize, sites under permanently reserved ICANN roots can use WebKit WebPKI; Handshake names wait for verified headers. This build accepts incoming HTTP/HTTPS URLs and does not include the managed default-browser entitlement.
 
 Privacy policy: https://shakescape.com/privacy/
 Source code: https://github.com/handshake-rs/hns-dane-browser-mobile

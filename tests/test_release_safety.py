@@ -331,7 +331,7 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         )
         for marker in (
             "directly with handshake peers",
-            "guarded hns send",
+            "guarded hns and bitcoin sends",
             "websites cannot",
             "processed on the device",
             "bitcoin",
@@ -363,31 +363,25 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         for marker in (
             "balance",
             "payment qr code",
-            "guarded hns send",
-            "websites cannot invoke wallet",
-            "exchange service",
+            "guarded hns and bitcoin sends",
+            "websites cannot read the wallet",
+            "noncustodial btc/hns atomic swaps",
+            "bitcoin peers",
         ):
             self.assertIn(marker, play)
         for marker in (
             "balance",
             "payment qr code",
-            "guarded hns or bitcoin sends",
-            "websites cannot access or invoke the wallet",
-            "custodial exchange service",
+            "guarded hns and bitcoin sends",
+            "websites cannot access the wallet",
+            "noncustodial",
+            "atomic swaps",
+            "relay.learnhns.com:12038",
+            "native review and approval",
         ):
             self.assertIn(marker, app_store)
         self.assertNotIn("unfinished bitcoin", play)
-        self.assertIn("bitcoin peers", play)
-        self.assertIn("noncustodial btc/hns atomic swaps", play)
-        for marker in (
-            "name transfer/finalization",
-            "pair with `relay.learnhns.com:12038`",
-            "participant-to-participant btc/hns atomic swaps",
-        ):
-            self.assertIn(marker, app_store)
-        self.assertIn("protected confirmation flow", play)
-        self.assertIn("native review and approval", app_store)
-        self.assertIn("recovery phrase", play)
+        self.assertNotIn("pending apple approval", app_store)
         self.assertIn("recovery phrase", app_store)
 
 
