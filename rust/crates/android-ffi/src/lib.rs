@@ -7676,7 +7676,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             return false;
         };
         record
-            .controller_if_active()
+            .controller_try_if_active()
             .is_some_and(|mut controller| controller.service_direct_shakescape_once())
     }))
     .unwrap_or(false)
@@ -7698,7 +7698,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let Some(record) = wallet_from_handle(handle) else {
             return false;
         };
-        let Some(mut controller) = record.controller_if_active() else {
+        let Some(mut controller) = record.controller_try_if_active() else {
             return false;
         };
         android_log_info("hns-shakescape", "direct lifecycle stage=expired start");
@@ -7834,7 +7834,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
                 || resumed_hns
                 || hns_watch_ready;
         }
-        let watch_acknowledged = record.controller_if_active().is_some_and(|mut controller| {
+        let watch_acknowledged = record.controller_try_if_active().is_some_and(|mut controller| {
             match controller.complete_counterparty_bitcoin_watch(permit) {
                 Ok(()) => true,
                 Err(error) => {
@@ -7912,7 +7912,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             ))
         };
         let record = wallet_from_handle(handle)?;
-        let mut controller = record.controller_if_active()?;
+        let mut controller = record.controller_try_if_active()?;
         controller
             .update_direct_shakescape_router_route(route)
             .then_some(())

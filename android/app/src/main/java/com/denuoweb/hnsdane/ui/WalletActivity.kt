@@ -3626,18 +3626,19 @@ class WalletActivity : ComponentActivity() {
                             continue
                         }
                     }
-                    if (
-                        !routerRouteInitialized ||
-                            serviceTicks % DIRECT_SHAKESCAPE_STATUS_REFRESH_TICKS == 0
-                    ) {
+                    if (serviceTicks % DIRECT_SHAKESCAPE_STATUS_REFRESH_TICKS == 0) {
                         val route = currentDirectShakescapeRouterRoute()
                         if (!routerRouteInitialized || route != installedRouterRoute) {
-                            NativeWalletBridge.updateWalletOwnedDirectShakescapeRouterRoute(
-                                handle,
-                                route,
-                            )
-                            installedRouterRoute = route
-                            routerRouteInitialized = true
+                            // A contended controller skips this maintenance call.
+                            // Retry on the next cadence rather than treating an
+                            // uninstalled route as the current native route.
+                            if (NativeWalletBridge.updateWalletOwnedDirectShakescapeRouterRoute(
+                                    handle, route,
+                                )
+                            ) {
+                                installedRouterRoute = route
+                                routerRouteInitialized = true
+                            }
                         }
                     }
                     // One native call services at most one complete frame. A board
@@ -3669,8 +3670,9 @@ class WalletActivity : ComponentActivity() {
                     }
                     serviceTicks += 1
                     if (
-                        transportWorkServiced || reconciliationChanged ||
-                            serviceTicks % DIRECT_SHAKESCAPE_STATUS_REFRESH_TICKS == 0
+                        !busy && !walletHnsSyncInProgress &&
+                            (transportWorkServiced || reconciliationChanged ||
+                                serviceTicks % DIRECT_SHAKESCAPE_STATUS_REFRESH_TICKS == 0)
                     ) {
                         val executionStatus = NativeWalletBridge.shakescapeExecutions(handle)
                         runOnUiThread {

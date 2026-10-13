@@ -5838,7 +5838,12 @@ pub unsafe extern "C" fn hns_browser_wallet_direct_shakescape_status(
         // SAFETY: Null was rejected above and the C contract requires writable output.
         unsafe { write_output(out_status_bundle, HnsBrowserBuffer::empty()) };
         let entry = wallet_entry(wallet)?;
-        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        let mut entry = entry.try_lock().map_err(|error| match error {
+            TryLockError::WouldBlock => {
+                direct_hns_not_ready("direct ShakeScape controller is busy")
+            }
+            TryLockError::Poisoned(_) => FfiFailure::internal(),
+        })?;
         ensure_wallet_active(&entry)?;
         let bundle = entry.controller.direct_shakescape_status().ok_or_else(|| {
             FfiFailure::new(
@@ -5930,7 +5935,12 @@ pub unsafe extern "C" fn hns_browser_wallet_service_direct_shakescape_transport(
     ffi_call(|| {
         require_output(out_serviced)?;
         let entry = wallet_entry(wallet)?;
-        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        let mut entry = entry.try_lock().map_err(|error| match error {
+            TryLockError::WouldBlock => {
+                direct_hns_not_ready("direct ShakeScape controller is busy")
+            }
+            TryLockError::Poisoned(_) => FfiFailure::internal(),
+        })?;
         ensure_wallet_active(&entry)?;
         let serviced = u8::from(entry.controller.service_direct_shakescape_once());
         // SAFETY: Null was rejected above and the C contract requires writable output.
@@ -5960,7 +5970,12 @@ pub unsafe extern "C" fn hns_browser_wallet_service_direct_shakescape(
             permit,
         ) = {
             let entry = wallet_entry(wallet)?;
-            let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+            let mut entry = entry.try_lock().map_err(|error| match error {
+                TryLockError::WouldBlock => {
+                    direct_hns_not_ready("direct ShakeScape controller is busy")
+                }
+                TryLockError::Poisoned(_) => FfiFailure::internal(),
+            })?;
             ensure_wallet_active(&entry)?;
             // Transport must remain serviceable even when a persisted market
             // record needs recovery. Reconciliation still reports its error,
@@ -6030,13 +6045,18 @@ pub unsafe extern "C" fn hns_browser_wallet_service_direct_shakescape(
             false
         } else {
             let entry = wallet_entry(wallet)?;
-            let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
-            ensure_wallet_active(&entry)?;
-            let mut changed = false;
-            for proof in unfunded_proofs {
-                changed |= entry.controller.apply_unfunded_bitcoin_proof(proof).is_ok();
+            match entry.try_lock() {
+                Ok(mut entry) => {
+                    ensure_wallet_active(&entry)?;
+                    let mut changed = false;
+                    for proof in unfunded_proofs {
+                        changed |= entry.controller.apply_unfunded_bitcoin_proof(proof).is_ok();
+                    }
+                    changed
+                }
+                Err(TryLockError::WouldBlock) => false,
+                Err(TryLockError::Poisoned(_)) => return Err(FfiFailure::internal()),
             }
-            changed
         };
         let resumed = {
             let control = wallet_bitcoin_control_entry(wallet)?;
@@ -6064,12 +6084,17 @@ pub unsafe extern "C" fn hns_browser_wallet_service_direct_shakescape(
             };
             if registered {
                 let entry = wallet_entry(wallet)?;
-                let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
-                ensure_wallet_active(&entry)?;
-                entry
-                    .controller
-                    .complete_counterparty_bitcoin_watch(permit)
-                    .is_ok()
+                match entry.try_lock() {
+                    Ok(mut entry) => {
+                        ensure_wallet_active(&entry)?;
+                        entry
+                            .controller
+                            .complete_counterparty_bitcoin_watch(permit)
+                            .is_ok()
+                    }
+                    Err(TryLockError::WouldBlock) => false,
+                    Err(TryLockError::Poisoned(_)) => return Err(FfiFailure::internal()),
+                }
             } else {
                 false
             }
@@ -9706,6 +9731,66 @@ mod tests {
             last_error_snapshot()
         );
         assert_ne!(wallet, 0);
+        assert_eq!(hns_browser_wallet_destroy(wallet), HNS_BROWSER_RESULT_OK);
+        cleanup_dir(&data_dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn direct_shakescape_maintenance_yields_to_a_busy_wallet_controller() {
+        let _guard = test_guard();
+        let data_dir = unique_data_dir("busy-direct-maintenance");
+        fs::create_dir_all(&data_dir).expect("wallet test directory");
+        fs::set_permissions(&data_dir, fs::Permissions::from_mode(0o700))
+            .expect("private wallet test directory");
+        let database_path = std::path::Path::new(&data_dir).join("wallet.sqlite3");
+        let database_path = database_path.to_string_lossy().into_owned();
+        let database_key = [0x52_u8; MOBILE_DATABASE_KEY_BYTES];
+        let mut wallet = 0;
+        // SAFETY: The borrowed slices and output handle remain valid for this call.
+        assert_eq!(
+            unsafe {
+                hns_browser_wallet_create(
+                    ffi_slice(database_path.as_bytes()),
+                    ffi_slice(&database_key),
+                    HNS_BROWSER_NETWORK_REGTEST,
+                    0,
+                    &mut wallet,
+                )
+            },
+            HNS_BROWSER_RESULT_OK
+        );
+
+        let entry = match wallet_entry(wallet) {
+            Ok(entry) => entry,
+            Err(_) => panic!("wallet registry entry must exist"),
+        };
+        let held = entry.lock().expect("hold wallet controller");
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let maintenance = thread::spawn(move || {
+            let mut serviced = 0_u8;
+            let mut status = HnsBrowserBuffer::empty();
+            // SAFETY: The output pointers remain writable for each call.
+            let results = unsafe {
+                (
+                    hns_browser_wallet_service_direct_shakescape_transport(wallet, &mut serviced),
+                    hns_browser_wallet_service_direct_shakescape(wallet, &mut serviced),
+                    hns_browser_wallet_direct_shakescape_status(wallet, &mut status),
+                )
+            };
+            sender.send(results).expect("maintenance result receiver");
+        });
+        let results = receiver.recv_timeout(Duration::from_secs(2));
+        drop(held);
+        maintenance.join().expect("maintenance worker completes");
+        assert_eq!(
+            results.expect("maintenance must not wait for a busy controller"),
+            (
+                HNS_BROWSER_RESULT_NOT_READY,
+                HNS_BROWSER_RESULT_NOT_READY,
+                HNS_BROWSER_RESULT_NOT_READY,
+            )
+        );
         assert_eq!(hns_browser_wallet_destroy(wallet), HNS_BROWSER_RESULT_OK);
         cleanup_dir(&data_dir);
     }
