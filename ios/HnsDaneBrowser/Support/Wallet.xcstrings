@@ -69423,6 +69423,50 @@
         }
       }
     },
+    "wallet_ux_swap_automatic_minimum_receive": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Minimum received after the redemption fee: %1$@."
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_automatic_settlement_consent": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This approval also lets this wallet redeem this exact swap automatically. The redemption fee cap is 1,000 sats or 0.1 HNS, depending on what you receive. If the swap expires, the wallet may refund its own lock within the fee reserve shown above. No further approval is needed while this wallet is available."
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_automatic_settlement_unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Funding was submitted, but automatic settlement approval could not be saved. Open this swap to redeem or refund manually."
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_custom_fee_cap": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Advanced fee cap"
+          }
+        }
+      }
+    },
     "wallet_ux_swap_hns_first_funding_prepare_failed": {
       "extractionState": "manual",
       "localizations": {
@@ -69430,6 +69474,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Handshake HTLC funding was not prepared. The transaction fee may exceed this swap’s signed HNS fee reserve. Create a new offer with a larger HNS reserve before retrying."
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_settlement_default_fee_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review the prepared transaction with the automatic fee cap. If network fees have risen, use Advanced fee cap; the transaction still needs a separate review."
           }
         }
       }

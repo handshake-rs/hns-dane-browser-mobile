@@ -879,6 +879,11 @@
     <string name="wallet_swap_funding_prepare_failed">Bitcoin HTLC funding was not prepared. Confirm the accepted session, current chain state, and signed fee reserve.</string>
     <string name="wallet_swap_funding_approval_title">Broadcast Bitcoin funding?</string>
     <string name="wallet_swap_funding_approval_message">Lock %1$d sats. Network fee: %2$d sats (maximum %3$d).\n\nTransaction: %4$s\nSession: %5$s\n\nBroadcast is irreversible. The swap advances after the Bitcoin lock is confirmed.</string>
+    <string name="wallet_ux_swap_automatic_settlement_consent" translatable="false">This approval also lets this wallet redeem this exact swap automatically. The redemption fee cap is 1,000 sats or 0.1 HNS, depending on what you receive. If the swap expires, the wallet may refund its own lock within the fee reserve shown above. No further approval is needed while this wallet is available.</string>
+    <string name="wallet_ux_swap_automatic_minimum_receive" translatable="false">Minimum received after the redemption fee: %1$s.</string>
+    <string name="wallet_ux_swap_automatic_settlement_unavailable" translatable="false">Funding was submitted, but automatic settlement approval could not be saved. Open this swap to redeem or refund manually.</string>
+    <string name="wallet_ux_swap_custom_fee_cap" translatable="false">Advanced fee cap</string>
+    <string name="wallet_ux_swap_settlement_default_fee_message" translatable="false">Review the prepared transaction with the automatic fee cap. If network fees have risen, use Advanced fee cap; the transaction still needs a separate review.</string>
     <string name="wallet_swap_broadcast_funding">Broadcast funding</string>
     <string name="wallet_swap_funding_broadcast_failed">The Bitcoin HTLC funding transaction was not submitted.</string>
     <string name="wallet_swap_funding_submitted">Bitcoin HTLC funding %1$s… was submitted. Waiting for independent local confirmation.</string>

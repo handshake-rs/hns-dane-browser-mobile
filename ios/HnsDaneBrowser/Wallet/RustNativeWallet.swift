@@ -304,9 +304,11 @@ struct NativeBitcoinHtlcFundingReceipt: Decodable, Equatable, Sendable {
     let outputIndex: UInt32
     let attemptCount: UInt8
     let submittedAtUnix: UInt64?
+    let automaticSettlementAuthorized: Bool
 
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case sessionId, txid, outputIndex, attemptCount, submittedAtUnix
+        case automaticSettlementAuthorized
     }
 
     init(from decoder: Decoder) throws {
@@ -316,6 +318,7 @@ struct NativeBitcoinHtlcFundingReceipt: Decodable, Equatable, Sendable {
         outputIndex = try container.decode(UInt32.self, forKey: .outputIndex)
         attemptCount = try container.decode(UInt8.self, forKey: .attemptCount)
         submittedAtUnix = try container.decodeIfPresent(UInt64.self, forKey: .submittedAtUnix)
+        automaticSettlementAuthorized = try container.decode(Bool.self, forKey: .automaticSettlementAuthorized)
         guard Self.validHash(sessionId), Self.validHash(txid),
               (1...16).contains(attemptCount), submittedAtUnix.map { $0 > 0 } ?? true else {
             throw NativeWalletBridgeError.invalidOutput("invalid Bitcoin HTLC funding receipt")
@@ -347,9 +350,11 @@ struct NativeHnsHtlcFundingReceipt: Decodable, Equatable, Sendable {
     let transactionId: String
     let outputIndex: UInt32
     let acceptedAtUnix: UInt64
+    let automaticSettlementAuthorized: Bool
 
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case sessionId, transactionId, outputIndex, acceptedAtUnix
+        case automaticSettlementAuthorized
     }
 
     init(from decoder: Decoder) throws {
@@ -358,6 +363,7 @@ struct NativeHnsHtlcFundingReceipt: Decodable, Equatable, Sendable {
         transactionId = try container.decode(String.self, forKey: .transactionId)
         outputIndex = try container.decode(UInt32.self, forKey: .outputIndex)
         acceptedAtUnix = try container.decode(UInt64.self, forKey: .acceptedAtUnix)
+        automaticSettlementAuthorized = try container.decode(Bool.self, forKey: .automaticSettlementAuthorized)
         guard NativeBitcoinHtlcFundingReceipt.validHash(sessionId),
               NativeBitcoinHtlcFundingReceipt.validHash(transactionId), acceptedAtUnix > 0 else {
             throw NativeWalletBridgeError.invalidOutput("invalid HNS HTLC funding receipt")
@@ -389,6 +395,30 @@ struct NativeSwapSettlementReceipt: Equatable, Sendable {
     let acceptedAtUnix: UInt64?
     let attemptCount: UInt8?
     let submittedAtUnix: UInt64?
+}
+
+struct NativeAutomaticSwapSettlementPermission: Decodable, Equatable, Sendable {
+    let sessionId: String
+    let asset: String
+    let maximumFee: UInt64
+    let minimumWalletOutput: UInt64
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case sessionId, asset, maximumFee, minimumWalletOutput
+    }
+
+    init(from decoder: Decoder) throws {
+        let fields = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        sessionId = try fields.decode(String.self, forKey: .sessionId)
+        asset = try fields.decode(String.self, forKey: .asset)
+        maximumFee = try fields.decode(UInt64.self, forKey: .maximumFee)
+        minimumWalletOutput = try fields.decode(UInt64.self, forKey: .minimumWalletOutput)
+        guard NativeBitcoinHtlcFundingReceipt.validHash(sessionId),
+              ["btc", "hns"].contains(asset), maximumFee > 0,
+              minimumWalletOutput > 0 else {
+            throw NativeWalletBridgeError.invalidOutput("invalid automatic swap settlement permission")
+        }
+    }
 }
 
 struct NativeBtcForHnsOfferApproval {
@@ -3750,6 +3780,25 @@ final class RustNativeWallet: @unchecked Sendable {
             }
             try NativeWalletBridge.check(result, operation: "HNS-for-BTC funding rejection")
         }
+    }
+
+    func automaticSwapSettlementPermission(
+        sessionId: String, action: NativeSwapSettlementAction
+    ) throws -> NativeAutomaticSwapSettlementPermission {
+        var session = Array(sessionId.utf8)
+        defer { WalletSecretBytes.wipe(&session) }
+        var output = HnsBrowserBuffer()
+        let result = try session.withUnsafeBufferPointer { bytes in
+            hns_browser_wallet_automatic_swap_settlement_permission(
+                try liveHandle(),
+                HnsBrowserSlice(ptr: bytes.baseAddress, len: UInt64(bytes.count)),
+                action == .redeem,
+                &output
+            )
+        }
+        defer { NativeWalletBridge.free(output) }
+        try NativeWalletBridge.check(result, operation: "automatic swap settlement permission")
+        return try decodeBitcoinOutput(output, as: NativeAutomaticSwapSettlementPermission.self)
     }
 
     func prepareSwapSettlement(

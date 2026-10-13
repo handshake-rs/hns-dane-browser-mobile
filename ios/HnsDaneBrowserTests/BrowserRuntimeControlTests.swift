@@ -4595,17 +4595,32 @@ final class BrowserRuntimeControlTests: XCTestCase {
         let bitcoinFundingReceipt = try JSONDecoder().decode(
             NativeBitcoinHtlcFundingReceipt.self,
             from: Data("""
-            {"sessionId":"\(session)","txid":"\(bitcoinTransaction)","outputIndex":2,"attemptCount":1,"submittedAtUnix":2100}
+            {"sessionId":"\(session)","txid":"\(bitcoinTransaction)","outputIndex":2,"attemptCount":1,"submittedAtUnix":2100,"automaticSettlementAuthorized":true}
             """.utf8)
         )
         XCTAssertEqual(bitcoinFundingReceipt.outputIndex, 2)
+        XCTAssertTrue(bitcoinFundingReceipt.automaticSettlementAuthorized)
         let hnsFundingReceipt = try JSONDecoder().decode(
             NativeHnsHtlcFundingReceipt.self,
             from: Data("""
-            {"sessionId":"\(session)","transactionId":"\(hnsTransaction)","outputIndex":0,"acceptedAtUnix":2100}
+            {"sessionId":"\(session)","transactionId":"\(hnsTransaction)","outputIndex":0,"acceptedAtUnix":2100,"automaticSettlementAuthorized":true}
             """.utf8)
         )
         XCTAssertEqual(hnsFundingReceipt.outputIndex, 0)
+        XCTAssertTrue(hnsFundingReceipt.automaticSettlementAuthorized)
+        let automaticPermission = try JSONDecoder().decode(
+            NativeAutomaticSwapSettlementPermission.self,
+            from: Data("""
+            {"sessionId":"\(session)","asset":"btc","maximumFee":1000,"minimumWalletOutput":8000}
+            """.utf8)
+        )
+        XCTAssertEqual(automaticPermission.minimumWalletOutput, 8_000)
+        XCTAssertThrowsError(try JSONDecoder().decode(
+            NativeAutomaticSwapSettlementPermission.self,
+            from: Data("""
+            {"sessionId":"\(session)","asset":"btc","maximumFee":0,"minimumWalletOutput":8000}
+            """.utf8)
+        ))
         XCTAssertThrowsError(try JSONDecoder().decode(
             NativeBitcoinHtlcFundingReceipt.self,
             from: Data("""

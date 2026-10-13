@@ -9,9 +9,7 @@ import UserNotifications
 import CoreImage
 
 private let defaultHnsMaximumFee = "0.1"
-private let defaultHnsMaximumFeeBaseUnits = "100000"
-private let defaultHnsSwapFeeReserve = "0.5"
-private let defaultHnsSwapFeeReserveBaseUnits = "500000"
+private let automaticHnsRedemptionFeeCapDollarydoos: UInt64 = 100_000
 private let bitcoinHtlcReceiverDustSats: UInt64 = 330
 private let minimumBitcoinFeeReserveSats: UInt64 = 1_000
 private let hnsSwapReceiverDustDollarydoos: UInt64 = 546
@@ -696,6 +694,7 @@ final class WalletViewController: UIViewController {
     private var lastAutomaticSwapBitcoinSyncAtUptime: TimeInterval?
     private var lastAutomaticSwapBitcoinSyncFingerprint: String?
     private var automaticSwapBitcoinSyncPausedUntilUptime: TimeInterval?
+    private var automaticSwapSettlementAttempts: [String: TimeInterval] = [:]
     private let atomicSwapNotifications = AtomicSwapNotificationCoordinator()
     private var recentDirectShakescapePeers: [String] = []
     private var hnsSyncPresentationTimer: Timer?
@@ -2081,6 +2080,7 @@ final class WalletViewController: UIViewController {
     private func showBtcForHnsOfferFormAfterAuthentication() {
         guard let wallet, bitcoinValueAvailable, !bitcoinSyncInProgress,
               !bitcoinBirthdayResetInProgress, !isOperating else { return }
+        let reserve = minimumBitcoinFeeReserveSats
         presentWalletForm(
             title: WalletCopy.text("wallet_swap_sell_btc"),
             message: nil,
@@ -2097,12 +2097,6 @@ final class WalletViewController: UIViewController {
                     keyboardType: .decimalPad
                 ),
                 WalletSheetFormField(
-                    label: WalletCopy.text("wallet_swap_fee_reserve_hint"),
-                    placeholder: WalletCopy.text("wallet_bitcoin_send_fee_hint"),
-                    keyboardType: .numberPad,
-                    initialValue: String(minimumBitcoinFeeReserveSats)
-                ),
-                WalletSheetFormField(
                     label: WalletCopy.text("wallet_swap_lifetime_hours_hint"),
                     placeholder: WalletCopy.text("wallet_swap_lifetime_hours_hint"),
                     keyboardType: .numberPad,
@@ -2112,13 +2106,12 @@ final class WalletViewController: UIViewController {
             primaryTitle: WalletCopy.text("wallet_action_review_transaction")
         ) { [weak self, weak wallet] fields in
             guard let self, let wallet, self.wallet === wallet,
-                  fields.count == 4,
+                  fields.count == 3,
                   let btc = UInt64(fields[0]), btc >= minimumBitcoinHtlcSats,
                   let hnsText = Self.positiveHnsBaseUnits(fields[1]),
                   let hns = UInt64(hnsText), hns >= minimumHnsSwapDollarydoos,
-                  let reserve = UInt64(fields[2]), reserve >= minimumBitcoinFeeReserveSats,
                   btc >= reserve, btc - reserve >= bitcoinHtlcReceiverDustSats,
-                  let hours = UInt64(fields[3]), (48...168).contains(hours),
+                  let hours = UInt64(fields[2]), (48...168).contains(hours),
                   hours <= UInt64.max / 3_600 else {
                 self?.showErrorMessage(WalletCopy.text("wallet_swap_prepare_failed"))
                 return
@@ -2226,6 +2219,7 @@ final class WalletViewController: UIViewController {
 
     private func showHnsForBtcOfferFormAfterAuthentication() {
         guard let wallet, shakedexActionMayStart, bitcoinValueAvailable else { return }
+        let reserve = minimumHnsFeeReserveDollarydoos
         presentWalletForm(
             title: WalletCopy.text("wallet_swap_sell_hns"),
             message: nil,
@@ -2242,12 +2236,6 @@ final class WalletViewController: UIViewController {
                     initialValue: String(minimumBitcoinHtlcSats)
                 ),
                 WalletSheetFormField(
-                    label: WalletCopy.text("wallet_swap_hns_fee_reserve_hint"),
-                    placeholder: WalletCopy.text("wallet_send_amount_label"),
-                    keyboardType: .decimalPad,
-                    initialValue: defaultHnsSwapFeeReserve
-                ),
-                WalletSheetFormField(
                     label: WalletCopy.text("wallet_swap_lifetime_hours_hint"),
                     placeholder: WalletCopy.text("wallet_swap_lifetime_hours_hint"),
                     keyboardType: .numberPad,
@@ -2256,14 +2244,12 @@ final class WalletViewController: UIViewController {
             ],
             primaryTitle: WalletCopy.text("wallet_action_review_transaction")
         ) { [weak self, weak wallet] fields in
-            guard let self, let wallet, self.wallet === wallet, fields.count == 4,
+            guard let self, let wallet, self.wallet === wallet, fields.count == 3,
                   let hnsText = Self.positiveHnsBaseUnits(fields[0]),
                   let hns = UInt64(hnsText), hns >= minimumHnsSwapDollarydoos,
                   let btc = UInt64(fields[1]), btc >= minimumBitcoinHtlcSats,
-                  let reserveText = Self.positiveHnsBaseUnits(fields[2]),
-                  let reserve = UInt64(reserveText), reserve >= minimumHnsFeeReserveDollarydoos,
                   hns >= reserve, hns - reserve >= hnsSwapReceiverDustDollarydoos,
-                  let hours = UInt64(fields[3]), (48...168).contains(hours) else {
+                  let hours = UInt64(fields[2]), (48...168).contains(hours) else {
                 self?.showErrorMessage(WalletCopy.text("wallet_swap_hns_prepare_failed"))
                 return
             }
@@ -2492,33 +2478,20 @@ final class WalletViewController: UIViewController {
         presentWalletForm(
             title: WalletCopy.text("wallet_swap_acceptance_review"),
             message: directOfferAcceptanceLabel(offer),
-            fields: [WalletSheetFormField(
-                label: WalletCopy.text(
-                    reserveIsBitcoin
-                        ? "wallet_swap_acceptance_btc_fee_reserve_hint"
-                        : "wallet_swap_acceptance_hns_fee_reserve_hint"
-                ),
-                placeholder: WalletCopy.text(
-                    reserveIsBitcoin
-                        ? "wallet_bitcoin_send_fee_hint"
-                        : "wallet_action_maximum_fee_hint"
-                ),
-                keyboardType: reserveIsBitcoin ? .numberPad : .decimalPad,
-                initialValue: reserveIsBitcoin ? String(minimumBitcoinFeeReserveSats) : defaultHnsSwapFeeReserve
-            )],
+            fields: [],
             primaryTitle: WalletCopy.text("wallet_swap_acceptance_review")
-        ) { [weak self] fields in
-            guard let self, let value = fields.first else { return }
+        ) { [weak self] _ in
+            guard let self else { return }
             let reserve = reserveIsBitcoin
-                ? UInt64(value)
-                : Self.positiveHnsBaseUnits(value).flatMap { UInt64($0) }
+                ? minimumBitcoinFeeReserveSats
+                : minimumHnsFeeReserveDollarydoos
             let minimumReserve = reserveIsBitcoin
                 ? minimumBitcoinFeeReserveSats
                 : minimumHnsFeeReserveDollarydoos
             let receiverDust = reserveIsBitcoin
                 ? bitcoinHtlcReceiverDustSats
                 : hnsSwapReceiverDustDollarydoos
-            guard let reserve, reserve >= minimumReserve,
+            guard reserve >= minimumReserve,
                   offer.receivedAmount >= reserve,
                   offer.receivedAmount - reserve >= receiverDust else {
                 self.showErrorMessage(WalletCopy.text(
@@ -2810,6 +2783,18 @@ final class WalletViewController: UIViewController {
         return "\(amount) sats"
     }
 
+    private func automaticSwapMinimumReceive(
+        _ execution: NativeShakescapeExecutionSummary
+    ) -> String {
+        let asset = execution.localRole == "maker"
+            ? execution.receivedAsset : execution.offeredAsset
+        let gross = execution.localRole == "maker"
+            ? execution.receivedAmount : execution.offeredAmount
+        let cap = asset == "btc"
+            ? minimumBitcoinFeeReserveSats : automaticHnsRedemptionFeeCapDollarydoos
+        return swapAmount(gross > cap ? gross - cap : 0, asset: asset)
+    }
+
     private func confirmAbandonPendingAcceptance(
         _ acceptance: NativeDirectOfferAcceptanceSummary,
         wallet: RustNativeWallet
@@ -3018,69 +3003,103 @@ final class WalletViewController: UIViewController {
         bitcoin: Bool,
         wallet: RustNativeWallet
     ) {
+        let fee = (try? wallet.automaticSwapSettlementPermission(
+            sessionId: execution.sessionId, action: action
+        ).maximumFee) ?? (bitcoin
+            ? minimumBitcoinFeeReserveSats : minimumHnsFeeReserveDollarydoos)
         let alert = UIAlertController(
             title: WalletCopy.text("wallet_swap_settlement_fee_title"),
+            message: WalletCopy.text("wallet_ux_swap_settlement_default_fee_message"),
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_action_cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(
+            title: WalletCopy.text("wallet_action_review_transaction"), style: .default
+        ) { [weak self, weak wallet] _ in
+            guard let self, let wallet, self.wallet === wallet else { return }
+            self.prepareSwapSettlementWithFee(
+                execution, action: action, bitcoin: bitcoin, fee: fee, wallet: wallet
+            )
+        })
+        alert.addAction(UIAlertAction(
+            title: WalletCopy.text("wallet_ux_swap_custom_fee_cap"), style: .default
+        ) { [weak self, weak wallet] _ in
+            guard let self, let wallet, self.wallet === wallet else { return }
+            self.showCustomSwapSettlementFee(
+                execution, action: action, bitcoin: bitcoin, suggestedFee: fee, wallet: wallet
+            )
+        })
+        walletPresentationHost.present(alert, animated: true)
+    }
+
+    private func showCustomSwapSettlementFee(
+        _ execution: NativeShakescapeExecutionSummary,
+        action: NativeSwapSettlementAction,
+        bitcoin: Bool,
+        suggestedFee: UInt64,
+        wallet: RustNativeWallet
+    ) {
+        let alert = UIAlertController(
+            title: WalletCopy.text("wallet_ux_swap_custom_fee_cap"),
             message: nil,
             preferredStyle: .alert
         )
         alert.addTextField { field in
-            field.placeholder = WalletCopy.text(
-                bitcoin
-                    ? "wallet_swap_settlement_btc_fee_hint"
-                    : "wallet_swap_settlement_hns_fee_hint"
-            )
-            if !bitcoin {
-                field.text = defaultHnsMaximumFeeBaseUnits
-            }
+            field.text = String(suggestedFee)
             field.keyboardType = .numberPad
         }
+        alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_action_cancel"), style: .cancel))
         alert.addAction(UIAlertAction(
-            title: WalletCopy.text("wallet_action_cancel"),
-            style: .cancel
-        ))
-        alert.addAction(UIAlertAction(
-            title: WalletCopy.text("wallet_action_review_transaction"),
-            style: .default
-        ) {
-            [weak self, weak alert, weak wallet] _ in
+            title: WalletCopy.text("wallet_action_review_transaction"), style: .default
+        ) { [weak self, weak alert, weak wallet] _ in
             guard let self, let wallet, self.wallet === wallet,
                   let fee = UInt64(alert?.textFields?.first?.text ?? ""), fee > 0 else {
-                self?.showErrorMessage(WalletCopy.text(
-                    "wallet_swap_settlement_fee_invalid"
-                ))
+                self?.showErrorMessage(WalletCopy.text("wallet_swap_settlement_fee_invalid"))
                 return
             }
             alert?.textFields?.first?.text = nil
-            self.isOperating = true
-            self.refreshButtonStates()
-            DispatchQueue.global(qos: .userInitiated).async { [wallet] in
-                var session = Array(execution.sessionId.utf8)
-                var maximumFee = Array(String(fee).utf8)
-                let outcome = Result {
-                    try wallet.prepareSwapSettlement(
-                        sessionId: &session, maximumFee: &maximumFee,
-                        action: action, bitcoin: bitcoin
-                    )
-                }
-                DispatchQueue.main.async { [weak self] in
-                    guard let self, self.wallet === wallet else { return }
-                    self.isOperating = false
-                    switch outcome {
-                    case .success(let approval):
-                        self.presentSwapSettlementApproval(
-                            approval, bitcoin: bitcoin, wallet: wallet
-                        )
-                    case .failure(let error):
-                        self.swapActionStatusLabel.text = WalletCopy.text(
-                            "wallet_swap_settlement_prepare_failed"
-                        )
-                        self.showError(error)
-                    }
-                    self.refreshButtonStates()
-                }
-            }
+            self.prepareSwapSettlementWithFee(
+                execution, action: action, bitcoin: bitcoin, fee: fee, wallet: wallet
+            )
         })
         walletPresentationHost.present(alert, animated: true)
+    }
+
+    private func prepareSwapSettlementWithFee(
+        _ execution: NativeShakescapeExecutionSummary,
+        action: NativeSwapSettlementAction,
+        bitcoin: Bool,
+        fee: UInt64,
+        wallet: RustNativeWallet
+    ) {
+        isOperating = true
+        refreshButtonStates()
+        DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+            var session = Array(execution.sessionId.utf8)
+            var maximumFee = Array(String(fee).utf8)
+            let outcome = Result {
+                try wallet.prepareSwapSettlement(
+                    sessionId: &session, maximumFee: &maximumFee,
+                    action: action, bitcoin: bitcoin
+                )
+            }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.wallet === wallet else { return }
+                self.isOperating = false
+                switch outcome {
+                case .success(let approval):
+                    self.presentSwapSettlementApproval(
+                        approval, bitcoin: bitcoin, wallet: wallet
+                    )
+                case .failure(let error):
+                    self.swapActionStatusLabel.text = WalletCopy.text(
+                        "wallet_swap_settlement_prepare_failed"
+                    )
+                    self.showError(error)
+                }
+                self.refreshButtonStates()
+            }
+        }
     }
 
     private func presentSwapSettlementApproval(
@@ -3172,66 +3191,42 @@ final class WalletViewController: UIViewController {
     private func showHnsForBtcFundingFeeAfterAuthentication(
         _ execution: NativeShakescapeExecutionSummary, wallet: RustNativeWallet
     ) {
-        let alert = UIAlertController(
-            title: WalletCopy.text("wallet_swap_fund_hns"),
-            message: nil,
-            preferredStyle: .alert
-        )
-        alert.addTextField { field in
-            field.placeholder = WalletCopy.text("wallet_swap_hns_funding_fee_hint")
-            field.text = defaultHnsSwapFeeReserveBaseUnits
-            field.keyboardType = .numberPad
-        }
-        alert.addAction(UIAlertAction(
-            title: WalletCopy.text("wallet_action_cancel"),
-            style: .cancel
-        ))
-        alert.addAction(UIAlertAction(
-            title: WalletCopy.text("wallet_action_review_transaction"),
-            style: .default
-        ) {
-            [weak self, weak alert, weak wallet] _ in
-            guard let self, let wallet, self.wallet === wallet,
-                  let fee = UInt64(alert?.textFields?.first?.text ?? ""), fee > 0 else {
-                self?.showErrorMessage(WalletCopy.text(
-                    "wallet_swap_hns_funding_fee_invalid"
-                ))
-                return
+        let fee = minimumHnsFeeReserveDollarydoos
+        isOperating = true
+        refreshButtonStates()
+        DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+            var session = Array(execution.sessionId.utf8)
+            var maximumFee = Array(String(fee).utf8)
+            let outcome = Result {
+                try wallet.prepareHnsForBtcFunding(
+                    sessionId: &session, maximumFeeDollarydoos: &maximumFee
+                )
             }
-            alert?.textFields?.first?.text = nil
-            self.isOperating = true
-            self.refreshButtonStates()
-            DispatchQueue.global(qos: .userInitiated).async { [wallet] in
-                var session = Array(execution.sessionId.utf8)
-                var maximumFee = Array(String(fee).utf8)
-                let outcome = Result {
-                    try wallet.prepareHnsForBtcFunding(
-                        sessionId: &session, maximumFeeDollarydoos: &maximumFee
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.wallet === wallet else { return }
+                self.isOperating = false
+                switch outcome {
+                case .success(let approval):
+                    self.presentHnsForBtcFundingApproval(
+                        execution, approval: approval, wallet: wallet
                     )
+                case .failure(let error):
+                    self.swapActionStatusLabel.text = WalletCopy.text(
+                        execution.firstChain == "handshake"
+                            ? "wallet_ux_swap_hns_first_funding_prepare_failed"
+                            : "wallet_swap_hns_funding_prepare_failed"
+                    )
+                    self.showError(error)
                 }
-                DispatchQueue.main.async { [weak self] in
-                    guard let self, self.wallet === wallet else { return }
-                    self.isOperating = false
-                    switch outcome {
-                    case .success(let approval):
-                        self.presentHnsForBtcFundingApproval(approval, wallet: wallet)
-                    case .failure(let error):
-                        self.swapActionStatusLabel.text = WalletCopy.text(
-                            execution.firstChain == "handshake"
-                                ? "wallet_ux_swap_hns_first_funding_prepare_failed"
-                                : "wallet_swap_hns_funding_prepare_failed"
-                        )
-                        self.showError(error)
-                    }
-                    self.refreshButtonStates()
-                }
+                self.refreshButtonStates()
             }
-        })
-        walletPresentationHost.present(alert, animated: true)
+        }
     }
 
     private func presentHnsForBtcFundingApproval(
-        _ approval: NativeHnsHtlcFundingApproval, wallet: RustNativeWallet
+        _ execution: NativeShakescapeExecutionSummary,
+        approval: NativeHnsHtlcFundingApproval,
+        wallet: RustNativeWallet
     ) {
         pendingHnsForBtcFundingApproval?.actionToken.discard()
         pendingHnsForBtcFundingApproval = approval
@@ -3250,7 +3245,10 @@ final class WalletViewController: UIViewController {
         )
         let alert = UIAlertController(
             title: WalletCopy.text("wallet_swap_hns_funding_approval_title"),
-            message: message,
+            message: message + "\n\n" + WalletCopy.format(
+                "wallet_ux_swap_automatic_minimum_receive",
+                automaticSwapMinimumReceive(execution)
+            ) + "\n\n" + WalletCopy.text("wallet_ux_swap_automatic_settlement_consent"),
             preferredStyle: .alert
         )
         hnsForBtcFundingApprovalAlert = alert
@@ -3277,10 +3275,15 @@ final class WalletViewController: UIViewController {
                     self.isOperating = false
                     switch outcome {
                     case .success(let receipt):
-                        self.swapActionStatusLabel.text = WalletCopy.format(
-                            "wallet_swap_hns_funding_submitted",
-                            String(receipt.transactionId.prefix(12))
-                        )
+                        self.swapActionStatusLabel.text = receipt.automaticSettlementAuthorized
+                            ? WalletCopy.format("wallet_swap_hns_funding_submitted",
+                                String(receipt.transactionId.prefix(12)))
+                            : WalletCopy.text("wallet_ux_swap_automatic_settlement_unavailable")
+                        if !receipt.automaticSettlementAuthorized {
+                            self.showErrorMessage(WalletCopy.text(
+                                "wallet_ux_swap_automatic_settlement_unavailable"
+                            ))
+                        }
                     case .failure(let error):
                         self.swapActionStatusLabel.text = WalletCopy.text(
                             "wallet_swap_hns_funding_broadcast_failed"
@@ -3308,63 +3311,40 @@ final class WalletViewController: UIViewController {
     private func showBtcForHnsFundingFeeAfterAuthentication(
         _ execution: NativeShakescapeExecutionSummary, wallet: RustNativeWallet
     ) {
-        let alert = UIAlertController(
-            title: WalletCopy.text("wallet_swap_fund_bitcoin"),
-            message: nil,
-            preferredStyle: .alert
-        )
-        alert.addTextField { field in
-            field.placeholder = WalletCopy.text("wallet_swap_funding_fee_hint")
-            field.keyboardType = .numberPad
-        }
-        alert.addAction(UIAlertAction(
-            title: WalletCopy.text("wallet_action_cancel"),
-            style: .cancel
-        ))
-        alert.addAction(UIAlertAction(
-            title: WalletCopy.text("wallet_action_review_transaction"),
-            style: .default
-        ) {
-            [weak self, weak alert, weak wallet] _ in
-            guard let self, let wallet, self.wallet === wallet,
-                  let fee = UInt64(alert?.textFields?.first?.text ?? ""), fee > 0 else {
-                self?.showErrorMessage(WalletCopy.text(
-                    "wallet_swap_bitcoin_funding_fee_invalid"
-                ))
-                return
+        let fee = minimumBitcoinFeeReserveSats
+        isOperating = true
+        refreshButtonStates()
+        DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+            var session = Array(execution.sessionId.utf8)
+            var maximumFee = Array(String(fee).utf8)
+            let outcome = Result {
+                try wallet.prepareBtcForHnsFunding(
+                    sessionId: &session, maximumFeeSats: &maximumFee
+                )
             }
-            alert?.textFields?.first?.text = nil
-            self.isOperating = true
-            self.refreshButtonStates()
-            DispatchQueue.global(qos: .userInitiated).async { [wallet] in
-                var session = Array(execution.sessionId.utf8)
-                var maximumFee = Array(String(fee).utf8)
-                let outcome = Result {
-                    try wallet.prepareBtcForHnsFunding(
-                        sessionId: &session, maximumFeeSats: &maximumFee
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.wallet === wallet else { return }
+                self.isOperating = false
+                switch outcome {
+                case .success(let approval):
+                    self.presentBtcForHnsFundingApproval(
+                        execution, approval: approval, wallet: wallet
                     )
+                case .failure(let error):
+                    self.swapActionStatusLabel.text = WalletCopy.text(
+                        "wallet_swap_funding_prepare_failed"
+                    )
+                    self.showError(error)
                 }
-                DispatchQueue.main.async { [weak self] in
-                    guard let self, self.wallet === wallet else { return }
-                    self.isOperating = false
-                    switch outcome {
-                    case .success(let approval):
-                        self.presentBtcForHnsFundingApproval(approval, wallet: wallet)
-                    case .failure(let error):
-                        self.swapActionStatusLabel.text = WalletCopy.text(
-                            "wallet_swap_funding_prepare_failed"
-                        )
-                        self.showError(error)
-                    }
-                    self.refreshButtonStates()
-                }
+                self.refreshButtonStates()
             }
-        })
-        walletPresentationHost.present(alert, animated: true)
+        }
     }
 
     private func presentBtcForHnsFundingApproval(
-        _ approval: NativeBitcoinHtlcFundingApproval, wallet: RustNativeWallet
+        _ execution: NativeShakescapeExecutionSummary,
+        approval: NativeBitcoinHtlcFundingApproval,
+        wallet: RustNativeWallet
     ) {
         pendingBtcForHnsFundingApproval?.actionToken.discard()
         pendingBtcForHnsFundingApproval = approval
@@ -3378,7 +3358,10 @@ final class WalletViewController: UIViewController {
         )
         let alert = UIAlertController(
             title: WalletCopy.text("wallet_swap_funding_approval_title"),
-            message: message,
+            message: message + "\n\n" + WalletCopy.format(
+                "wallet_ux_swap_automatic_minimum_receive",
+                automaticSwapMinimumReceive(execution)
+            ) + "\n\n" + WalletCopy.text("wallet_ux_swap_automatic_settlement_consent"),
             preferredStyle: .alert
         )
         btcForHnsFundingApprovalAlert = alert
@@ -3405,10 +3388,15 @@ final class WalletViewController: UIViewController {
                     self.isOperating = false
                     switch outcome {
                     case .success(let receipt):
-                        self.swapActionStatusLabel.text = WalletCopy.format(
-                            "wallet_swap_funding_submitted",
-                            String(receipt.txid.prefix(12))
-                        )
+                        self.swapActionStatusLabel.text = receipt.automaticSettlementAuthorized
+                            ? WalletCopy.format("wallet_swap_funding_submitted",
+                                String(receipt.txid.prefix(12)))
+                            : WalletCopy.text("wallet_ux_swap_automatic_settlement_unavailable")
+                        if !receipt.automaticSettlementAuthorized {
+                            self.showErrorMessage(WalletCopy.text(
+                                "wallet_ux_swap_automatic_settlement_unavailable"
+                            ))
+                        }
                     case .failure(let error):
                         self.swapActionStatusLabel.text = WalletCopy.text("wallet_swap_funding_broadcast_failed")
                         self.showError(error)
@@ -4794,6 +4782,7 @@ final class WalletViewController: UIViewController {
             lastAutomaticSwapBitcoinSyncAtUptime = nil
             lastAutomaticSwapBitcoinSyncFingerprint = nil
             automaticSwapBitcoinSyncPausedUntilUptime = nil
+            automaticSwapSettlementAttempts.removeAll()
             return
         }
         guard directShakescapeServiceTimer == nil else { return }
@@ -4873,12 +4862,95 @@ final class WalletViewController: UIViewController {
                         resumeAutomaticSync: false,
                         reportFailure: false
                     )
-                } else if let executions,
-                          !self.maybeStartAutomaticSwapHnsSync(executions) {
-                    _ = self.maybeStartAutomaticSwapBitcoinSync(executions)
+                } else if let executions {
+                    if !self.maybeStartAutomaticSwapSettlement(executions) &&
+                        !self.maybeStartAutomaticSwapHnsSync(executions) {
+                        _ = self.maybeStartAutomaticSwapBitcoinSync(executions)
+                    }
                 }
             }
         }
+    }
+
+    /// Funding approval also authorizes the exact session's bounded redeem or
+    /// refund. The encrypted native grant is rechecked before every spend.
+    private func maybeStartAutomaticSwapSettlement(
+        _ status: NativeShakescapeExecutionStatus
+    ) -> Bool {
+        guard !isOperating, !bitcoinSyncInProgress, storageLease != nil,
+              walletAuthorityRequested, let wallet else { return false }
+        let now = UInt64(Date().timeIntervalSince1970)
+        let uptime = ProcessInfo.processInfo.systemUptime
+        for execution in status.executions {
+            let action: NativeSwapSettlementAction
+            if (execution.state == "first_funded" && execution.localRole == "maker" &&
+                now >= execution.firstRefundAtUnix) || execution.state == "refund_eligible" {
+                action = .refund
+            } else if (execution.state == "both_funded" && execution.localRole == "maker") ||
+                (["first_redeemed", "secret_observed"].contains(execution.state) &&
+                    execution.localRole == "taker") {
+                action = .redeem
+            } else {
+                continue
+            }
+            let chain = action == .redeem
+                ? (execution.localRole == "maker" ? execution.secondChain : execution.firstChain)
+                : (execution.localRole == "maker" ? execution.firstChain : execution.secondChain)
+            let bitcoin = chain == "bitcoin"
+            let key = "\(execution.sessionId):\(action.rawValue):\(execution.revision)"
+            if let last = automaticSwapSettlementAttempts[key],
+               uptime - last < 120 { continue }
+            guard let permission = try? wallet.automaticSwapSettlementPermission(
+                sessionId: execution.sessionId, action: action
+            ), permission.sessionId == execution.sessionId,
+                permission.asset == (bitcoin ? "btc" : "hns") else { continue }
+            automaticSwapSettlementAttempts[key] = uptime
+            isOperating = true
+            refreshButtonStates()
+            let identity = ObjectIdentifier(wallet)
+            let authority = walletAuthorityGeneration
+            DispatchQueue.global(qos: .userInitiated).async { [weak self, wallet] in
+                var session = Array(execution.sessionId.utf8)
+                var fee = Array(String(permission.maximumFee).utf8)
+                let result = Result { () throws -> NativeSwapSettlementReceipt in
+                    let approval = try wallet.prepareSwapSettlement(
+                        sessionId: &session, maximumFee: &fee,
+                        action: action, bitcoin: bitcoin
+                    )
+                    guard approval.sessionId == execution.sessionId,
+                          approval.action == action,
+                          approval.maximumFee == permission.maximumFee,
+                          approval.fee <= permission.maximumFee,
+                          approval.outputAmount >= permission.minimumWalletOutput else {
+                        try? wallet.rejectSwapSettlement(approval.actionToken, bitcoin: bitcoin)
+                        throw NativeWalletBridgeError.invalidOutput(
+                            "automatic settlement exceeds the approved session limits"
+                        )
+                    }
+                    return try wallet.approveSwapSettlement(
+                        approval.actionToken, bitcoin: bitcoin
+                    )
+                }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    guard self.walletAuthorityGeneration == authority,
+                          self.wallet.map({ ObjectIdentifier($0) }) == identity else { return }
+                    self.isOperating = false
+                    if case .success(let receipt) = result {
+                        self.automaticSwapSettlementAttempts[key] = .infinity
+                        self.swapActionStatusLabel.text = WalletCopy.format(
+                            "wallet_swap_settlement_submitted",
+                            receipt.action.rawValue,
+                            String(receipt.transactionId.prefix(12))
+                        )
+                    }
+                    self.refreshButtonStates()
+                    self.renderWalletDashboard()
+                }
+            }
+            return true
+        }
+        return false
     }
 
     private func liveAtomicSwapFingerprint(
@@ -4941,8 +5013,8 @@ final class WalletViewController: UIViewController {
     }
 
     /// Keep the Bitcoin compact-filter/watch state current for live swaps.
-    /// This is read-only maintenance; every funding, redemption, and refund
-    /// remains behind its exact native approval flow.
+    /// Funding needs an explicit review. Settlement uses its retained,
+    /// session-bound approval or a separate manual review.
     @discardableResult
     private func maybeStartAutomaticSwapBitcoinSync(
         _ status: NativeShakescapeExecutionStatus

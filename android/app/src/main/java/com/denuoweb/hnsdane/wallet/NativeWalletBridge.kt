@@ -25,6 +25,7 @@ internal object NativeWalletBridge {
     const val MINIMUM_BITCOIN_MAXIMUM_FEE_SATS = 1_000L
     /** Lowest Bitcoin fee reserve accepted in direct atomic-swap terms. */
     const val MINIMUM_BITCOIN_FEE_RESERVE_SATS = 1_000L
+    const val AUTOMATIC_HNS_REDEMPTION_FEE_CAP_DOLLARYDOOS = 100_000L
     /** Lowest HNS fee reserve accepted in direct atomic-swap terms. */
     const val MINIMUM_HNS_FEE_RESERVE_DOLLARYDOOS = 500_000L
     /** Smallest gross Bitcoin HTLC that remains spendable after its reserve. */
@@ -1093,6 +1094,31 @@ internal object NativeWalletBridge {
                 runCatching { nativeRejectHnsForBtcFunding(handle, tokenAscii) }.getOrDefault(false)
         } ?: false
 
+    fun automaticSwapSettlementPermission(
+        handle: Long,
+        sessionId: String,
+        action: String,
+    ): NativeAutomaticSwapSettlementPermission? {
+        if (!isValidHandle(handle) || !isAvailable || !isCanonicalHash(sessionId) ||
+            action !in setOf("redeem", "refund")
+        ) return null
+        val sessionAscii = sessionId.toByteArray(Charsets.US_ASCII)
+        return try {
+            val bundle = runCatching {
+                nativeAutomaticSwapSettlementPermission(
+                    handle, sessionAscii, action == "redeem",
+                )
+            }.getOrNull() ?: return null
+            try {
+                NativeBitcoinWalletBundle.automaticSwapSettlementPermission(bundle)
+            } finally {
+                bundle.fill(0)
+            }
+        } finally {
+            sessionAscii.fill(0)
+        }
+    }
+
     fun prepareSwapSettlement(
         handle: Long,
         sessionId: String,
@@ -1523,6 +1549,13 @@ internal object NativeWalletBridge {
         handle: Long,
         actionTokenAscii: ByteArray,
     ): Boolean
+
+    @JvmStatic
+    private external fun nativeAutomaticSwapSettlementPermission(
+        handle: Long,
+        sessionIdAscii: ByteArray,
+        redeem: Boolean,
+    ): ByteArray?
 
     @JvmStatic
     private external fun nativePrepareBitcoinSwapSettlement(

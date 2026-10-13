@@ -408,6 +408,11 @@ HnsBrowserResult hns_browser_wallet_approve_hns_for_btc_funding(
 HnsBrowserResult hns_browser_wallet_reject_hns_for_btc_funding(
     HnsBrowserWalletHandle wallet,
     HnsBrowserSlice action_token);
+HnsBrowserResult hns_browser_wallet_automatic_swap_settlement_permission(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice session_id,
+    bool redeem,
+    HnsBrowserBuffer *out_permission_bundle);
 HnsBrowserResult hns_browser_wallet_prepare_bitcoin_swap_settlement(
     HnsBrowserWalletHandle wallet,
     HnsBrowserSlice session_id,

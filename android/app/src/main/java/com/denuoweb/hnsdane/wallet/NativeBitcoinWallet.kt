@@ -142,6 +142,7 @@ internal data class NativeBitcoinHtlcFundingReceipt(
     val outputIndex: Int,
     val attemptCount: Int,
     val submittedAtUnix: Long?,
+    val automaticSettlementAuthorized: Boolean,
 )
 
 internal data class NativeHnsHtlcFundingApproval(
@@ -162,6 +163,7 @@ internal data class NativeHnsHtlcFundingReceipt(
     val transactionId: String,
     val outputIndex: Int,
     val acceptedAtUnix: Long,
+    val automaticSettlementAuthorized: Boolean,
 )
 
 internal data class NativeSwapSettlementApproval(
@@ -185,6 +187,13 @@ internal data class NativeSwapSettlementReceipt(
     val acceptedAtUnix: Long?,
     val attemptCount: Int?,
     val submittedAtUnix: Long?,
+)
+
+internal data class NativeAutomaticSwapSettlementPermission(
+    val sessionId: String,
+    val asset: String,
+    val maximumFee: Long,
+    val minimumWalletOutput: Long,
 )
 
 internal data class NativeBtcForHnsOfferApproval(
@@ -544,6 +553,7 @@ internal object NativeBitcoinWalletBundle {
     fun htlcFundingReceipt(bundle: ByteArray): NativeBitcoinHtlcFundingReceipt? = parse(bundle) { json ->
         if (!hasExactKeys(json, setOf(
             "sessionId", "txid", "outputIndex", "attemptCount", "submittedAtUnix",
+            "automaticSettlementAuthorized",
         ))) {
             return@parse null
         }
@@ -553,7 +563,10 @@ internal object NativeBitcoinWalletBundle {
         val attempts = json.optInt("attemptCount", -1).takeIf { it in 1..16 } ?: return@parse null
         val submitted = if (json.isNull("submittedAtUnix")) null else
             positiveLong(json, "submittedAtUnix") ?: return@parse null
-        NativeBitcoinHtlcFundingReceipt(sessionId, txid, outputIndex, attempts, submitted)
+        NativeBitcoinHtlcFundingReceipt(
+            sessionId, txid, outputIndex, attempts, submitted,
+            exactBoolean(json, "automaticSettlementAuthorized") ?: return@parse null,
+        )
     }
 
     fun hnsHtlcFundingApproval(bundle: ByteArray): NativeHnsHtlcFundingApproval? = parse(bundle) { json ->
@@ -586,6 +599,7 @@ internal object NativeBitcoinWalletBundle {
     fun hnsHtlcFundingReceipt(bundle: ByteArray): NativeHnsHtlcFundingReceipt? = parse(bundle) { json ->
         if (!hasExactKeys(json, setOf(
             "sessionId", "transactionId", "outputIndex", "acceptedAtUnix",
+            "automaticSettlementAuthorized",
         ))) {
             return@parse null
         }
@@ -594,8 +608,23 @@ internal object NativeBitcoinWalletBundle {
             hexHash(json.optString("transactionId", "")) ?: return@parse null,
             json.optInt("outputIndex", -1).takeIf { it >= 0 } ?: return@parse null,
             positiveLong(json, "acceptedAtUnix") ?: return@parse null,
+            exactBoolean(json, "automaticSettlementAuthorized") ?: return@parse null,
         )
     }
+
+    fun automaticSwapSettlementPermission(bundle: ByteArray): NativeAutomaticSwapSettlementPermission? =
+        parse(bundle) { json ->
+            if (!hasExactKeys(json, setOf(
+                "sessionId", "asset", "maximumFee", "minimumWalletOutput",
+            ))) return@parse null
+            NativeAutomaticSwapSettlementPermission(
+                hexHash(json.optString("sessionId", "")) ?: return@parse null,
+                json.optString("asset", "").takeIf { it in SHAKESCAPE_ASSETS }
+                    ?: return@parse null,
+                positiveLong(json, "maximumFee") ?: return@parse null,
+                positiveLong(json, "minimumWalletOutput") ?: return@parse null,
+            )
+        }
 
     fun swapSettlementApproval(
         bundle: ByteArray,

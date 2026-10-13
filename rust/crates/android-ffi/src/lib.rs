@@ -2277,6 +2277,18 @@ impl AndroidWalletController {
         let receipt = controller
             .approve_shakescape_hns_funding(action_token, reauthorization)
             .ok()?;
+        let automatic_settlement_authorized = canonical_session_id(receipt.session_id.as_str())
+            .is_some_and(|session_id| {
+                shakescape_sessions
+                    .retain_automatic_settlement_approval(
+                        session_id,
+                        receipt.accepted_at_unix,
+                    )
+                    .is_ok()
+            });
+        if !automatic_settlement_authorized {
+            android_log_error("HNS funding submitted but automatic settlement approval could not be retained");
+        }
         if let (Some(session_id), Some(transaction_id), Some(peer)) = (
             canonical_session_id(receipt.session_id.as_str()),
             canonical_hash_32(receipt.transaction_id.as_str()),
@@ -2298,7 +2310,12 @@ impl AndroidWalletController {
                 "HNS swap funding was broadcast without an active peer for its funding locator",
             );
         }
-        let mut json = serde_json::to_vec(&receipt).ok()?;
+        let mut receipt_json = serde_json::to_value(&receipt).ok()?;
+        receipt_json.as_object_mut()?.insert(
+            "automaticSettlementAuthorized".to_owned(),
+            serde_json::Value::Bool(automatic_settlement_authorized),
+        );
+        let mut json = serde_json::to_vec(&receipt_json).ok()?;
         let bundle = bitcoin_json_bundle(&json);
         json.fill(0);
         bundle
@@ -2311,6 +2328,19 @@ impl AndroidWalletController {
         controller
             .reject_shakescape_hns_funding(action_token)
             .is_ok()
+    }
+
+    fn automatic_settlement_permission(
+        &self,
+        session_id: SessionId,
+        redeem: bool,
+    ) -> Option<hns_wallet_mobile::MobileAutomaticSettlementPermission> {
+        let Self::DirectValue { shakescape_sessions, .. } = self else {
+            return None;
+        };
+        shakescape_sessions
+            .authorized_automatic_settlement(session_id, redeem)
+            .ok()?
     }
 
     fn prepare_hns_swap_settlement(
@@ -8944,6 +8974,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             }
         };
         drop(bitcoin);
+        let mut automatic_settlement_authorized = false;
         if let (Some(session_id), Some(transaction_id), Some(mut controller)) = (
             canonical_session_id(receipt.session_id.as_str()),
             canonical_hash_32(receipt.txid.as_str()),
@@ -8955,6 +8986,12 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
                 ..
             } = &mut *controller
             {
+                automatic_settlement_authorized = shakescape_sessions
+                    .retain_automatic_settlement_approval(
+                        session_id,
+                        HnsReadSystemClock.now_unix().unwrap_or(0),
+                    )
+                    .is_ok();
                 shakescape_peer.as_mut().is_some_and(|peer| {
                     shakescape_sessions
                         .announce_local_funding(
@@ -8979,7 +9016,15 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
                 "Bitcoin swap funding was broadcast without an active peer for its funding locator",
             );
         }
-        let mut json = serde_json::to_vec(&receipt).ok()?;
+        if !automatic_settlement_authorized {
+            android_log_error("Bitcoin funding submitted but automatic settlement approval could not be retained");
+        }
+        let mut receipt_json = serde_json::to_value(&receipt).ok()?;
+        receipt_json.as_object_mut()?.insert(
+            "automaticSettlementAuthorized".to_owned(),
+            serde_json::Value::Bool(automatic_settlement_authorized),
+        );
+        let mut json = serde_json::to_vec(&receipt_json).ok()?;
         let mut bundle = bitcoin_json_bundle(json.as_slice())?;
         json.fill(0);
         let array = env.byte_array_from_slice(bundle.as_slice()).ok();
@@ -9177,6 +9222,36 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
     .flatten()
     .unwrap_or(false)
     .into()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeAutomaticSwapSettlementPermission(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    session_id_ascii: JByteArray<'_>,
+    redeem: jboolean,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let session = android_wallet_consumed_bytes(
+            &mut env,
+            &session_id_ascii,
+            ANDROID_WALLET_ACTION_TOKEN_BYTES,
+        )?;
+        let session_id = canonical_session_id(canonical_action_token(session)?.0.as_str())?;
+        let record = wallet_from_handle(handle)?;
+        let controller = record.controller_if_active()?;
+        let permission = controller.automatic_settlement_permission(session_id, redeem != 0)?;
+        let mut json = serde_json::to_vec(&permission).ok()?;
+        let mut bundle = bitcoin_json_bundle(json.as_slice())?;
+        json.fill(0);
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
 }
 
 #[unsafe(no_mangle)]

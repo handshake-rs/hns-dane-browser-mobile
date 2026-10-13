@@ -443,6 +443,7 @@ class WalletActivity : ComponentActivity() {
     private var lastAutomaticSwapBitcoinSyncAtElapsedMillis = Long.MIN_VALUE
     private var lastAutomaticSwapBitcoinSyncFingerprint: String? = null
     private var automaticSwapBitcoinSyncPausedUntilElapsedMillis = Long.MIN_VALUE
+    private val automaticSwapSettlementAttempts = mutableMapOf<String, Long>()
     @Volatile
     private var bitcoinSyncProgressWatcher: AtomicBoolean? = null
     private var walletForegroundSyncServiceActive = false
@@ -3677,17 +3678,24 @@ class WalletActivity : ComponentActivity() {
                                 val executionChanged = executionStatus?.let {
                                     refreshShakescapeExecutionStatus(it)
                                 } ?: false
-                                val automaticHnsSyncStarted = executionStatus?.let {
+                                val automaticSettlementStarted = executionStatus?.let {
+                                    maybeStartAutomaticSwapSettlement(it)
+                                } ?: false
+                                val automaticHnsSyncStarted = if (automaticSettlementStarted) {
+                                    false
+                                } else executionStatus?.let {
                                     maybeStartAutomaticSwapHnsSync(it)
                                 } ?: false
-                                val automaticBitcoinSyncStarted = if (automaticHnsSyncStarted) {
+                                val automaticBitcoinSyncStarted = if (
+                                    automaticSettlementStarted || automaticHnsSyncStarted
+                                ) {
                                     false
                                 } else {
                                     executionStatus?.let(::maybeStartAutomaticSwapBitcoinSync)
                                         ?: false
                                 }
                                 if (
-                                    transportChanged || executionChanged ||
+                                    transportChanged || executionChanged || automaticSettlementStarted ||
                                         automaticHnsSyncStarted || automaticBitcoinSyncStarted
                                 ) {
                                     renderWalletDashboard()
@@ -4746,6 +4754,92 @@ class WalletActivity : ComponentActivity() {
         return previous != shakedexExecutionStatusView.text.toString()
     }
 
+    private fun maybeStartAutomaticSwapSettlement(
+        status: NativeShakescapeExecutionStatus,
+    ): Boolean {
+        if (busy || walletHandle == INVALID_HANDLE || pendingWalletAuthentication != null ||
+            walletHnsSyncInProgress || walletBitcoinSyncInProgress || bitcoinBirthdayResetInProgress
+        ) return false
+        val now = System.currentTimeMillis() / 1_000L
+        for (execution in status.executions) {
+            val action = when {
+                execution.state == "first_funded" && execution.localRole == "maker" &&
+                    now >= execution.firstRefundAtUnix -> "refund"
+                execution.state == "refund_eligible" -> "refund"
+                execution.state == "both_funded" && execution.localRole == "maker" -> "redeem"
+                execution.state in setOf("first_redeemed", "secret_observed") &&
+                    execution.localRole == "taker" -> "redeem"
+                else -> null
+            } ?: continue
+            val chain = if (action == "redeem") {
+                if (execution.localRole == "maker") execution.secondChain else execution.firstChain
+            } else if (execution.localRole == "maker") {
+                execution.firstChain
+            } else {
+                execution.secondChain
+            }
+            val bitcoin = chain == "bitcoin"
+            val attemptKey = "${execution.sessionId}:$action:${execution.revision}"
+            val elapsed = SystemClock.elapsedRealtime()
+            val lastAttempt = automaticSwapSettlementAttempts[attemptKey]
+            if (lastAttempt != null && (lastAttempt == Long.MAX_VALUE ||
+                    elapsed - lastAttempt < 120_000L)) continue
+            val handle = walletHandle
+            val permission = NativeWalletBridge.automaticSwapSettlementPermission(
+                handle, execution.sessionId, action,
+            ) ?: continue
+            if (permission.sessionId != execution.sessionId ||
+                permission.asset != (if (bitcoin) "btc" else "hns")
+            ) continue
+            val lease = currentStorageLease() ?: return false
+            if (!beginOperation(
+                    lease, getString(R.string.wallet_swap_settlement_preparing), resetReads = false,
+                )
+            ) return false
+            automaticSwapSettlementAttempts[attemptKey] = elapsed
+            val operationSerial = walletOperationSerial
+            val epoch = lifecycleEpoch
+            thread(name = "denuo-approved-swap-settlement") {
+                val approval = NativeWalletBridge.prepareSwapSettlement(
+                    handle, execution.sessionId, action, permission.maximumFee, bitcoin,
+                )
+                val receipt = if (approval != null &&
+                    approval.sessionId == execution.sessionId && approval.action == action &&
+                    approval.maximumFee == permission.maximumFee &&
+                    approval.fee <= permission.maximumFee &&
+                    approval.outputAmount >= permission.minimumWalletOutput
+                ) {
+                    NativeWalletBridge.approveSwapSettlement(handle, approval.actionToken, bitcoin)
+                } else {
+                    approval?.let {
+                        NativeWalletBridge.rejectSwapSettlement(handle, it.actionToken, bitcoin)
+                    }
+                    null
+                }
+                approval?.close()
+                runOnUiThread {
+                    val current = operationIsCurrent(epoch, lease) && walletHandle == handle
+                    finishWalletOperationIfOwned(operationSerial)
+                    if (current) {
+                        refreshControllerState(resetReads = false)
+                        swapActionStatusView.text = if (receipt == null) {
+                            getString(R.string.wallet_swap_settlement_prepare_failed)
+                        } else {
+                            automaticSwapSettlementAttempts[attemptKey] = Long.MAX_VALUE
+                            getString(
+                                R.string.wallet_swap_settlement_submitted,
+                                receipt.action, receipt.transactionId.take(12),
+                            )
+                        }
+                    }
+                    releaseStorageLeaseAfterOperation(lease)
+                }
+            }
+            return true
+        }
+        return false
+    }
+
     private fun publishAtomicSwapNotifications(status: NativeShakescapeExecutionStatus) {
         if (!::atomicSwapNotifications.isInitialized) return
         val permissionNeeded = atomicSwapNotifications.reconcile(
@@ -5058,8 +5152,8 @@ class WalletActivity : ComponentActivity() {
     }
 
     /** Keep both swap participants' compact-filter/watch state current while
-     * an execution is live. This is read-only synchronization; funding and
-     * settlement remain behind explicit native approval dialogs. */
+     * an execution is live. Funding requires an explicit review; settlement
+     * uses that session's retained fee-bounded approval or a manual review. */
     private fun maybeStartAutomaticSwapBitcoinSync(
         status: NativeShakescapeExecutionStatus,
     ): Boolean {
@@ -5117,6 +5211,7 @@ class WalletActivity : ComponentActivity() {
         lastAutomaticSwapBitcoinSyncAtElapsedMillis = Long.MIN_VALUE
         lastAutomaticSwapBitcoinSyncFingerprint = null
         automaticSwapBitcoinSyncPausedUntilElapsedMillis = Long.MIN_VALUE
+        automaticSwapSettlementAttempts.clear()
         if (::directShakescapeStatusView.isInitialized) {
             directShakescapeStatusView.text = getString(
                 if (locked) R.string.wallet_direct_shakescape_locked
@@ -5455,11 +5550,6 @@ class WalletActivity : ComponentActivity() {
                     initial = NativeWalletBridge.MINIMUM_BITCOIN_HTLC_SATS.toString(),
                 ),
                 WalletActionInput(R.string.wallet_swap_hns_amount_hint),
-                WalletActionInput(
-                    R.string.wallet_swap_fee_reserve_hint,
-                    numeric = true,
-                    initial = NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS.toString(),
-                ),
                 WalletActionInput(R.string.wallet_swap_lifetime_hours_hint, initial = "48", numeric = true),
             ),
         ) { values ->
@@ -5467,13 +5557,11 @@ class WalletActivity : ComponentActivity() {
                 ?.takeIf { it >= NativeWalletBridge.MINIMUM_BITCOIN_HTLC_SATS }
             val hns = parsePositiveHnsToBaseUnits(values[1])?.toLongOrNull()
                 ?.takeIf { it >= NativeWalletBridge.MINIMUM_HNS_SWAP_DOLLARYDOOS }
-            val reserve = values[2].toLongOrNull()?.takeIf {
-                it >= NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS
-            }
-            val lifetime = values[3].toLongOrNull()
+            val reserve = NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS
+            val lifetime = values[2].toLongOrNull()
                 ?.takeIf { it in 48L..168L }
                 ?.let { runCatching { Math.multiplyExact(it, 3_600L) }.getOrNull() }
-            if (btc == null || hns == null || reserve == null || btc < reserve ||
+            if (btc == null || hns == null || btc < reserve ||
                 btc - reserve < NativeWalletBridge.BITCOIN_HTLC_RECEIVER_DUST_SATS ||
                 lifetime == null
             ) {
@@ -5495,10 +5583,6 @@ class WalletActivity : ComponentActivity() {
                     initial = NativeWalletBridge.MINIMUM_BITCOIN_HTLC_SATS.toString(),
                 ),
                 WalletActionInput(
-                    R.string.wallet_swap_hns_fee_reserve_hint,
-                    initial = DEFAULT_HNS_SWAP_FEE_RESERVE,
-                ),
-                WalletActionInput(
                     R.string.wallet_swap_lifetime_hours_hint,
                     initial = "48",
                     numeric = true,
@@ -5509,11 +5593,11 @@ class WalletActivity : ComponentActivity() {
                 ?.takeIf { it >= NativeWalletBridge.MINIMUM_HNS_SWAP_DOLLARYDOOS }
             val btc = values[1].toLongOrNull()
                 ?.takeIf { it >= NativeWalletBridge.MINIMUM_BITCOIN_HTLC_SATS }
-            val reserve = parsePositiveHnsToBaseUnits(values[2])?.toLongOrNull()?.takeIf { it > 0L }
-            val lifetime = values[3].toLongOrNull()
+            val reserve = DEFAULT_HNS_SWAP_FEE_RESERVE_BASE_UNITS.toLong()
+            val lifetime = values[2].toLongOrNull()
                 ?.takeIf { it in 48L..168L }
                 ?.let { runCatching { Math.multiplyExact(it, 3_600L) }.getOrNull() }
-            if (hns == null || btc == null || reserve == null ||
+            if (hns == null || btc == null ||
                 reserve < NativeWalletBridge.MINIMUM_HNS_FEE_RESERVE_DOLLARYDOOS ||
                 hns < reserve ||
                 hns - reserve < NativeWalletBridge.HNS_SWAP_RECEIVER_DUST_DOLLARYDOOS ||
@@ -5603,19 +5687,13 @@ class WalletActivity : ComponentActivity() {
         val bitcoin = offer.receivedAsset == "btc"
         showWalletActionForm(
             R.string.wallet_swap_acceptance_offer,
-            listOf(WalletActionInput(
-                if (bitcoin) R.string.wallet_swap_acceptance_btc_fee_reserve_hint
-                else R.string.wallet_swap_acceptance_hns_fee_reserve_hint,
-                numeric = bitcoin,
-                initial = if (bitcoin) NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS.toString()
-                else DEFAULT_HNS_SWAP_FEE_RESERVE,
-            )),
+            emptyList(),
             summary = directOfferAcceptanceLabel(offer),
             primaryLabel = R.string.wallet_swap_acceptance_review,
-        ) { values ->
-            val reserve = if (bitcoin) values.single().toLongOrNull()
-            else parsePositiveHnsToBaseUnits(values.single())?.toLongOrNull()
-            val leavesSpendableOutput = reserve != null && offer.receivedAmount >= reserve &&
+        ) { _ ->
+            val reserve = if (bitcoin) NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS
+                else DEFAULT_HNS_SWAP_FEE_RESERVE_BASE_UNITS.toLong()
+            val leavesSpendableOutput = offer.receivedAmount >= reserve &&
                 if (bitcoin) {
                     offer.receivedAmount - reserve >=
                         NativeWalletBridge.BITCOIN_HTLC_RECEIVER_DUST_SATS
@@ -5623,7 +5701,7 @@ class WalletActivity : ComponentActivity() {
                     offer.receivedAmount - reserve >=
                         NativeWalletBridge.HNS_SWAP_RECEIVER_DUST_DOLLARYDOOS
                 }
-            if (reserve == null || reserve <= 0L || !leavesSpendableOutput ||
+            if (reserve <= 0L || !leavesSpendableOutput ||
                 bitcoin && reserve < NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS ||
                 !bitcoin && reserve < NativeWalletBridge.MINIMUM_HNS_FEE_RESERVE_DOLLARYDOOS
             ) {
@@ -5807,6 +5885,16 @@ class WalletActivity : ComponentActivity() {
             "$amount sats"
         }
 
+    private fun automaticSwapMinimumReceive(execution: NativeShakescapeExecutionSummary): String {
+        val asset = if (execution.localRole == "maker") execution.receivedAsset
+            else execution.offeredAsset
+        val gross = if (execution.localRole == "maker") execution.receivedAmount
+            else execution.offeredAmount
+        val cap = if (asset == "btc") NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS
+            else NativeWalletBridge.AUTOMATIC_HNS_REDEMPTION_FEE_CAP_DOLLARYDOOS
+        return formatSwapAmount(asset, (gross - cap).coerceAtLeast(0L))
+    }
+
     private fun confirmAbandonPendingAcceptance(
         acceptance: com.denuoweb.hnsdane.wallet.NativeDirectOfferAcceptanceSummary,
     ) {
@@ -5904,29 +5992,15 @@ class WalletActivity : ComponentActivity() {
         }
         if (fundingChain == "bitcoin") {
             builder.setPositiveButton(R.string.wallet_swap_fund_bitcoin) { _, _ ->
-                showWalletActionForm(
-                    R.string.wallet_swap_fund_bitcoin,
-                    listOf(WalletActionInput(R.string.wallet_swap_funding_fee_hint, numeric = true)),
-                ) { values ->
-                    val fee = values.single().toLongOrNull()?.takeIf { it > 0L }
-                    if (fee == null) swapActionStatusView.text = getString(R.string.wallet_swap_funding_prepare_failed)
-                    else prepareBtcForHnsFunding(execution, fee)
-                }
+                prepareBtcForHnsFunding(
+                    execution, NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS,
+                )
             }
         } else if (fundingChain == "handshake") {
             builder.setPositiveButton(R.string.wallet_swap_fund_hns) { _, _ ->
-                showWalletActionForm(
-                    R.string.wallet_swap_fund_hns,
-                    listOf(WalletActionInput(
-                        R.string.wallet_swap_hns_funding_fee_hint,
-                        numeric = true,
-                        initial = DEFAULT_HNS_SWAP_FEE_RESERVE_BASE_UNITS,
-                    )),
-                ) { values ->
-                    val fee = values.single().toLongOrNull()?.takeIf { it > 0L }
-                    if (fee == null) swapActionStatusView.text = getString(R.string.wallet_swap_hns_funding_prepare_failed)
-                    else prepareHnsForBtcFunding(execution, fee)
-                }
+                prepareHnsForBtcFunding(
+                    execution, DEFAULT_HNS_SWAP_FEE_RESERVE_BASE_UNITS.toLong(),
+                )
             }
         } else if (
             execution.state == "first_funded" && execution.localRole == "maker" &&
@@ -5982,22 +6056,38 @@ class WalletActivity : ComponentActivity() {
         action: String,
         bitcoin: Boolean,
     ) {
-        showWalletActionForm(
-            R.string.wallet_swap_settlement_fee_title,
-            listOf(WalletActionInput(
-                if (bitcoin) R.string.wallet_swap_settlement_btc_fee_hint
-                else R.string.wallet_swap_settlement_hns_fee_hint,
-                numeric = true,
-                initial = if (bitcoin) "" else DEFAULT_HNS_MAXIMUM_FEE_BASE_UNITS,
-            )),
-        ) { values ->
-            val fee = values.single().toLongOrNull()?.takeIf { it > 0L }
-            if (fee == null) {
-                swapActionStatusView.text = getString(R.string.wallet_swap_settlement_prepare_failed)
-            } else {
+        val fee = NativeWalletBridge.automaticSwapSettlementPermission(
+            walletHandle, execution.sessionId, action,
+        )?.maximumFee ?: if (bitcoin) NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS
+            else NativeWalletBridge.MINIMUM_HNS_FEE_RESERVE_DOLLARYDOOS
+        walletAlertDialogBuilder()
+            .setTitle(R.string.wallet_swap_settlement_fee_title)
+            .setMessage(getString(R.string.wallet_ux_swap_settlement_default_fee_message))
+            .setNegativeButton(R.string.action_cancel, null)
+            .setPositiveButton(R.string.wallet_action_review_transaction) { _, _ ->
                 prepareSwapSettlement(execution, action, bitcoin, fee)
             }
-        }
+            .setNeutralButton(R.string.wallet_ux_swap_custom_fee_cap) { _, _ ->
+                showWalletActionForm(
+                    R.string.wallet_ux_swap_custom_fee_cap,
+                    listOf(WalletActionInput(
+                        if (bitcoin) R.string.wallet_swap_settlement_btc_fee_hint
+                        else R.string.wallet_swap_settlement_hns_fee_hint,
+                        numeric = true,
+                        initial = fee.toString(),
+                    )),
+                ) { values ->
+                    val customFee = values.single().toLongOrNull()?.takeIf { it > 0L }
+                    if (customFee == null) {
+                        swapActionStatusView.text = getString(
+                            R.string.wallet_swap_settlement_prepare_failed,
+                        )
+                    } else {
+                        prepareSwapSettlement(execution, action, bitcoin, customFee)
+                    }
+                }
+            }
+            .show()
     }
 
     private fun prepareSwapSettlement(
@@ -6146,13 +6236,14 @@ class WalletActivity : ComponentActivity() {
                     swapActionStatusView.text = getString(R.string.wallet_swap_funding_prepare_failed)
                     releaseStorageLeaseAfterOperation(lease)
                 } else {
-                    showBtcForHnsFundingApproval(approval, lease, epoch)
+                    showBtcForHnsFundingApproval(execution, approval, lease, epoch)
                 }
             }
         }
     }
 
     private fun showBtcForHnsFundingApproval(
+        execution: NativeShakescapeExecutionSummary,
         approval: NativeBitcoinHtlcFundingApproval,
         lease: WalletStorageOwnershipGate.Lease,
         epoch: Long,
@@ -6172,7 +6263,9 @@ class WalletActivity : ComponentActivity() {
                 R.string.wallet_swap_funding_approval_message,
                 approval.amountSats, approval.feeSats, approval.maximumFeeSats,
                 approval.txid, approval.sessionId,
-            ))
+            ) + "\n\n" + getString(R.string.wallet_ux_swap_automatic_minimum_receive,
+                automaticSwapMinimumReceive(execution)) + "\n\n" +
+                getString(R.string.wallet_ux_swap_automatic_settlement_consent))
             .setNegativeButton(R.string.action_reject) { _, _ -> reject() }
             .setPositiveButton(R.string.wallet_swap_broadcast_funding) { _, _ ->
                 if (settled) return@setPositiveButton
@@ -6186,11 +6279,20 @@ class WalletActivity : ComponentActivity() {
                             busy = false
                             val resultStatus = if (receipt == null) {
                                 getString(R.string.wallet_swap_funding_broadcast_failed)
+                            } else if (!receipt.automaticSettlementAuthorized) {
+                                getString(R.string.wallet_ux_swap_automatic_settlement_unavailable)
                             } else {
                                 getString(R.string.wallet_swap_funding_submitted, receipt.txid.take(12))
                             }
                             statusView.text = resultStatus
                             swapActionStatusView.text = resultStatus
+                            if (receipt != null && !receipt.automaticSettlementAuthorized) {
+                                walletAlertDialogBuilder()
+                                    .setTitle(R.string.wallet_ux_swap_automatic_settlement_unavailable)
+                                    .setMessage(resultStatus)
+                                    .setPositiveButton(android.R.string.ok, null)
+                                    .show()
+                            }
                             renderWalletDashboard()
                         }
                         releaseStorageLeaseAfterOperation(lease)
@@ -6242,13 +6344,14 @@ class WalletActivity : ComponentActivity() {
                     renderWalletDashboard()
                     releaseStorageLeaseAfterOperation(lease)
                 } else {
-                    showHnsForBtcFundingApproval(approval, lease, epoch)
+                    showHnsForBtcFundingApproval(execution, approval, lease, epoch)
                 }
             }
         }
     }
 
     private fun showHnsForBtcFundingApproval(
+        execution: NativeShakescapeExecutionSummary,
         approval: NativeHnsHtlcFundingApproval,
         lease: WalletStorageOwnershipGate.Lease,
         epoch: Long,
@@ -6270,7 +6373,9 @@ class WalletActivity : ComponentActivity() {
                 formatHnsBaseUnits(approval.feeDollarydoos.toString()),
                 formatHnsBaseUnits(approval.maximumFeeDollarydoos.toString()),
                 approval.transactionId, approval.sessionId,
-            ))
+            ) + "\n\n" + getString(R.string.wallet_ux_swap_automatic_minimum_receive,
+                automaticSwapMinimumReceive(execution)) + "\n\n" +
+                getString(R.string.wallet_ux_swap_automatic_settlement_consent))
             .setNegativeButton(R.string.action_reject) { _, _ -> reject() }
             .setPositiveButton(R.string.wallet_swap_broadcast_hns_funding) { _, _ ->
                 if (settled) return@setPositiveButton
@@ -6284,11 +6389,20 @@ class WalletActivity : ComponentActivity() {
                             busy = false
                             val resultStatus = if (receipt == null) {
                                 getString(R.string.wallet_swap_hns_funding_broadcast_failed)
+                            } else if (!receipt.automaticSettlementAuthorized) {
+                                getString(R.string.wallet_ux_swap_automatic_settlement_unavailable)
                             } else {
                                 getString(R.string.wallet_swap_hns_funding_submitted, receipt.transactionId.take(12))
                             }
                             statusView.text = resultStatus
                             swapActionStatusView.text = resultStatus
+                            if (receipt != null && !receipt.automaticSettlementAuthorized) {
+                                walletAlertDialogBuilder()
+                                    .setTitle(R.string.wallet_ux_swap_automatic_settlement_unavailable)
+                                    .setMessage(resultStatus)
+                                    .setPositiveButton(android.R.string.ok, null)
+                                    .show()
+                            }
                             renderWalletDashboard()
                         }
                         releaseStorageLeaseAfterOperation(lease)

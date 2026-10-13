@@ -232,16 +232,21 @@ class NativeBitcoinSyncProgressTest {
         val sessionId = "44".repeat(32)
         val txid = "55".repeat(32)
         val receipt = NativeBitcoinWalletBundle.htlcFundingReceipt(bundle(
-            """{"sessionId":"$sessionId","txid":"$txid","outputIndex":1,"attemptCount":2,"submittedAtUnix":1700000000}""",
+            """{"sessionId":"$sessionId","txid":"$txid","outputIndex":1,"attemptCount":2,"submittedAtUnix":1700000000,"automaticSettlementAuthorized":true}""",
         ))
         requireNotNull(receipt)
         assertEquals(sessionId, receipt.sessionId)
         assertEquals(txid, receipt.txid)
         assertEquals(1, receipt.outputIndex)
         assertEquals(2, receipt.attemptCount)
+        assertEquals(true, receipt.automaticSettlementAuthorized)
 
         assertNull(NativeBitcoinWalletBundle.htlcFundingReceipt(bundle(
-            """{"sessionId":"${"0".repeat(64)}","txid":"$txid","outputIndex":1,"attemptCount":2,"submittedAtUnix":1700000000}""",
+            """{"sessionId":"$sessionId","txid":"$txid","outputIndex":1,"attemptCount":2,"submittedAtUnix":1700000000,"automaticSettlementAuthorized":"true"}""",
+        )))
+
+        assertNull(NativeBitcoinWalletBundle.htlcFundingReceipt(bundle(
+            """{"sessionId":"${"0".repeat(64)}","txid":"$txid","outputIndex":1,"attemptCount":2,"submittedAtUnix":1700000000,"automaticSettlementAuthorized":true}""",
         )))
     }
 
@@ -266,13 +271,31 @@ class NativeBitcoinSyncProgressTest {
         )))
 
         val receipt = NativeBitcoinWalletBundle.hnsHtlcFundingReceipt(bundle(
-            """{"sessionId":"$sessionId","transactionId":"$transactionId","outputIndex":0,"acceptedAtUnix":1700000000}""",
+            """{"sessionId":"$sessionId","transactionId":"$transactionId","outputIndex":0,"acceptedAtUnix":1700000000,"automaticSettlementAuthorized":true}""",
         ))
         requireNotNull(receipt)
         assertEquals(transactionId, receipt.transactionId)
         assertEquals(0, receipt.outputIndex)
+        assertEquals(true, receipt.automaticSettlementAuthorized)
         assertNull(NativeBitcoinWalletBundle.hnsHtlcFundingReceipt(bundle(
-            """{"sessionId":"${"0".repeat(64)}","transactionId":"$transactionId","outputIndex":0,"acceptedAtUnix":1700000000}""",
+            """{"sessionId":"${"0".repeat(64)}","transactionId":"$transactionId","outputIndex":0,"acceptedAtUnix":1700000000,"automaticSettlementAuthorized":true}""",
+        )))
+    }
+
+    @Test
+    fun automatic_swap_permission_requires_an_exact_bounded_session() {
+        val sessionId = "89".repeat(32)
+        val permission = NativeBitcoinWalletBundle.automaticSwapSettlementPermission(bundle(
+            """{"sessionId":"$sessionId","asset":"btc","maximumFee":1000,"minimumWalletOutput":8000}""",
+        ))
+        requireNotNull(permission)
+        assertEquals(sessionId, permission.sessionId)
+        assertEquals(1_000L, permission.maximumFee)
+        assertNull(NativeBitcoinWalletBundle.automaticSwapSettlementPermission(bundle(
+            """{"sessionId":"$sessionId","asset":"btc","maximumFee":0,"minimumWalletOutput":8000}""",
+        )))
+        assertNull(NativeBitcoinWalletBundle.automaticSwapSettlementPermission(bundle(
+            """{"sessionId":"$sessionId","asset":"eth","maximumFee":1000,"minimumWalletOutput":8000}""",
         )))
     }
 
