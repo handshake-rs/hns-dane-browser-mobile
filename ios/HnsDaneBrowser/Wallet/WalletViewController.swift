@@ -2458,7 +2458,11 @@ final class WalletViewController: UIViewController {
                         title: WalletCopy.text("wallet_swap_available_offers"),
                         rows: [],
                         actions: offers.map { offer in
-                            WalletMenuAction(title: self.directOfferAcceptanceLabel(offer)) { [weak self] in
+                            WalletMenuAction(
+                                title: WalletCopy.text("wallet_swap_acceptance_review") + " ›\n" +
+                                    self.directOfferAcceptanceLabel(offer),
+                                primary: true
+                            ) { [weak self] in
                                 self?.showDirectOfferAcceptanceForm(offer)
                             }
                         }

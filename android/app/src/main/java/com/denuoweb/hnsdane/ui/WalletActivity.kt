@@ -5657,13 +5657,21 @@ class WalletActivity : ComponentActivity() {
                         .setPositiveButton(android.R.string.ok, null)
                         .show()
                 } else {
-                    walletAlertDialogBuilder()
-                        .setTitle(R.string.wallet_swap_available_offers)
-                        .setItems(offers.map(::directOfferAcceptanceLabel).toTypedArray()) { _, index ->
-                            showDirectOfferAcceptanceForm(offers[index])
-                        }
-                        .setNegativeButton(R.string.action_cancel, null)
-                        .show()
+                    walletDetailDialog(
+                        title = getString(R.string.wallet_swap_available_offers),
+                        rows = emptyList(),
+                        actionSections = listOf(WalletModalActionSection(
+                            getString(R.string.wallet_modal_actions),
+                            offers.map { offer ->
+                                WalletModalAction(
+                                    getString(R.string.wallet_swap_acceptance_review) + " ›\n" +
+                                        directOfferAcceptanceLabel(offer),
+                                    action = { showDirectOfferAcceptanceForm(offer) },
+                                    primary = true,
+                                )
+                            },
+                        )),
+                    )
                 }
             }
         }
