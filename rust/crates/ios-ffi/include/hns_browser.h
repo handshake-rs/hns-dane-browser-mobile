@@ -599,9 +599,13 @@ HnsBrowserResult hns_browser_wallet_reject_direct_offer_acceptance(
 HnsBrowserResult hns_browser_wallet_local_btc_for_hns_offers(
     HnsBrowserWalletHandle wallet,
     HnsBrowserBuffer *out_offers_bundle);
+/* Read the last bounded durable projection without controller work. */
 HnsBrowserResult hns_browser_wallet_shakescape_executions(
     HnsBrowserWalletHandle wallet,
     HnsBrowserBuffer *out_executions_bundle);
+/* Advance pending swap observations before reading the durable projection. */
+HnsBrowserResult hns_browser_wallet_reconcile_shakescape_executions(
+    HnsBrowserWalletHandle wallet);
 HnsBrowserResult hns_browser_wallet_abandon_pending_direct_offer_acceptance(
     HnsBrowserWalletHandle wallet,
     HnsBrowserSlice session_id);

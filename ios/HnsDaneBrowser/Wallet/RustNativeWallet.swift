@@ -4059,12 +4059,20 @@ final class RustNativeWallet: @unchecked Sendable {
         }
     }
 
+    /// Returns the last reconciled snapshot; entries retain their journal revisions.
     func shakescapeExecutions() throws -> NativeShakescapeExecutionStatus {
         try decodeBitcoinBundle(
             operation: "durable Shakescape executions"
         ) { handle, output in
             hns_browser_wallet_shakescape_executions(handle, output)
         }
+    }
+
+    func reconcileShakescapeExecutions() throws {
+        try NativeWalletBridge.check(
+            hns_browser_wallet_reconcile_shakescape_executions(try liveHandle()),
+            operation: "Shakescape execution reconciliation"
+        )
     }
 
     func abandonPendingDirectOfferAcceptance(sessionId: String) throws {

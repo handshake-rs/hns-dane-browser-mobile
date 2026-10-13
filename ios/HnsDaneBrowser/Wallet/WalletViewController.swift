@@ -2735,7 +2735,11 @@ final class WalletViewController: UIViewController {
         guard let wallet, walletIsUnlocked, bitcoinValueAvailable, !isOperating else { return }
         swapActionStatusLabel.text = WalletCopy.text("wallet_swap_loading_executions")
         DispatchQueue.global(qos: .userInitiated).async { [wallet] in
-            let outcome = Result { try wallet.shakescapeExecutions() }
+            let outcome = Result {
+                // A busy verifier must not hide already durable executions.
+                _ = try? wallet.reconcileShakescapeExecutions()
+                return try wallet.shakescapeExecutions()
+            }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.wallet === wallet else { return }
                 switch outcome {
@@ -4930,6 +4934,9 @@ final class WalletViewController: UIViewController {
                 ? (try? wallet.serviceDirectShakescape()) == true
                 : false
             let status = try? wallet.directShakescapeStatus()
+            if pollExecutions || transportWorkServiced || reconciliationChanged {
+                try? wallet.reconcileShakescapeExecutions()
+            }
             let executions = pollExecutions || transportWorkServiced || reconciliationChanged
                 ? try? wallet.shakescapeExecutions()
                 : nil

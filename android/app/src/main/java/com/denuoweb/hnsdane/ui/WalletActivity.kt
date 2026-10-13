@@ -3674,6 +3674,7 @@ class WalletActivity : ComponentActivity() {
                             (transportWorkServiced || reconciliationChanged ||
                                 serviceTicks % DIRECT_SHAKESCAPE_STATUS_REFRESH_TICKS == 0)
                     ) {
+                        NativeWalletBridge.reconcileShakescapeExecutions(handle)
                         val executionStatus = NativeWalletBridge.shakescapeExecutions(handle)
                         runOnUiThread {
                             if (
@@ -4123,6 +4124,7 @@ class WalletActivity : ComponentActivity() {
             // unavailable while the peer is offline, exactly when refund and
             // recovery state still needs to remain visible.
             val executionStatus = if (synchronization?.snapshot != null) {
+                NativeWalletBridge.reconcileShakescapeExecutions(handle)
                 NativeWalletBridge.shakescapeExecutions(handle)
             } else {
                 null
@@ -5817,6 +5819,7 @@ class WalletActivity : ComponentActivity() {
         if (handle == INVALID_HANDLE || busy) return
         swapActionStatusView.text = getString(R.string.wallet_swap_loading_executions)
         thread(name = "denuo-execution-list") {
+            NativeWalletBridge.reconcileShakescapeExecutions(handle)
             val status = NativeWalletBridge.shakescapeExecutions(handle)
             runOnUiThread {
                 if (walletHandle != handle) return@runOnUiThread

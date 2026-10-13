@@ -4223,6 +4223,10 @@ fn android_approve_bitcoin_send(
 struct AndroidWalletRecord {
     active: AtomicBool,
     controller: Arc<Mutex<AndroidWalletController>>,
+    // Last bounded, non-sensitive durable execution projection. Only the
+    // explicit reconciliation worker may refresh it; status reads never scan
+    // chain state or run the wallet crate's publication recovery.
+    shakescape_execution_snapshot: Mutex<Option<Vec<u8>>>,
     // Process-local scope used only to prevent sanitized public peer sessions
     // from crossing between distinct wallet databases.
     database_path: PathBuf,
@@ -4323,6 +4327,7 @@ impl AndroidWalletRecord {
         Self {
             active: AtomicBool::new(true),
             controller: Arc::new(Mutex::new(AndroidWalletController::Lifecycle(controller))),
+            shakescape_execution_snapshot: Mutex::new(None),
             database_path,
             bitcoin_controller: Mutex::new(None),
             pending_recovery: Mutex::new(recovery),
@@ -4509,6 +4514,11 @@ impl AndroidWalletRecord {
             return false;
         };
         let hns_locked = controller.lock();
+        if let Ok(mut snapshot) = self.shakescape_execution_snapshot.lock() {
+            if let Some(mut previous) = snapshot.take() {
+                previous.fill(0);
+            }
+        }
         bitcoin_stopped && hns_locked
     }
 }
@@ -8322,6 +8332,128 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
     .unwrap_or(std::ptr::null_mut())
 }
 
+/// Advance chain observations separately from the durable execution projection.
+/// The foreground worker invokes this before reading a status snapshot; callers
+/// that only need to display executions never perform wallet verification.
+fn reconcile_shakescape_execution_observations(record: &AndroidWalletRecord) -> Option<()> {
+    let candidates = {
+        let controller = record.controller_try_if_active()?;
+        controller.pending_first_bitcoin_funding_sessions()?
+    };
+    let candidates = {
+        let mut controller = record.controller_try_if_active()?;
+        candidates
+            .into_iter()
+            .map(|session_id| {
+                controller
+                    .maybe_begin_bitcoin_funding_observation(session_id)
+                    .map(|observation| (session_id, observation))
+            })
+            .collect::<Option<Vec<_>>>()?
+    };
+    let reconciled = if candidates.is_empty() {
+        Vec::new()
+    } else if let Some(bitcoin) = record.bitcoin_try_if_active() {
+        bitcoin.as_ref().map_or_else(Vec::new, |bitcoin| {
+            candidates
+                .into_iter()
+                .filter_map(|(session_id, observation_permit)| {
+                    bitcoin
+                        .reconciled_shakescape_htlc_funding(session_id)
+                        .ok()
+                        .flatten()
+                        .map(|observation| (session_id, observation_permit, observation))
+                })
+                .collect::<Vec<_>>()
+        })
+    } else {
+        Vec::new()
+    };
+    if !reconciled.is_empty() {
+        let mut controller = record.controller_try_if_active()?;
+        for (session_id, observation_permit, observation) in reconciled {
+            if !controller.reconcile_bitcoin_funding(session_id, observation_permit, observation) {
+                return None;
+            }
+        }
+    }
+    let spend_candidates = {
+        let controller = record.controller_try_if_active()?;
+        controller.pending_bitcoin_spend_sessions()?
+    };
+    let verified_spends = record
+        .bitcoin_try_if_active()
+        .and_then(|bitcoin| {
+            bitcoin.as_ref().map(|bitcoin| {
+                spend_candidates
+                    .into_iter()
+                    .filter_map(|session_id| {
+                        bitcoin
+                            .verified_shakescape_htlc_spend(session_id)
+                            .ok()
+                            .map(|spend| (session_id, spend))
+                    })
+                    .collect::<Vec<_>>()
+            })
+        })
+        .unwrap_or_default();
+    if !verified_spends.is_empty() {
+        let mut controller = record.controller_try_if_active()?;
+        for (session_id, spend) in verified_spends {
+            if !controller.apply_verified_bitcoin_spend(session_id, spend) {
+                return None;
+            }
+        }
+    }
+    let mut controller = record.controller_try_if_active()?;
+    // A temporarily unavailable HNS verification read cannot advance the
+    // execution this round, but it must not hide durable execution state.
+    let _ = controller.reconcile_verified_hns_funding();
+    let _ = controller.reconcile_verified_hns_spends();
+    Some(())
+}
+
+fn refresh_shakescape_execution_snapshot(record: &AndroidWalletRecord) -> Option<()> {
+    let bitcoin_broadcast_recovery = record.bitcoin_try_if_active().and_then(|bitcoin| {
+        bitcoin
+            .as_ref()
+            .and_then(|bitcoin| bitcoin.approved_broadcast_recovery().ok())
+    });
+    let controller = record.controller_try_if_active()?;
+    // durable_executions() may recover HNS publications in hns-wallet-mobile.
+    // Keep that work in this explicit reconciliation step, never in a read.
+    let bundle = controller.shakescape_executions(bitcoin_broadcast_recovery)?;
+    // Publish while the controller is still held so a newer action cannot be
+    // overwritten by an older projection assembled before that action.
+    let mut snapshot = lock_if_active(&record.active, &record.shakescape_execution_snapshot)?;
+    if let Some(mut previous) = snapshot.replace(bundle) {
+        previous.fill(0);
+    }
+    drop(controller);
+    Some(())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeReconcileShakescapeExecutions(
+    _env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| {
+        let Some(record) = wallet_from_handle(handle) else {
+            return false;
+        };
+        let observations_reconciled =
+            reconcile_shakescape_execution_observations(&record).is_some();
+        let snapshot_refreshed = refresh_shakescape_execution_snapshot(&record).is_some();
+        observations_reconciled && snapshot_refreshed
+    }))
+    .unwrap_or(false)
+    .into()
+}
+
+/// Return the last reconciled durable projection without taking the wallet
+/// controller lock. Individual executions carry their journal revision.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeShakescapeExecutions(
     env: JNIEnv<'_>,
@@ -8330,94 +8462,10 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
 ) -> jbyteArray {
     catch_unwind(AssertUnwindSafe(|| {
         let record = wallet_from_handle(handle)?;
-        let candidates = {
-            let controller = record.controller_if_active()?;
-            controller.pending_first_bitcoin_funding_sessions()?
-        };
-        let candidates = {
-            let mut controller = record.controller_if_active()?;
-            candidates
-                .into_iter()
-                .map(|session_id| {
-                    controller
-                        .maybe_begin_bitcoin_funding_observation(session_id)
-                        .map(|observation| (session_id, observation))
-                })
-                .collect::<Option<Vec<_>>>()?
-        };
-        let reconciled = if candidates.is_empty() {
-            Vec::new()
-        } else if let Some(bitcoin) = record.bitcoin_try_if_active() {
-            bitcoin.as_ref().map_or_else(Vec::new, |bitcoin| {
-                candidates
-                    .into_iter()
-                    .filter_map(|(session_id, observation_permit)| {
-                        bitcoin
-                            .reconciled_shakescape_htlc_funding(session_id)
-                            .ok()
-                            .flatten()
-                            .map(|observation| (session_id, observation_permit, observation))
-                    })
-                    .collect::<Vec<_>>()
-            })
-        } else {
-            Vec::new()
-        };
-        if !reconciled.is_empty() {
-            let mut controller = record.controller_if_active()?;
-            for (session_id, observation_permit, observation) in reconciled {
-                if !controller.reconcile_bitcoin_funding(
-                    session_id,
-                    observation_permit,
-                    observation,
-                ) {
-                    return None;
-                }
-            }
-        }
-        let spend_candidates = {
-            let controller = record.controller_if_active()?;
-            controller.pending_bitcoin_spend_sessions()?
-        };
-        let verified_spends = record
-            .bitcoin_try_if_active()
-            .and_then(|bitcoin| {
-                bitcoin.as_ref().map(|bitcoin| {
-                    spend_candidates
-                        .into_iter()
-                        .filter_map(|session_id| {
-                            bitcoin
-                                .verified_shakescape_htlc_spend(session_id)
-                                .ok()
-                                .map(|spend| (session_id, spend))
-                        })
-                        .collect::<Vec<_>>()
-                })
-            })
-            .unwrap_or_default();
-        if !verified_spends.is_empty() {
-            let mut controller = record.controller_if_active()?;
-            for (session_id, spend) in verified_spends {
-                if !controller.apply_verified_bitcoin_spend(session_id, spend) {
-                    return None;
-                }
-            }
-        }
-        let bitcoin_broadcast_recovery = record.bitcoin_try_if_active().and_then(|bitcoin| {
-            bitcoin
-                .as_ref()
-                .and_then(|bitcoin| bitcoin.approved_broadcast_recovery().ok())
-        });
-        let mut controller = record.controller_if_active()?;
-        // A temporarily unavailable HNS verification read cannot advance the
-        // execution this refresh, but it must not hide already-authenticated
-        // durable execution or Bitcoin broadcast-recovery state.
-        let _ = controller.reconcile_verified_hns_funding();
-        let _ = controller.reconcile_verified_hns_spends();
-        let mut bundle = controller.shakescape_executions(bitcoin_broadcast_recovery)?;
-        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
-        bundle.fill(0);
-        array.map(JByteArray::into_raw)
+        let snapshot = lock_if_active(&record.active, &record.shakescape_execution_snapshot)?;
+        env.byte_array_from_slice(snapshot.as_ref()?.as_slice())
+            .ok()
+            .map(JByteArray::into_raw)
     }))
     .ok()
     .flatten()
@@ -10039,6 +10087,11 @@ fn retire_android_wallet_record(
     // so retirement does not wait for every remaining peer/scan round.
     record.request_hns_sync_cancellation_if_active();
     record.deactivate();
+    if let Ok(mut snapshot) = record.shakescape_execution_snapshot.lock() {
+        if let Some(mut previous) = snapshot.take() {
+            previous.fill(0);
+        }
+    }
     record.request_bitcoin_shutdown();
     if let Ok(mut bitcoin) = record.bitcoin_controller.lock() {
         if let Some(bitcoin) = bitcoin.as_mut() {
@@ -10094,6 +10147,7 @@ mod tests {
         let record = Arc::new(AndroidWalletRecord {
             active: AtomicBool::new(true),
             controller: Arc::new(Mutex::new(AndroidWalletController::Failed)),
+            shakescape_execution_snapshot: Mutex::new(None),
             database_path: PathBuf::from("/retiring-hns-scan-test/wallet.sqlite3"),
             bitcoin_controller: Mutex::new(None),
             pending_recovery: Mutex::new(None),

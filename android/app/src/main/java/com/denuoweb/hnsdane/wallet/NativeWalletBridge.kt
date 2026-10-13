@@ -464,6 +464,7 @@ internal object NativeWalletBridge {
             null
         }
 
+    /** Reads the last reconciled snapshot without entering the wallet controller. */
     fun shakescapeExecutions(handle: Long): NativeShakescapeExecutionStatus? =
         if (isValidHandle(handle) && isAvailable) {
             val bundle = runCatching { nativeShakescapeExecutions(handle) }
@@ -487,6 +488,11 @@ internal object NativeWalletBridge {
         } else {
             null
         }
+
+    /** Advances pending swap funding and spend observations before a status read. */
+    fun reconcileShakescapeExecutions(handle: Long): Boolean =
+        isValidHandle(handle) && isAvailable &&
+            runCatching { nativeReconcileShakescapeExecutions(handle) }.getOrDefault(false)
 
     fun cancelBtcForHnsOffer(handle: Long, offerId: String): Boolean =
         isValidHandle(handle) && isAvailable &&
@@ -1455,6 +1461,9 @@ internal object NativeWalletBridge {
 
     @JvmStatic
     private external fun nativeShakescapeExecutions(handle: Long): ByteArray?
+
+    @JvmStatic
+    private external fun nativeReconcileShakescapeExecutions(handle: Long): Boolean
 
     @JvmStatic
     private external fun nativeAbandonPendingDirectOfferAcceptance(
