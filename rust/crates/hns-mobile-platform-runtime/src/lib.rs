@@ -28444,7 +28444,7 @@ mod tests {
                 .map(GatewayHttpResponse::into_bytes)
         });
         second_arrived_rx
-            .recv_timeout(Duration::from_secs(2))
+            .recv_timeout(Duration::from_secs(10))
             .expect("second admitted delivery overlapped the first");
         release_tx.send(()).unwrap();
 

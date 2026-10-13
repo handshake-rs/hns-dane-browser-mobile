@@ -1728,17 +1728,31 @@ impl NativeWalletController {
         controller.approve_shakescape_hns_funding(action_token, reauthorization)
     }
 
-    fn retain_automatic_settlement_approval(&self, session_id: SessionId, now_unix: u64) -> bool {
+    fn follow_up_funding_approval(
+        &mut self,
+        session_id: &str,
+        transaction_id: &str,
+        output_index: u32,
+        now_unix: u64,
+    ) -> shakescape_execution::FundingApprovalFollowup {
         let Self::DirectHnsValue {
             shakescape_sessions,
+            shakescape_peer,
+            shakescape_replication_peers,
             ..
         } = self
         else {
-            return false;
+            return shakescape_execution::FundingApprovalFollowup::default();
         };
-        shakescape_sessions
-            .retain_automatic_settlement_approval(session_id, now_unix)
-            .is_ok()
+        shakescape_execution::follow_up_funding_approval(
+            shakescape_sessions,
+            shakescape_peer.as_mut(),
+            shakescape_replication_peers,
+            session_id,
+            transaction_id,
+            output_index,
+            now_unix,
+        )
     }
 
     fn automatic_settlement_permission(
@@ -1985,19 +1999,11 @@ impl NativeWalletController {
         else {
             return Ok(false);
         };
-        let now_unix = HnsReadSystemClock.now_unix()?;
-        let Some(permit) = shakescape_sessions.next_counterparty_hns_watch(now_unix)? else {
-            return Ok(false);
-        };
-        // The signed watch acknowledgement is a protocol safety promise. Do
-        // not send it until the exact session-derived P2WSH program is durable
-        // in the authenticated direct HNS filter.
-        shakescape_sessions.install_active_hns_htlc_watch_set(coordinator, now_unix)?;
-        let peer = shakescape_peer
-            .as_mut()
-            .ok_or(MobileWalletError::ControllerFailed)?;
-        shakescape_sessions.complete_counterparty_hns_watch(permit, peer, now_unix)?;
-        Ok(true)
+        shakescape_execution::complete_next_counterparty_hns_watch(
+            coordinator,
+            shakescape_sessions,
+            shakescape_peer.as_mut(),
+        )
     }
 
     fn complete_counterparty_bitcoin_watch(
@@ -7527,15 +7533,24 @@ pub unsafe extern "C" fn hns_browser_wallet_approve_btc_for_hns_funding(
             .approve_shakescape_htlc_funding(&token, reauthorization)
             .map_err(|_| wallet_runtime_failure("BTC-for-HNS funding approval failed"))?;
         drop(slot);
-        let automatic_settlement_authorized = {
-            let entry = wallet_entry(wallet)?;
-            let entry = entry.lock().map_err(|_| FfiFailure::internal())?;
-            ensure_wallet_active(&entry)?;
-            entry.controller.retain_automatic_settlement_approval(
-                session_id,
-                HnsReadSystemClock.now_unix().unwrap_or(0),
-            )
-        };
+        let followup = wallet_entry(wallet)
+            .ok()
+            .and_then(|entry| {
+                let mut entry = entry.lock().ok()?;
+                ensure_wallet_active(&entry).ok()?;
+                Some(entry.controller.follow_up_funding_approval(
+                    receipt.session_id.as_str(),
+                    receipt.txid.as_str(),
+                    receipt.output_index,
+                    HnsReadSystemClock.now_unix().unwrap_or(0),
+                ))
+            })
+            .unwrap_or_default();
+        if !followup.locator_announced {
+            eprintln!(
+                "Bitcoin swap funding was broadcast but its peer locator could not be announced"
+            );
+        }
         let mut receipt_json =
             serde_json::to_value(&receipt).map_err(|_| FfiFailure::internal())?;
         receipt_json
@@ -7543,7 +7558,7 @@ pub unsafe extern "C" fn hns_browser_wallet_approve_btc_for_hns_funding(
             .ok_or_else(FfiFailure::internal)?
             .insert(
                 "automaticSettlementAuthorized".to_owned(),
-                serde_json::Value::Bool(automatic_settlement_authorized),
+                serde_json::Value::Bool(followup.automatic_settlement_authorized),
             );
         let bundle = wallet_bitcoin_bundle(&receipt_json)?;
         let output = allocate_output(&bundle.0, true)?;
@@ -7690,14 +7705,24 @@ pub unsafe extern "C" fn hns_browser_wallet_approve_hns_for_btc_funding(
             }
         };
         if let Some(receipt) = first_chain_receipt {
-            let automatic_settlement_authorized = {
-                let entry = wallet_entry(wallet)?;
-                let entry = entry.lock().map_err(|_| FfiFailure::internal())?;
-                ensure_wallet_active(&entry)?;
-                entry
-                    .controller
-                    .retain_automatic_settlement_approval(session_id, receipt.accepted_at_unix)
-            };
+            let followup = wallet_entry(wallet)
+                .ok()
+                .and_then(|entry| {
+                    let mut entry = entry.lock().ok()?;
+                    ensure_wallet_active(&entry).ok()?;
+                    Some(entry.controller.follow_up_funding_approval(
+                        receipt.session_id.as_str(),
+                        receipt.transaction_id.as_str(),
+                        receipt.output_index,
+                        receipt.accepted_at_unix,
+                    ))
+                })
+                .unwrap_or_default();
+            if !followup.locator_announced {
+                eprintln!(
+                    "HNS swap funding was broadcast but its peer locator could not be announced"
+                );
+            }
             let mut receipt_json =
                 serde_json::to_value(&receipt).map_err(|_| FfiFailure::internal())?;
             receipt_json
@@ -7705,7 +7730,7 @@ pub unsafe extern "C" fn hns_browser_wallet_approve_hns_for_btc_funding(
                 .ok_or_else(FfiFailure::internal)?
                 .insert(
                     "automaticSettlementAuthorized".to_owned(),
-                    serde_json::Value::Bool(automatic_settlement_authorized),
+                    serde_json::Value::Bool(followup.automatic_settlement_authorized),
                 );
             let bundle = wallet_bitcoin_bundle(&receipt_json)?;
             let output = allocate_output(&bundle.0, true)?;
@@ -7752,9 +7777,15 @@ pub unsafe extern "C" fn hns_browser_wallet_approve_hns_for_btc_funding(
             .controller
             .approve_hns_for_btc_funding(&token, reauthorization)
             .map_err(|_| wallet_runtime_failure("HNS-for-BTC funding approval failed"))?;
-        let automatic_settlement_authorized = entry
-            .controller
-            .retain_automatic_settlement_approval(session_id, receipt.accepted_at_unix);
+        let followup = entry.controller.follow_up_funding_approval(
+            receipt.session_id.as_str(),
+            receipt.transaction_id.as_str(),
+            receipt.output_index,
+            receipt.accepted_at_unix,
+        );
+        if !followup.locator_announced {
+            eprintln!("HNS swap funding was broadcast but its peer locator could not be announced");
+        }
         let mut receipt_json =
             serde_json::to_value(&receipt).map_err(|_| FfiFailure::internal())?;
         receipt_json
@@ -7762,7 +7793,7 @@ pub unsafe extern "C" fn hns_browser_wallet_approve_hns_for_btc_funding(
             .ok_or_else(FfiFailure::internal)?
             .insert(
                 "automaticSettlementAuthorized".to_owned(),
-                serde_json::Value::Bool(automatic_settlement_authorized),
+                serde_json::Value::Bool(followup.automatic_settlement_authorized),
             );
         let bundle = wallet_bitcoin_bundle(&receipt_json)?;
         let output = allocate_output(&bundle.0, true)?;

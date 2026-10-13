@@ -98,7 +98,8 @@ iOS UI / Browser Shell                             [public; device qualification
 - `hns-mobile-platform-runtime::shakescape_execution` owns the common
   BTC/HNS first/second funding and settlement authorization, observation
   order, verified funding and spend transitions, proof-gated release of
-  expired first-funding reservations, and execution-status
+  expired first-funding reservations, the watch-acknowledgement order, approved
+  funding follow-up on both chains, and execution-status
   projection. Android JNI and the Apple C ABI lend their
   controller locks one at a time and publish the result under their own
   snapshot locks. Bitcoin verification never holds the HNS controller lock;

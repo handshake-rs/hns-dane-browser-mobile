@@ -4,13 +4,13 @@
 //! verification never runs while the HNS/session controller lock is held.
 
 use hns_wallet_mobile::{
-    EmbeddedHnsBackend, HnsClock, HnsReadSystemClock, MobileBitcoinValueController,
-    MobileHnsValueController, MobileShakescapeBitcoinFundingPermit,
-    MobileShakescapeBitcoinSettlementPermit, MobileShakescapeFirstFundingObservation,
-    MobileShakescapeHnsFundingPermit, MobileShakescapeHnsSettlementPermit,
-    MobileShakescapeSessionController, MobileShakescapeSettlementAction,
-    MobileShakescapeUnfundedBitcoinProof, MobileWalletError, ReconciledShakescapeBitcoinFunding,
-    VerifiedBitcoinHtlcSpendObservation,
+    EmbeddedHnsBackend, HnsClock, HnsDirectPeerCoordinator, HnsDirectShakescapePeer,
+    HnsReadSystemClock, MobileBitcoinValueController, MobileHnsValueController,
+    MobileShakescapeBitcoinFundingPermit, MobileShakescapeBitcoinSettlementPermit,
+    MobileShakescapeFirstFundingObservation, MobileShakescapeHnsFundingPermit,
+    MobileShakescapeHnsSettlementPermit, MobileShakescapeSessionController,
+    MobileShakescapeSettlementAction, MobileShakescapeUnfundedBitcoinProof, MobileWalletError,
+    ReconciledShakescapeBitcoinFunding, VerifiedBitcoinHtlcSpendObservation,
 };
 use hns_wallet_types::{ModuleId, SessionId};
 
@@ -44,6 +44,88 @@ pub trait ExecutionAccess {
 
 fn now_unix() -> Result<u64, MobileWalletError> {
     Ok(HnsReadSystemClock.now_unix()?)
+}
+
+/// Decode the canonical, nonzero identifiers returned by native funding
+/// receipts before they cross back into the typed session authority.
+pub fn canonical_hash_32(token: &str) -> Option<[u8; 32]> {
+    if token.len() != 64
+        || token
+            .bytes()
+            .any(|byte| !byte.is_ascii_digit() && !(b'a'..=b'f').contains(&byte))
+    {
+        return None;
+    }
+    let mut value = [0_u8; 32];
+    for (index, pair) in token.as_bytes().as_chunks::<2>().0.iter().enumerate() {
+        let nibble = |byte| match byte {
+            b'0'..=b'9' => byte - b'0',
+            b'a'..=b'f' => byte - b'a' + 10,
+            _ => 0,
+        };
+        value[index] = (nibble(pair[0]) << 4) | nibble(pair[1]);
+    }
+    value.iter().any(|byte| *byte != 0).then_some(value)
+}
+
+pub fn canonical_session_id(token: &str) -> Option<SessionId> {
+    canonical_hash_32(token).map(SessionId::new)
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct FundingApprovalFollowup {
+    pub automatic_settlement_authorized: bool,
+    pub locator_announced: bool,
+}
+
+/// After either chain broadcasts its approved lock, retain the previously
+/// approved settlement grant and immediately send its locator through every
+/// connected board peer. A missing peer cannot revoke the settlement grant;
+/// confirmed funding is also retained and replayed by chain reconciliation.
+pub fn follow_up_funding_approval(
+    sessions: &mut MobileShakescapeSessionController,
+    primary_peer: Option<&mut HnsDirectShakescapePeer>,
+    replica_peers: &mut [HnsDirectShakescapePeer],
+    session_id: &str,
+    transaction_id: &str,
+    output_index: u32,
+    now_unix: u64,
+) -> FundingApprovalFollowup {
+    let Some(session_id) = canonical_session_id(session_id) else {
+        return FundingApprovalFollowup::default();
+    };
+    let automatic_settlement_authorized = sessions
+        .retain_automatic_settlement_approval(session_id, now_unix)
+        .is_ok();
+    let mut locator_announced = false;
+    if let Some(transaction_id) = canonical_hash_32(transaction_id) {
+        for peer in primary_peer.into_iter().chain(replica_peers.iter_mut()) {
+            locator_announced |= sessions
+                .announce_local_funding(peer, session_id, transaction_id, output_index, now_unix)
+                .is_ok();
+        }
+    }
+    FundingApprovalFollowup {
+        automatic_settlement_authorized,
+        locator_announced,
+    }
+}
+
+/// Never acknowledge an HNS counterparty watch before its exact HTLC filter
+/// has been installed in the authenticated direct-chain coordinator.
+pub fn complete_next_counterparty_hns_watch(
+    coordinator: &mut HnsDirectPeerCoordinator,
+    sessions: &mut MobileShakescapeSessionController,
+    peer: Option<&mut HnsDirectShakescapePeer>,
+) -> Result<bool, MobileWalletError> {
+    let now = now_unix()?;
+    let Some(permit) = sessions.next_counterparty_hns_watch(now)? else {
+        return Ok(false);
+    };
+    sessions.install_active_hns_htlc_watch_set(coordinator, now)?;
+    let peer = peer.ok_or(MobileWalletError::ControllerFailed)?;
+    sessions.complete_counterparty_hns_watch(permit, peer, now)?;
+    Ok(true)
 }
 
 /// A first-chain HNS lock needs only its owner's approval. The second-chain
@@ -372,4 +454,19 @@ pub fn publish_execution_snapshot<A: ExecutionAccess, T>(
             Ok::<_, MobileWalletError>(publish(projection))
         })?
         .map_err(|error| access.wallet_error("Shakescape execution listing failed", error))?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{canonical_hash_32, canonical_session_id};
+
+    #[test]
+    fn funding_receipt_identifiers_require_canonical_nonzero_hex() {
+        let valid = format!("ab{}", "00".repeat(31));
+        assert!(canonical_session_id(&valid).is_some());
+        assert_eq!(canonical_hash_32(&valid).map(|hash| hash[0]), Some(0xab));
+        assert!(canonical_session_id(&"00".repeat(32)).is_none());
+        assert!(canonical_hash_32(&valid.to_uppercase()).is_none());
+        assert!(canonical_hash_32(&valid[..62]).is_none());
+    }
 }

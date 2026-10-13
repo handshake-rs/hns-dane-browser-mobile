@@ -7,7 +7,9 @@
 
 use hns_header_consensus::{HEADER_SIZE, Header};
 use hns_light_sync::SyncState;
-use hns_mobile_platform_runtime::shakescape_execution::{self, ExecutionAccess};
+use hns_mobile_platform_runtime::shakescape_execution::{
+    self, ExecutionAccess, canonical_session_id,
+};
 use hns_mobile_platform_runtime::*;
 use hns_wallet_ffi::ServiceErrorCode;
 use hns_wallet_mobile::{
@@ -1820,26 +1822,17 @@ impl AndroidWalletController {
         else {
             return false;
         };
-        let Ok(now_unix) = HnsReadSystemClock.now_unix() else {
-            return false;
-        };
-        let Ok(Some(permit)) = shakescape_sessions.next_counterparty_hns_watch(now_unix) else {
-            return false;
-        };
-        if let Err(error) =
-            shakescape_sessions.install_active_hns_htlc_watch_set(coordinator, now_unix)
-        {
+        shakescape_execution::complete_next_counterparty_hns_watch(
+            coordinator,
+            shakescape_sessions,
+            shakescape_peer.as_mut(),
+        )
+        .unwrap_or_else(|error| {
             android_log_error(&format!(
-                "ShakeScape HNS watch acknowledgement withheld because the authenticated direct filter could not be installed: {error}"
+                "ShakeScape HNS watch acknowledgement failed: {error}"
             ));
-            return false;
-        }
-        let Some(peer) = shakescape_peer.as_mut() else {
-            return false;
-        };
-        shakescape_sessions
-            .complete_counterparty_hns_watch(permit, peer, now_unix)
-            .is_ok()
+            false
+        })
     }
 
     fn install_active_hns_htlc_watch_set(&self) -> bool {
@@ -1978,6 +1971,7 @@ impl AndroidWalletController {
             controller,
             shakescape_sessions,
             shakescape_peer,
+            shakescape_replication_peers,
             ..
         } = self
         else {
@@ -1986,34 +1980,21 @@ impl AndroidWalletController {
         let receipt = controller
             .approve_shakescape_hns_funding(action_token, reauthorization)
             .ok()?;
-        let automatic_settlement_authorized = canonical_session_id(receipt.session_id.as_str())
-            .is_some_and(|session_id| {
-                shakescape_sessions
-                    .retain_automatic_settlement_approval(session_id, receipt.accepted_at_unix)
-                    .is_ok()
-            });
-        if !automatic_settlement_authorized {
+        let followup = shakescape_execution::follow_up_funding_approval(
+            shakescape_sessions,
+            shakescape_peer.as_mut(),
+            shakescape_replication_peers,
+            receipt.session_id.as_str(),
+            receipt.transaction_id.as_str(),
+            receipt.output_index,
+            receipt.accepted_at_unix,
+        );
+        if !followup.automatic_settlement_authorized {
             android_log_error(
                 "HNS funding submitted but automatic settlement approval could not be retained",
             );
         }
-        if let (Some(session_id), Some(transaction_id), Some(peer)) = (
-            canonical_session_id(receipt.session_id.as_str()),
-            canonical_hash_32(receipt.transaction_id.as_str()),
-            shakescape_peer.as_mut(),
-        ) {
-            if let Err(error) = shakescape_sessions.announce_local_funding(
-                peer,
-                session_id,
-                transaction_id,
-                receipt.output_index,
-                receipt.accepted_at_unix,
-            ) {
-                android_log_error(&format!(
-                    "HNS swap funding was broadcast but its peer locator could not be announced: {error}"
-                ));
-            }
-        } else {
+        if !followup.locator_announced {
             android_log_error(
                 "HNS swap funding was broadcast without an active peer for its funding locator",
             );
@@ -2021,7 +2002,7 @@ impl AndroidWalletController {
         let mut receipt_json = serde_json::to_value(&receipt).ok()?;
         receipt_json.as_object_mut()?.insert(
             "automaticSettlementAuthorized".to_owned(),
-            serde_json::Value::Bool(automatic_settlement_authorized),
+            serde_json::Value::Bool(followup.automatic_settlement_authorized),
         );
         let mut json = serde_json::to_vec(&receipt_json).ok()?;
         let bundle = bitcoin_json_bundle(&json);
@@ -4564,34 +4545,6 @@ fn canonical_action_token(bytes: Vec<u8>) -> Option<SensitiveString> {
             None
         }
     }
-}
-
-fn canonical_session_id(token: &str) -> Option<SessionId> {
-    let value = canonical_hash_32(token)?;
-    value
-        .iter()
-        .any(|byte| *byte != 0)
-        .then(|| SessionId::new(value))
-}
-
-fn canonical_hash_32(token: &str) -> Option<[u8; 32]> {
-    if token.len() != 64
-        || token
-            .bytes()
-            .any(|byte| !byte.is_ascii_digit() && !(b'a'..=b'f').contains(&byte))
-    {
-        return None;
-    }
-    let mut value = [0_u8; 32];
-    for (index, pair) in token.as_bytes().as_chunks::<2>().0.iter().enumerate() {
-        let nibble = |byte| match byte {
-            b'0'..=b'9' => byte - b'0',
-            b'a'..=b'f' => byte - b'a' + 10,
-            _ => 0,
-        };
-        value[index] = (nibble(pair[0]) << 4) | nibble(pair[1]);
-    }
-    value.iter().any(|byte| *byte != 0).then_some(value)
 }
 
 fn bounded_exact_wallet_name(mut bytes: Vec<u8>) -> Option<SensitiveString> {
@@ -8527,62 +8480,48 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         {
             Ok(receipt) => receipt,
             Err(error) => {
-                android_log_error(&format!(
-                    "Bitcoin HTLC funding submission failed: {error}"
-                ));
+                android_log_error(&format!("Bitcoin HTLC funding submission failed: {error}"));
                 return None;
             }
         };
         drop(bitcoin);
-        let mut automatic_settlement_authorized = false;
-        if let (Some(session_id), Some(transaction_id), Some(mut controller)) = (
-            canonical_session_id(receipt.session_id.as_str()),
-            canonical_hash_32(receipt.txid.as_str()),
-            record.controller_if_active(),
-        ) {
-            let announced = if let AndroidWalletController::DirectValue {
-                shakescape_sessions,
-                shakescape_peer,
-                ..
-            } = &mut *controller
-            {
-                automatic_settlement_authorized = shakescape_sessions
-                    .retain_automatic_settlement_approval(
-                        session_id,
-                        HnsReadSystemClock.now_unix().unwrap_or(0),
-                    )
-                    .is_ok();
-                shakescape_peer.as_mut().is_some_and(|peer| {
-                    shakescape_sessions
-                        .announce_local_funding(
-                            peer,
-                            session_id,
-                            transaction_id,
-                            receipt.output_index,
-                            HnsReadSystemClock.now_unix().unwrap_or(0),
-                        )
-                        .is_ok()
-                })
-            } else {
-                false
-            };
-            if !announced {
-                android_log_error(
-                    "Bitcoin swap funding was broadcast but its peer locator could not be announced",
-                );
-            }
-        } else {
+        let followup = record
+            .controller_if_active()
+            .and_then(|mut controller| {
+                let AndroidWalletController::DirectValue {
+                    shakescape_sessions,
+                    shakescape_peer,
+                    shakescape_replication_peers,
+                    ..
+                } = &mut *controller
+                else {
+                    return None;
+                };
+                Some(shakescape_execution::follow_up_funding_approval(
+                    shakescape_sessions,
+                    shakescape_peer.as_mut(),
+                    shakescape_replication_peers,
+                    receipt.session_id.as_str(),
+                    receipt.txid.as_str(),
+                    receipt.output_index,
+                    HnsReadSystemClock.now_unix().unwrap_or(0),
+                ))
+            })
+            .unwrap_or_default();
+        if !followup.locator_announced {
             android_log_error(
                 "Bitcoin swap funding was broadcast without an active peer for its funding locator",
             );
         }
-        if !automatic_settlement_authorized {
-            android_log_error("Bitcoin funding submitted but automatic settlement approval could not be retained");
+        if !followup.automatic_settlement_authorized {
+            android_log_error(
+                "Bitcoin funding submitted but automatic settlement approval could not be retained",
+            );
         }
         let mut receipt_json = serde_json::to_value(&receipt).ok()?;
         receipt_json.as_object_mut()?.insert(
             "automaticSettlementAuthorized".to_owned(),
-            serde_json::Value::Bool(automatic_settlement_authorized),
+            serde_json::Value::Bool(followup.automatic_settlement_authorized),
         );
         let mut json = serde_json::to_vec(&receipt_json).ok()?;
         let mut bundle = bitcoin_json_bundle(json.as_slice())?;
