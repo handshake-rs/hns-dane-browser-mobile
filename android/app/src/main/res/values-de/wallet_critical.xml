@@ -31,7 +31,6 @@
     <string name="wallet_reads_receive_unavailable">Die Empfangsadresse erscheint nach der Synchronisierung.</string>
     <string name="wallet_reads_receive">%1$s\nAdressindex %2$d\nFür HNS-Zahlungen verwenden.</string>
     <string name="wallet_direct_shakescape_endpoint_hint">IPv4:Port oder [IPv6]:Port</string>
-    <string name="wallet_direct_shakescape_connect_and_load">Verbinden und Angebote laden</string>
     <string name="wallet_direct_shakescape_recent_peers">Letzte Angebots-Peers</string>
     <string name="wallet_direct_shakescape_discovered_peers">Gefundene Angebots-Peers</string>
     <string name="wallet_direct_shakescape_no_recent_peers">Keine letzten Angebots-Peers.</string>

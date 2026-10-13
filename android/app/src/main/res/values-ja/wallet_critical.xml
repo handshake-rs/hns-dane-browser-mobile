@@ -31,7 +31,6 @@
     <string name="wallet_reads_receive_unavailable">同期後に受取アドレスが表示されます。</string>
     <string name="wallet_reads_receive">%1$s\nアドレス番号 %2$d\nHNSの支払い受取に使用します。</string>
     <string name="wallet_direct_shakescape_endpoint_hint">IPv4:ポート または [IPv6]:ポート</string>
-    <string name="wallet_direct_shakescape_connect_and_load">接続してオファーを読み込む</string>
     <string name="wallet_direct_shakescape_recent_peers">最近のオファー相手</string>
     <string name="wallet_direct_shakescape_discovered_peers">検出されたオファー相手</string>
     <string name="wallet_direct_shakescape_no_recent_peers">最近のオファー相手はありません。</string>

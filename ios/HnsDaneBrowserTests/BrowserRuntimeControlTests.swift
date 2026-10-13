@@ -4570,13 +4570,6 @@ final class BrowserRuntimeControlTests: XCTestCase {
                 peerEndpoint: "198.51.100.7:12038"
             )
         )
-        XCTAssertTrue(directShakescapeConnectionShouldOpenOffers(connectedResult))
-        XCTAssertFalse(directShakescapeConnectionShouldOpenOffers(
-            NativeDirectShakescapeConnectResult(
-                outcome: .connectionFailed,
-                peerEndpoint: nil
-            )
-        ))
         var unknownVersion = status
         unknownVersion[4] = 4
         XCTAssertThrowsError(try NativeDirectShakescapeBundle.status(unknownVersion))

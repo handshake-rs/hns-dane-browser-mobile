@@ -605,7 +605,6 @@
     <string name="wallet_shakedex_more_offers">More offers</string>
     <string name="wallet_shakedex_next_offer_page">Load next authenticated page</string>
     <string name="wallet_direct_shakescape_endpoint_hint">IPv4:port or [IPv6]:port</string>
-    <string name="wallet_direct_shakescape_connect_and_load">Connect and load offers</string>
     <string name="wallet_direct_shakescape_recent_peers">Recent offer peers</string>
     <string name="wallet_direct_shakescape_discovered_peers">Discovered offer peers</string>
     <string name="wallet_direct_shakescape_no_recent_peers">No recent offer peers.</string>

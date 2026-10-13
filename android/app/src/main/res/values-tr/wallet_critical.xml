@@ -31,7 +31,6 @@
     <string name="wallet_reads_receive_unavailable">Alma adresi eşitlemeden sonra görünür.</string>
     <string name="wallet_reads_receive">%1$s\nAdres dizini %2$d\nHNS ödemeleri için kullanın.</string>
     <string name="wallet_direct_shakescape_endpoint_hint">IPv4:bağlantı_noktası veya [IPv6]:bağlantı_noktası</string>
-    <string name="wallet_direct_shakescape_connect_and_load">Bağlan ve teklifleri yükle</string>
     <string name="wallet_direct_shakescape_recent_peers">Son teklif eşleri</string>
     <string name="wallet_direct_shakescape_discovered_peers">Bulunan teklif eşleri</string>
     <string name="wallet_direct_shakescape_no_recent_peers">Son teklif eşi yok.</string>

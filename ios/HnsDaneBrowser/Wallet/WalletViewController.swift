@@ -24,6 +24,7 @@ private let automaticSwapHnsSyncInterval: TimeInterval = 2 * 60
 private let automaticSwapBitcoinSyncInterval: TimeInterval = 2 * 60
 private let automaticSwapBitcoinStopGraceInterval: TimeInterval = 5 * 60
 private let maximumVisibleDirectShakescapePeers = 3
+private let maximumVisibleDirectOffers = 5
 private let showShakedexWalletCard = true
 
 /// The deadline alone cannot prove a maker's first-chain lock was never sent.
@@ -2454,19 +2455,7 @@ final class WalletViewController: UIViewController {
                         actions: []
                     )
                 case .success(let offers):
-                    self.presentWalletMenu(
-                        title: WalletCopy.text("wallet_swap_available_offers"),
-                        rows: [],
-                        actions: offers.map { offer in
-                            WalletMenuAction(
-                                title: WalletCopy.text("wallet_swap_acceptance_review") + " ›\n" +
-                                    self.directOfferAcceptanceLabel(offer),
-                                primary: true
-                            ) { [weak self] in
-                                self?.showDirectOfferAcceptanceForm(offer)
-                            }
-                        }
-                    )
+                    self.showAvailableDirectOffersPage(offers, page: 0)
                 case .failure(let error):
                     self.swapActionStatusLabel.text = WalletCopy.text(
                         "wallet_swap_available_failed"
@@ -2475,6 +2464,38 @@ final class WalletViewController: UIViewController {
                 }
             }
         }
+    }
+
+    private func showAvailableDirectOffersPage(
+        _ offers: [NativeDirectOfferSummary],
+        page requestedPage: Int
+    ) {
+        let lastPage = (offers.count - 1) / maximumVisibleDirectOffers
+        let page = min(max(requestedPage, 0), lastPage)
+        let start = page * maximumVisibleDirectOffers
+        let end = min(start + maximumVisibleDirectOffers, offers.count)
+        var actions = offers[start..<end].map { offer in
+            WalletMenuAction(
+                title: WalletCopy.text("wallet_swap_acceptance_review") + " ›\n" +
+                    self.directOfferAcceptanceLabel(offer),
+                primary: true
+            ) { [weak self] in
+                self?.showDirectOfferAcceptanceForm(offer)
+            }
+        }
+        if page > 0 {
+            actions.append(WalletMenuAction(title: WalletCopy.text("action_previous_wallet_activity")) { [weak self] in
+                self?.showAvailableDirectOffersPage(offers, page: page - 1)
+            })
+        }
+        if page < lastPage {
+            actions.append(WalletMenuAction(title: WalletCopy.text("action_next_wallet_activity")) { [weak self] in
+                self?.showAvailableDirectOffersPage(offers, page: page + 1)
+            })
+        }
+        let title = WalletCopy.text("wallet_swap_available_offers") +
+            (lastPage > 0 ? " · \(page + 1)/\(lastPage + 1)" : "")
+        presentWalletMenu(title: title, rows: [], actions: actions)
     }
 
     private func showDirectOfferAcceptanceForm(_ offer: NativeDirectOfferSummary) {
@@ -4633,7 +4654,7 @@ final class WalletViewController: UIViewController {
                     emptyMessage: WalletCopy.text("wallet_direct_shakescape_no_discovered_peers")
                 ),
             ],
-            primaryTitle: WalletCopy.text("wallet_direct_shakescape_connect_and_load")
+            primaryTitle: WalletCopy.text("row_wallet_pair_direct_shakescape")
         ) { [weak self] values in
             guard let self, let endpoint = values.first else { return }
             self.connectDirectShakescapePeer(endpoint)
@@ -4677,11 +4698,6 @@ final class WalletViewController: UIViewController {
                     self.readStatusLabel.text = WalletCopy.text(
                         "wallet_direct_shakescape_exchange_failed"
                     )
-                }
-                if directShakescapeConnectionShouldOpenOffers(connection) {
-                    self.showAvailableDirectOffers()
-                } else {
-                    self.showShakedexDashboard()
                 }
             case .failure(let error):
                 self.readStatusLabel.text = WalletCopy.text(

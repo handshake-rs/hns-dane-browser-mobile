@@ -31,7 +31,6 @@
     <string name="wallet_reads_receive_unavailable">L’adresse de réception apparaîtra après la synchronisation.</string>
     <string name="wallet_reads_receive">%1$s\nIndex d’adresse %2$d\nÀ utiliser pour les paiements HNS.</string>
     <string name="wallet_direct_shakescape_endpoint_hint">IPv4:port ou [IPv6]:port</string>
-    <string name="wallet_direct_shakescape_connect_and_load">Se connecter et charger les offres</string>
     <string name="wallet_direct_shakescape_recent_peers">Pairs d’offres récents</string>
     <string name="wallet_direct_shakescape_discovered_peers">Pairs d’offres découverts</string>
     <string name="wallet_direct_shakescape_no_recent_peers">Aucun pair d’offre récent.</string>

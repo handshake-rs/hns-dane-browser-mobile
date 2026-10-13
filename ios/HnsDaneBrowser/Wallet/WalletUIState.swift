@@ -103,12 +103,6 @@ func walletAutomaticHnsSyncMayStart(
         !operationInFlight && !bitcoinSyncInProgress
 }
 
-func directShakescapeConnectionShouldOpenOffers(
-    _ result: NativeDirectShakescapeConnectResult
-) -> Bool {
-    result.peerEndpoint != nil && [.connected, .replaced].contains(result.outcome)
-}
-
 enum WalletPendingPaymentContinuation: Equatable {
     case none
     case wait

@@ -31,7 +31,6 @@
     <string name="wallet_reads_receive_unavailable">Alamat penerimaan akan muncul setelah sinkronisasi.</string>
     <string name="wallet_reads_receive">%1$s\nIndeks alamat %2$d\nGunakan untuk pembayaran HNS.</string>
     <string name="wallet_direct_shakescape_endpoint_hint">IPv4:port atau [IPv6]:port</string>
-    <string name="wallet_direct_shakescape_connect_and_load">Hubungkan dan muat penawaran</string>
     <string name="wallet_direct_shakescape_recent_peers">Rekan penawaran terbaru</string>
     <string name="wallet_direct_shakescape_discovered_peers">Rekan penawaran yang ditemukan</string>
     <string name="wallet_direct_shakescape_no_recent_peers">Tidak ada rekan penawaran terbaru.</string>

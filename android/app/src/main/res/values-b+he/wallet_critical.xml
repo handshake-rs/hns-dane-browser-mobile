@@ -31,7 +31,6 @@
     <string name="wallet_reads_receive_unavailable">כתובת הקבלה תופיע לאחר הסנכרון.</string>
     <string name="wallet_reads_receive">%1$s\nאינדקס כתובת %2$d\nלשימוש בתשלומי HNS.</string>
     <string name="wallet_direct_shakescape_endpoint_hint">IPv4:יציאה או [IPv6]:יציאה</string>
-    <string name="wallet_direct_shakescape_connect_and_load">התחברות וטעינת הצעות</string>
     <string name="wallet_direct_shakescape_recent_peers">עמיתי הצעות אחרונים</string>
     <string name="wallet_direct_shakescape_discovered_peers">עמיתי הצעות שהתגלו</string>
     <string name="wallet_direct_shakescape_no_recent_peers">אין עמיתי הצעות אחרונים.</string>

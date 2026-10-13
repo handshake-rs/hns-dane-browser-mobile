@@ -31,7 +31,6 @@
     <string name="wallet_reads_receive_unavailable">نشانی دریافت پس از همگام‌سازی نمایش داده می‌شود.</string>
     <string name="wallet_reads_receive">%1$s\nشاخص نشانی %2$d\nبرای پرداخت‌های HNS استفاده کنید.</string>
     <string name="wallet_direct_shakescape_endpoint_hint">IPv4:درگاه یا [IPv6]:درگاه</string>
-    <string name="wallet_direct_shakescape_connect_and_load">اتصال و بارگیری پیشنهادها</string>
     <string name="wallet_direct_shakescape_recent_peers">همتاهای اخیر پیشنهاد</string>
     <string name="wallet_direct_shakescape_discovered_peers">همتاهای پیشنهاد یافت‌شده</string>
     <string name="wallet_direct_shakescape_no_recent_peers">همتای پیشنهاد اخیری وجود ندارد.</string>

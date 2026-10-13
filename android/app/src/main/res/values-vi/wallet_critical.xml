@@ -31,7 +31,6 @@
     <string name="wallet_reads_receive_unavailable">Địa chỉ nhận sẽ xuất hiện sau khi đồng bộ.</string>
     <string name="wallet_reads_receive">%1$s\nChỉ mục địa chỉ %2$d\nDùng để nhận thanh toán HNS.</string>
     <string name="wallet_direct_shakescape_endpoint_hint">IPv4:cổng hoặc [IPv6]:cổng</string>
-    <string name="wallet_direct_shakescape_connect_and_load">Kết nối và tải chào giá</string>
     <string name="wallet_direct_shakescape_recent_peers">Các bên chào giá gần đây</string>
     <string name="wallet_direct_shakescape_discovered_peers">Các bên chào giá đã tìm thấy</string>
     <string name="wallet_direct_shakescape_no_recent_peers">Không có bên chào giá gần đây.</string>

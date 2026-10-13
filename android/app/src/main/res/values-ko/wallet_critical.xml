@@ -31,7 +31,6 @@
     <string name="wallet_reads_receive_unavailable">동기화 후 수신 주소가 표시됩니다.</string>
     <string name="wallet_reads_receive">%1$s\n주소 인덱스 %2$d\nHNS 결제에 사용하세요.</string>
     <string name="wallet_direct_shakescape_endpoint_hint">IPv4:포트 또는 [IPv6]:포트</string>
-    <string name="wallet_direct_shakescape_connect_and_load">연결하고 제안 불러오기</string>
     <string name="wallet_direct_shakescape_recent_peers">최근 제안 피어</string>
     <string name="wallet_direct_shakescape_discovered_peers">발견된 제안 피어</string>
     <string name="wallet_direct_shakescape_no_recent_peers">최근 제안 피어가 없습니다.</string>

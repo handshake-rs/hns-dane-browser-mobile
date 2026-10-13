@@ -31,7 +31,6 @@
     <string name="wallet_reads_receive_unavailable">同步後將顯示收款地址。</string>
     <string name="wallet_reads_receive">%1$s\n地址索引 %2$d\n用於接收 HNS 付款。</string>
     <string name="wallet_direct_shakescape_endpoint_hint">IPv4:連接埠或 [IPv6]:連接埠</string>
-    <string name="wallet_direct_shakescape_connect_and_load">連線並載入報價</string>
     <string name="wallet_direct_shakescape_recent_peers">最近的報價方</string>
     <string name="wallet_direct_shakescape_discovered_peers">探索到的報價方</string>
     <string name="wallet_direct_shakescape_no_recent_peers">沒有最近的報價方。</string>

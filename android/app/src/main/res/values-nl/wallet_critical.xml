@@ -31,7 +31,6 @@
     <string name="wallet_reads_receive_unavailable">Het ontvangstadres verschijnt na synchronisatie.</string>
     <string name="wallet_reads_receive">%1$s\nAdresindex %2$d\nGebruik voor HNS-betalingen.</string>
     <string name="wallet_direct_shakescape_endpoint_hint">IPv4:poort of [IPv6]:poort</string>
-    <string name="wallet_direct_shakescape_connect_and_load">Verbinden en aanbiedingen laden</string>
     <string name="wallet_direct_shakescape_recent_peers">Recente aanbiedingspeers</string>
     <string name="wallet_direct_shakescape_discovered_peers">Gevonden aanbiedingspeers</string>
     <string name="wallet_direct_shakescape_no_recent_peers">Geen recente aanbiedingspeers.</string>

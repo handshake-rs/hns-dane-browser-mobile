@@ -123,7 +123,6 @@ import com.denuoweb.hnsdane.wallet.beginDirectHnsSynchronizationWithRecovery
 import com.denuoweb.hnsdane.wallet.closeWalletControllerForDeletion
 import com.denuoweb.hnsdane.wallet.deleteConfirmedWalletStorage
 import com.denuoweb.hnsdane.wallet.deleteWalletDatabaseArtifacts
-import com.denuoweb.hnsdane.wallet.directShakescapeConnectionShouldOpenOffers
 import com.denuoweb.hnsdane.wallet.exactWalletNameUtf8
 import com.denuoweb.hnsdane.wallet.displayAmount
 import com.denuoweb.hnsdane.wallet.formatHnsBaseUnits
@@ -5657,24 +5656,47 @@ class WalletActivity : ComponentActivity() {
                         .setPositiveButton(android.R.string.ok, null)
                         .show()
                 } else {
-                    walletDetailDialog(
-                        title = getString(R.string.wallet_swap_available_offers),
-                        rows = emptyList(),
-                        actionSections = listOf(WalletModalActionSection(
-                            getString(R.string.wallet_modal_actions),
-                            offers.map { offer ->
-                                WalletModalAction(
-                                    getString(R.string.wallet_swap_acceptance_review) + " ›\n" +
-                                        directOfferAcceptanceLabel(offer),
-                                    action = { showDirectOfferAcceptanceForm(offer) },
-                                    primary = true,
-                                )
-                            },
-                        )),
-                    )
+                    showAvailableDirectOffersPage(offers, 0)
                 }
             }
         }
+    }
+
+    private fun showAvailableDirectOffersPage(
+        offers: List<NativeDirectOfferSummary>,
+        requestedPage: Int,
+    ) {
+        val lastPage = (offers.size - 1) / MAX_VISIBLE_DIRECT_OFFERS
+        val page = requestedPage.coerceIn(0, lastPage)
+        val actions = buildList {
+            offers.drop(page * MAX_VISIBLE_DIRECT_OFFERS)
+                .take(MAX_VISIBLE_DIRECT_OFFERS)
+                .forEach { offer ->
+                    add(WalletModalAction(
+                        getString(R.string.wallet_swap_acceptance_review) + " ›\n" +
+                            directOfferAcceptanceLabel(offer),
+                        action = { showDirectOfferAcceptanceForm(offer) },
+                        primary = true,
+                    ))
+                }
+            if (page > 0) add(WalletModalAction(
+                getString(R.string.action_previous_wallet_activity),
+                action = { showAvailableDirectOffersPage(offers, page - 1) },
+            ))
+            if (page < lastPage) add(WalletModalAction(
+                getString(R.string.action_next_wallet_activity),
+                action = { showAvailableDirectOffersPage(offers, page + 1) },
+            ))
+        }
+        val title = getString(R.string.wallet_swap_available_offers) +
+            if (lastPage > 0) " · ${page + 1}/${lastPage + 1}" else ""
+        walletDetailDialog(
+            title = title,
+            rows = emptyList(),
+            actionSections = listOf(WalletModalActionSection(
+                getString(R.string.wallet_modal_actions), actions,
+            )),
+        )
     }
 
     private fun directOfferLabel(offer: NativeDirectOfferSummary): String = getString(
@@ -7219,7 +7241,7 @@ class WalletActivity : ComponentActivity() {
                         endpointInput,
                     ),
             ),
-            primaryLabel = getString(R.string.wallet_direct_shakescape_connect_and_load),
+            primaryLabel = getString(R.string.row_wallet_pair_direct_shakescape),
             onPrimary = { dialog ->
                 val endpoint = endpointInput.text?.toString().orEmpty()
                 wipeEditable(endpointInput.text)
@@ -7279,7 +7301,6 @@ class WalletActivity : ComponentActivity() {
                 "Direct Shakescape pairing stopped before native connection because the " +
                     "wallet operation context was unavailable",
             )
-            showShakedexDashboard()
             return
         }
         if (!beginOperation(
@@ -7293,7 +7314,6 @@ class WalletActivity : ComponentActivity() {
                 "Direct Shakescape pairing stopped at the operation gate: " +
                     "busy=$busy hnsSync=${hasActiveWalletHnsSynchronization()}",
             )
-            showShakedexDashboard()
             return
         }
         shakedexQueryStatusView.text = getString(R.string.wallet_direct_shakescape_connecting)
@@ -7322,7 +7342,9 @@ class WalletActivity : ComponentActivity() {
                 }
                 busy = false
                 refreshControllerState(resetReads = false)
-                shakedexQueryStatusView.text = directShakescapeConnectionMessage(result)
+                val message = directShakescapeConnectionMessage(result)
+                shakedexQueryStatusView.text = message
+                swapActionStatusView.text = message
                 result?.peerEndpoint?.let(::rememberDirectShakescapePeer)
                 val outcome = result?.outcome?.name ?: "BridgeFailed"
                 if (result?.peerEndpoint != null) {
@@ -7333,11 +7355,6 @@ class WalletActivity : ComponentActivity() {
                     )
                 } else {
                     Log.w(TAG, "Native direct Shakescape pairing completed: outcome=$outcome")
-                }
-                if (directShakescapeConnectionShouldOpenOffers(result)) {
-                    showAvailableDirectOffers()
-                } else {
-                    showShakedexDashboard()
                 }
             }
         }
@@ -10375,6 +10392,7 @@ class WalletActivity : ComponentActivity() {
         const val RECOVERY_CHOICE_COUNT = 4
         const val SAFE_FULL_RESCAN_BIRTHDAY = 0L
         const val MAX_VISIBLE_READ_ITEMS = 20
+        const val MAX_VISIBLE_DIRECT_OFFERS = 5
         const val MAX_SEND_RECIPIENT_BYTES = 512
         const val DEFAULT_HNS_MAXIMUM_FEE = "0.1"
         const val DEFAULT_HNS_MAXIMUM_FEE_BASE_UNITS = "100000"

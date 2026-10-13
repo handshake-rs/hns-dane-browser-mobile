@@ -31,7 +31,6 @@
     <string name="wallet_reads_receive_unavailable">सिंक होने के बाद प्राप्ति पता दिखाई देगा।</string>
     <string name="wallet_reads_receive">%1$s\nपता सूचकांक %2$d\nHNS भुगतान के लिए उपयोग करें।</string>
     <string name="wallet_direct_shakescape_endpoint_hint">IPv4:पोर्ट या [IPv6]:पोर्ट</string>
-    <string name="wallet_direct_shakescape_connect_and_load">जुड़ें और ऑफ़र लोड करें</string>
     <string name="wallet_direct_shakescape_recent_peers">हाल के ऑफ़र पीयर</string>
     <string name="wallet_direct_shakescape_discovered_peers">मिले हुए ऑफ़र पीयर</string>
     <string name="wallet_direct_shakescape_no_recent_peers">कोई हाल का ऑफ़र पीयर नहीं।</string>
