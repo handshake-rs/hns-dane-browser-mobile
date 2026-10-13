@@ -13,22 +13,24 @@ source overrides and Git dependencies, and requires one copy of each package.
 | Other engine packages | Exact package versions in `rust/Cargo.toml` |
 | `hns-wallet-ffi`, `hns-wallet-types` | 0.4.1 |
 | `hns-wallet-bip157` | Published 0.4.2 |
-| `hns-wallet-bitcoin-kyoto` | 0.4.4 |
+| `hns-wallet-bitcoin-kyoto` | 0.4.5 |
 | `hns-wallet-chain-api`, `hns-wallet-service` | 0.4.2 |
 | `hns-wallet-hns` | 0.4.5 |
 | `hns-wallet-market` | 0.5.1 |
-| `hns-wallet-mobile` | 0.5.2 |
+| `hns-wallet-mobile` | 0.6.0 |
 
 The HNS 0.4.3 peer-race/reconnect patch was published from
 `1c0ff8247e21e11522a8caf7307386e0361` in `hns-wallet-rs`. The market package
-remains on 0.5.1; the current HNS 0.4.5, Bitcoin 0.4.4, and mobile-wallet 0.5.2
-patches come from wallet source `64deb1db53dcd669919e88556d5a63569edc5d51`.
-Unchanged wallet packages retain their existing versions. The Bitcoin transport, Kyoto
-adapter and mobile controller originally received the 0.4.2 resume patch from
+remains on 0.5.1. HNS 0.4.5 was selected from wallet source
+`64deb1db53dcd669919e88556d5a63569edc5d51`; Bitcoin 0.4.5 followed in
+`9a744d4`, and mobile-wallet 0.6.0 in `23e438d`. Unchanged wallet packages
+retain their existing versions. The Bitcoin transport, Kyoto adapter and
+mobile controller originally received the 0.4.2 resume patch from
 `527aa27f71a7054c7f2efc99a50a33d12ef3d784`. It saves verified headers, agreed
 filter headers and raw filters in the encrypted wallet store, resumes partial
-network work after process death, and reruns matching from the genuine birthday. Cargo aliases such as `hns-core`, `hns-chain`,
-`hns-p2p`, and `hns-urkel` select the corresponding `hns-browser-*` packages.
+network work after process death, and reruns matching from the genuine birthday.
+Cargo aliases such as `hns-core`, `hns-chain`, `hns-p2p`, and `hns-urkel`
+select the corresponding `hns-browser-*` packages.
 
 Clean builds need no sibling checkout or Git override. Verify the registry
 handoff and run the locked gates:
