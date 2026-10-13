@@ -655,6 +655,8 @@ final class WalletViewController: UIViewController {
     private var nameGalleryLoadGeneration: UInt64 = 0
     private var synchronizedReadsAvailable = false
     private var latestReadSnapshot: NativeHnsReadSnapshot?
+    private var latestReadSnapshotWalletIdentity: ObjectIdentifier?
+    private var latestReadSnapshotAuthorityGeneration: UInt64?
     private var recentTransactions: [NativeHnsReadSnapshot.Transaction]?
     private var finalizeNotices: [NativeHnsReadSnapshot.FinalizeNotice] = []
     private var recentActivityPageOffset = 0
@@ -1827,6 +1829,8 @@ final class WalletViewController: UIViewController {
                 guard let self, self.wallet === wallet else { return }
                 if case .failure(let error) = outcome {
                     self.bitcoinSyncStopRequested = false
+                    self.bitcoinStatusLabel.text = self.bitcoinProgressSummary
+                        ?? WalletCopy.text("wallet_bitcoin_syncing")
                     self.showError(error)
                     self.refreshButtonStates()
                 }
@@ -2004,7 +2008,9 @@ final class WalletViewController: UIViewController {
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.wallet === wallet else { return }
                 switch outcome {
-                case .success(let approval): self.presentBitcoinSendApproval(approval, wallet: wallet)
+                case .success(let approval):
+                    self.refreshState()
+                    self.presentBitcoinSendApproval(approval, wallet: wallet)
                 case .failure(let error):
                     self.refreshState()
                     self.showError(error)
@@ -2017,6 +2023,7 @@ final class WalletViewController: UIViewController {
         _ approval: NativeBitcoinSendApproval,
         wallet: RustNativeWallet
     ) {
+        bitcoinStatusLabel.text = WalletCopy.text("wallet_bitcoin_send_approval_title")
         pendingBitcoinSendApproval?.actionToken.discard()
         pendingBitcoinSendApproval = approval
         let message = WalletCopy.format(
@@ -2037,7 +2044,23 @@ final class WalletViewController: UIViewController {
             guard let self, let wallet, self.wallet === wallet,
                   let pending = self.pendingBitcoinSendApproval else { return }
             self.pendingBitcoinSendApproval = nil
-            DispatchQueue.global(qos: .userInitiated).async { try? wallet.rejectBitcoinSend(pending.actionToken) }
+            self.bitcoinStatusLabel.text = WalletCopy.text("wallet_send_rejecting")
+            DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+                let outcome = Result { try wallet.rejectBitcoinSend(pending.actionToken) }
+                if case .failure = outcome { try? wallet.lock() }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.wallet === wallet else { return }
+                    self.refreshState()
+                    switch outcome {
+                    case .success:
+                        self.bitcoinStatusLabel.text = WalletCopy.text("wallet_send_rejected")
+                    case .failure:
+                        self.bitcoinStatusLabel.text = WalletCopy.text(
+                            "wallet_value_actions_reject_failed"
+                        )
+                    }
+                }
+            }
         })
         alert.addAction(UIAlertAction(title: WalletCopy.text("action_broadcast_hns"), style: .destructive) {
             [weak self, weak wallet] _ in
@@ -2149,6 +2172,7 @@ final class WalletViewController: UIViewController {
         _ approval: NativeBtcForHnsOfferApproval,
         wallet: RustNativeWallet
     ) {
+        swapActionStatusLabel.text = WalletCopy.text("wallet_swap_approval_title")
         pendingBtcForHnsOfferApproval?.actionToken.discard()
         pendingBtcForHnsOfferApproval = approval
         let hns = WalletReadPresenter.formatHnsBaseUnits(String(approval.hnsAmountDollarydoos))
@@ -2174,8 +2198,8 @@ final class WalletViewController: UIViewController {
             guard let self, let wallet, self.wallet === wallet,
                   let pending = self.pendingBtcForHnsOfferApproval else { return }
             self.pendingBtcForHnsOfferApproval = nil
-            DispatchQueue.global(qos: .userInitiated).async {
-                try? wallet.rejectBtcForHnsOffer(pending.actionToken)
+            self.rejectSwapApproval(wallet: wallet) {
+                try wallet.rejectBtcForHnsOffer(pending.actionToken)
             }
         })
         alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_swap_publish"), style: .destructive) {
@@ -2290,6 +2314,7 @@ final class WalletViewController: UIViewController {
         _ approval: NativeHnsForBtcOfferApproval,
         wallet: RustNativeWallet
     ) {
+        swapActionStatusLabel.text = WalletCopy.text("wallet_swap_hns_approval_title")
         pendingHnsForBtcOfferApproval?.actionToken.discard()
         pendingHnsForBtcOfferApproval = approval
         let offered = WalletReadPresenter.formatHnsBaseUnits(String(approval.hnsAmountDollarydoos))
@@ -2311,8 +2336,8 @@ final class WalletViewController: UIViewController {
             guard let self, let wallet, self.wallet === wallet,
                   let pending = self.pendingHnsForBtcOfferApproval else { return }
             self.pendingHnsForBtcOfferApproval = nil
-            DispatchQueue.global(qos: .userInitiated).async {
-                try? wallet.rejectHnsForBtcOffer(pending.actionToken)
+            self.rejectSwapApproval(wallet: wallet) {
+                try wallet.rejectHnsForBtcOffer(pending.actionToken)
             }
         })
         alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_swap_publish"), style: .destructive) {
@@ -2616,6 +2641,7 @@ final class WalletViewController: UIViewController {
         _ approval: NativeDirectOfferAcceptanceApproval,
         wallet: RustNativeWallet
     ) {
+        swapActionStatusLabel.text = WalletCopy.text("wallet_swap_acceptance_approval_title")
         pendingDirectOfferAcceptanceApproval?.actionToken.discard()
         pendingDirectOfferAcceptanceApproval = approval
         let message = WalletCopy.format(
@@ -2639,8 +2665,8 @@ final class WalletViewController: UIViewController {
             guard let self, let wallet, self.wallet === wallet,
                   let pending = self.pendingDirectOfferAcceptanceApproval else { return }
             self.pendingDirectOfferAcceptanceApproval = nil
-            DispatchQueue.global(qos: .userInitiated).async {
-                try? wallet.rejectDirectOfferAcceptance(pending.actionToken)
+            self.rejectSwapApproval(wallet: wallet) {
+                try wallet.rejectDirectOfferAcceptance(pending.actionToken)
             }
         })
         alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_swap_acceptance_confirm"), style: .destructive) {
@@ -3130,11 +3156,41 @@ final class WalletViewController: UIViewController {
         }
     }
 
+    private func rejectSwapApproval(
+        wallet: RustNativeWallet,
+        operation: @escaping () throws -> Void
+    ) {
+        isOperating = true
+        swapActionStatusLabel.text = WalletCopy.text("wallet_send_rejecting")
+        refreshButtonStates()
+        DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+            let outcome = Result { try operation() }
+            if case .failure = outcome { try? wallet.lock() }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.wallet === wallet else { return }
+                self.isOperating = false
+                self.refreshState()
+                switch outcome {
+                case .success:
+                    self.swapActionStatusLabel.text = WalletCopy.text("wallet_value_actions_rejected")
+                case .failure:
+                    self.swapActionStatusLabel.text = WalletCopy.text(
+                        "wallet_value_actions_reject_failed"
+                    )
+                }
+                self.refreshButtonStates()
+            }
+        }
+    }
+
     private func presentSwapSettlementApproval(
         _ approval: NativeSwapSettlementApproval,
         bitcoin: Bool,
         wallet: RustNativeWallet
     ) {
+        swapActionStatusLabel.text = WalletCopy.format(
+            "wallet_swap_settlement_approval_title", approval.action.rawValue
+        )
         pendingSwapSettlementApproval?.actionToken.discard()
         pendingSwapSettlementApproval = approval
         pendingSwapSettlementIsBitcoin = bitcoin
@@ -3164,8 +3220,8 @@ final class WalletViewController: UIViewController {
                   let pending = self.pendingSwapSettlementApproval else { return }
             let isBitcoin = self.pendingSwapSettlementIsBitcoin
             self.pendingSwapSettlementApproval = nil
-            DispatchQueue.global(qos: .userInitiated).async {
-                try? wallet.rejectSwapSettlement(pending.actionToken, bitcoin: isBitcoin)
+            self.rejectSwapApproval(wallet: wallet) {
+                try wallet.rejectSwapSettlement(pending.actionToken, bitcoin: isBitcoin)
             }
         })
         alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_swap_broadcast_settlement"), style: .destructive) {
@@ -3256,6 +3312,7 @@ final class WalletViewController: UIViewController {
         approval: NativeHnsHtlcFundingApproval,
         wallet: RustNativeWallet
     ) {
+        swapActionStatusLabel.text = WalletCopy.text("wallet_swap_hns_funding_approval_title")
         pendingHnsForBtcFundingApproval?.actionToken.discard()
         pendingHnsForBtcFundingApproval = approval
         let amount = WalletReadPresenter.formatHnsBaseUnits(String(approval.amountDollarydoos))
@@ -3285,8 +3342,8 @@ final class WalletViewController: UIViewController {
             guard let self, let wallet, self.wallet === wallet,
                   let pending = self.pendingHnsForBtcFundingApproval else { return }
             self.pendingHnsForBtcFundingApproval = nil
-            DispatchQueue.global(qos: .userInitiated).async {
-                try? wallet.rejectHnsForBtcFunding(pending.actionToken)
+            self.rejectSwapApproval(wallet: wallet) {
+                try wallet.rejectHnsForBtcFunding(pending.actionToken)
             }
         })
         alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_swap_broadcast_hns_funding"), style: .destructive) {
@@ -3374,6 +3431,7 @@ final class WalletViewController: UIViewController {
         approval: NativeBitcoinHtlcFundingApproval,
         wallet: RustNativeWallet
     ) {
+        swapActionStatusLabel.text = WalletCopy.text("wallet_swap_funding_approval_title")
         pendingBtcForHnsFundingApproval?.actionToken.discard()
         pendingBtcForHnsFundingApproval = approval
         let message = WalletCopy.format(
@@ -3398,8 +3456,8 @@ final class WalletViewController: UIViewController {
             guard let self, let wallet, self.wallet === wallet,
                   let pending = self.pendingBtcForHnsFundingApproval else { return }
             self.pendingBtcForHnsFundingApproval = nil
-            DispatchQueue.global(qos: .userInitiated).async {
-                try? wallet.rejectBtcForHnsFunding(pending.actionToken)
+            self.rejectSwapApproval(wallet: wallet) {
+                try wallet.rejectBtcForHnsFunding(pending.actionToken)
             }
         })
         alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_swap_broadcast_funding"), style: .destructive) {
@@ -4784,7 +4842,7 @@ final class WalletViewController: UIViewController {
                     viewIsVisible: self.walletAuthorityRequested && self.viewIfLoaded?.window != nil
                 ) else { return }
                 self.isOperating = false
-                self.refreshState()
+                self.refreshState(preserveVerifiedReads: true)
                 completion(result)
                 self.refreshButtonStates()
             }
@@ -7193,6 +7251,8 @@ final class WalletViewController: UIViewController {
         let presentation = WalletReadPresenter.present(snapshot)
         let balance = WalletHnsBalancePresenter.present(snapshot)
         latestReadSnapshot = snapshot
+        latestReadSnapshotWalletIdentity = wallet.map { ObjectIdentifier($0) }
+        latestReadSnapshotAuthorityGeneration = walletAuthorityGeneration
         atomicSwapNotifications.reconcileIncomingHns(
             snapshot,
             amountText: WalletReadPresenter.formatHnsBaseUnits
@@ -7494,6 +7554,8 @@ final class WalletViewController: UIViewController {
         }
         namesGalleryViewController = nil
         latestReadSnapshot = nil
+        latestReadSnapshotWalletIdentity = nil
+        latestReadSnapshotAuthorityGeneration = nil
         latestReadSnapshotObservedAtUptime = nil
         receiveTargets = nil
         recentTransactions = nil
@@ -7799,7 +7861,7 @@ final class WalletViewController: UIViewController {
         }
     }
 
-    private func refreshState() {
+    private func refreshState(preserveVerifiedReads: Bool = false) {
         confirmedDeletionAccountID = nil
         walletIsUnlocked = false
         directHnsValueAvailable = false
@@ -7919,7 +7981,8 @@ final class WalletViewController: UIViewController {
                     ? (hasHnsValue
                         ? "Direct HNS synchronization is ready. Synchronize before sending."
                         : "HNS read synchronization is ready.")
-                    : "Preparing the direct HNS wallet is required before synchronization.")
+                    : "Preparing the direct HNS wallet is required before synchronization.",
+                    preserveVerifiedReads: preserveVerifiedReads)
                 if hasHnsValue {
                     let receive = try wallet.localHnsReceiveTarget()
                     receiveTargets = WalletReceiveTargets(localPaymentAddress: receive.display)
@@ -7950,12 +8013,26 @@ final class WalletViewController: UIViewController {
         refreshButtonStates()
     }
 
-    private func setReadAvailability(_ available: Bool, message: String) {
+    private func setReadAvailability(
+        _ available: Bool,
+        message: String,
+        preserveVerifiedReads: Bool = false
+    ) {
         synchronizedReadsAvailable = available
-        readStatusLabel.text = message
         nameImportStatusLabel.text = available
             ? "Enter exact canonical name text. The app does not trim, lowercase, normalize, apply IDNA, or edit a trailing dot."
             : "Trusted name import is unavailable without a scoped indexed wallet backend."
+        if preserveVerifiedReads,
+           available,
+           walletIsUnlocked,
+           let wallet,
+           let snapshot = latestReadSnapshot,
+           latestReadSnapshotWalletIdentity == ObjectIdentifier(wallet),
+           latestReadSnapshotAuthorityGeneration == walletAuthorityGeneration {
+            readStatusLabel.text = WalletReadPresenter.present(snapshot).status
+            return
+        }
+        readStatusLabel.text = message
         clearReadProjection()
     }
 

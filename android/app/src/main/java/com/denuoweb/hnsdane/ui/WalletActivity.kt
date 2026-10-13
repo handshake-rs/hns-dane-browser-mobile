@@ -246,6 +246,11 @@ class WalletActivity : ComponentActivity() {
     private lateinit var namesGalleryFooter: LinearLayout
     @Volatile
     private var walletHandle = INVALID_HANDLE
+    // Native status reads are nonblocking. Keep the last status from this
+    // controller for display during brief peer-maintenance lock contention.
+    // Action gates still require fresh native authority.
+    private var lastKnownWalletStatus: NativeWalletStatus? = null
+    private var lastKnownBitcoinValueAvailable = false
     private var walletAuthorityGeneration = 0L
     private var walletControllerIsReopenedDurable = false
     // Read by the wallet-owned networking worker and written by the UI/action
@@ -4323,6 +4328,11 @@ class WalletActivity : ComponentActivity() {
                     return@runOnUiThread
                 }
                 busy = false
+                statusView.text = getString(
+                    if (address == null) R.string.wallet_bitcoin_receive_failed
+                    else R.string.wallet_status_unlocked,
+                )
+                refreshControllerState(resetReads = false)
                 if (address == null) {
                     bitcoinStatusView.text = getString(R.string.wallet_bitcoin_receive_failed)
                 } else {
@@ -4588,15 +4598,22 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun resetBitcoinProjection() {
+        val previousSnapshot = bitcoinSnapshot
         bitcoinSnapshot = null
         bitcoinProgressSummary = null
         bitcoinCompletedSyncMessage = null
         bitcoinLastSyncFailed = false
         bitcoinActivityPageOffset = 0
         bitcoinBalanceView.text = getString(R.string.wallet_bitcoin_balance_unavailable)
-        val status = NativeWalletBridge.status(walletHandle)
-        if (status?.locked == false && NativeWalletBridge.hasBitcoinValue(walletHandle)) {
-            NativeWalletBridge.bitcoinSnapshot(walletHandle)?.let { snapshot ->
+        val status = NativeWalletBridge.status(walletHandle)?.also {
+            lastKnownWalletStatus = it
+        } ?: lastKnownWalletStatus
+        val hasBitcoinValue = status?.locked == false &&
+            (NativeWalletBridge.hasBitcoinValue(walletHandle).also {
+                if (it) lastKnownBitcoinValueAvailable = true
+            } || lastKnownBitcoinValueAvailable)
+        if (hasBitcoinValue) {
+            (NativeWalletBridge.bitcoinSnapshot(walletHandle) ?: previousSnapshot)?.let { snapshot ->
                 renderBitcoinSnapshot(snapshot)
                 bitcoinStatusView.text = getString(R.string.wallet_bitcoin_ready)
                 return
@@ -4604,7 +4621,7 @@ class WalletActivity : ComponentActivity() {
         }
         bitcoinStatusView.text = when {
             status?.locked == true -> getString(R.string.wallet_bitcoin_locked)
-            NativeWalletBridge.hasBitcoinValue(walletHandle) -> getString(R.string.wallet_bitcoin_ready)
+            hasBitcoinValue -> getString(R.string.wallet_bitcoin_ready)
             else -> getString(R.string.wallet_bitcoin_unavailable)
         }
     }
@@ -5336,6 +5353,12 @@ class WalletActivity : ComponentActivity() {
                     return@runOnUiThread
                 }
                 busy = false
+                statusView.text = if (snapshot == null) {
+                    getString(R.string.wallet_bitcoin_birthday_failed)
+                } else {
+                    getString(R.string.wallet_bitcoin_birthday_set, snapshot.birthdayHeight)
+                }
+                refreshControllerState(resetReads = false)
                 if (snapshot == null) {
                     Log.w(TAG, "Direct Bitcoin birthday validation did not complete")
                     bitcoinStatusView.text = getString(R.string.wallet_bitcoin_birthday_failed)
@@ -6172,7 +6195,9 @@ class WalletActivity : ComponentActivity() {
                     releaseStorageLeaseAfterOperation(lease)
                 } else if (approval == null) {
                     finishWalletOperationIfOwned(operationSerial)
-                    swapActionStatusView.text = getString(R.string.wallet_swap_settlement_prepare_failed)
+                    val message = getString(R.string.wallet_swap_settlement_prepare_failed)
+                    statusView.text = message
+                    swapActionStatusView.text = message
                     releaseStorageLeaseAfterOperation(lease)
                 } else {
                     showSwapSettlementApproval(
@@ -6191,14 +6216,31 @@ class WalletActivity : ComponentActivity() {
         epoch: Long,
         operationSerial: Long,
     ) {
+        val reviewStatus = getString(R.string.wallet_swap_settlement_approval_title, approval.action)
+        statusView.text = reviewStatus
+        swapActionStatusView.text = reviewStatus
         var settled = false
         fun reject() {
             if (settled) return
             settled = true
+            statusView.text = getString(R.string.wallet_send_rejecting)
+            swapActionStatusView.text = getString(R.string.wallet_send_rejecting)
             thread(name = "denuo-swap-settlement-reject") {
-                NativeWalletBridge.rejectSwapSettlement(handle, approval.actionToken, bitcoin)
+                val rejected = NativeWalletBridge.rejectSwapSettlement(
+                    handle, approval.actionToken, bitcoin,
+                )
+                if (!rejected) NativeWalletBridge.lock(handle)
                 runOnUiThread {
                     finishWalletOperationIfOwned(operationSerial)
+                    if (operationIsCurrent(epoch, lease) && walletHandle == handle) {
+                        refreshControllerState(resetReads = false)
+                        val message = getString(
+                            if (rejected) R.string.wallet_value_actions_rejected
+                            else R.string.wallet_value_actions_reject_failed,
+                        )
+                        statusView.text = message
+                        swapActionStatusView.text = message
+                    }
                     releaseStorageLeaseAfterOperation(lease)
                 }
             }
@@ -6283,13 +6325,34 @@ class WalletActivity : ComponentActivity() {
         lease: WalletStorageOwnershipGate.Lease,
         epoch: Long,
     ) {
+        val reviewStatus = getString(R.string.wallet_swap_funding_approval_title)
+        statusView.text = reviewStatus
+        swapActionStatusView.text = reviewStatus
         var settled = false
+        val handle = walletHandle
         fun reject() {
             if (settled) return
             settled = true
+            statusView.text = getString(R.string.wallet_send_rejecting)
+            swapActionStatusView.text = getString(R.string.wallet_send_rejecting)
             thread(name = "denuo-bitcoin-funding-reject") {
-                NativeWalletBridge.rejectBtcForHnsFunding(walletHandle, approval.actionToken)
-                runOnUiThread { busy = false; releaseStorageLeaseAfterOperation(lease) }
+                val rejected = NativeWalletBridge.rejectBtcForHnsFunding(
+                    handle, approval.actionToken,
+                )
+                if (!rejected) NativeWalletBridge.lock(handle)
+                runOnUiThread {
+                    if (operationIsCurrent(epoch, lease) && walletHandle == handle) {
+                        busy = false
+                        refreshControllerState(resetReads = false)
+                        val message = getString(
+                            if (rejected) R.string.wallet_value_actions_rejected
+                            else R.string.wallet_value_actions_reject_failed,
+                        )
+                        statusView.text = message
+                        swapActionStatusView.text = message
+                    }
+                    releaseStorageLeaseAfterOperation(lease)
+                }
             }
         }
         walletAlertDialogBuilder()
@@ -6391,13 +6454,34 @@ class WalletActivity : ComponentActivity() {
         lease: WalletStorageOwnershipGate.Lease,
         epoch: Long,
     ) {
+        val reviewStatus = getString(R.string.wallet_swap_hns_funding_approval_title)
+        statusView.text = reviewStatus
+        swapActionStatusView.text = reviewStatus
         var settled = false
+        val handle = walletHandle
         fun reject() {
             if (settled) return
             settled = true
+            statusView.text = getString(R.string.wallet_send_rejecting)
+            swapActionStatusView.text = getString(R.string.wallet_send_rejecting)
             thread(name = "denuo-hns-funding-reject") {
-                NativeWalletBridge.rejectHnsForBtcFunding(walletHandle, approval.actionToken)
-                runOnUiThread { busy = false; releaseStorageLeaseAfterOperation(lease) }
+                val rejected = NativeWalletBridge.rejectHnsForBtcFunding(
+                    handle, approval.actionToken,
+                )
+                if (!rejected) NativeWalletBridge.lock(handle)
+                runOnUiThread {
+                    if (operationIsCurrent(epoch, lease) && walletHandle == handle) {
+                        busy = false
+                        refreshControllerState(resetReads = false)
+                        val message = getString(
+                            if (rejected) R.string.wallet_value_actions_rejected
+                            else R.string.wallet_value_actions_reject_failed,
+                        )
+                        statusView.text = message
+                        swapActionStatusView.text = message
+                    }
+                    releaseStorageLeaseAfterOperation(lease)
+                }
             }
         }
         walletAlertDialogBuilder()
@@ -6520,18 +6604,29 @@ class WalletActivity : ComponentActivity() {
         lease: WalletStorageOwnershipGate.Lease,
         epoch: Long,
     ) {
+        val reviewStatus = getString(R.string.wallet_swap_hns_approval_title)
+        statusView.text = reviewStatus
+        swapActionStatusView.text = reviewStatus
         val handle = walletHandle
         var settled = false
         fun reject() {
             if (settled) return
             settled = true
+            statusView.text = getString(R.string.wallet_send_rejecting)
+            swapActionStatusView.text = getString(R.string.wallet_send_rejecting)
             thread(name = "hns-btc-offer-reject") {
-                NativeWalletBridge.rejectHnsForBtcOffer(handle, approval.actionToken)
+                val rejected = NativeWalletBridge.rejectHnsForBtcOffer(handle, approval.actionToken)
+                if (!rejected) NativeWalletBridge.lock(handle)
                 runOnUiThread {
                     if (operationIsCurrent(epoch, lease) && walletHandle == handle) {
                         busy = false
-                        statusView.text = getString(R.string.wallet_status_unlocked)
                         refreshControllerState(resetReads = false)
+                        val message = getString(
+                            if (rejected) R.string.wallet_value_actions_rejected
+                            else R.string.wallet_value_actions_reject_failed,
+                        )
+                        statusView.text = message
+                        swapActionStatusView.text = message
                     }
                     releaseStorageLeaseAfterOperation(lease)
                 }
@@ -6681,17 +6776,29 @@ class WalletActivity : ComponentActivity() {
         lease: WalletStorageOwnershipGate.Lease,
         epoch: Long,
     ) {
+        val reviewStatus = getString(R.string.wallet_swap_acceptance_approval_title)
+        statusView.text = reviewStatus
+        swapActionStatusView.text = reviewStatus
         val handle = walletHandle
         var settled = false
         fun reject() {
             if (settled) return
             settled = true
+            statusView.text = getString(R.string.wallet_send_rejecting)
+            swapActionStatusView.text = getString(R.string.wallet_send_rejecting)
             thread(name = "direct-offer-acceptance-reject") {
-                NativeWalletBridge.rejectDirectOfferAcceptance(handle, approval.actionToken)
+                val rejected = NativeWalletBridge.rejectDirectOfferAcceptance(handle, approval.actionToken)
+                if (!rejected) NativeWalletBridge.lock(handle)
                 runOnUiThread {
                     if (operationIsCurrent(epoch, lease) && walletHandle == handle) {
                         busy = false
                         refreshControllerState(resetReads = false)
+                        val message = getString(
+                            if (rejected) R.string.wallet_value_actions_rejected
+                            else R.string.wallet_value_actions_reject_failed,
+                        )
+                        statusView.text = message
+                        swapActionStatusView.text = message
                     }
                     releaseStorageLeaseAfterOperation(lease)
                 }
@@ -6743,6 +6850,7 @@ class WalletActivity : ComponentActivity() {
                                     )
                                 }
                             }
+                            statusView.text = swapActionStatusView.text
                         }
                         releaseStorageLeaseAfterOperation(lease)
                     }
@@ -6830,6 +6938,9 @@ class WalletActivity : ComponentActivity() {
         lease: WalletStorageOwnershipGate.Lease,
         epoch: Long,
     ) {
+        val reviewStatus = getString(R.string.wallet_swap_approval_title)
+        statusView.text = reviewStatus
+        swapActionStatusView.text = reviewStatus
         val handle = walletHandle
         val expiry = runCatching {
             DateFormat.getDateTimeInstance().format(
@@ -6840,13 +6951,21 @@ class WalletActivity : ComponentActivity() {
         fun reject() {
             if (settled) return
             settled = true
+            statusView.text = getString(R.string.wallet_send_rejecting)
+            swapActionStatusView.text = getString(R.string.wallet_send_rejecting)
             thread(name = "bitcoin-hns-offer-reject") {
-                NativeWalletBridge.rejectBtcForHnsOffer(handle, approval.actionToken)
+                val rejected = NativeWalletBridge.rejectBtcForHnsOffer(handle, approval.actionToken)
+                if (!rejected) NativeWalletBridge.lock(handle)
                 runOnUiThread {
                     if (operationIsCurrent(epoch, lease) && walletHandle == handle) {
                         busy = false
-                        statusView.text = getString(R.string.wallet_status_unlocked)
                         refreshControllerState(resetReads = false)
+                        val message = getString(
+                            if (rejected) R.string.wallet_value_actions_rejected
+                            else R.string.wallet_value_actions_reject_failed,
+                        )
+                        statusView.text = message
+                        swapActionStatusView.text = message
                     }
                     releaseStorageLeaseAfterOperation(lease)
                 }
@@ -6953,7 +7072,10 @@ class WalletActivity : ComponentActivity() {
                 }
                 if (exact == null) {
                     busy = false
-                    bitcoinStatusView.text = bitcoinSendPreparationFailureMessage(preparation.failure)
+                    val message = bitcoinSendPreparationFailureMessage(preparation.failure)
+                    statusView.text = message
+                    refreshControllerState(resetReads = false)
+                    bitcoinStatusView.text = message
                 } else {
                     showBitcoinSendApproval(exact, lease, epoch)
                 }
@@ -6991,6 +7113,9 @@ class WalletActivity : ComponentActivity() {
         lease: WalletStorageOwnershipGate.Lease,
         epoch: Long,
     ) {
+        val handle = walletHandle
+        statusView.text = getString(R.string.wallet_bitcoin_send_approval_title)
+        bitcoinStatusView.text = getString(R.string.wallet_bitcoin_send_approval_title)
         val expires = runCatching {
             DateFormat.getDateTimeInstance().format(Date(Math.multiplyExact(approval.expiresAtUnix, 1_000L)))
         }.getOrElse { approval.expiresAtUnix.toString() }
@@ -6998,15 +7123,23 @@ class WalletActivity : ComponentActivity() {
         fun reject() {
             if (settled) return
             settled = true
+            statusView.text = getString(R.string.wallet_send_rejecting)
+            bitcoinStatusView.text = getString(R.string.wallet_send_rejecting)
             thread(name = "bitcoin-wallet-send-reject") {
-                NativeWalletBridge.rejectBitcoinSend(walletHandle, approval.actionToken)
+                val rejected = NativeWalletBridge.rejectBitcoinSend(handle, approval.actionToken)
+                if (!rejected) NativeWalletBridge.lock(handle)
                 runOnUiThread {
-                    if (operationIsCurrent(epoch, lease)) {
+                    if (operationIsCurrent(epoch, lease) && walletHandle == handle) {
                         busy = false
-                        bitcoinStatusView.text = getString(R.string.wallet_bitcoin_ready)
-                    } else {
-                        releaseStorageLeaseAfterOperation(lease)
+                        refreshControllerState(resetReads = false)
+                        val message = getString(
+                            if (rejected) R.string.wallet_send_rejected
+                            else R.string.wallet_value_actions_reject_failed,
+                        )
+                        statusView.text = message
+                        bitcoinStatusView.text = message
                     }
+                    releaseStorageLeaseAfterOperation(lease)
                 }
             }
         }
@@ -7346,13 +7479,13 @@ class WalletActivity : ComponentActivity() {
                     return@runOnUiThread
                 }
                 busy = false
+                val message = directShakescapeConnectionMessage(result)
                 if (statusView.text.toString() ==
                     getString(R.string.wallet_status_connecting_direct_shakescape)
                 ) {
-                    statusView.text = getString(R.string.wallet_status_unlocked)
+                    statusView.text = message
                 }
                 refreshControllerState(resetReads = false)
-                val message = directShakescapeConnectionMessage(result)
                 shakedexQueryStatusView.text = message
                 swapActionStatusView.text = message
                 result?.peerEndpoint?.let(::rememberDirectShakescapePeer)
@@ -7392,6 +7525,10 @@ class WalletActivity : ComponentActivity() {
                     return@runOnUiThread
                 }
                 busy = false
+                statusView.text = getString(
+                    if (listening) R.string.wallet_direct_shakescape_host_retry_ready
+                    else R.string.wallet_direct_shakescape_host_retry_failed,
+                )
                 refreshControllerState(resetReads = false)
                 shakedexQueryStatusView.text = getString(
                     if (listening) R.string.wallet_direct_shakescape_host_retry_ready
@@ -7422,6 +7559,10 @@ class WalletActivity : ComponentActivity() {
                     return@runOnUiThread
                 }
                 busy = false
+                statusView.text = getString(
+                    if (disconnected) R.string.wallet_direct_shakescape_disconnected
+                    else R.string.wallet_direct_shakescape_no_peer,
+                )
                 refreshControllerState(resetReads = false)
                 shakedexQueryStatusView.text = getString(
                     if (disconnected) R.string.wallet_direct_shakescape_disconnected
@@ -8685,7 +8826,9 @@ class WalletActivity : ComponentActivity() {
             renderWalletDashboard()
             return
         }
+        lastKnownWalletStatus = status
         if (status.locked) {
+            lastKnownBitcoinValueAvailable = false
             stopWalletForegroundSyncService()
             dismissWalletPopupsForLock()
             walletHnsJourney.walletLocked()
@@ -8712,7 +8855,7 @@ class WalletActivity : ComponentActivity() {
             )
         }
         if (resetReads) {
-            if (NativeWalletBridge.hasHnsReads(walletHandle)) {
+            if (status.hnsReadsEnabled) {
                 resetReadProjection(R.string.wallet_reads_ready_to_sync)
                 restoreCachedHnsSyncPresentation()
             } else {
@@ -9185,6 +9328,8 @@ class WalletActivity : ComponentActivity() {
         check(walletHandle == INVALID_HANDLE) { "Wallet controller authority is already present" }
         advanceWalletAuthorityGeneration()
         walletHandle = handle
+        lastKnownWalletStatus = null
+        lastKnownBitcoinValueAvailable = false
         localPaymentReceiveTarget = null
         walletControllerIsReopenedDurable = reopenedDurable
         walletHnsJourney.controllerPublished(reopenedDurable)
@@ -9193,6 +9338,9 @@ class WalletActivity : ComponentActivity() {
     private fun detachWalletController(): Long {
         val handle = walletHandle
         walletHandle = INVALID_HANDLE
+        lastKnownWalletStatus = null
+        lastKnownBitcoinValueAvailable = false
+        bitcoinSnapshot = null
         clearDirectShakescapeStatusProjection(locked = false)
         localPaymentReceiveTarget = null
         walletControllerIsReopenedDurable = false
@@ -9401,7 +9549,7 @@ class WalletActivity : ComponentActivity() {
         sendStatusView.text = when (status) {
             R.string.wallet_reads_locked -> getString(R.string.wallet_send_locked)
             R.string.wallet_reads_ready_to_sync -> if (
-                NativeWalletBridge.hasHnsValue(walletHandle)
+                lastKnownWalletStatus?.hnsValueEnabled == true
             ) {
                 getString(R.string.wallet_send_requires_sync)
             } else {
@@ -9419,7 +9567,7 @@ class WalletActivity : ComponentActivity() {
         valueActionStatusView.text = when (status) {
             R.string.wallet_reads_locked -> getString(R.string.wallet_value_actions_locked)
             R.string.wallet_reads_ready_to_sync -> if (
-                NativeWalletBridge.hasHnsValue(walletHandle)
+                lastKnownWalletStatus?.hnsValueEnabled == true
             ) {
                 getString(R.string.wallet_value_actions_requires_sync)
             } else {
@@ -9430,7 +9578,7 @@ class WalletActivity : ComponentActivity() {
         shakedexQueryStatusView.text = when (status) {
             R.string.wallet_reads_locked -> getString(R.string.wallet_shakedex_queries_locked)
             R.string.wallet_reads_ready_to_sync -> if (
-                NativeWalletBridge.hasHnsValue(walletHandle)
+                lastKnownWalletStatus?.shakedexEnabled == true
             ) {
                 getString(R.string.wallet_shakedex_queries_requires_sync)
             } else {
@@ -9795,18 +9943,21 @@ class WalletActivity : ComponentActivity() {
             appendRemainingCount(entries, snapshot.transactions.size - visibleTransactions.size)
         }
 
-        sendStatusView.text = if (NativeWalletBridge.hasHnsValue(walletHandle)) {
+        val status = NativeWalletBridge.status(walletHandle)?.also {
+            lastKnownWalletStatus = it
+        } ?: lastKnownWalletStatus
+        val unlockedStatus = status?.takeUnless { it.locked }
+        sendStatusView.text = if (unlockedStatus?.hnsValueEnabled == true) {
             getString(R.string.wallet_send_ready, snapshot.height)
         } else {
             getString(R.string.wallet_send_unavailable)
         }
-        val status = NativeWalletBridge.status(walletHandle)
-        valueActionStatusView.text = if (status?.hnsValueEnabled == true) {
+        valueActionStatusView.text = if (unlockedStatus?.hnsValueEnabled == true) {
             getString(R.string.wallet_value_actions_ready, snapshot.height)
         } else {
             getString(R.string.wallet_value_actions_unavailable)
         }
-        shakedexQueryStatusView.text = if (status?.shakedexEnabled == true) {
+        shakedexQueryStatusView.text = if (unlockedStatus?.shakedexEnabled == true) {
             getString(R.string.wallet_shakedex_queries_ready, snapshot.height)
         } else {
             getString(R.string.wallet_shakedex_queries_unavailable)
