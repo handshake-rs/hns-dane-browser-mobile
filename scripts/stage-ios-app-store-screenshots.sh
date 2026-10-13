@@ -43,7 +43,7 @@ done
 # This replacement is intentionally gated by verify-live: fixture images and
 # hand-renamed files cannot reach the distribution directory through this path.
 for family in iphone ipad; do
-  rm -rf -- "$SCREENSHOT_ROOT/$family"
+  rm -rf -- "${SCREENSHOT_ROOT:?}/$family"
   mv -- "$STAGING/$family" "$SCREENSHOT_ROOT/$family"
 done
 rm -rf -- "$STAGING"
