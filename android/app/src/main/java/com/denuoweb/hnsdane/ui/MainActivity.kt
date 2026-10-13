@@ -214,11 +214,9 @@ class MainActivity : ComponentActivity() {
             dataDir = filesDir,
             namespacePolicy = NativeBridge,
             allowProxyFallbackForBodyRequests = { proxyAvailable },
-            strictHnsMode = { HnsResolutionPreferences.strictHnsMode(this) },
             dohResolverUrl = { HnsResolutionPreferences.dohResolverUrl(this) },
             statelessDaneCertificates = { HnsResolutionPreferences.statelessDaneCertificates(this) },
             experimentalP2pDnsRelay = { HnsResolutionPreferences.experimentalP2pDnsRelay(this) },
-            legacyHnsDohCompatibility = { HnsResolutionPreferences.legacyHnsDohCompatibility(this) },
             handshakeNetwork = { HnsResolutionPreferences.handshakeNetworkId(this) },
             chainTipToken = { network -> NativeBridge.chainTipToken(filesDir.absolutePath, network) },
             onMainFrameHnsStatusForUrl = { url, statusCode, tlsPolicy, resolverPolicy, securityPath, traceJson ->
@@ -1890,11 +1888,9 @@ class MainActivity : ComponentActivity() {
         contentDisposition: String?,
         mimeType: String?,
     ) {
-        val strictMode = HnsResolutionPreferences.strictHnsMode(this)
         val dohResolver = HnsResolutionPreferences.dohResolverUrl(this)
         val statelessDane = HnsResolutionPreferences.statelessDaneCertificates(this)
         val experimentalP2pDnsRelay = HnsResolutionPreferences.experimentalP2pDnsRelay(this)
-        val legacyHnsDohCompatibility = HnsResolutionPreferences.legacyHnsDohCompatibility(this)
         val handshakeNetwork = HnsResolutionPreferences.handshakeNetworkId(this)
         Toast.makeText(this, getString(R.string.toast_download_started), Toast.LENGTH_SHORT).show()
         downloadExecutor.execute {
@@ -1902,11 +1898,9 @@ class MainActivity : ComponentActivity() {
                 val fetcher = HnsNativeDownloadFetcher(
                     dataDir = filesDir,
                     namespacePolicy = NativeBridge,
-                    strictHnsMode = { strictMode },
                     dohResolverUrl = { dohResolver },
                     statelessDaneCertificates = { statelessDane },
                     experimentalP2pDnsRelay = { experimentalP2pDnsRelay },
-                    legacyHnsDohCompatibility = { legacyHnsDohCompatibility },
                     handshakeNetwork = { handshakeNetwork },
                 )
                 val response = fetcher.fetch(downloadUrl, userAgent)
@@ -2083,11 +2077,9 @@ class MainActivity : ComponentActivity() {
             // opaque lifecycle identity only; Rust admits and classifies each
             // complete DNS host independently.
             scopeHost = WHOLE_BROWSER_PROXY_SCOPE,
-            strictHnsMode = HnsResolutionPreferences.strictHnsMode(this),
             dohResolverUrl = HnsResolutionPreferences.dohResolverUrl(this),
             statelessDaneCertificates = HnsResolutionPreferences.statelessDaneCertificates(this),
             experimentalP2pDnsRelay = HnsResolutionPreferences.experimentalP2pDnsRelay(this),
-            legacyHnsDohCompatibility = HnsResolutionPreferences.legacyHnsDohCompatibility(this),
         )
     }
 

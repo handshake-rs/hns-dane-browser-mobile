@@ -249,11 +249,9 @@ internal class ValidatedAssetCache(
         fun scope(config: HnsGatewayRuntimeConfig, chainTipToken: String): String = digest(
             listOf(
                 config.network,
-                config.strictHnsMode,
                 config.dohResolverUrl,
                 config.statelessDaneCertificates,
                 config.experimentalP2pDnsRelay,
-                config.legacyHnsDohCompatibility,
                 chainTipToken,
             ).joinToString("\u0000"),
         )

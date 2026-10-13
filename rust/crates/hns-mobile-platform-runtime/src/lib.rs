@@ -448,7 +448,7 @@ impl RuntimeConfiguration {
             data_dir: data_dir.into(),
             network,
             sync: SyncOptions::default(),
-            initial_policy: RuntimePolicy::compatibility(),
+            initial_policy: RuntimePolicy::strict(),
         }
     }
 
@@ -498,45 +498,28 @@ impl Default for SyncOptions {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RuntimePolicy {
-    pub resolution_mode: ResolutionMode,
     /// Explicit third-party recursive HNS DoH recovery endpoint. This remains
     /// disabled when absent and is never populated from a historical setting.
     pub hns_doh_resolver: Option<String>,
     /// Enables the private, proof-backed HNS peer DNS-relay transport.
     pub experimental_p2p_dns_relay: bool,
-    /// Retained for mobile ABI migration. The runtime always forces this off.
-    pub legacy_hns_doh_compatibility: bool,
     pub stateless_dane_certificates: bool,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ResolutionMode {
-    Strict,
-    Compatibility,
-}
-
 impl RuntimePolicy {
-    /// Legacy constructor retained for callers compiled against earlier releases.
-    ///
-    /// HNS resolution is always strict. HNS WebPKI fallback is unavailable,
-    /// while the independently configured recovery DoH endpoint remains
-    /// disabled in this legacy constructor.
-    pub fn compatibility() -> Self {
+    /// Strict HNS resolution with no recovery transport enabled.
+    pub fn strict() -> Self {
         Self {
-            resolution_mode: ResolutionMode::Strict,
             hns_doh_resolver: None,
             experimental_p2p_dns_relay: false,
-            legacy_hns_doh_compatibility: false,
             stateless_dane_certificates: true,
         }
     }
 
     fn enforce_hns_trust_policy(mut self) -> Result<Self, RuntimeError> {
-        self.resolution_mode = ResolutionMode::Strict;
         self.hns_doh_resolver =
             normalize_hns_doh_recovery_url(self.hns_doh_resolver.as_deref().unwrap_or_default())
                 .map_err(RuntimeError::InvalidConfiguration)?;
-        self.legacy_hns_doh_compatibility = false;
         Ok(self)
     }
 
@@ -4357,8 +4340,6 @@ impl BrowserRuntime {
         } else {
             ": 0\r\n"
         });
-        header_text.push_str(HNS_GATEWAY_STRICT_MODE_HEADER);
-        header_text.push_str(": 1\r\n");
         if let Some(endpoint) = policy.hns_doh_resolver {
             header_text.push_str(HNS_GATEWAY_DOH_RESOLVER_HEADER);
             header_text.push_str(": ");
@@ -4487,17 +4468,8 @@ impl Drop for PreparedRuntimeGateway {
 struct GatewayResolverKey {
     base: PathBuf,
     authority_root: Option<(u32, String)>,
-    resolution_mode: &'static str,
     hns_doh_resolver: Option<String>,
     experimental_p2p_dns_relay: bool,
-    legacy_hns_doh_compatibility: bool,
-}
-
-fn gateway_resolver_mode_key(mode: ResolutionMode) -> &'static str {
-    match mode {
-        ResolutionMode::Strict => "strict",
-        ResolutionMode::Compatibility => "compatibility",
-    }
 }
 
 /// One pooled resolver stack shared by every proxied request whose policy and
@@ -5480,10 +5452,8 @@ impl BrowserRuntime {
         let key = GatewayResolverKey {
             base: base.clone(),
             authority_root: authority_root.clone(),
-            resolution_mode: gateway_resolver_mode_key(context.runtime_policy.resolution_mode),
             hns_doh_resolver: context.runtime_policy.hns_doh_resolver.clone(),
             experimental_p2p_dns_relay: context.runtime_policy.experimental_p2p_dns_relay,
-            legacy_hns_doh_compatibility: context.runtime_policy.legacy_hns_doh_compatibility,
         };
         let mut resolvers = self
             .inner
@@ -6219,10 +6189,8 @@ struct ParsedGatewayHeaders {
 impl ParsedGatewayHeaders {
     fn runtime_policy(&self) -> RuntimePolicy {
         RuntimePolicy {
-            resolution_mode: ResolutionMode::Strict,
             hns_doh_resolver: self.hns_doh_resolver.clone(),
             experimental_p2p_dns_relay: self.experimental_p2p_dns_relay,
-            legacy_hns_doh_compatibility: false,
             stateless_dane_certificates: self.stateless_dane_certificates,
         }
     }
@@ -13109,7 +13077,7 @@ fn parse_gateway_headers(header_text: &str) -> Result<ParsedGatewayHeaders, &'st
             return Err("request header is invalid");
         }
         if name.eq_ignore_ascii_case(HNS_GATEWAY_STRICT_MODE_HEADER) {
-            continue;
+            return Err("strict mode header is obsolete");
         }
         if name.eq_ignore_ascii_case(HNS_GATEWAY_DOH_RESOLVER_HEADER) {
             if saw_hns_doh_resolver {
@@ -13125,7 +13093,7 @@ fn parse_gateway_headers(header_text: &str) -> Result<ParsedGatewayHeaders, &'st
             continue;
         }
         if name.eq_ignore_ascii_case(HNS_GATEWAY_LEGACY_DOH_HEADER) {
-            continue;
+            return Err("legacy HNS DoH fallback is unsupported");
         }
         if name.eq_ignore_ascii_case(HNS_GATEWAY_STATELESS_DANE_HEADER) {
             stateless_dane_certificates = value == "1" || value.eq_ignore_ascii_case("true");
@@ -20322,20 +20290,16 @@ mod tests {
         let data_dir = temp_dir_path("browser-runtime-headers");
         let configuration = RuntimeConfiguration::new(&data_dir, NetworkKind::Testnet)
             .with_initial_policy(RuntimePolicy {
-                resolution_mode: ResolutionMode::Compatibility,
                 hns_doh_resolver: Some("https://resolver.example.net/dns-query".to_owned()),
                 experimental_p2p_dns_relay: true,
-                legacy_hns_doh_compatibility: true,
                 stateless_dane_certificates: true,
             });
         let runtime = BrowserRuntime::open(configuration).unwrap();
         let policy = runtime.policy().unwrap();
-        assert_eq!(policy.resolution_mode, ResolutionMode::Strict);
         assert_eq!(
             policy.hns_doh_resolver.as_deref(),
             Some("https://resolver.example.net/dns-query")
         );
-        assert!(!policy.legacy_hns_doh_compatibility);
         let header_text = runtime
             .gateway_header_text(&[
                 ("Accept".to_owned(), "text/html".to_owned()),
@@ -20384,10 +20348,8 @@ mod tests {
     #[test]
     fn canonical_mobile_policy_maps_only_supported_roles() {
         let disabled_runtime_policy = RuntimePolicy {
-            resolution_mode: ResolutionMode::Compatibility,
             hns_doh_resolver: Some("https://resolver.example.net/dns-query".to_owned()),
             experimental_p2p_dns_relay: false,
-            legacy_hns_doh_compatibility: true,
             stateless_dane_certificates: true,
         };
         let disabled_policy = PolicyConfig {
@@ -20474,10 +20436,8 @@ mod tests {
 
         let revision = runtime
             .set_policy(RuntimePolicy {
-                resolution_mode: ResolutionMode::Compatibility,
                 hns_doh_resolver: Some("https://Resolver.Example.NET:443/dns-query".to_owned()),
                 experimental_p2p_dns_relay: true,
-                legacy_hns_doh_compatibility: true,
                 stateless_dane_certificates: true,
             })
             .unwrap();
@@ -20485,9 +20445,7 @@ mod tests {
 
         assert_eq!(revision, 1);
         assert_eq!(snapshot_revision, revision);
-        assert_eq!(policy.resolution_mode, ResolutionMode::Strict);
         assert!(policy.experimental_p2p_dns_relay);
-        assert!(!policy.legacy_hns_doh_compatibility);
         assert_eq!(
             policy.hns_doh_resolver.as_deref(),
             Some("https://resolver.example.net/dns-query")
@@ -20519,35 +20477,6 @@ mod tests {
             })
             .unwrap();
         assert_eq!(unchanged_revision, changed_revision);
-        cleanup_dir(&data_dir);
-    }
-
-    #[test]
-    fn prohibited_legacy_policy_fields_do_not_create_spurious_revisions() {
-        let data_dir = temp_dir_path("browser-runtime-policy-noop");
-        let runtime =
-            BrowserRuntime::open(RuntimeConfiguration::new(&data_dir, NetworkKind::Mainnet))
-                .unwrap();
-        let before = runtime.inner.canonical_authority.lock().unwrap().snapshot();
-
-        runtime
-            .with_policy_operation(
-                RuntimePolicy {
-                    resolution_mode: ResolutionMode::Compatibility,
-                    hns_doh_resolver: None,
-                    experimental_p2p_dns_relay: false,
-                    legacy_hns_doh_compatibility: true,
-                    stateless_dane_certificates: true,
-                },
-                |_| Ok(()),
-            )
-            .unwrap();
-
-        assert_eq!(runtime.policy_revision(), 0);
-        assert_eq!(
-            runtime.inner.canonical_authority.lock().unwrap().snapshot(),
-            before
-        );
         cleanup_dir(&data_dir);
     }
 
@@ -20600,7 +20529,7 @@ mod tests {
         };
 
         let invalid_port = runtime
-            .raw_gateway_request(request(-1, "", Vec::new()), RuntimePolicy::compatibility())
+            .raw_gateway_request(request(-1, "", Vec::new()), RuntimePolicy::strict())
             .unwrap()
             .into_bytes();
         assert!(invalid_port.starts_with(b"HTTP/1.1 400 Bad Request\r\n"));
@@ -20608,7 +20537,7 @@ mod tests {
         let oversized = runtime
             .raw_gateway_request(
                 request(443, "", vec![0; DEFAULT_MAX_REQUEST_BODY_BYTES + 1]),
-                RuntimePolicy::compatibility(),
+                RuntimePolicy::strict(),
             )
             .unwrap()
             .into_bytes();
@@ -20642,7 +20571,7 @@ mod tests {
                     header_text: String::new(),
                     body: Vec::new(),
                 },
-                RuntimePolicy::compatibility(),
+                RuntimePolicy::strict(),
                 &body_path,
             )
             .unwrap();
@@ -20710,7 +20639,7 @@ mod tests {
         };
         assert!(
             runtime
-                .raw_gateway_request(request.clone(), RuntimePolicy::compatibility())
+                .raw_gateway_request(request.clone(), RuntimePolicy::strict())
                 .is_err()
         );
 
@@ -20718,7 +20647,7 @@ mod tests {
         fs::write(&target, b"previous").unwrap();
         assert!(
             runtime
-                .raw_gateway_request_body_to_file(request, RuntimePolicy::compatibility(), &target,)
+                .raw_gateway_request_body_to_file(request, RuntimePolicy::strict(), &target,)
                 .is_err()
         );
         assert_eq!(fs::read(&target).unwrap(), b"previous");
@@ -20770,10 +20699,8 @@ mod tests {
         let runtime = BrowserRuntime::open(
             RuntimeConfiguration::new(&data_dir, NetworkKind::Regtest).with_initial_policy(
                 RuntimePolicy {
-                    resolution_mode: ResolutionMode::Strict,
                     hns_doh_resolver: None,
                     experimental_p2p_dns_relay: false,
-                    legacy_hns_doh_compatibility: false,
                     stateless_dane_certificates: false,
                 },
             ),
@@ -22539,12 +22466,10 @@ mod tests {
     }
 
     #[test]
-    fn gateway_headers_accept_valid_recovery_but_ignore_legacy_fallback_flags() {
+    fn gateway_headers_accept_valid_recovery_but_reject_legacy_fallback_flags() {
         let parsed = parse_gateway_headers(
             "Accept: text/html\r\n\
-             X-HNS-Browser-Strict-Mode: 0\r\n\
              X-HNS-Browser-DoH-Resolver: https://resolver.example.net/dns-query\r\n\
-             X-HNS-Browser-Legacy-HNS-DoH: 1\r\n\
              X-HNS-Browser-Stateless-DANE: 1\r\n\
              X-HNS-Security-Path: dane-authoritative-doh\r\n",
         )
@@ -22560,6 +22485,9 @@ mod tests {
             parsed.headers,
             vec![("Accept".to_owned(), "text/html".to_owned())]
         );
+        assert!(parse_gateway_headers("X-HNS-Browser-Legacy-HNS-DoH: 1\r\n").is_err());
+        assert!(parse_gateway_headers("X-HNS-Browser-Strict-Mode: 0\r\n").is_err());
+        assert!(parse_gateway_headers("X-HNS-Browser-Strict-Mode: 1\r\n").is_err());
         assert!(
             parse_gateway_headers(
                 "X-HNS-Browser-DoH-Resolver: http://resolver.example.net/dns-query\r\n"
@@ -24436,7 +24364,7 @@ mod tests {
             host: "welcome",
             port: 80,
             path_and_query: "/",
-            header_text: "X-HNS-Browser-Strict-Mode: 1\r\n",
+            header_text: "",
             body: &[],
         });
         let text = String::from_utf8(response).unwrap();
@@ -24728,7 +24656,7 @@ mod tests {
             host: &root_name,
             port: 80,
             path_and_query: "/recent",
-            header_text: "X-HNS-Browser-Strict-Mode: 1\r\n",
+            header_text: "",
             body: &[],
         });
         let text = String::from_utf8(response).unwrap();
@@ -28160,10 +28088,8 @@ mod tests {
         GatewayResolverContext {
             network: NetworkKind::Regtest,
             runtime_policy: RuntimePolicy {
-                resolution_mode: ResolutionMode::Strict,
                 hns_doh_resolver: None,
                 experimental_p2p_dns_relay,
-                legacy_hns_doh_compatibility: false,
                 stateless_dane_certificates: false,
             },
             peer_state: Some(Arc::clone(&runtime.inner.coordination.peer_state)),
@@ -28284,7 +28210,7 @@ mod tests {
 
         // The first interceptor request builds the pooled resolver stack.
         let response = runtime
-            .raw_gateway_request(raw_welcome_request(port), RuntimePolicy::compatibility())
+            .raw_gateway_request(raw_welcome_request(port), RuntimePolicy::strict())
             .unwrap()
             .into_bytes();
         assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
@@ -28298,7 +28224,7 @@ mod tests {
         let head = runtime
             .raw_gateway_request_body_to_file(
                 raw_welcome_request(port),
-                RuntimePolicy::compatibility(),
+                RuntimePolicy::strict(),
                 &body_path,
             )
             .unwrap();
@@ -28324,7 +28250,7 @@ mod tests {
         let server = spawn_loopback_origin(listener, 2, write_ok_body_response);
 
         let response = runtime
-            .raw_gateway_request(raw_welcome_request(port), RuntimePolicy::compatibility())
+            .raw_gateway_request(raw_welcome_request(port), RuntimePolicy::strict())
             .unwrap()
             .into_bytes();
         assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
@@ -28376,7 +28302,7 @@ mod tests {
         drop(header_state_lock);
 
         let response = runtime
-            .raw_gateway_request(raw_welcome_request(port), RuntimePolicy::compatibility())
+            .raw_gateway_request(raw_welcome_request(port), RuntimePolicy::strict())
             .unwrap()
             .into_bytes();
         assert!(
@@ -28431,7 +28357,7 @@ mod tests {
         let first_runtime = runtime.clone();
         let first = thread::spawn(move || {
             first_runtime
-                .raw_gateway_request(raw_welcome_request(port), RuntimePolicy::compatibility())
+                .raw_gateway_request(raw_welcome_request(port), RuntimePolicy::strict())
                 .map(GatewayHttpResponse::into_bytes)
         });
         first_arrived_rx
@@ -28440,7 +28366,7 @@ mod tests {
         let second_runtime = runtime.clone();
         let second = thread::spawn(move || {
             second_runtime
-                .raw_gateway_request(raw_welcome_request(port), RuntimePolicy::compatibility())
+                .raw_gateway_request(raw_welcome_request(port), RuntimePolicy::strict())
                 .map(GatewayHttpResponse::into_bytes)
         });
         second_arrived_rx
@@ -28509,7 +28435,7 @@ mod tests {
         let policy_before_rejection = runtime.policy().unwrap();
         let rejected_policy = RuntimePolicy {
             hns_doh_resolver: Some("http://resolver.example.net/dns-query".to_owned()),
-            ..RuntimePolicy::compatibility()
+            ..RuntimePolicy::strict()
         };
 
         let error = runtime
@@ -28642,10 +28568,8 @@ mod tests {
         let runtime = BrowserRuntime::open(
             RuntimeConfiguration::new(&data_dir, NetworkKind::Regtest).with_initial_policy(
                 RuntimePolicy {
-                    resolution_mode: ResolutionMode::Strict,
                     hns_doh_resolver: None,
                     experimental_p2p_dns_relay: false,
-                    legacy_hns_doh_compatibility: false,
                     stateless_dane_certificates: false,
                 },
             ),
@@ -28686,10 +28610,8 @@ mod tests {
         let key = GatewayResolverKey {
             base: base.to_path_buf(),
             authority_root: Some((tip.height.0, tip.header.tree_root.to_string())),
-            resolution_mode: gateway_resolver_mode_key(ResolutionMode::Strict),
             hns_doh_resolver: None,
             experimental_p2p_dns_relay: false,
-            legacy_hns_doh_compatibility: false,
         };
         runtime.inner.gateway_resolvers.lock().unwrap().insert(
             key,
@@ -28742,7 +28664,7 @@ mod tests {
 
         // The first request resolves the delegated name live.
         let response = runtime
-            .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+            .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::strict())
             .unwrap()
             .into_bytes();
         assert!(
@@ -28758,7 +28680,7 @@ mod tests {
         // complete, evidence-backed plan from cached answers.
         runtime.inner.namespace_plans.lock().unwrap().clear();
         let response = runtime
-            .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+            .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::strict())
             .unwrap()
             .into_bytes();
         assert!(
@@ -28781,7 +28703,7 @@ mod tests {
         let server = spawn_loopback_origin(listener, 2, write_ok_body_response);
 
         let response = runtime
-            .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+            .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::strict())
             .unwrap()
             .into_bytes();
         assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
@@ -28793,7 +28715,7 @@ mod tests {
         runtime.inner.namespace_plans.lock().unwrap().clear();
         icann_delay.store(1_100, Ordering::SeqCst);
         let response = runtime
-            .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+            .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::strict())
             .unwrap()
             .into_bytes();
         assert!(
@@ -28822,10 +28744,7 @@ mod tests {
         let primer_port = primer_listener.local_addr().unwrap().port();
         let primer = spawn_loopback_origin(primer_listener, 1, write_ok_body_response);
         let response = runtime
-            .raw_gateway_request(
-                raw_delegated_request(primer_port),
-                RuntimePolicy::compatibility(),
-            )
+            .raw_gateway_request(raw_delegated_request(primer_port), RuntimePolicy::strict())
             .unwrap()
             .into_bytes();
         assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
@@ -28858,7 +28777,7 @@ mod tests {
         let first_runtime = runtime.clone();
         let first = thread::spawn(move || {
             first_runtime
-                .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+                .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::strict())
                 .map(GatewayHttpResponse::into_bytes)
         });
         blocked_rx
@@ -28870,7 +28789,7 @@ mod tests {
         let second_runtime = runtime.clone();
         let second = thread::spawn(move || {
             second_runtime
-                .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+                .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::strict())
                 .map(GatewayHttpResponse::into_bytes)
         });
         thread::sleep(Duration::from_millis(100));
@@ -28905,13 +28824,13 @@ mod tests {
         let first_runtime = runtime.clone();
         let first = thread::spawn(move || {
             first_runtime
-                .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+                .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::strict())
                 .map(GatewayHttpResponse::into_bytes)
         });
         let second_runtime = runtime.clone();
         let second = thread::spawn(move || {
             second_runtime
-                .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+                .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::strict())
                 .map(GatewayHttpResponse::into_bytes)
         });
 
@@ -28940,7 +28859,7 @@ mod tests {
         let server = spawn_loopback_origin(listener, 2, write_ok_body_response);
 
         let response = runtime
-            .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+            .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::strict())
             .unwrap()
             .into_bytes();
         assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
@@ -28950,7 +28869,7 @@ mod tests {
         // prepare/reset cycle fully completed, must reuse the cached namespace
         // plan without rebuilding or re-querying.
         let response = runtime
-            .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+            .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::strict())
             .unwrap()
             .into_bytes();
         assert!(

@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <type_traits>
 
-static_assert(HNS_BROWSER_ABI_VERSION == 2u);
+static_assert(HNS_BROWSER_ABI_VERSION == 3u);
 static_assert(HNS_BROWSER_WALLET_READ_BUNDLE_VERSION == 2u);
 static_assert(HNS_BROWSER_WALLET_NAME_IMPORT_BUNDLE_VERSION == 1u);
 static_assert(std::is_standard_layout_v<HnsBrowserSlice>);
@@ -28,7 +28,6 @@ int main() {
     auto *walletStatus = &hns_browser_wallet_status;
     auto *walletBirthday = &hns_browser_wallet_birthday_height;
     auto *walletAccounts = &hns_browser_wallet_accounts;
-    auto *walletConfigureReads = &hns_browser_wallet_configure_hns_reads;
     auto *walletHasReads = &hns_browser_wallet_has_hns_reads;
     auto *walletSynchronizeReads = &hns_browser_wallet_synchronize_hns_reads;
     auto *walletSyncProgress = &hns_browser_wallet_hns_sync_progress;
@@ -51,7 +50,6 @@ int main() {
     (void)walletStatus;
     (void)walletBirthday;
     (void)walletAccounts;
-    (void)walletConfigureReads;
     (void)walletHasReads;
     (void)walletSynchronizeReads;
     (void)walletSyncProgress;

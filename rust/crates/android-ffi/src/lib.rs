@@ -16,13 +16,12 @@ use hns_wallet_mobile::{
     EmbeddedHnsBackend, HnsBackend, HnsBootstrapPolicy, HnsClock, HnsDirectPeerConfig,
     HnsDirectPeerCoordinator, HnsDirectPeerError, HnsDirectShakescapeListener,
     HnsDirectShakescapeMessage, HnsDirectShakescapePeer, HnsInboundMobilePeer,
-    HnsInboundNetworkPeer, HnsLightFloor, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig,
-    HnsPublicPeerSessions, HnsReadSystemClock, MAX_MOBILE_RECOVERY_PHRASE_BYTES,
-    MAX_MOBILE_SHAKEDEX_POLICY_BYTES, MobileBitcoinDirectConfig, MobileBitcoinValueController,
-    MobileDatabaseKey, MobileHnsReadController, MobileHnsValueController, MobileHnsValueIntent,
-    MobilePlatform, MobileRecoveryPhrase, MobileShakedexQuery,
-    MobileShakescapeBitcoinFundingPermit, MobileShakescapeBitcoinWatchPermit,
-    MobileShakescapeSessionController, MobileWalletController, MobileWalletError,
+    HnsInboundNetworkPeer, HnsLightFloor, HnsNetwork, HnsPublicPeerSessions, HnsReadSystemClock,
+    MAX_MOBILE_RECOVERY_PHRASE_BYTES, MobileBitcoinDirectConfig, MobileBitcoinValueController,
+    MobileDatabaseKey, MobileHnsValueController, MobileHnsValueIntent, MobilePlatform,
+    MobileRecoveryPhrase, MobileShakedexQuery, MobileShakescapeBitcoinFundingPermit,
+    MobileShakescapeBitcoinWatchPermit, MobileShakescapeSessionController, MobileWalletController,
+    MobileWalletError,
 };
 use hns_wallet_types::{BaseUnits, SessionId};
 use jni::JNIEnv;
@@ -65,10 +64,6 @@ static ANDROID_APPLICATION_CONTEXT: OnceLock<GlobalRef> = OnceLock::new();
 const MAX_ANDROID_WALLET_HANDLES: usize = 4;
 const ANDROID_PUBLIC_HNS_SESSION_RETENTION: Duration = Duration::from_secs(5 * 60);
 const MAX_ANDROID_WALLET_PATH_BYTES: usize = 4_096;
-const MAX_ANDROID_WALLET_RPC_AUTHORIZATION_CHARACTERS: usize = 4_096;
-const ANDROID_WALLET_RPC_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
-const ANDROID_WALLET_RPC_READ_TIMEOUT: Duration = Duration::from_secs(20);
-const ANDROID_WALLET_RPC_WRITE_TIMEOUT: Duration = Duration::from_secs(20);
 const ANDROID_WALLET_NETWORK_MAINNET: jint = 1;
 const ANDROID_WALLET_NETWORK_TESTNET: jint = 2;
 const ANDROID_WALLET_NETWORK_REGTEST: jint = 3;
@@ -551,8 +546,6 @@ fn try_lock_if_active<'a, T>(
 
 enum AndroidWalletController {
     Lifecycle(MobileWalletController),
-    Reads(MobileHnsReadController<HnsNodeRpcBackend>),
-    Value(Box<MobileHnsValueController<HnsNodeRpcBackend>>),
     /// The installed wallet's self-contained HNS path. Header agreement,
     /// filtered-block discovery, fee observations, and transaction broadcast
     /// all use ordinary HNS peers through the same encrypted wallet store.
@@ -626,8 +619,6 @@ impl AndroidWalletController {
     fn birthday_height(&self) -> Option<u64> {
         match self {
             Self::Lifecycle(controller) => Some(controller.account_config().birthday_height),
-            Self::Reads(controller) => Some(controller.account_config().birthday_height),
-            Self::Value(controller) => Some(controller.account_config().birthday_height),
             Self::DirectValue {
                 coordinator,
                 controller,
@@ -645,8 +636,6 @@ impl AndroidWalletController {
     fn status_bundle(&mut self) -> Option<Vec<u8>> {
         let (status, hns_reads_enabled, hns_value_enabled, shakedex_enabled) = match self {
             Self::Lifecycle(controller) => (controller.status().ok()?, false, false, false),
-            Self::Reads(controller) => (controller.status().ok()?, true, false, false),
-            Self::Value(controller) => (controller.status().ok()?, true, true, true),
             Self::DirectValue { controller, .. } => (controller.status().ok()?, true, true, true),
             Self::Failed => return None,
         };
@@ -678,8 +667,6 @@ impl AndroidWalletController {
     fn account_bundle(&mut self) -> Option<Vec<u8>> {
         let mut accounts = match self {
             Self::Lifecycle(controller) => controller.accounts().ok()?,
-            Self::Reads(controller) => controller.accounts().ok()?,
-            Self::Value(controller) => controller.accounts().ok()?,
             Self::DirectValue { controller, .. } => controller.accounts().ok()?,
             Self::Failed => return None,
         };
@@ -699,8 +686,6 @@ impl AndroidWalletController {
     fn unlock(&mut self, key: &MobileDatabaseKey) -> bool {
         let unlocked = match self {
             Self::Lifecycle(controller) => controller.unlock(key).is_ok(),
-            Self::Reads(controller) => controller.unlock(key).is_ok(),
-            Self::Value(controller) => controller.unlock(key).is_ok(),
             Self::DirectValue { controller, .. } => {
                 if let Err(error) = controller.unlock(key) {
                     android_log_error(&format!(
@@ -751,8 +736,6 @@ impl AndroidWalletController {
         }
         match self {
             Self::Lifecycle(controller) => controller.lock().is_ok(),
-            Self::Reads(controller) => controller.lock().is_ok(),
-            Self::Value(controller) => controller.lock().is_ok(),
             Self::DirectValue { controller, .. } => controller.lock().is_ok(),
             Self::Failed => false,
         }
@@ -798,68 +781,7 @@ impl AndroidWalletController {
                 let _ = controller.lock();
                 None
             }
-            Self::Reads(mut controller) => {
-                let _ = controller.lock();
-                None
-            }
-            Self::Value(mut controller) => {
-                let _ = controller.lock();
-                None
-            }
             Self::Failed => None,
-        }
-    }
-
-    fn install_hns_reads(&mut self, backend: HnsNodeRpcBackend) -> bool {
-        if !matches!(self, Self::Lifecycle(_)) {
-            return false;
-        }
-        let lifecycle = match std::mem::replace(self, Self::Failed) {
-            Self::Lifecycle(controller) => controller,
-            _ => return false,
-        };
-        match lifecycle.into_hns_reads(backend) {
-            Ok(controller) => {
-                *self = Self::Reads(controller);
-                true
-            }
-            Err(error) => {
-                android_log_error(&format!(
-                    "wallet HNS read controller installation failed closed: {error}"
-                ));
-                false
-            }
-        }
-    }
-
-    fn install_hns_value(
-        &mut self,
-        database_key: &MobileDatabaseKey,
-        backend: HnsNodeRpcBackend,
-        shakedex_policy_json: &[u8],
-    ) -> bool {
-        if !matches!(self, Self::Lifecycle(_)) {
-            return false;
-        }
-        let lifecycle = match std::mem::replace(self, Self::Failed) {
-            Self::Lifecycle(controller) => controller,
-            _ => return false,
-        };
-        match lifecycle.into_hns_value_with_shakedex_policy(
-            database_key,
-            backend,
-            shakedex_policy_json,
-        ) {
-            Ok(controller) => {
-                *self = Self::Value(Box::new(controller));
-                true
-            }
-            Err(error) => {
-                android_log_error(&format!(
-                    "wallet HNS value controller installation failed closed: {error}"
-                ));
-                false
-            }
         }
     }
 
@@ -1044,14 +966,11 @@ impl AndroidWalletController {
     }
 
     const fn has_hns_reads(&self) -> bool {
-        matches!(
-            self,
-            Self::Reads(_) | Self::Value(_) | Self::DirectValue { .. }
-        )
+        matches!(self, Self::DirectValue { .. })
     }
 
     const fn has_hns_value(&self) -> bool {
-        matches!(self, Self::Value(_) | Self::DirectValue { .. })
+        matches!(self, Self::DirectValue { .. })
     }
 
     fn direct_hns_rollback_floor(&self) -> Option<HnsLightFloor> {
@@ -2745,12 +2664,6 @@ impl AndroidWalletController {
         }
         let live_progress = &sync_record.hns_live_sync_progress;
         let synchronization = match self {
-            Self::Reads(controller) => controller
-                .synchronize()
-                .map(|snapshot| AndroidHnsSynchronization::Ready(Box::new(snapshot))),
-            Self::Value(controller) => controller
-                .synchronize()
-                .map(|snapshot| AndroidHnsSynchronization::Ready(Box::new(snapshot))),
             Self::DirectValue {
                 coordinator,
                 controller,
@@ -3094,8 +3007,6 @@ impl AndroidWalletController {
     /// synchronization path or activate the Bitcoin runtime.
     fn local_hns_receive_target(&mut self) -> Option<Vec<u8>> {
         let target = match self {
-            Self::Reads(controller) => controller.local_receive_target(),
-            Self::Value(controller) => controller.local_receive_target(),
             Self::DirectValue { controller, .. } => controller.local_receive_target(),
             Self::Lifecycle(_) | Self::Failed => return None,
         };
@@ -3116,8 +3027,6 @@ impl AndroidWalletController {
 
     fn import_hns_name_exact_text(&mut self, name: &str) -> Option<Vec<u8>> {
         let summary = match self {
-            Self::Reads(controller) => controller.import_name_exact_text(name),
-            Self::Value(controller) => controller.import_name_exact_text(name),
             Self::DirectValue {
                 coordinator,
                 controller,
@@ -3186,8 +3095,6 @@ impl AndroidWalletController {
         }
         let refs = names.iter().map(String::as_str).collect::<Vec<_>>();
         let imported = match self {
-            Self::Reads(controller) => controller.import_names_exact_text(&refs),
-            Self::Value(controller) => controller.import_names_exact_text(&refs),
             Self::DirectValue {
                 coordinator,
                 controller,
@@ -3223,8 +3130,6 @@ impl AndroidWalletController {
 
     fn hns_name_page(&self, offset: usize, limit: usize) -> Option<Vec<u8>> {
         let page = match self {
-            Self::Reads(controller) => controller.known_name_page(offset, limit),
-            Self::Value(controller) => controller.known_name_page(offset, limit),
             Self::DirectValue { controller, .. } => controller.known_name_page(offset, limit),
             Self::Lifecycle(_) | Self::Failed => return None,
         }
@@ -3250,55 +3155,49 @@ impl AndroidWalletController {
 
     fn prepare_hns_value_action(&mut self, intent: MobileHnsValueIntent) -> Option<Vec<u8>> {
         match self {
-            Self::Value(controller) => prepare_hns_value_action(controller, intent),
             Self::DirectValue { controller, .. } => prepare_hns_value_action(controller, intent),
-            Self::Lifecycle(_) | Self::Reads(_) | Self::Failed => None,
+            Self::Lifecycle(_) | Self::Failed => None,
         }
     }
 
     fn prepare_next_shakedex_finalize(&mut self) -> Option<Vec<u8>> {
         match self {
-            Self::Value(controller) => prepare_next_shakedex_finalize(controller),
             Self::DirectValue { controller, .. } => prepare_next_shakedex_finalize(controller),
-            Self::Lifecycle(_) | Self::Reads(_) | Self::Failed => None,
+            Self::Lifecycle(_) | Self::Failed => None,
         }
     }
 
     fn query_shakedex(&mut self, query: MobileShakedexQuery) -> Option<Vec<u8>> {
         match self {
-            Self::Value(controller) => query_shakedex(controller, query),
             Self::DirectValue { controller, .. } => query_shakedex(controller, query),
-            Self::Lifecycle(_) | Self::Reads(_) | Self::Failed => None,
+            Self::Lifecycle(_) | Self::Failed => None,
         }
     }
 
     fn approve_hns_value_action(&mut self, action_token: &str) -> Option<Vec<u8>> {
         match self {
-            Self::Value(controller) => approve_hns_value_action(controller, action_token),
             Self::DirectValue { controller, .. } => {
                 approve_hns_value_action(controller, action_token)
             }
-            Self::Lifecycle(_) | Self::Reads(_) | Self::Failed => None,
+            Self::Lifecycle(_) | Self::Failed => None,
         }
     }
 
     fn approve_hns_value_action_result(&mut self, action_token: &str) -> Option<Vec<u8>> {
         match self {
-            Self::Value(controller) => approve_hns_value_action_result(controller, action_token),
             Self::DirectValue { controller, .. } => {
                 approve_hns_value_action_result(controller, action_token)
             }
-            Self::Lifecycle(_) | Self::Reads(_) | Self::Failed => None,
+            Self::Lifecycle(_) | Self::Failed => None,
         }
     }
 
     fn reject_hns_value_action(&mut self, action_token: &str) -> bool {
         match self {
-            Self::Value(controller) => reject_hns_value_action(controller, action_token),
             Self::DirectValue { controller, .. } => {
                 reject_hns_value_action(controller, action_token)
             }
-            Self::Lifecycle(_) | Self::Reads(_) | Self::Failed => false,
+            Self::Lifecycle(_) | Self::Failed => false,
         }
     }
 }
@@ -4608,54 +4507,6 @@ fn android_wallet_recovery_phrase(
     MobileRecoveryPhrase::new(phrase).ok()
 }
 
-fn android_wallet_rpc_authorization(
-    env: &mut JNIEnv<'_>,
-    input: &JCharArray<'_>,
-) -> Option<SensitiveString> {
-    let length = usize::try_from(env.get_array_length(input).ok()?).ok()?;
-    if length == 0 || length > MAX_ANDROID_WALLET_RPC_AUTHORIZATION_CHARACTERS {
-        return None;
-    }
-    let mut characters = vec![0_u16; length];
-    let read = env.get_char_array_region(input, 0, characters.as_mut_slice());
-    let zeros = vec![0_u16; length];
-    let wiped = env.set_char_array_region(input, 0, zeros.as_slice());
-    if read.is_err() || wiped.is_err() {
-        characters.fill(0);
-        return None;
-    }
-    let authorization = String::from_utf16(characters.as_slice()).ok();
-    characters.fill(0);
-    authorization.map(SensitiveString)
-}
-
-fn android_wallet_rpc_backend(
-    loopback_port: jint,
-    mut authorization: SensitiveString,
-) -> Option<HnsNodeRpcBackend> {
-    let loopback_port = u16::try_from(loopback_port)
-        .ok()
-        .filter(|port| *port != 0)?;
-    let endpoint = SocketAddr::from((Ipv4Addr::LOCALHOST, loopback_port));
-    let config = HnsNodeRpcConfig::new(endpoint, authorization.take())
-        .and_then(|config| {
-            config.with_timeouts(
-                ANDROID_WALLET_RPC_CONNECT_TIMEOUT,
-                ANDROID_WALLET_RPC_READ_TIMEOUT,
-                ANDROID_WALLET_RPC_WRITE_TIMEOUT,
-            )
-        })
-        .map_err(|error| {
-            android_log_error(&format!("wallet HNS node configuration rejected: {error}"));
-        })
-        .ok()?;
-    HnsNodeRpcBackend::new(config)
-        .map_err(|error| {
-            android_log_error(&format!("wallet HNS node backend rejected: {error}"));
-        })
-        .ok()
-}
-
 fn wallet_status_bundle(
     locked: bool,
     active_wallet: Option<&[u8; 16]>,
@@ -5842,11 +5693,9 @@ struct JniRuntimeGatewayHttpRequest<'local> {
 }
 
 struct RuntimeGatewayPolicyInput<'local> {
-    strict_hns_mode: jboolean,
     doh_resolver_url: JString<'local>,
     stateless_dane_certificates: jboolean,
     experimental_p2p_dns_relay: jboolean,
-    legacy_hns_doh_compatibility: jboolean,
 }
 
 /// Install the process-lifetime Android application context required by
@@ -6000,26 +5849,20 @@ fn runtime_gateway_policy(
         .trim()
         .to_owned();
     runtime_gateway_policy_from_values(
-        input.strict_hns_mode,
         doh_resolver_url,
         input.stateless_dane_certificates,
         input.experimental_p2p_dns_relay,
-        input.legacy_hns_doh_compatibility,
     )
 }
 
 fn runtime_gateway_policy_from_values(
-    _strict_hns_mode: jboolean,
     doh_resolver_url: String,
     stateless_dane_certificates: jboolean,
     experimental_p2p_dns_relay: jboolean,
-    _legacy_hns_doh_compatibility: jboolean,
 ) -> Option<RuntimePolicy> {
     Some(RuntimePolicy {
-        resolution_mode: ResolutionMode::Strict,
         hns_doh_resolver: normalize_hns_doh_recovery_url(&doh_resolver_url).ok()?,
         experimental_p2p_dns_relay: experimental_p2p_dns_relay != 0,
-        legacy_hns_doh_compatibility: false,
         stateless_dane_certificates: stateless_dane_certificates != 0,
     })
 }
@@ -6243,11 +6086,9 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeS
     mut env: JNIEnv<'_>,
     _class: JClass<'_>,
     handle: jlong,
-    strict_hns_mode: jboolean,
     doh_resolver_url: JString<'_>,
     stateless_dane_certificates: jboolean,
     experimental_p2p_dns_relay: jboolean,
-    legacy_hns_doh_compatibility: jboolean,
     scope_root: JString<'_>,
 ) -> jbyteArray {
     catch_unwind(AssertUnwindSafe(|| {
@@ -6255,11 +6096,9 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeS
             .zip(runtime_gateway_policy(
                 &mut env,
                 RuntimeGatewayPolicyInput {
-                    strict_hns_mode,
                     doh_resolver_url,
                     stateless_dane_certificates,
                     experimental_p2p_dns_relay,
-                    legacy_hns_doh_compatibility,
                 },
             ))
             .zip(env.get_string(&scope_root).ok())
@@ -6301,11 +6140,9 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeG
     mut env: JNIEnv<'_>,
     _class: JClass<'_>,
     handle: jlong,
-    strict_hns_mode: jboolean,
     doh_resolver_url: JString<'_>,
     stateless_dane_certificates: jboolean,
     experimental_p2p_dns_relay: jboolean,
-    legacy_hns_doh_compatibility: jboolean,
     method: JString<'_>,
     scheme: JString<'_>,
     host: JString<'_>,
@@ -6319,11 +6156,9 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeG
             .zip(runtime_gateway_policy(
                 &mut env,
                 RuntimeGatewayPolicyInput {
-                    strict_hns_mode,
                     doh_resolver_url,
                     stateless_dane_certificates,
                     experimental_p2p_dns_relay,
-                    legacy_hns_doh_compatibility,
                 },
             ))
             .zip(jni_runtime_gateway_request(
@@ -6367,11 +6202,9 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeG
     mut env: JNIEnv<'_>,
     _class: JClass<'_>,
     handle: jlong,
-    strict_hns_mode: jboolean,
     doh_resolver_url: JString<'_>,
     stateless_dane_certificates: jboolean,
     experimental_p2p_dns_relay: jboolean,
-    legacy_hns_doh_compatibility: jboolean,
     method: JString<'_>,
     scheme: JString<'_>,
     host: JString<'_>,
@@ -6390,11 +6223,9 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeG
             .zip(runtime_gateway_policy(
                 &mut env,
                 RuntimeGatewayPolicyInput {
-                    strict_hns_mode,
                     doh_resolver_url,
                     stateless_dane_certificates,
                     experimental_p2p_dns_relay,
-                    legacy_hns_doh_compatibility,
                 },
             ))
             .zip(jni_runtime_gateway_request(
@@ -6443,11 +6274,9 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeG
     mut env: JNIEnv<'_>,
     _class: JClass<'_>,
     handle: jlong,
-    strict_hns_mode: jboolean,
     doh_resolver_url: JString<'_>,
     stateless_dane_certificates: jboolean,
     experimental_p2p_dns_relay: jboolean,
-    legacy_hns_doh_compatibility: jboolean,
     method: JString<'_>,
     scheme: JString<'_>,
     host: JString<'_>,
@@ -6466,11 +6295,9 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeG
             .zip(runtime_gateway_policy(
                 &mut env,
                 RuntimeGatewayPolicyInput {
-                    strict_hns_mode,
                     doh_resolver_url,
                     stateless_dane_certificates,
                     experimental_p2p_dns_relay,
-                    legacy_hns_doh_compatibility,
                 },
             ))
             .zip(jni_runtime_gateway_request(
@@ -6952,99 +6779,6 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeConfigureHnsReads(
-    mut env: JNIEnv<'_>,
-    _class: JClass<'_>,
-    handle: jlong,
-    loopback_port: jint,
-    authorization: JCharArray<'_>,
-) -> jboolean {
-    catch_unwind(AssertUnwindSafe(|| {
-        let Some(authorization) = android_wallet_rpc_authorization(&mut env, &authorization) else {
-            return false;
-        };
-        let Some(record) = wallet_from_handle(handle) else {
-            return false;
-        };
-        if !record.active.load(Ordering::Acquire) || !record.hns_reads_installable {
-            return false;
-        }
-        let Some(pending_recovery) = record.pending_recovery_if_active() else {
-            return false;
-        };
-        if pending_recovery.is_some() {
-            return false;
-        }
-        drop(pending_recovery);
-        let Some(backend) = android_wallet_rpc_backend(loopback_port, authorization) else {
-            return false;
-        };
-        let Some(mut controller) = record.controller_if_active() else {
-            return false;
-        };
-        controller.install_hns_reads(backend)
-    }))
-    .unwrap_or(false)
-    .into()
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeConfigureHnsValue(
-    mut env: JNIEnv<'_>,
-    _class: JClass<'_>,
-    handle: jlong,
-    database_key: JByteArray<'_>,
-    loopback_port: jint,
-    authorization: JCharArray<'_>,
-    shakedex_policy_json: JByteArray<'_>,
-) -> jboolean {
-    catch_unwind(AssertUnwindSafe(|| {
-        // Consume both caller-owned capabilities before any admission result or
-        // potentially blocking native operation can be observed.
-        let database_key = android_wallet_consumed_database_key(&mut env, &database_key);
-        let authorization = android_wallet_rpc_authorization(&mut env, &authorization);
-        let shakedex_policy_json = android_wallet_consumed_bytes(
-            &mut env,
-            &shakedex_policy_json,
-            MAX_MOBILE_SHAKEDEX_POLICY_BYTES,
-        );
-        let (Some(database_key), Some(authorization), Some(mut shakedex_policy_json)) =
-            (database_key, authorization, shakedex_policy_json)
-        else {
-            return false;
-        };
-        let Some(record) = wallet_from_handle(handle) else {
-            return false;
-        };
-        if !record.active.load(Ordering::Acquire) || !record.hns_reads_installable {
-            return false;
-        }
-        let Some(pending_recovery) = record.pending_recovery_if_active() else {
-            return false;
-        };
-        if pending_recovery.is_some() {
-            return false;
-        }
-        drop(pending_recovery);
-        let Some(backend) = android_wallet_rpc_backend(loopback_port, authorization) else {
-            return false;
-        };
-        let Some(mut controller) = record.controller_if_active() else {
-            return false;
-        };
-        let installed =
-            controller.install_hns_value(&database_key, backend, shakedex_policy_json.as_slice());
-        shakedex_policy_json.fill(0);
-        installed
-    }))
-    .unwrap_or(false)
-    .into()
-}
-
-/// Install the production wallet-owned direct HNS path. The JNI boundary
-/// accepts only the one-time database key; peers, header authority, filtering,
-/// and broadcast are all constructed from the selected encrypted account.
-#[unsafe(no_mangle)]
 pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeConfigureWalletOwnedDirectHnsValue(
     mut env: JNIEnv<'_>,
     _class: JClass<'_>,
@@ -7135,10 +6869,9 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
     .unwrap_or(std::ptr::null_mut())
 }
 
-/// The synchronization worker must distinguish a legacy controller from a
-/// direct controller whose mutex is temporarily held by peer maintenance.
-/// This entry point is called off the Android UI thread and waits for the
-/// active controller before reading the authenticated rollback floor.
+/// Called off the Android UI thread, this waits for the active direct
+/// controller before reading its authenticated rollback floor. Peer
+/// maintenance can temporarily hold the controller mutex.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeDirectHnsRollbackFloorForSync(
     env: JNIEnv<'_>,
@@ -10384,27 +10117,21 @@ mod tests {
     #[test]
     fn gateway_policy_preserves_only_explicit_valid_recovery_and_relay_controls() {
         let policy = runtime_gateway_policy_from_values(
-            0,
             "https://Resolver.Example.NET:443/dns-query".to_owned(),
             0,
-            1,
             1,
         )
         .expect("valid recovery endpoint");
 
-        assert_eq!(policy.resolution_mode, ResolutionMode::Strict);
         assert_eq!(
             policy.hns_doh_resolver.as_deref(),
             Some("https://resolver.example.net/dns-query")
         );
         assert!(policy.experimental_p2p_dns_relay);
-        assert!(!policy.legacy_hns_doh_compatibility);
         assert!(!policy.stateless_dane_certificates);
         assert!(
             runtime_gateway_policy_from_values(
-                1,
                 "http://resolver.example.net/dns-query".to_owned(),
-                0,
                 0,
                 0,
             )

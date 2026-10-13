@@ -7687,8 +7687,7 @@ final class WalletViewController: UIViewController {
     }
 
     /// Configures a freshly reopened durable wallet with its own direct HNS
-    /// peers.  Unlike the historic loopback-read path, this has no companion
-    /// credential or endpoint.  Mainnet uses the product-pinned header stream
+    /// peers. Mainnet uses the product-pinned header stream
     /// only for the checkpoint-born wallet birthday; Rust independently pins
     /// and validates every byte before it replaces the lifecycle controller.
     private func beginDirectHnsInstallationIfNeeded() {
@@ -9640,42 +9639,6 @@ func walletReadBootstrapMayInstall(
         current.lifecycleAllowsBootstrap &&
         current.viewIsCurrent &&
         !current.retirementInFlight
-}
-
-/// Gate before credential acquisition and again after a potentially
-/// re-entrant source callback. `expectedAuthority` is intentionally retained:
-/// a source cannot rotate authority and return a credential for the rotated
-/// controller in response to a request for the original controller.
-func attemptWalletReadBootstrap(
-    expectedAuthority: WalletReadBootstrapAuthority,
-    source: any WalletReadBootstrapSource,
-    currentState: () -> WalletReadBootstrapState,
-    install: (
-        WalletReadBootstrapAuthority,
-        NativeHnsReadConfiguration
-    ) throws -> Void
-) throws -> Bool {
-    guard walletReadBootstrapMayInstall(
-        expected: expectedAuthority,
-        current: currentState()
-    ),
-    let configuration = source.takeConfiguration(for: expectedAuthority) else {
-        return false
-    }
-    defer { configuration.discard() }
-
-    let current = currentState()
-    guard configuration.authority == expectedAuthority,
-          let currentAuthority = current.authority,
-          currentAuthority == expectedAuthority,
-          walletReadBootstrapMayInstall(
-              expected: expectedAuthority,
-              current: current
-          ) else {
-        return false
-    }
-    try install(currentAuthority, configuration)
-    return true
 }
 
 struct WalletConfirmedDeletionAuthority: Equatable, Sendable {

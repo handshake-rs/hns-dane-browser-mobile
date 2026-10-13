@@ -111,48 +111,8 @@ internal object NativeWalletBridge {
             null
         }
 
-    /** Installs one exact, authority-bound app-owned read-only sidecar binding. */
-    fun configureHnsReads(
-        currentAuthority: WalletReadBootstrapAuthority,
-        configuration: NativeHnsReadConfiguration,
-    ): Boolean = configuration.consumeFor(currentAuthority) { loopbackPort, authorization ->
-        isValidHandle(currentAuthority.walletHandle) &&
-            isAvailable &&
-            runCatching {
-                nativeConfigureHnsReads(
-                    currentAuthority.walletHandle,
-                    loopbackPort,
-                    authorization,
-                )
-            }.getOrDefault(false)
-    }
-
-    /** Installs the full same-store HNS controller without exposing signing authority to Kotlin. */
-    fun configureHnsValue(
-        currentAuthority: WalletReadBootstrapAuthority,
-        configuration: NativeHnsReadConfiguration,
-        databaseKey: ByteArray,
-    ): Boolean = consumeDatabaseKey(databaseKey) { key ->
-        configuration.consumeForValue(
-            currentAuthority,
-        ) { loopbackPort, authorization, shakescapePolicyJson ->
-            isValidHandle(currentAuthority.walletHandle) &&
-                isAvailable &&
-                runCatching {
-                    nativeConfigureHnsValue(
-                        currentAuthority.walletHandle,
-                        key,
-                        loopbackPort,
-                        authorization,
-                        shakescapePolicyJson,
-                    )
-                }.getOrDefault(false)
-        }
-    }
-
     /**
-     * Installs the wallet-owned direct HNS runtime. Unlike the legacy sidecar
-     * adapter this has no RPC endpoint or credential: native code derives the
+     * Installs the wallet-owned direct HNS runtime. Native code derives the
      * account watch set locally, verifies HNS peers, and broadcasts directly.
      */
     fun configureWalletOwnedDirectHnsValue(
@@ -234,7 +194,7 @@ internal object NativeWalletBridge {
             null
         }
 
-    /** The active direct coordinator's authenticated floor, or null for legacy controllers. */
+    /** The active direct coordinator's authenticated floor, when installed. */
     fun directHnsRollbackFloor(handle: Long): ByteArray? =
         if (isValidHandle(handle) && isAvailable) {
             runCatching { nativeDirectHnsRollbackFloor(handle) }.getOrNull()
@@ -244,7 +204,7 @@ internal object NativeWalletBridge {
             null
         }
 
-    /** Worker-only floor read: waits for peer maintenance instead of confusing lock contention with a legacy wallet. */
+    /** Worker-only floor read: waits for peer maintenance to release the controller lock. */
     fun directHnsRollbackFloorForSync(handle: Long): ByteArray? =
         if (isValidHandle(handle) && isAvailable) {
             runCatching { nativeDirectHnsRollbackFloorForSync(handle) }.getOrNull()
@@ -1333,22 +1293,6 @@ internal object NativeWalletBridge {
 
     @JvmStatic
     private external fun nativeAccounts(handle: Long): ByteArray?
-
-    @JvmStatic
-    private external fun nativeConfigureHnsReads(
-        handle: Long,
-        loopbackPort: Int,
-        authorization: CharArray,
-    ): Boolean
-
-    @JvmStatic
-    private external fun nativeConfigureHnsValue(
-        handle: Long,
-        databaseKey: ByteArray,
-        loopbackPort: Int,
-        authorization: CharArray,
-        shakescapePolicyJson: ByteArray,
-    ): Boolean
 
     @JvmStatic
     private external fun nativeConfigureWalletOwnedDirectHnsValue(

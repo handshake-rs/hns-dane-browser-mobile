@@ -11,10 +11,8 @@ class HnsResolutionPreferencesTest {
     @Test
     fun relayControlsUseSafeIndependentDefaults() {
         assertEquals("mainnet", HnsResolutionPreferences.DEFAULT_HANDSHAKE_NETWORK)
-        assertTrue(HnsResolutionPreferences.DEFAULT_STRICT_HNS_MODE)
         assertTrue(HnsResolutionPreferences.DEFAULT_STATELESS_DANE_CERTIFICATES)
         assertFalse(HnsResolutionPreferences.DEFAULT_EXPERIMENTAL_P2P_DNS_RELAY)
-        assertFalse(HnsResolutionPreferences.DEFAULT_LEGACY_HNS_DOH_COMPATIBILITY)
     }
 
     @Test
@@ -25,9 +23,7 @@ class HnsResolutionPreferencesTest {
             if (relayTestBuild) HandshakeNetwork.Regtest else HandshakeNetwork.Mainnet,
             HnsResolutionPreferences.buildDefaultHandshakeNetwork(),
         )
-        assertTrue(HnsResolutionPreferences.buildDefaultStrictHnsMode())
         assertFalse(HnsResolutionPreferences.buildDefaultExperimentalP2pDnsRelay())
-        assertFalse(HnsResolutionPreferences.buildDefaultLegacyHnsDohCompatibility())
     }
 
     @Test

@@ -33,7 +33,6 @@ class RustBrowserProxyInstrumentationTest {
         assertTrue(dataDir.mkdirs())
         val config = HnsGatewayRuntimeConfig(
             network = "regtest",
-            strictHnsMode = false,
             dohResolverUrl = "not-a-valid-doh-url",
             statelessDaneCertificates = false,
         )
@@ -90,7 +89,6 @@ class RustBrowserProxyInstrumentationTest {
                     dataDir = dataDir.absolutePath,
                     network = "regtest",
                     scopeHost = TEST_HOST,
-                    strictHnsMode = false,
                     dohResolverUrl = "",
                     statelessDaneCertificates = false,
                 ),

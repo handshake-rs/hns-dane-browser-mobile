@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define HNS_BROWSER_ABI_VERSION 2u
+#define HNS_BROWSER_ABI_VERSION 3u
 #define HNS_BROWSER_WALLET_READ_BUNDLE_VERSION 2u
 #define HNS_BROWSER_WALLET_NAME_IMPORT_BUNDLE_VERSION 1u
 
@@ -34,10 +34,6 @@ typedef uint32_t HnsBrowserNetwork;
 #define HNS_BROWSER_NETWORK_MAINNET 0u
 #define HNS_BROWSER_NETWORK_TESTNET 1u
 #define HNS_BROWSER_NETWORK_REGTEST 2u
-
-typedef uint32_t HnsBrowserResolutionMode;
-#define HNS_BROWSER_RESOLUTION_COMPATIBILITY 0u
-#define HNS_BROWSER_RESOLUTION_STRICT 1u
 
 typedef uint32_t HnsBrowserNameClass;
 #define HNS_BROWSER_NAME_HNS 0u
@@ -105,13 +101,14 @@ typedef struct HnsBrowserRuntimeOptions {
     HnsBrowserSlice data_dir;
     uint64_t sync_timeout_millis;
     uint64_t resource_cache_limit_bytes;
-    HnsBrowserResolutionMode resolution_mode;
+    /* Reserved for ABI layout; must be zero. */
+    uint32_t reserved_resolution;
     uint8_t seed_peers;
     uint8_t stateless_dane_certificates;
     /* Non-standard DNS relay experiment; disabled by default. */
     uint8_t experimental_p2p_dns_relay;
-    /* Historical compatibility flag; ignored and forced off. */
-    uint8_t legacy_hns_doh_compatibility;
+    /* Preserves ABI layout; must be zero. */
+    uint8_t reserved_compatibility;
     /* Explicit recursive HNS DoH recovery URL; blank means off. */
     HnsBrowserSlice hns_doh_resolver;
     uint64_t reserved1[2];
@@ -120,14 +117,15 @@ typedef struct HnsBrowserRuntimeOptions {
 /* Versioned live policy. Initialize with the default function. */
 typedef struct HnsBrowserPolicy {
     uint32_t struct_size;
-    HnsBrowserResolutionMode resolution_mode;
+    /* Reserved for ABI layout; must be zero. */
+    uint32_t reserved_resolution;
     /* Explicit recursive HNS DoH recovery URL; blank means off. */
     HnsBrowserSlice hns_doh_resolver;
     uint8_t stateless_dane_certificates;
     /* Non-standard DNS relay experiment; disabled by default. */
     uint8_t experimental_p2p_dns_relay;
-    /* Historical compatibility flag; ignored and forced off. */
-    uint8_t legacy_hns_doh_compatibility;
+    /* Preserves ABI layout; must be zero. */
+    uint8_t reserved_compatibility;
     uint8_t reserved0[5];
     uint64_t reserved1;
 } HnsBrowserPolicy;
@@ -266,17 +264,6 @@ HnsBrowserResult hns_browser_wallet_birthday_height(
 HnsBrowserResult hns_browser_wallet_accounts(
     HnsBrowserWalletHandle wallet,
     HnsBrowserBuffer *out_accounts_json);
-/*
- * Trusted-native synchronized HNS read composition. The endpoint is fixed to
- * 127.0.0.1 at loopback_port; there is no remote URL/host/proxy input. The
- * caller owns and must wipe the borrowed Authorization bytes. Composition is
- * rejected for a newly created recovery-confirmation controller; reopen the
- * durable wallet after the platform key has been committed first.
- */
-HnsBrowserResult hns_browser_wallet_configure_hns_reads(
-    HnsBrowserWalletHandle wallet,
-    uint16_t loopback_port,
-    HnsBrowserSlice authorization);
 HnsBrowserResult hns_browser_wallet_has_hns_reads(
     HnsBrowserWalletHandle wallet,
     uint8_t *out_enabled);

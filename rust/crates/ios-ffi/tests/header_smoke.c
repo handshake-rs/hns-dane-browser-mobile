@@ -2,7 +2,7 @@
 
 #include <stddef.h>
 
-_Static_assert(HNS_BROWSER_ABI_VERSION == 2u, "unexpected ABI version");
+_Static_assert(HNS_BROWSER_ABI_VERSION == 3u, "unexpected ABI version");
 _Static_assert(HNS_BROWSER_WALLET_READ_BUNDLE_VERSION == 2u,
                "unexpected wallet read bundle version");
 _Static_assert(HNS_BROWSER_WALLET_NAME_IMPORT_BUNDLE_VERSION == 1u,
@@ -49,9 +49,6 @@ static void typecheck_api(void) {
         hns_browser_wallet_birthday_height;
     HnsBrowserResult (*wallet_accounts)(HnsBrowserWalletHandle, HnsBrowserBuffer *) =
         hns_browser_wallet_accounts;
-    HnsBrowserResult (*wallet_configure_reads)(HnsBrowserWalletHandle, uint16_t,
-                                                HnsBrowserSlice) =
-        hns_browser_wallet_configure_hns_reads;
     HnsBrowserResult (*wallet_has_reads)(HnsBrowserWalletHandle, uint8_t *) =
         hns_browser_wallet_has_hns_reads;
     HnsBrowserResult (*wallet_synchronize_reads)(HnsBrowserWalletHandle,
@@ -96,7 +93,6 @@ static void typecheck_api(void) {
     (void)wallet_status;
     (void)wallet_birthday;
     (void)wallet_accounts;
-    (void)wallet_configure_reads;
     (void)wallet_has_reads;
     (void)wallet_synchronize_reads;
     (void)wallet_sync_progress;

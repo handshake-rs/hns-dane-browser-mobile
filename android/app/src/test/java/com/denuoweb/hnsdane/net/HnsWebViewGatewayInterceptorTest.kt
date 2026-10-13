@@ -408,17 +408,16 @@ class HnsWebViewGatewayInterceptorTest {
     }
 
     @Test
-    fun strictHnsModeUsesExplicitRuntimeConfigWithoutSyntheticOriginHeaders() {
+    fun gatewayUsesNoSyntheticOriginHeaders() {
         val bridge = RecordingGatewayBridge(
             "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
                 .toByteArray(StandardCharsets.ISO_8859_1),
         )
-        val dataDir = createTempDirectory("hns-webview-strict-mode-test").toFile()
+        val dataDir = createTempDirectory("hns-webview-headers-test").toFile()
         val interceptor = HnsWebViewGatewayInterceptor(
             dataDir = dataDir,
             hnsGatewayBridge = bridge,
             namespacePolicy = TEST_BROWSER_NAMESPACE_POLICY,
-            strictHnsMode = { true },
         )
 
         interceptor.intercept(
@@ -431,7 +430,6 @@ class HnsWebViewGatewayInterceptorTest {
             internalGatewayHeaders(),
             bridge.calls.single().headers,
         )
-        assertEquals(true, bridge.configs.single().strictHnsMode)
         dataDir.deleteRecursively()
     }
 
@@ -1197,14 +1195,16 @@ class HnsWebViewGatewayInterceptorTest {
     fun resolverPolicyChangesProduceDifferentValidatedAssetScopes() {
         val config = HnsGatewayRuntimeConfig(
             network = "mainnet",
-            strictHnsMode = true,
             dohResolverUrl = "https://resolver.invalid/dns-query",
             statelessDaneCertificates = false,
         )
 
         assertFalse(
             ValidatedAssetCache.scope(config, "100:hash:root") ==
-                ValidatedAssetCache.scope(config.copy(strictHnsMode = false), "100:hash:root"),
+                ValidatedAssetCache.scope(
+                    config.copy(dohResolverUrl = "https://other.invalid/dns-query"),
+                    "100:hash:root",
+                ),
         )
     }
 

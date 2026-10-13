@@ -13,11 +13,9 @@ internal class HnsNativeDownloadFetcher(
     private val dataDir: File,
     private val hnsGatewayBridge: HnsGatewayBridge = NativeBridge,
     private val namespacePolicy: BrowserNamespacePolicy,
-    private val strictHnsMode: () -> Boolean = { true },
     private val dohResolverUrl: () -> String = { "" },
     private val statelessDaneCertificates: () -> Boolean = { true },
     private val experimentalP2pDnsRelay: () -> Boolean = { false },
-    private val legacyHnsDohCompatibility: () -> Boolean = { false },
     private val handshakeNetwork: () -> String = { DEFAULT_NETWORK },
 ) {
     @Throws(IOException::class)
@@ -33,7 +31,7 @@ internal class HnsNativeDownloadFetcher(
             if (response.hasDisabledHnsTrustStatus()) {
                 response.deleteBodyFile()
                 throw HnsNativeDownloadException(
-                    "Native HNS gateway reported a prohibited legacy resolver or WebPKI path.",
+                    "The gateway returned an unverified resolver or TLS path.",
                 )
             }
 
@@ -154,11 +152,9 @@ internal class HnsNativeDownloadFetcher(
     private fun gatewayRuntimeConfig(): HnsGatewayRuntimeConfig =
         HnsGatewayRuntimeConfig(
             network = handshakeNetwork(),
-            strictHnsMode = strictHnsMode(),
             dohResolverUrl = dohResolverUrl(),
             statelessDaneCertificates = statelessDaneCertificates(),
             experimentalP2pDnsRelay = experimentalP2pDnsRelay(),
-            legacyHnsDohCompatibility = legacyHnsDohCompatibility(),
         )
 
     private fun createBodyFile(): File {

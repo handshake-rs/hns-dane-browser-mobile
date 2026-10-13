@@ -4,34 +4,6 @@ import UIKit
 import XCTest
 @testable import HnsDaneBrowser
 
-private final class WalletBootstrapAttemptCounts: @unchecked Sendable {
-    private let lock = NSLock()
-    private var compositionCount = 0
-    private var replayCount = 0
-    private var authorizationMismatchCount = 0
-
-    func recordComposition(authorizationMatches: Bool) {
-        lock.lock()
-        compositionCount += 1
-        if !authorizationMatches {
-            authorizationMismatchCount += 1
-        }
-        lock.unlock()
-    }
-
-    func recordReplay() {
-        lock.lock()
-        replayCount += 1
-        lock.unlock()
-    }
-
-    func snapshot() -> (compositions: Int, replays: Int, mismatches: Int) {
-        lock.lock()
-        defer { lock.unlock() }
-        return (compositionCount, replayCount, authorizationMismatchCount)
-    }
-}
-
 private final class WalletSyncCancellationProbe: @unchecked Sendable {
     private let lock = NSLock()
     private var count = 0
@@ -46,26 +18,6 @@ private final class WalletSyncCancellationProbe: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return count
-    }
-}
-
-private final class ReentrantWalletReadBootstrapSource: WalletReadBootstrapSource {
-    private let configuration: NativeHnsReadConfiguration
-    private let onTake: () -> Void
-
-    init(
-        configuration: NativeHnsReadConfiguration,
-        onTake: @escaping () -> Void
-    ) {
-        self.configuration = configuration
-        self.onTake = onTake
-    }
-
-    func takeConfiguration(
-        for authority: WalletReadBootstrapAuthority
-    ) -> NativeHnsReadConfiguration? {
-        onTake()
-        return configuration
     }
 }
 
@@ -924,159 +876,6 @@ final class BrowserRuntimeControlTests: XCTestCase {
         )
     }
 
-    func testNativeHNSReadConfigurationIsAuthorityBoundOneShotAndRedacted() throws {
-        let path = "/private/bootstrap/NativeWallet/mainnet/wallet.sqlite3"
-        let lease = try XCTUnwrap(WalletStorageLeaseRegistry.acquire(path: path))
-        defer { WalletStorageLeaseRegistry.release(lease) }
-        let wallet = NSObject()
-        let authority = WalletReadBootstrapAuthority(
-            network: .mainnet,
-            databasePath: path,
-            lease: lease,
-            walletIdentity: ObjectIdentifier(wallet),
-            ownerGeneration: 7
-        )
-        var authorization = Array("Bearer scoped-read-fixture".utf8)
-        let configuration = try XCTUnwrap(NativeHnsReadConfiguration(
-            authority: authority,
-            loopbackPort: 12_037,
-            authorization: &authorization
-        ))
-        XCTAssertTrue(authorization.isEmpty)
-        XCTAssertEqual(configuration.authority, authority)
-        XCTAssertEqual(
-            String(describing: authority),
-            "WalletReadBootstrapAuthority(<redacted>)"
-        )
-        XCTAssertFalse(String(reflecting: authority).contains(path))
-        XCTAssertFalse(String(reflecting: authority).contains(lease.owner.uuidString))
-        XCTAssertFalse(
-            String(reflecting: authority).contains(String(describing: authority.walletIdentity))
-        )
-        XCTAssertFalse(configuration.description.contains("scoped-read-fixture"))
-
-        var composedAuthorization: [UInt8] = []
-        try configuration.consume { port, retainedAuthorization in
-            XCTAssertEqual(port, 12_037)
-            composedAuthorization = Array(retainedAuthorization)
-        }
-        XCTAssertEqual(composedAuthorization, Array("Bearer scoped-read-fixture".utf8))
-        XCTAssertThrowsError(try configuration.consume { _, _ in
-            XCTFail("a consumed credential must never reach native composition again")
-        }) { error in
-            XCTAssertEqual(error as? NativeHnsReadConfigurationError, .consumed)
-        }
-
-        var failedAuthorization = Array("Bearer failed-attempt".utf8)
-        let failedConfiguration = try XCTUnwrap(NativeHnsReadConfiguration(
-            authority: authority,
-            loopbackPort: 12_037,
-            authorization: &failedAuthorization
-        ))
-        XCTAssertThrowsError(try failedConfiguration.consume { _, _ -> Void in
-            throw NativeWalletBridgeError.closed
-        })
-        XCTAssertThrowsError(try failedConfiguration.consume { _, _ in () }) { error in
-            XCTAssertEqual(error as? NativeHnsReadConfigurationError, .consumed)
-        }
-
-        var mismatchedAuthorization = Array("Bearer mismatched-attempt".utf8)
-        let mismatchedConfiguration = try XCTUnwrap(NativeHnsReadConfiguration(
-            authority: authority,
-            loopbackPort: 12_037,
-            authorization: &mismatchedAuthorization
-        ))
-        let changedAuthority = WalletReadBootstrapAuthority(
-            network: authority.network,
-            databasePath: authority.databasePath,
-            lease: authority.lease,
-            walletIdentity: authority.walletIdentity,
-            ownerGeneration: authority.ownerGeneration + 1
-        )
-        XCTAssertThrowsError(try mismatchedConfiguration.consume(
-            for: changedAuthority
-        ) { _, _ in
-            XCTFail("mismatched authority must not reach native composition")
-        }) { error in
-            XCTAssertEqual(
-                error as? NativeHnsReadConfigurationError,
-                .authorityMismatch
-            )
-        }
-        XCTAssertThrowsError(try mismatchedConfiguration.consume { _, _ in () }) { error in
-            XCTAssertEqual(error as? NativeHnsReadConfigurationError, .consumed)
-        }
-
-        var rejected = Array(" leading-space".utf8)
-        XCTAssertNil(NativeHnsReadConfiguration(
-            authority: authority,
-            loopbackPort: 12_037,
-            authorization: &rejected
-        ))
-        XCTAssertTrue(rejected.isEmpty)
-
-        let nonCanonicalAuthority = WalletReadBootstrapAuthority(
-            network: .mainnet,
-            databasePath: path + "/../wallet.sqlite3",
-            lease: WalletStorageLeaseToken(path: path + "/../wallet.sqlite3", owner: UUID()),
-            walletIdentity: ObjectIdentifier(wallet),
-            ownerGeneration: 7
-        )
-        var rejectedAuthority = Array("Bearer must-be-wiped".utf8)
-        XCTAssertNil(NativeHnsReadConfiguration(
-            authority: nonCanonicalAuthority,
-            loopbackPort: 12_037,
-            authorization: &rejectedAuthority
-        ))
-        XCTAssertTrue(rejectedAuthority.isEmpty)
-    }
-
-    func testNativeHNSReadConfigurationConsumesOnceAcrossConcurrentCallers() throws {
-        let path = "/private/bootstrap-concurrent/NativeWallet/testnet/wallet.sqlite3"
-        let lease = try XCTUnwrap(WalletStorageLeaseRegistry.acquire(path: path))
-        defer { WalletStorageLeaseRegistry.release(lease) }
-        let wallet = NSObject()
-        let authority = WalletReadBootstrapAuthority(
-            network: .testnet,
-            databasePath: path,
-            lease: lease,
-            walletIdentity: ObjectIdentifier(wallet),
-            ownerGeneration: 11
-        )
-        var authorization = Array("Bearer concurrent-fixture".utf8)
-        let configuration = try XCTUnwrap(NativeHnsReadConfiguration(
-            authority: authority,
-            loopbackPort: 12_038,
-            authorization: &authorization
-        ))
-
-        let counts = WalletBootstrapAttemptCounts()
-        let callers = DispatchGroup()
-        for _ in 0..<32 {
-            callers.enter()
-            DispatchQueue.global(qos: .userInitiated).async {
-                defer { callers.leave() }
-                do {
-                    try configuration.consume { _, retainedAuthorization in
-                        counts.recordComposition(
-                            authorizationMatches: Array(retainedAuthorization) ==
-                                Array("Bearer concurrent-fixture".utf8)
-                        )
-                    }
-                } catch NativeHnsReadConfigurationError.consumed {
-                    counts.recordReplay()
-                } catch {
-                    XCTFail("unexpected configuration failure: \(error)")
-                }
-            }
-        }
-        XCTAssertEqual(callers.wait(timeout: .now() + 2), .success)
-        let result = counts.snapshot()
-        XCTAssertEqual(result.compositions, 1)
-        XCTAssertEqual(result.replays, 31)
-        XCTAssertEqual(result.mismatches, 0)
-    }
-
     func testWalletReadBootstrapRequiresExactLiveReopenedAuthority() throws {
         let path = "/private/bootstrap-admission/NativeWallet/regtest/wallet.sqlite3"
         let lease = try XCTUnwrap(WalletStorageLeaseRegistry.acquire(path: path))
@@ -1148,74 +947,6 @@ final class BrowserRuntimeControlTests: XCTestCase {
 
         WalletStorageLeaseRegistry.release(lease)
         XCTAssertFalse(admits(authority, true, true, true, true, false))
-        XCTAssertNil(
-            UnavailableWalletReadBootstrapSource.shared.takeConfiguration(
-                for: authority
-            )
-        )
-    }
-
-    func testWalletReadBootstrapRejectsReentrantAuthorityRotation() throws {
-        let path = "/private/bootstrap-reentrant/NativeWallet/mainnet/wallet.sqlite3"
-        let lease = try XCTUnwrap(WalletStorageLeaseRegistry.acquire(path: path))
-        defer { WalletStorageLeaseRegistry.release(lease) }
-        let originalWallet = NSObject()
-        let rotatedWallet = NSObject()
-        let expectedAuthority = WalletReadBootstrapAuthority(
-            network: .mainnet,
-            databasePath: path,
-            lease: lease,
-            walletIdentity: ObjectIdentifier(originalWallet),
-            ownerGeneration: 23
-        )
-        let rotatedAuthority = WalletReadBootstrapAuthority(
-            network: .mainnet,
-            databasePath: path,
-            lease: lease,
-            walletIdentity: ObjectIdentifier(rotatedWallet),
-            ownerGeneration: 24
-        )
-        var currentState = WalletReadBootstrapState(
-            authority: expectedAuthority,
-            reopenedDurableConfirmedWallet: true,
-            protectedStorageIsAvailable: true,
-            lifecycleAllowsBootstrap: true,
-            viewIsCurrent: true,
-            retirementInFlight: false
-        )
-        var authorization = Array("Bearer rotated-authority".utf8)
-        let returnedConfiguration = try XCTUnwrap(NativeHnsReadConfiguration(
-            authority: rotatedAuthority,
-            loopbackPort: 12_039,
-            authorization: &authorization
-        ))
-        let source = ReentrantWalletReadBootstrapSource(
-            configuration: returnedConfiguration,
-            onTake: {
-                currentState = WalletReadBootstrapState(
-                    authority: rotatedAuthority,
-                    reopenedDurableConfirmedWallet: true,
-                    protectedStorageIsAvailable: true,
-                    lifecycleAllowsBootstrap: true,
-                    viewIsCurrent: true,
-                    retirementInFlight: false
-                )
-            }
-        )
-        var nativeCompositionWasCalled = false
-
-        XCTAssertFalse(try attemptWalletReadBootstrap(
-            expectedAuthority: expectedAuthority,
-            source: source,
-            currentState: { currentState },
-            install: { _, _ in nativeCompositionWasCalled = true }
-        ))
-        XCTAssertFalse(nativeCompositionWasCalled)
-        XCTAssertThrowsError(try returnedConfiguration.consume { _, _ in
-            XCTFail("a rejected source credential must be wiped and consumed")
-        }) { error in
-            XCTAssertEqual(error as? NativeHnsReadConfigurationError, .consumed)
-        }
     }
 
     private func publicAuthorityStatus(
@@ -1322,20 +1053,16 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertFalse(BrowserDiagnosticReports.port53InterceptionDetected(traceJSON: nil))
     }
 
-    func testPolicyNormalizesExplicitRecoveryButDiscardsLegacyModeFlags() {
+    func testPolicyNormalizesExplicitRecovery() {
         let configured = BrowserRuntimePolicy(
-            resolutionMode: .compatibility,
             hnsDohResolver: "  HTTPS://Resolver.Example.NET:443/dns-query  ",
             statelessDANECertificates: true,
-            experimentalP2PDNSRelay: true,
-            legacyHNSDoHCompatibility: true
+            experimentalP2PDNSRelay: true
         )
-        XCTAssertEqual(configured.resolutionMode, .strict)
         XCTAssertEqual(
             configured.hnsDohResolver,
             "https://resolver.example.net/dns-query"
         )
-        XCTAssertFalse(configured.legacyHNSDoHCompatibility)
         XCTAssertTrue(configured.statelessDANECertificates)
         XCTAssertTrue(configured.experimentalP2PDNSRelay)
     }
@@ -1374,9 +1101,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
 
         let policy = BrowserRuntimePolicyStore(defaults: defaults).load()
 
-        XCTAssertEqual(policy.resolutionMode, .strict)
         XCTAssertNil(policy.hnsDohResolver)
-        XCTAssertFalse(policy.legacyHNSDoHCompatibility)
         XCTAssertTrue(policy.statelessDANECertificates)
         XCTAssertFalse(policy.experimentalP2PDNSRelay)
         XCTAssertNil(defaults.object(forKey: "hnsBrowser.runtimePolicy.resolutionMode"))
@@ -1395,12 +1120,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         let policy = BrowserRuntimePolicyStore(defaults: defaults).load()
 
         XCTAssertFalse(policy.experimentalP2PDNSRelay)
-        XCTAssertEqual(
-            defaults.object(
-                forKey: "hnsBrowser.runtimePolicy.experimentalP2PDNSRelay"
-            ) as? Bool,
-            false
-        )
+        XCTAssertNil(defaults.object(forKey: "hnsBrowser.runtimePolicy.experimentalP2PDNSRelay"))
         XCTAssertNil(defaults.object(forKey: "hnsBrowser.runtimePolicy.resolutionMode"))
         XCTAssertNil(defaults.object(forKey: "hnsBrowser.runtimePolicy.hnsDohResolver"))
         XCTAssertNil(defaults.object(forKey: "hnsBrowser.runtimePolicy.legacyHNSDoHCompatibility"))
@@ -1425,11 +1145,9 @@ final class BrowserRuntimeControlTests: XCTestCase {
         let store = BrowserRuntimePolicyStore(defaults: defaults)
         let policy = store.load()
 
-        XCTAssertEqual(policy.resolutionMode, .strict)
         XCTAssertNil(policy.hnsDohResolver)
         XCTAssertTrue(policy.statelessDANECertificates)
         XCTAssertFalse(policy.experimentalP2PDNSRelay)
-        XCTAssertFalse(policy.legacyHNSDoHCompatibility)
 
         store.save(BrowserRuntimePolicy(statelessDANECertificates: false))
         XCTAssertFalse(store.load().statelessDANECertificates)
@@ -3024,16 +2742,13 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertTrue(buildText.hasSuffix(")"))
     }
 
-    func testPolicyStoreFallsBackForUnknownResolutionMode() {
+    func testPolicyStoreRemovesUnknownHistoricalResolutionMode() {
         defaults.set(
             "future-mode",
             forKey: "hnsBrowser.runtimePolicy.resolutionMode"
         )
 
-        XCTAssertEqual(
-            BrowserRuntimePolicyStore(defaults: defaults).load().resolutionMode,
-            .strict
-        )
+        _ = BrowserRuntimePolicyStore(defaults: defaults).load()
         XCTAssertNil(defaults.object(forKey: "hnsBrowser.runtimePolicy.resolutionMode"))
     }
 

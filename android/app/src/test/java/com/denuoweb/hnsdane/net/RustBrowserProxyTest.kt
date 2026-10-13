@@ -64,7 +64,6 @@ class RustBrowserProxyTest {
             dataDir = "/tmp/runtime",
             network = "regtest",
             scopeHost = "welcome",
-            strictHnsMode = true,
             dohResolverUrl = "https://resolver.example/dns-query",
             statelessDaneCertificates = true,
         )
@@ -96,7 +95,6 @@ class RustBrowserProxyTest {
             dataDir = "/tmp/runtime",
             network = "regtest",
             scopeHost = "welcome",
-            strictHnsMode = true,
             dohResolverUrl = "",
             statelessDaneCertificates = false,
         )

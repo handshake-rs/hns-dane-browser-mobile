@@ -4,8 +4,7 @@ use hns_core::dns::{
 };
 use hns_core::network::NetworkKind;
 use hns_mobile_platform_runtime::{
-    BrowserRuntime, GatewayHttpRequest, ResolutionMode, RuntimeConfiguration, RuntimePolicy,
-    SyncOptions,
+    BrowserRuntime, GatewayHttpRequest, RuntimeConfiguration, RuntimePolicy, SyncOptions,
 };
 use hns_p2p::{DnsRelayClient, PeerManager, SqlitePeerStore};
 use std::collections::HashSet;
@@ -77,12 +76,10 @@ fn run() -> Result<(), String> {
     seed_peer_store(&peer_store_path, &peers, bad_relay, good_relay)?;
 
     let policy = RuntimePolicy {
-        resolution_mode: ResolutionMode::Strict,
         // Keep a reachable, explicitly configured recovery endpoint present. The harness
         // requires the earlier successful relay path to suppress every contact with it.
         hns_doh_resolver: Some(recursive_doh_recovery_sentinel),
         experimental_p2p_dns_relay: true,
-        legacy_hns_doh_compatibility: false,
         stateless_dane_certificates: false,
     };
     let runtime = BrowserRuntime::open(

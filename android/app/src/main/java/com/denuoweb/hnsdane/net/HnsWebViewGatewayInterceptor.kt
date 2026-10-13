@@ -21,11 +21,9 @@ class HnsWebViewGatewayInterceptor(
     private val hnsGatewayBridge: HnsGatewayBridge = NativeBridge,
     private val namespacePolicy: BrowserNamespacePolicy,
     private val allowProxyFallbackForBodyRequests: () -> Boolean = { false },
-    private val strictHnsMode: () -> Boolean = { true },
     private val dohResolverUrl: () -> String = { "" },
     private val statelessDaneCertificates: () -> Boolean = { true },
     private val experimentalP2pDnsRelay: () -> Boolean = { false },
-    private val legacyHnsDohCompatibility: () -> Boolean = { false },
     private val handshakeNetwork: () -> String = { DEFAULT_NETWORK },
     private val chainTipToken: (String) -> String? = { null },
     private val reportAllHnsStatuses: Boolean = false,
@@ -286,7 +284,7 @@ class HnsWebViewGatewayInterceptor(
         return plainInterceptResponse(
             statusCode = 502,
             reason = "Disabled HNS Trust Path",
-            detail = "The native gateway reported a prohibited legacy HNS resolver or WebPKI path.",
+            detail = "The gateway returned an unverified resolver or TLS path.",
         )
     }
 
@@ -302,11 +300,9 @@ class HnsWebViewGatewayInterceptor(
     private fun gatewayRuntimeConfig(): HnsGatewayRuntimeConfig =
         HnsGatewayRuntimeConfig(
             network = handshakeNetwork(),
-            strictHnsMode = strictHnsMode(),
             dohResolverUrl = dohResolverUrl(),
             statelessDaneCertificates = statelessDaneCertificates(),
             experimentalP2pDnsRelay = experimentalP2pDnsRelay(),
-            legacyHnsDohCompatibility = legacyHnsDohCompatibility(),
         )
 
     private fun HnsInterceptedResponse.followHnsRedirects(

@@ -839,110 +839,6 @@ func walletReadBootstrapAuthorityIsWellFormed(
         authority.lease.path == authority.databasePath
 }
 
-protocol WalletReadBootstrapSource: AnyObject {
-    /// Moves at most one scoped credential for the exact live wallet
-    /// authority. Sources must not synthesize credentials from preferences,
-    /// links, pasteboard contents, or other renderer-controlled input.
-    func takeConfiguration(
-        for authority: WalletReadBootstrapAuthority
-    ) -> NativeHnsReadConfiguration?
-}
-
-/// Production remains fail-closed until a trusted native companion broker is
-/// qualified. Keeping the unavailable source explicit prevents UI or stored
-/// settings from becoming an accidental credential channel.
-final class UnavailableWalletReadBootstrapSource: WalletReadBootstrapSource {
-    static let shared = UnavailableWalletReadBootstrapSource()
-
-    private init() {}
-
-    func takeConfiguration(
-        for authority: WalletReadBootstrapAuthority
-    ) -> NativeHnsReadConfiguration? {
-        nil
-    }
-}
-
-enum NativeHnsReadConfigurationError: Error, Equatable {
-    case consumed
-    case authorityMismatch
-}
-
-final class NativeHnsReadConfiguration: @unchecked Sendable, CustomStringConvertible {
-    let authority: WalletReadBootstrapAuthority
-    let loopbackPort: UInt16
-    private let stateLock = NSLock()
-    private var authorization: [UInt8]
-    private var consumed = false
-
-    var description: String {
-        "NativeHnsReadConfiguration(authority: scoped, authorization: <redacted>)"
-    }
-
-    /// Takes ownership of a caller-controlled copy and wipes the caller's
-    /// buffer on every exit. The configuration wipes its retained copy after
-    /// its single native composition attempt.
-    init?(
-        authority: WalletReadBootstrapAuthority,
-        loopbackPort: UInt16,
-        authorization: inout [UInt8]
-    ) {
-        guard walletReadBootstrapAuthorityIsWellFormed(authority),
-              loopbackPort != 0,
-              !authorization.isEmpty,
-              authorization.count <= 4_096,
-              authorization.first != UInt8(ascii: " "),
-              authorization.last != UInt8(ascii: " "),
-              authorization.allSatisfy({ (0x20...0x7e).contains($0) }) else {
-            WalletSecretBytes.wipe(&authorization)
-            return nil
-        }
-        self.authority = authority
-        self.loopbackPort = loopbackPort
-        self.authorization = authorization
-        WalletSecretBytes.wipe(&authorization)
-    }
-
-    func consume<T>(
-        _ body: (UInt16, UnsafeRawBufferPointer) throws -> T
-    ) throws -> T {
-        try consume(for: authority, body)
-    }
-
-    func consume<T>(
-        for currentAuthority: WalletReadBootstrapAuthority,
-        _ body: (UInt16, UnsafeRawBufferPointer) throws -> T
-    ) throws -> T {
-        stateLock.lock()
-        guard !consumed else {
-            stateLock.unlock()
-            throw NativeHnsReadConfigurationError.consumed
-        }
-        consumed = true
-        var retainedAuthorization = authorization
-        WalletSecretBytes.wipe(&authorization)
-        stateLock.unlock()
-
-        defer { WalletSecretBytes.wipe(&retainedAuthorization) }
-        guard authority == currentAuthority else {
-            throw NativeHnsReadConfigurationError.authorityMismatch
-        }
-        return try retainedAuthorization.withUnsafeBytes { bytes in
-            try body(loopbackPort, bytes)
-        }
-    }
-
-    func discard() {
-        _ = try? consume { _, _ in () }
-    }
-
-    deinit {
-        stateLock.lock()
-        WalletSecretBytes.wipe(&authorization)
-        stateLock.unlock()
-    }
-}
-
 enum WalletExactHnsNameInputError: Error, Equatable {
     case consumed
 }
@@ -3458,22 +3354,6 @@ final class RustNativeWallet: @unchecked Sendable {
 
     func accounts() throws -> [NativeWalletAccount] {
         try decodeOutput(operation: "wallet accounts", invoke: hns_browser_wallet_accounts)
-    }
-
-    func configureHnsReads(
-        _ configuration: NativeHnsReadConfiguration,
-        currentAuthority: WalletReadBootstrapAuthority
-    ) throws {
-        try configuration.consume(for: currentAuthority) { port, authorization in
-            try NativeWalletBridge.check(
-                hns_browser_wallet_configure_hns_reads(
-                    try liveHandle(),
-                    port,
-                    NativeWalletBridge.slice(authorization)
-                ),
-                operation: "wallet HNS read configuration"
-            )
-        }
     }
 
     func hasHnsReads() throws -> Bool {

@@ -8950,14 +8950,10 @@ class WalletActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * Sync a wallet-owned direct HNS controller under its Keystore-held
-     * rollback journal. Legacy app-owned node controllers have no direct
-     * coordinator and retain their existing compatibility behavior.
-     */
+    /** Sync the direct HNS controller under its Keystore-held rollback journal. */
     private fun synchronizeHnsReadsWithRollbackFloor(handle: Long): NativeWalletHnsSynchronization? {
         val openingFloor = NativeWalletBridge.directHnsRollbackFloorForSync(handle)
-            ?: return NativeWalletBridge.synchronizeHnsReads(handle)
+            ?: return null
         openingFloor.fill(0)
         val journalStart = beginDirectHnsSynchronizationWithRecovery(
             begin = keyStore::beginDirectHnsSynchronization,

@@ -1,32 +1,19 @@
 import Foundation
 
-enum BrowserResolutionMode: String, CaseIterable, Equatable, Sendable {
-    case compatibility
-    case strict
-}
-
 struct BrowserRuntimePolicy: Equatable, Sendable {
-    let resolutionMode: BrowserResolutionMode
     let hnsDohResolver: String?
     let statelessDANECertificates: Bool
     let experimentalP2PDNSRelay: Bool
-    let legacyHNSDoHCompatibility: Bool
 
     init(
-        resolutionMode: BrowserResolutionMode = .strict,
         hnsDohResolver: String? = nil,
         statelessDANECertificates: Bool = true,
-        experimentalP2PDNSRelay: Bool = false,
-        legacyHNSDoHCompatibility: Bool = false
+        experimentalP2PDNSRelay: Bool = false
     ) {
-        _ = resolutionMode
-        _ = legacyHNSDoHCompatibility
-        self.resolutionMode = .strict
         self.hnsDohResolver = Self.normalizeHNSDoHRecoveryURL(hnsDohResolver)
             .flatMap { $0.isEmpty ? nil : $0 }
         self.statelessDANECertificates = statelessDANECertificates
         self.experimentalP2PDNSRelay = experimentalP2PDNSRelay
-        self.legacyHNSDoHCompatibility = false
     }
 
     static let `default` = BrowserRuntimePolicy()
@@ -137,10 +124,6 @@ final class BrowserRuntimePolicyStore {
     func load() -> BrowserRuntimePolicy {
         let explicitRelayPreference =
             defaults.object(forKey: Key.experimentalP2PDNSRelay) as? Bool
-        let hadExplicitLegacyFallbackPreference =
-            defaults.string(forKey: Key.resolutionMode) == BrowserResolutionMode.compatibility.rawValue
-            || defaults.object(forKey: Key.hnsDohResolver) != nil
-            || (defaults.object(forKey: Key.legacyHNSDoHCompatibility) as? Bool) == true
         let relayEnabled = explicitRelayPreference ?? false
         let recoveryInput = defaults.string(forKey: Key.hnsDohRecoveryResolver)
         let recoveryResolver = BrowserRuntimePolicy.normalizeHNSDoHRecoveryURL(recoveryInput)
@@ -153,9 +136,6 @@ final class BrowserRuntimePolicyStore {
                 (defaults.object(forKey: Key.statelessDANE) as? Bool) ?? true,
             experimentalP2PDNSRelay: relayEnabled
         )
-        if explicitRelayPreference == nil, hadExplicitLegacyFallbackPreference {
-            defaults.set(relayEnabled, forKey: Key.experimentalP2PDNSRelay)
-        }
         defaults.removeObject(forKey: Key.resolutionMode)
         defaults.removeObject(forKey: Key.hnsDohResolver)
         defaults.removeObject(forKey: Key.legacyHNSDoHCompatibility)

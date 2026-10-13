@@ -58,11 +58,9 @@ internal class RustBrowserProxyConfig(
     val dataDir: String,
     val network: String,
     val scopeHost: String,
-    val strictHnsMode: Boolean,
     val dohResolverUrl: String,
     val statelessDaneCertificates: Boolean,
     val experimentalP2pDnsRelay: Boolean = false,
-    val legacyHnsDohCompatibility: Boolean = false,
 )
 
 internal class LocalBrowserProxyStatus(

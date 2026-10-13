@@ -81,7 +81,7 @@ class BrowserProxyCoordinatorTest {
             workerExecutor = worker,
             callbackExecutor = callbacks,
         )
-        val config = RustBrowserProxyConfig("/tmp/browser", "regtest", "alpha", false, "", false)
+        val config = RustBrowserProxyConfig("/tmp/browser", "regtest", "alpha", "", false)
         coordinator.resume(null)
         callbacks.runNext()
         coordinator.navigate(config, "alpha") {}
@@ -130,7 +130,7 @@ class BrowserProxyCoordinatorTest {
             workerExecutor = worker,
             callbackExecutor = callbacks,
         )
-        val config = RustBrowserProxyConfig("/tmp/browser", "regtest", "alpha", false, "", false)
+        val config = RustBrowserProxyConfig("/tmp/browser", "regtest", "alpha", "", false)
         val loads = mutableListOf<String>()
         coordinator.resume(null)
         callbacks.runNext()
@@ -163,7 +163,7 @@ class BrowserProxyCoordinatorTest {
             workerExecutor = worker,
             callbackExecutor = Executor(Runnable::run),
         )
-        val alpha = RustBrowserProxyConfig("/tmp/browser", "regtest", "alpha", false, "", false)
+        val alpha = RustBrowserProxyConfig("/tmp/browser", "regtest", "alpha", "", false)
         first.navigate(alpha, "alpha") { firstLoads += "alpha" }
         first.resume(alpha)
         worker.runNext()
@@ -181,7 +181,7 @@ class BrowserProxyCoordinatorTest {
             workerExecutor = worker,
             callbackExecutor = Executor(Runnable::run),
         )
-        val beta = RustBrowserProxyConfig("/tmp/browser", "regtest", "beta", false, "", false)
+        val beta = RustBrowserProxyConfig("/tmp/browser", "regtest", "beta", "", false)
         second.navigate(beta, "beta") { secondLoads += "beta" }
         second.resume(beta)
 
@@ -329,7 +329,7 @@ class BrowserProxyCoordinatorTest {
         }
         fixture.worker.runNext()
 
-        fixture.coordinator.navigate(fixture.config("beta", strict = true), "beta") {
+        fixture.coordinator.navigate(fixture.config("beta", statelessDane = true), "beta") {
             fixture.loads += "beta"
         }
         assertEquals(1, first.stopCalls)
@@ -354,7 +354,7 @@ class BrowserProxyCoordinatorTest {
         fixture.activate("alpha")
         fixture.loads.clear()
         fixture.factory.results += fixture.proxy("beta", port = 43211)
-        fixture.coordinator.navigate(fixture.config("beta", strict = true), "beta") {
+        fixture.coordinator.navigate(fixture.config("beta", statelessDane = true), "beta") {
             fixture.loads += "beta"
         }
         fixture.overrideController.completeClear()
@@ -364,7 +364,7 @@ class BrowserProxyCoordinatorTest {
         assertEquals(listOf("beta"), fixture.loads)
 
         fixture.factory.results += fixture.proxy("gamma", port = 43212)
-        fixture.coordinator.navigate(fixture.config("gamma", strict = false), "gamma") {
+        fixture.coordinator.navigate(fixture.config("gamma", statelessDane = false), "gamma") {
             fixture.loads += "gamma"
         }
         assertEquals(2, fixture.overrideController.clearCalls)
@@ -524,7 +524,7 @@ class BrowserProxyCoordinatorTest {
             fixture.loads += "alpha"
         }
 
-        fixture.coordinator.ensure(fixture.config("beta", strict = true))
+        fixture.coordinator.ensure(fixture.config("beta", statelessDane = true))
         fixture.worker.runNext()
         fixture.worker.runNext()
         fixture.worker.runNext()
@@ -581,17 +581,17 @@ class BrowserProxyCoordinatorTest {
     fun policyChangeRotatesEvenWhenScopeIsUnchanged() {
         val fixture = Fixture()
         val first = fixture.activate("alpha")
-        val strict = fixture.proxy("alpha", port = 43211)
-        fixture.factory.results += strict
+        val statelessDane = fixture.proxy("alpha", port = 43211)
+        fixture.factory.results += statelessDane
 
-        fixture.coordinator.ensure(fixture.config("alpha", strict = true))
+        fixture.coordinator.ensure(fixture.config("alpha", statelessDane = true))
 
         assertEquals(1, first.stopCalls)
         assertEquals(1, fixture.overrideController.clearCalls)
         fixture.overrideController.completeClear()
         fixture.worker.runNext()
         fixture.worker.runNext()
-        assertTrue(fixture.factory.startedConfigs.last().strictHnsMode)
+        assertTrue(fixture.factory.startedConfigs.last().statelessDaneCertificates)
         fixture.overrideController.completeApply(true)
         assertTrue(fixture.coordinator.isProxyAvailable)
     }
@@ -708,7 +708,7 @@ class BrowserProxyCoordinatorTest {
         proxy.onJoin = joined::countDown
         fixture.worker.reject = true
 
-        fixture.coordinator.navigate(fixture.config("beta", strict = true), "beta") {}
+        fixture.coordinator.navigate(fixture.config("beta", statelessDane = true), "beta") {}
 
         assertEquals(1, proxy.stopCalls)
         assertTrue(joined.await(5, TimeUnit.SECONDS))
@@ -751,14 +751,13 @@ class BrowserProxyCoordinatorTest {
             onAvailabilityChanged = availability::add,
         )
 
-        fun config(host: String, strict: Boolean = false): RustBrowserProxyConfig =
+        fun config(host: String, statelessDane: Boolean = false): RustBrowserProxyConfig =
             RustBrowserProxyConfig(
                 dataDir = "/tmp/browser",
                 network = "regtest",
                 scopeHost = host,
-                strictHnsMode = strict,
                 dohResolverUrl = "https://resolver.test/dns-query",
-                statelessDaneCertificates = false,
+                statelessDaneCertificates = statelessDane,
             )
 
         fun proxy(host: String, port: Int = 43210): FakeProxy = FakeProxy(host, port)

@@ -16,19 +16,18 @@ use hns_mobile_platform_runtime::{
     BrowserNameClass, BrowserProxy, BrowserProxyResolverPolicy, BrowserProxySecurityPath,
     BrowserProxyStatus, BrowserProxyStatusObserver, BrowserProxyTlsPolicy, BrowserRuntime,
     DEFAULT_RESOURCE_CACHE_LIMIT_BYTES, MAX_HNS_DOH_RECOVERY_URL_BYTES, NetworkKind,
-    ResolutionMode, RuntimeConfiguration, RuntimePolicy, ShakescapeReachabilityCascade,
-    SyncOptions, browser_hns_root_label, canonical_browser_host, classify_browser_name,
-    core_version, diagnostics_json, is_icann_bootstrap_eligible, normalize_hns_doh_recovery_url,
+    RuntimeConfiguration, RuntimePolicy, ShakescapeReachabilityCascade, SyncOptions,
+    browser_hns_root_label, canonical_browser_host, classify_browser_name, core_version,
+    diagnostics_json, is_icann_bootstrap_eligible, normalize_hns_doh_recovery_url,
 };
 use hns_wallet_ffi::ServiceErrorCode;
 use hns_wallet_mobile::{
     EmbeddedHnsBackend, HnsBootstrapPolicy, HnsClock, HnsDirectPeerConfig,
     HnsDirectPeerCoordinator, HnsDirectPeerError, HnsDirectShakescapeListener,
     HnsDirectShakescapeMessage, HnsDirectShakescapePeer, HnsInboundMobilePeer,
-    HnsInboundNetworkPeer, HnsLightFloor, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig,
-    HnsPublicPeerSessions, HnsReadSystemClock, MAX_MOBILE_RECOVERY_PHRASE_BYTES,
-    MOBILE_DATABASE_KEY_BYTES, MobileBitcoinDirectConfig, MobileBitcoinValueController,
-    MobileDatabaseKey, MobileHnsNameSummary, MobileHnsReadController, MobileHnsReadSnapshot,
+    HnsInboundNetworkPeer, HnsLightFloor, HnsNetwork, HnsPublicPeerSessions, HnsReadSystemClock,
+    MAX_MOBILE_RECOVERY_PHRASE_BYTES, MOBILE_DATABASE_KEY_BYTES, MobileBitcoinDirectConfig,
+    MobileBitcoinValueController, MobileDatabaseKey, MobileHnsNameSummary, MobileHnsReadSnapshot,
     MobileHnsValueController, MobileHnsValueIntent, MobilePlatform, MobileRecoveryPhrase,
     MobileShakedexQuery, MobileShakescapeBitcoinFundingPermit, MobileShakescapeBitcoinWatchPermit,
     MobileShakescapeSessionController, MobileWalletController, MobileWalletError,
@@ -47,7 +46,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, TryLockError};
 use std::time::{Duration, Instant};
 
-pub const HNS_BROWSER_ABI_VERSION: u32 = 2;
+pub const HNS_BROWSER_ABI_VERSION: u32 = 3;
 
 pub type HnsBrowserResult = u32;
 pub const HNS_BROWSER_RESULT_OK: HnsBrowserResult = 0;
@@ -68,8 +67,6 @@ pub type HnsBrowserWalletHandle = u64;
 const HNS_BROWSER_NETWORK_MAINNET: u32 = 0;
 const HNS_BROWSER_NETWORK_TESTNET: u32 = 1;
 const HNS_BROWSER_NETWORK_REGTEST: u32 = 2;
-const HNS_BROWSER_RESOLUTION_COMPATIBILITY: u32 = 0;
-const HNS_BROWSER_RESOLUTION_STRICT: u32 = 1;
 const HNS_BROWSER_NAME_HNS: u32 = 0;
 const HNS_BROWSER_NAME_ICANN: u32 = 1;
 const HNS_BROWSER_NAME_SEARCH: u32 = 2;
@@ -333,9 +330,6 @@ fn service_connected_shakescape_peer(
         Err(_) => IosDirectPeerService::Drop,
     }
 }
-const WALLET_RPC_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
-const WALLET_RPC_READ_TIMEOUT: Duration = Duration::from_secs(20);
-const WALLET_RPC_WRITE_TIMEOUT: Duration = Duration::from_secs(20);
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -407,11 +401,11 @@ pub struct HnsBrowserRuntimeOptions {
     pub data_dir: HnsBrowserSlice,
     pub sync_timeout_millis: u64,
     pub resource_cache_limit_bytes: u64,
-    pub resolution_mode: u32,
+    pub reserved_resolution: u32,
     pub seed_peers: u8,
     pub stateless_dane_certificates: u8,
     pub experimental_p2p_dns_relay: u8,
-    pub legacy_hns_doh_compatibility: u8,
+    pub reserved_compatibility: u8,
     pub hns_doh_resolver: HnsBrowserSlice,
     pub reserved1: [u64; 2],
 }
@@ -424,11 +418,11 @@ impl HnsBrowserRuntimeOptions {
             data_dir: HnsBrowserSlice::empty(),
             sync_timeout_millis: DEFAULT_SYNC_TIMEOUT_MILLIS,
             resource_cache_limit_bytes: DEFAULT_RESOURCE_CACHE_LIMIT_BYTES as u64,
-            resolution_mode: HNS_BROWSER_RESOLUTION_STRICT,
+            reserved_resolution: 0,
             seed_peers: 1,
             stateless_dane_certificates: 0,
             experimental_p2p_dns_relay: 0,
-            legacy_hns_doh_compatibility: 0,
+            reserved_compatibility: 0,
             hns_doh_resolver: HnsBrowserSlice::empty(),
             reserved1: [0; 2],
         }
@@ -439,11 +433,11 @@ impl HnsBrowserRuntimeOptions {
 #[derive(Clone, Copy)]
 pub struct HnsBrowserPolicy {
     pub struct_size: u32,
-    pub resolution_mode: u32,
+    pub reserved_resolution: u32,
     pub hns_doh_resolver: HnsBrowserSlice,
     pub stateless_dane_certificates: u8,
     pub experimental_p2p_dns_relay: u8,
-    pub legacy_hns_doh_compatibility: u8,
+    pub reserved_compatibility: u8,
     pub reserved0: [u8; 5],
     pub reserved1: u64,
 }
@@ -452,11 +446,11 @@ impl HnsBrowserPolicy {
     fn defaults() -> Self {
         Self {
             struct_size: size_u32::<Self>(),
-            resolution_mode: HNS_BROWSER_RESOLUTION_STRICT,
+            reserved_resolution: 0,
             hns_doh_resolver: HnsBrowserSlice::empty(),
             stateless_dane_certificates: 0,
             experimental_p2p_dns_relay: 0,
-            legacy_hns_doh_compatibility: 0,
+            reserved_compatibility: 0,
             reserved0: [0; 5],
             reserved1: 0,
         }
@@ -934,7 +928,6 @@ struct WalletEntry {
 
 enum NativeWalletController {
     Lifecycle(MobileWalletController),
-    HnsReads(MobileHnsReadController<HnsNodeRpcBackend>),
     /// The iOS wallet's self-contained HNS path. The coordinator owns the
     /// independently verified peer/header/block state, while the value
     /// controller owns wallet evidence, fee observation, and broadcast.
@@ -978,7 +971,6 @@ impl NativeWalletController {
     fn birthday_height(&self) -> Result<u64, MobileWalletError> {
         match self {
             Self::Lifecycle(controller) => Ok(controller.account_config().birthday_height),
-            Self::HnsReads(controller) => Ok(controller.account_config().birthday_height),
             Self::DirectHnsValue {
                 coordinator,
                 controller,
@@ -997,71 +989,13 @@ impl NativeWalletController {
     fn with_mut<T>(
         &mut self,
         lifecycle: impl FnOnce(&mut MobileWalletController) -> Result<T, MobileWalletError>,
-        hns_reads: impl FnOnce(
-            &mut MobileHnsReadController<HnsNodeRpcBackend>,
-        ) -> Result<T, MobileWalletError>,
         direct_hns_value: impl FnOnce(
             &mut MobileHnsValueController<EmbeddedHnsBackend>,
         ) -> Result<T, MobileWalletError>,
     ) -> Result<T, MobileWalletError> {
         match self {
             Self::Lifecycle(controller) => lifecycle(controller),
-            Self::HnsReads(controller) => hns_reads(controller),
             Self::DirectHnsValue { controller, .. } => direct_hns_value(controller),
-            Self::Failed => Err(MobileWalletError::ControllerFailed),
-        }
-    }
-
-    fn enable_hns_reads(&mut self, backend: HnsNodeRpcBackend) -> Result<(), MobileWalletError> {
-        if !matches!(self, Self::Lifecycle(_)) {
-            return Err(MobileWalletError::ControllerFailed);
-        }
-        let current = std::mem::replace(self, Self::Failed);
-        match current {
-            Self::Lifecycle(controller) => {
-                *self = Self::HnsReads(controller.into_hns_reads(backend)?);
-                Ok(())
-            }
-            Self::HnsReads(controller) => {
-                *self = Self::HnsReads(controller);
-                Err(MobileWalletError::ControllerFailed)
-            }
-            Self::DirectHnsValue {
-                coordinator,
-                controller,
-                shakescape_sessions,
-                shakescape_listener,
-                shakescape_reachability,
-                shakescape_public_endpoint,
-                shakescape_last_peer_maintenance_at,
-                shakescape_last_offer_inventory_at,
-                shakescape_paired_endpoint,
-                shakescape_next_paired_reconnect_at,
-                shakescape_next_bootstrap_attempt_at,
-                shakescape_bootstrap_disabled,
-                shakescape_peer,
-                shakescape_replication_peers,
-                inbound_network_peers,
-            } => {
-                *self = Self::DirectHnsValue {
-                    coordinator,
-                    controller,
-                    shakescape_sessions,
-                    shakescape_listener,
-                    shakescape_reachability,
-                    shakescape_public_endpoint,
-                    shakescape_last_peer_maintenance_at,
-                    shakescape_last_offer_inventory_at,
-                    shakescape_paired_endpoint,
-                    shakescape_next_paired_reconnect_at,
-                    shakescape_next_bootstrap_attempt_at,
-                    shakescape_bootstrap_disabled,
-                    shakescape_peer,
-                    shakescape_replication_peers,
-                    inbound_network_peers,
-                };
-                Err(MobileWalletError::ControllerFailed)
-            }
             Self::Failed => Err(MobileWalletError::ControllerFailed),
         }
     }
@@ -1205,7 +1139,7 @@ impl NativeWalletController {
     }
 
     const fn has_hns_reads(&self) -> bool {
-        matches!(self, Self::HnsReads(_) | Self::DirectHnsValue { .. })
+        matches!(self, Self::DirectHnsValue { .. })
     }
 
     const fn has_hns_value(&self) -> bool {
@@ -1316,10 +1250,6 @@ impl NativeWalletController {
                 coordinator.into_public_peer_sessions().ok()
             }
             Self::Lifecycle(mut controller) => {
-                let _ = controller.lock();
-                None
-            }
-            Self::HnsReads(mut controller) => {
                 let _ = controller.lock();
                 None
             }
@@ -2491,9 +2421,6 @@ impl NativeWalletController {
             Self::Lifecycle(controller) => {
                 let _ = controller.lock();
             }
-            Self::HnsReads(controller) => {
-                let _ = controller.lock();
-            }
             Self::DirectHnsValue {
                 coordinator,
                 controller,
@@ -3189,42 +3116,6 @@ unsafe fn wallet_recovery_phrase(
     };
     MobileRecoveryPhrase::new(phrase)
         .map_err(|_| FfiFailure::invalid("wallet recovery phrase is invalid"))
-}
-
-unsafe fn wallet_hns_read_backend(
-    port: u16,
-    authorization: HnsBrowserSlice,
-) -> Result<HnsNodeRpcBackend, FfiFailure> {
-    if port == 0 {
-        return Err(FfiFailure::invalid(
-            "wallet read loopback port must be nonzero",
-        ));
-    }
-    // SAFETY: This helper carries the exported caller's readable-slice contract.
-    let mut bytes = unsafe { input_bytes(authorization, MAX_AUTH_FIELD_BYTES) }?;
-    let valid = !bytes.is_empty()
-        && bytes.first() != Some(&b' ')
-        && bytes.last() != Some(&b' ')
-        && bytes.iter().all(|byte| (0x20..=0x7e).contains(byte));
-    if !valid {
-        bytes.fill(0);
-        return Err(FfiFailure::invalid(
-            "wallet read authorization must be bounded visible ASCII",
-        ));
-    }
-    // SAFETY: Every byte was validated as visible ASCII above, which is valid UTF-8.
-    let authorization = unsafe { String::from_utf8_unchecked(bytes) };
-    let config = HnsNodeRpcConfig::new(SocketAddr::from(([127, 0, 0, 1], port)), authorization)
-        .and_then(|config| {
-            config.with_timeouts(
-                WALLET_RPC_CONNECT_TIMEOUT,
-                WALLET_RPC_READ_TIMEOUT,
-                WALLET_RPC_WRITE_TIMEOUT,
-            )
-        })
-        .map_err(|_| FfiFailure::invalid("wallet read loopback configuration is invalid"))?;
-    HnsNodeRpcBackend::new(config)
-        .map_err(|_| FfiFailure::invalid("wallet read loopback configuration is invalid"))
 }
 
 unsafe fn wallet_exact_hns_name(name: HnsBrowserSlice) -> Result<SensitiveBytes, FfiFailure> {
@@ -4079,15 +3970,6 @@ fn network_kind(value: u32) -> Result<NetworkKind, FfiFailure> {
     }
 }
 
-fn resolution_mode(value: u32) -> Result<ResolutionMode, FfiFailure> {
-    match value {
-        HNS_BROWSER_RESOLUTION_COMPATIBILITY | HNS_BROWSER_RESOLUTION_STRICT => {
-            Ok(ResolutionMode::Strict)
-        }
-        _ => Err(FfiFailure::invalid("resolution mode value is unsupported")),
-    }
-}
-
 fn ffi_bool(value: u8) -> Result<bool, FfiFailure> {
     match value {
         0 => Ok(false),
@@ -4097,24 +3979,17 @@ fn ffi_bool(value: u8) -> Result<bool, FfiFailure> {
 }
 
 unsafe fn policy_from_fields(
-    mode: u32,
     endpoint: HnsBrowserSlice,
     stateless_dane_certificates: u8,
     experimental_p2p_dns_relay: u8,
-    legacy_hns_doh_compatibility: u8,
 ) -> Result<RuntimePolicy, FfiFailure> {
     // SAFETY: The caller guarantees a readable, bounded policy slice.
     let endpoint = unsafe { input_str(endpoint, MAX_HNS_DOH_RECOVERY_URL_BYTES) }?;
     let endpoint = normalize_hns_doh_recovery_url(&endpoint)
         .map_err(|_| FfiFailure::invalid("HNS recovery DoH URL is invalid"))?;
     Ok(RuntimePolicy {
-        resolution_mode: resolution_mode(mode)?,
         hns_doh_resolver: endpoint,
         experimental_p2p_dns_relay: ffi_bool(experimental_p2p_dns_relay)?,
-        legacy_hns_doh_compatibility: {
-            ffi_bool(legacy_hns_doh_compatibility)?;
-            false
-        },
         stateless_dane_certificates: ffi_bool(stateless_dane_certificates)?,
     })
 }
@@ -4125,13 +4000,17 @@ fn validate_options(options: HnsBrowserRuntimeOptions) -> Result<(), FfiFailure>
             "runtime options struct size does not match ABI version",
         ));
     }
-    if options.reserved1 != [0; 2] {
+    if options.reserved_resolution != 0 || options.reserved1 != [0; 2] {
         return Err(FfiFailure::invalid(
             "reserved runtime option fields must be zero",
         ));
     }
     ffi_bool(options.experimental_p2p_dns_relay)?;
-    ffi_bool(options.legacy_hns_doh_compatibility)?;
+    if options.reserved_compatibility != 0 {
+        return Err(FfiFailure::invalid(
+            "reserved runtime option fields must be zero",
+        ));
+    }
     if options.sync_timeout_millis == 0 || options.sync_timeout_millis > MAX_SYNC_TIMEOUT_MILLIS {
         return Err(FfiFailure::invalid(
             "sync timeout is outside the supported range",
@@ -4153,11 +4032,13 @@ fn validate_policy(policy: HnsBrowserPolicy) -> Result<(), FfiFailure> {
             "policy struct size does not match ABI version",
         ));
     }
-    if policy.reserved0 != [0; 5] || policy.reserved1 != 0 {
+    if policy.reserved_resolution != 0 || policy.reserved0 != [0; 5] || policy.reserved1 != 0 {
         return Err(FfiFailure::invalid("reserved policy fields must be zero"));
     }
     ffi_bool(policy.experimental_p2p_dns_relay)?;
-    ffi_bool(policy.legacy_hns_doh_compatibility)?;
+    if policy.reserved_compatibility != 0 {
+        return Err(FfiFailure::invalid("reserved policy fields must be zero"));
+    }
     Ok(())
 }
 
@@ -4372,11 +4253,9 @@ pub unsafe extern "C" fn hns_browser_runtime_create(
         // SAFETY: The caller guarantees readable slices in the options struct.
         let initial_policy = unsafe {
             policy_from_fields(
-                options.resolution_mode,
                 options.hns_doh_resolver,
                 options.stateless_dane_certificates,
                 options.experimental_p2p_dns_relay,
-                options.legacy_hns_doh_compatibility,
             )
         }?;
         let resource_cache_limit_bytes = usize::try_from(options.resource_cache_limit_bytes)
@@ -4471,11 +4350,9 @@ pub unsafe extern "C" fn hns_browser_runtime_set_policy(
         // SAFETY: The caller guarantees readable slices in the policy struct.
         let policy = unsafe {
             policy_from_fields(
-                policy.resolution_mode,
                 policy.hns_doh_resolver,
                 policy.stateless_dane_certificates,
                 policy.experimental_p2p_dns_relay,
-                policy.legacy_hns_doh_compatibility,
             )
         }?;
         let entry = runtime_entry(runtime)?;
@@ -4952,7 +4829,6 @@ pub unsafe extern "C" fn hns_browser_wallet_status(
             .with_mut(
                 |controller| controller.status(),
                 |controller| controller.status(),
-                |controller| controller.status(),
             )
             .map_err(|_| wallet_runtime_failure("unable to read native wallet status"))?;
         let enabled_modules_are_allowed = if !hns_reads_enabled {
@@ -4970,7 +4846,6 @@ pub unsafe extern "C" fn hns_browser_wallet_status(
             || status.locked != status.active_wallet.is_none()
         {
             let _ = entry.controller.with_mut(
-                |controller| controller.lock(),
                 |controller| controller.lock(),
                 |controller| controller.lock(),
             );
@@ -5053,7 +4928,6 @@ pub unsafe extern "C" fn hns_browser_wallet_accounts(
             .with_mut(
                 |controller| controller.accounts(),
                 |controller| controller.accounts(),
-                |controller| controller.accounts(),
             )
             .map_err(|_| wallet_runtime_failure("unable to read native wallet accounts"))?;
         if accounts.len() != 1
@@ -5061,7 +4935,6 @@ pub unsafe extern "C" fn hns_browser_wallet_accounts(
             || module_wire_name(accounts[0].module) != "handshake"
         {
             let _ = entry.controller.with_mut(
-                |controller| controller.lock(),
                 |controller| controller.lock(),
                 |controller| controller.lock(),
             );
@@ -5093,40 +4966,6 @@ pub unsafe extern "C" fn hns_browser_wallet_accounts(
         // SAFETY: Null was rejected above and the C contract requires writable output.
         unsafe { write_output(out_accounts_json, output) };
         Ok(())
-    })
-}
-
-#[unsafe(no_mangle)]
-/// Installs the synchronized HNS read controller around an existing lifecycle
-/// controller. The endpoint is always `127.0.0.1:port`; native callers cannot
-/// select a hostname, URL, proxy, redirect, or remote address. The borrowed
-/// authorization bytes are sensitive and must be wiped by the caller. A newly
-/// created recovery-confirmation controller is not eligible; the durable wallet
-/// must first be committed by the platform and reopened.
-///
-/// # Safety
-/// The authorization slice must remain readable for its declared length.
-pub unsafe extern "C" fn hns_browser_wallet_configure_hns_reads(
-    wallet: HnsBrowserWalletHandle,
-    loopback_port: u16,
-    authorization: HnsBrowserSlice,
-) -> HnsBrowserResult {
-    ffi_call(|| {
-        let entry = wallet_entry(wallet)?;
-        // SAFETY: This export carries the caller's readable-slice contract.
-        let backend = unsafe { wallet_hns_read_backend(loopback_port, authorization) }?;
-        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
-        ensure_wallet_active(&entry)?;
-        if !entry.hns_reads_installable || !entry.controller.is_lifecycle() {
-            return Err(FfiFailure::new(
-                HNS_BROWSER_RESULT_NOT_READY,
-                "synchronized HNS wallet reads require a reopened durable controller",
-            ));
-        }
-        entry
-            .controller
-            .enable_hns_reads(backend)
-            .map_err(|_| wallet_runtime_failure("unable to install synchronized HNS wallet reads"))
     })
 }
 
@@ -5203,7 +5042,6 @@ pub unsafe extern "C" fn hns_browser_wallet_configure_direct_hns_value(
         let hns_unlocked = entry
             .controller
             .with_mut(
-                |controller| controller.status(),
                 |controller| controller.status(),
                 |controller| controller.status(),
             )
@@ -6651,37 +6489,6 @@ pub unsafe extern "C" fn hns_browser_wallet_import_hns_name_exact_text(
         let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
         ensure_wallet_active(&entry)?;
         let summary = match &mut entry.controller {
-            NativeWalletController::HnsReads(controller) => {
-                // Parse only after proving this is the read controller. Length
-                // is rejected before any caller pointer is dereferenced.
-                // SAFETY: This export carries the caller's readable-slice contract.
-                let name = unsafe { wallet_exact_hns_name(exact_name) }?;
-                let text = std::str::from_utf8(&name.0).map_err(|_| {
-                    FfiFailure::new(
-                        HNS_BROWSER_RESULT_INVALID_UTF8,
-                        "wallet HNS name is not valid UTF-8",
-                    )
-                })?;
-                match controller.import_name_exact_text(text) {
-                    Ok(summary) if summary.name.as_bytes() == name.0.as_slice() => summary,
-                    Ok(_) => {
-                        let _ = controller.lock();
-                        return Err(wallet_runtime_failure(
-                            "HNS name import summary changed the exact input text",
-                        ));
-                    }
-                    Err(error) => {
-                        let failure = wallet_name_import_failure(&error);
-                        if failure.code != HNS_BROWSER_RESULT_INVALID_ARGUMENT {
-                            // Projection/evidence failures can occur after the
-                            // service call. Enforce the lock at this ABI boundary
-                            // rather than relying only on upstream behavior.
-                            let _ = controller.lock();
-                        }
-                        return Err(failure);
-                    }
-                }
-            }
             NativeWalletController::DirectHnsValue {
                 coordinator,
                 controller,
@@ -6784,9 +6591,6 @@ pub unsafe extern "C" fn hns_browser_wallet_import_hns_names_exact_text(
         let names = unsafe { wallet_exact_hns_names_json(exact_names_json) }?;
         let refs = names.iter().map(String::as_str).collect::<Vec<_>>();
         let imported: Result<usize, FfiFailure> = match &mut entry.controller {
-            NativeWalletController::HnsReads(controller) => controller
-                .import_names_exact_text(&refs)
-                .map_err(|error| wallet_name_import_failure(&error)),
             NativeWalletController::DirectHnsValue {
                 coordinator,
                 controller,
@@ -6870,9 +6674,6 @@ pub unsafe extern "C" fn hns_browser_wallet_hns_name_page(
         let entry = entry.lock().map_err(|_| FfiFailure::internal())?;
         ensure_wallet_active(&entry)?;
         let page = match &entry.controller {
-            NativeWalletController::HnsReads(controller) => {
-                controller.known_name_page(offset, limit)
-            }
             NativeWalletController::DirectHnsValue { controller, .. } => {
                 controller.known_name_page(offset, limit)
             }
@@ -6940,9 +6741,6 @@ pub unsafe extern "C" fn hns_browser_wallet_synchronize_hns_reads(
         ensure_wallet_active(&entry)?;
         ensure_wallet_hns_sync_not_cancelled(sync_control.as_ref())?;
         let snapshot = match &mut entry.controller {
-            NativeWalletController::HnsReads(controller) => controller
-                .synchronize()
-                .map_err(|_| wallet_runtime_failure("synchronized HNS wallet read failed"))?,
             NativeWalletController::DirectHnsValue {
                 coordinator,
                 controller,
@@ -8112,7 +7910,6 @@ pub unsafe extern "C" fn hns_browser_wallet_unlock(
             .with_mut(
                 |controller| controller.unlock(&key),
                 |controller| controller.unlock(&key),
-                |controller| controller.unlock(&key),
             )
             .map_err(|_| wallet_runtime_failure("native wallet unlock was rejected"))?;
         // Listener availability is operational rather than wallet authority;
@@ -8165,7 +7962,6 @@ pub extern "C" fn hns_browser_wallet_lock(wallet: HnsBrowserWalletHandle) -> Hns
         entry
             .controller
             .with_mut(
-                |controller| controller.lock(),
                 |controller| controller.lock(),
                 |controller| controller.lock(),
             )
@@ -8807,16 +8603,13 @@ mod tests {
             46
         );
         assert_eq!(
-            offset_of!(HnsBrowserRuntimeOptions, legacy_hns_doh_compatibility),
+            offset_of!(HnsBrowserRuntimeOptions, reserved_compatibility),
             47
         );
         assert_eq!(offset_of!(HnsBrowserRuntimeOptions, hns_doh_resolver), 48);
         assert_eq!(size_of::<HnsBrowserPolicy>(), 40);
         assert_eq!(offset_of!(HnsBrowserPolicy, experimental_p2p_dns_relay), 25);
-        assert_eq!(
-            offset_of!(HnsBrowserPolicy, legacy_hns_doh_compatibility),
-            26
-        );
+        assert_eq!(offset_of!(HnsBrowserPolicy, reserved_compatibility), 26);
         assert_eq!(size_of::<HnsBrowserProxyEndpoint>(), 112);
         assert_eq!(offset_of!(HnsBrowserProxyEndpoint, generation), 8);
         assert_eq!(offset_of!(HnsBrowserProxyEndpoint, session_id), 16);
@@ -8854,7 +8647,6 @@ mod tests {
             "hns_browser_wallet_status",
             "hns_browser_wallet_birthday_height",
             "hns_browser_wallet_accounts",
-            "hns_browser_wallet_configure_hns_reads",
             "hns_browser_wallet_has_hns_reads",
             "hns_browser_wallet_configure_direct_hns_value",
             "hns_browser_wallet_has_hns_value",
@@ -9673,7 +9465,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn wallet_hns_reads_require_explicit_loopback_composition() {
+    fn wallet_hns_reads_require_direct_composition() {
         let _guard = test_guard();
         let id = NEXT_TEST_DIR.fetch_add(1, Ordering::Relaxed);
         let data_dir = std::path::Path::new("/tmp")
@@ -9811,26 +9603,17 @@ mod tests {
         assert_eq!(imported.len, 0);
         assert_eq!(imported.allocation_id, 0);
 
-        // SAFETY: Authorization is readable; port zero must be rejected before composition.
-        assert_eq!(
-            unsafe {
-                hns_browser_wallet_configure_hns_reads(
-                    wallet,
-                    0,
-                    ffi_slice(b"Bearer fixture-read-only"),
-                )
-            },
-            HNS_BROWSER_RESULT_INVALID_ARGUMENT
-        );
+        let rollback_floor = [0_u8; HNS_LIGHT_FLOOR_BYTES];
         // A newly created controller remains in recovery-confirmation state
         // even after the one-time display is consumed. Only reopening the
-        // durable database may make read composition installable.
+        // durable database may make direct composition installable.
         assert_eq!(
             unsafe {
-                hns_browser_wallet_configure_hns_reads(
+                hns_browser_wallet_configure_direct_hns_value(
                     wallet,
-                    1,
-                    ffi_slice(b"Bearer fixture-read-only"),
+                    ffi_slice(&database_key),
+                    ffi_slice(&rollback_floor),
+                    null_slice(),
                 )
             },
             HNS_BROWSER_RESULT_NOT_READY
@@ -9858,13 +9641,14 @@ mod tests {
             HNS_BROWSER_RESULT_OK
         );
         assert_ne!(wallet, 0);
-        // SAFETY: The bounded visible-ASCII authorization is readable for this call.
+        // SAFETY: The key and rollback floor are readable for this call.
         assert_eq!(
             unsafe {
-                hns_browser_wallet_configure_hns_reads(
+                hns_browser_wallet_configure_direct_hns_value(
                     wallet,
-                    1,
-                    ffi_slice(b"Bearer fixture-read-only"),
+                    ffi_slice(&database_key),
+                    ffi_slice(&rollback_floor),
+                    null_slice(),
                 )
             },
             HNS_BROWSER_RESULT_OK
@@ -9876,7 +9660,7 @@ mod tests {
         );
         assert_eq!(enabled, 1);
 
-        // Once reads are installed, malformed input is rejected at the exact
+        // Once the direct controller is installed, malformed input is rejected at the exact
         // boundary without allocating an HNWI result or reaching node I/O.
         assert_eq!(
             unsafe {
@@ -9909,30 +9693,12 @@ mod tests {
         assert_eq!(imported.len, 0);
         assert_eq!(imported.allocation_id, 0);
 
-        // Canonical validation remains upstream and non-poisoning. These exact
-        // malformed spellings must not be transformed before that rejection.
+        // The direct controller can still be unlocked after the ABI rejects
+        // malformed byte slices without reaching peer synchronization.
         assert_eq!(
             unsafe { hns_browser_wallet_unlock(wallet, ffi_slice(&database_key)) },
             HNS_BROWSER_RESULT_OK
         );
-        for malformed_exact in [
-            b" alpha".as_slice(),
-            b"Alpha".as_slice(),
-            b"alpha.".as_slice(),
-            "\u{e9}".as_bytes(),
-        ] {
-            assert_eq!(
-                unsafe {
-                    hns_browser_wallet_import_hns_name_exact_text(
-                        wallet,
-                        ffi_slice(malformed_exact),
-                        &mut imported,
-                    )
-                },
-                HNS_BROWSER_RESULT_INVALID_ARGUMENT
-            );
-            assert!(imported.ptr.is_null());
-        }
         let mut unlocked_status = HnsBrowserBuffer::empty();
         assert_eq!(
             unsafe { hns_browser_wallet_status(wallet, &mut unlocked_status) },
@@ -9953,7 +9719,7 @@ mod tests {
         );
         assert_eq!(
             owned_string(status),
-            "{\"locked\":true,\"activeWallet\":null,\"enabledModules\":[\"handshake\"],\"hnsValueEnabled\":false,\"shakedexEnabled\":false,\"mainnetSettlementEnabled\":false}"
+            "{\"locked\":true,\"activeWallet\":null,\"enabledModules\":[\"handshake\"],\"hnsValueEnabled\":true,\"shakedexEnabled\":true,\"mainnetSettlementEnabled\":false}"
         );
         assert_eq!(hns_browser_buffer_free(status), HNS_BROWSER_RESULT_OK);
         assert_eq!(hns_browser_wallet_destroy(wallet), HNS_BROWSER_RESULT_OK);
@@ -10242,37 +10008,25 @@ mod tests {
     fn relay_policy_fields_are_independent_and_have_safe_defaults() {
         let options = HnsBrowserRuntimeOptions::defaults();
         assert_eq!(options.experimental_p2p_dns_relay, 0);
-        assert_eq!(options.resolution_mode, HNS_BROWSER_RESOLUTION_STRICT);
-        assert_eq!(options.legacy_hns_doh_compatibility, 0);
+        assert_eq!(options.reserved_resolution, 0);
+        assert_eq!(options.reserved_compatibility, 0);
         let policy = HnsBrowserPolicy::defaults();
         assert_eq!(policy.experimental_p2p_dns_relay, 0);
-        assert_eq!(policy.resolution_mode, HNS_BROWSER_RESOLUTION_STRICT);
-        assert_eq!(policy.legacy_hns_doh_compatibility, 0);
+        assert_eq!(policy.reserved_resolution, 0);
+        assert_eq!(policy.reserved_compatibility, 0);
 
         // SAFETY: The empty endpoint has the documented null/zero representation.
-        let runtime_policy = match unsafe {
-            policy_from_fields(
-                HNS_BROWSER_RESOLUTION_COMPATIBILITY,
-                HnsBrowserSlice::empty(),
-                0,
-                1,
-                1,
-            )
-        } {
+        let runtime_policy = match unsafe { policy_from_fields(HnsBrowserSlice::empty(), 0, 1) } {
             Ok(policy) => policy,
             Err(_) => panic!("valid independent relay controls"),
         };
         assert!(runtime_policy.experimental_p2p_dns_relay);
-        assert_eq!(runtime_policy.resolution_mode, ResolutionMode::Strict);
         assert!(runtime_policy.hns_doh_resolver.is_none());
-        assert!(!runtime_policy.legacy_hns_doh_compatibility);
 
         // SAFETY: The static endpoint bytes remain readable for the call.
         let configured_recovery = match unsafe {
             policy_from_fields(
-                HNS_BROWSER_RESOLUTION_STRICT,
                 ffi_slice(b"HTTPS://Resolver.Example.NET.:443/dns-query"),
-                0,
                 0,
                 0,
             )
@@ -10289,19 +10043,22 @@ mod tests {
         // SAFETY: The static endpoint bytes remain readable for the call.
         assert!(
             unsafe {
-                policy_from_fields(
-                    HNS_BROWSER_RESOLUTION_STRICT,
-                    ffi_slice(b"http://resolver.example.net/dns-query"),
-                    0,
-                    0,
-                    0,
-                )
+                policy_from_fields(ffi_slice(b"http://resolver.example.net/dns-query"), 0, 0)
             }
             .is_err()
         );
 
+        let mut invalid_options = HnsBrowserRuntimeOptions::defaults();
+        invalid_options.reserved_resolution = 1;
+        assert!(validate_options(invalid_options).is_err());
         let mut invalid = HnsBrowserPolicy::defaults();
+        invalid.reserved_resolution = 1;
+        assert!(validate_policy(invalid).is_err());
+        invalid = HnsBrowserPolicy::defaults();
         invalid.experimental_p2p_dns_relay = 2;
+        assert!(validate_policy(invalid).is_err());
+        invalid = HnsBrowserPolicy::defaults();
+        invalid.reserved_compatibility = 1;
         assert!(validate_policy(invalid).is_err());
 
         assert_eq!(

@@ -650,9 +650,7 @@ android {
         versionName = "1.0.19"
 
         buildConfigField("String", "HNS_DEFAULT_HANDSHAKE_NETWORK", "\"mainnet\"")
-        buildConfigField("boolean", "HNS_DEFAULT_STRICT_MODE", "true")
         buildConfigField("boolean", "HNS_DEFAULT_EXPERIMENTAL_P2P_DNS_RELAY", "false")
-        buildConfigField("boolean", "HNS_DEFAULT_LEGACY_HNS_DOH_COMPATIBILITY", "false")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
@@ -682,9 +680,7 @@ android {
             versionNameSuffix = "-relay-test"
             matchingFallbacks += listOf("debug")
             buildConfigField("String", "HNS_DEFAULT_HANDSHAKE_NETWORK", "\"regtest\"")
-            buildConfigField("boolean", "HNS_DEFAULT_STRICT_MODE", "true")
             buildConfigField("boolean", "HNS_DEFAULT_EXPERIMENTAL_P2P_DNS_RELAY", "false")
-            buildConfigField("boolean", "HNS_DEFAULT_LEGACY_HNS_DOH_COMPATIBILITY", "false")
         }
         release {
             isDebuggable = false

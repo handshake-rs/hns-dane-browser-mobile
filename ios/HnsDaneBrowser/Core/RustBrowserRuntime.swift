@@ -48,7 +48,6 @@ final class RustBrowserRuntime: BrowserRuntime {
             case .regtest:
                 options.network = HNS_BROWSER_NETWORK_REGTEST
             }
-            options.resolution_mode = HNS_BROWSER_RESOLUTION_STRICT
             return hns_browser_runtime_create(&options, &handle)
         }
         try RustBridge.check(result, operation: "runtime create")
@@ -174,10 +173,8 @@ final class RustBrowserRuntime: BrowserRuntime {
             hns_browser_policy_default(&nativePolicy),
             operation: "policy defaults"
         )
-        nativePolicy.resolution_mode = HNS_BROWSER_RESOLUTION_STRICT
         nativePolicy.stateless_dane_certificates = policy.statelessDANECertificates ? 1 : 0
         nativePolicy.experimental_p2p_dns_relay = policy.experimentalP2PDNSRelay ? 1 : 0
-        nativePolicy.legacy_hns_doh_compatibility = 0
 
         var revision: UInt64 = 0
         let result = RustBridge.withUTF8Slice(policy.hnsDohResolver ?? "") { resolver in
@@ -706,7 +703,7 @@ final class RustBrowserProxySession: BrowserProxySession {
             return result(.blocked, "The Rust proxy rejected the dual-root response")
         }
         if resolverPolicy == HNS_BROWSER_RESOLVER_POLICY_HNS_DOH_COMPATIBILITY {
-            return result(.blocked, "Unsupported legacy HNS resolver status")
+            return result(.blocked, "The resolver did not provide verified Handshake evidence")
         }
         if tlsPolicy == HNS_BROWSER_TLS_POLICY_WEBPKI_FALLBACK {
             // The trusted trace, not a Swift hostname classifier, authorizes

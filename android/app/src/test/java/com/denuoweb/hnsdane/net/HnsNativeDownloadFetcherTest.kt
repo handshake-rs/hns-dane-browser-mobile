@@ -23,11 +23,9 @@ class HnsNativeDownloadFetcherTest {
             dataDir = dataDir,
             hnsGatewayBridge = bridge,
             namespacePolicy = TEST_BROWSER_NAMESPACE_POLICY,
-            strictHnsMode = { true },
             dohResolverUrl = { "https://resolver.example/dns-query" },
             statelessDaneCertificates = { true },
             experimentalP2pDnsRelay = { true },
-            legacyHnsDohCompatibility = { false },
             handshakeNetwork = { "testnet" },
         )
 
@@ -54,11 +52,9 @@ class HnsNativeDownloadFetcherTest {
         assertEquals(
             HnsGatewayRuntimeConfig(
                 network = "testnet",
-                strictHnsMode = true,
                 dohResolverUrl = "https://resolver.example/dns-query",
                 statelessDaneCertificates = true,
                 experimentalP2pDnsRelay = true,
-                legacyHnsDohCompatibility = false,
             ),
             bridge.configs.single(),
         )

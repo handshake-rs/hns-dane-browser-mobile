@@ -42,10 +42,8 @@ enum class HandshakeNetwork(
 
 internal object HnsResolutionPreferences {
     const val DEFAULT_HANDSHAKE_NETWORK = "mainnet"
-    const val DEFAULT_STRICT_HNS_MODE = true
     const val DEFAULT_STATELESS_DANE_CERTIFICATES = true
     const val DEFAULT_EXPERIMENTAL_P2P_DNS_RELAY = false
-    const val DEFAULT_LEGACY_HNS_DOH_COMPATIBILITY = false
 
     private const val PREFS = "hns_resolution_preferences"
     private const val KEY_HANDSHAKE_NETWORK = "handshake_network"
@@ -73,7 +71,6 @@ internal object HnsResolutionPreferences {
             .apply()
     }
 
-    fun strictHnsMode(@Suppress("UNUSED_PARAMETER") context: Context): Boolean = true
 
     fun statelessDaneCertificates(context: Context): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -103,7 +100,6 @@ internal object HnsResolutionPreferences {
             .apply()
     }
 
-    fun legacyHnsDohCompatibility(@Suppress("UNUSED_PARAMETER") context: Context): Boolean = false
 
     fun dohResolverUrl(context: Context): String {
         val preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -133,50 +129,23 @@ internal object HnsResolutionPreferences {
 
     /**
      * One-way migration for releases that persisted public recursive HNS DoH or
-     * HNS WebPKI compatibility controls. An explicit legacy compatibility choice
-     * is never reinterpreted as consent to the P2P relay: when no independent
-     * relay preference exists, that migration starts with relay fallback off.
-     * Fresh installs have no legacy preference and keep relay consumption off
-     * until the user explicitly opts in.
+     * HNS WebPKI compatibility controls. Removing these stored keys cannot
+     * enable the independent P2P relay preference.
      */
     fun migrateProhibitedHnsFallbackSettings(context: Context) {
         val preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val hadExplicitRelayPreference =
-            preferences.contains(KEY_EXPERIMENTAL_P2P_DNS_RELAY)
-        val hadExplicitLegacyFallbackPreference =
-            (
-                preferences.contains(KEY_STRICT_HNS_MODE) &&
-                    !preferences.getBoolean(KEY_STRICT_HNS_MODE, true)
-                ) ||
-                (
-                    preferences.contains(KEY_LEGACY_HNS_DOH_COMPATIBILITY) &&
-                        preferences.getBoolean(KEY_LEGACY_HNS_DOH_COMPATIBILITY, false)
-                    ) ||
-                preferences.contains(KEY_DOH_RESOLVER_URL)
-
         preferences.edit()
-            .putBoolean(KEY_STRICT_HNS_MODE, true)
-            .putBoolean(KEY_LEGACY_HNS_DOH_COMPATIBILITY, false)
+            .remove(KEY_STRICT_HNS_MODE)
+            .remove(KEY_LEGACY_HNS_DOH_COMPATIBILITY)
             .remove(KEY_DOH_RESOLVER_URL)
-            .also { editor ->
-                if (hadExplicitLegacyFallbackPreference && !hadExplicitRelayPreference) {
-                    editor.putBoolean(KEY_EXPERIMENTAL_P2P_DNS_RELAY, false)
-                }
-            }
             .apply()
     }
 
     internal fun buildDefaultHandshakeNetwork(): HandshakeNetwork =
         HandshakeNetwork.fromId(BuildConfig.HNS_DEFAULT_HANDSHAKE_NETWORK)
 
-    internal fun buildDefaultStrictHnsMode(): Boolean =
-        BuildConfig.HNS_DEFAULT_STRICT_MODE
-
     internal fun buildDefaultExperimentalP2pDnsRelay(): Boolean =
         BuildConfig.HNS_DEFAULT_EXPERIMENTAL_P2P_DNS_RELAY
-
-    internal fun buildDefaultLegacyHnsDohCompatibility(): Boolean =
-        BuildConfig.HNS_DEFAULT_LEGACY_HNS_DOH_COMPATIBILITY
 
     /**
      * Validates one explicit RFC 8484 POST endpoint without opening a socket.

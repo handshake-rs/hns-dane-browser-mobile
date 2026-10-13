@@ -48,7 +48,6 @@ class RustProxyRequestParityInstrumentationTest {
                     dataDir = dataDir.absolutePath,
                     network = "regtest",
                     scopeHost = TEST_HOST,
-                    strictHnsMode = true,
                     dohResolverUrl = "",
                     statelessDaneCertificates = false,
                 ),

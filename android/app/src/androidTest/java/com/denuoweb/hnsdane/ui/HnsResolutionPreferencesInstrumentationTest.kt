@@ -40,11 +40,9 @@ class HnsResolutionPreferencesInstrumentationTest {
 
         HnsResolutionPreferences.migrateProhibitedHnsFallbackSettings(context)
 
-        assertTrue(preferences.getBoolean("strict_hns_mode", false))
-        assertFalse(preferences.getBoolean("legacy_hns_doh_compatibility", true))
+        assertFalse(preferences.contains("strict_hns_mode"))
+        assertFalse(preferences.contains("legacy_hns_doh_compatibility"))
         assertFalse(preferences.contains("doh_resolver_url"))
-        assertTrue(HnsResolutionPreferences.strictHnsMode(context))
-        assertFalse(HnsResolutionPreferences.legacyHnsDohCompatibility(context))
         assertEquals("", HnsResolutionPreferences.dohResolverUrl(context))
         assertFalse(HnsResolutionPreferences.experimentalP2pDnsRelay(context))
     }

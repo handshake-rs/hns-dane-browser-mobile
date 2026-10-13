@@ -59,11 +59,9 @@ interface HnsGatewayBridge {
 
 data class HnsGatewayRuntimeConfig(
     val network: String,
-    val strictHnsMode: Boolean,
     val dohResolverUrl: String,
     val statelessDaneCertificates: Boolean,
     val experimentalP2pDnsRelay: Boolean = false,
-    val legacyHnsDohCompatibility: Boolean = false,
 )
 
 interface HnsSyncBridge {
@@ -312,11 +310,9 @@ object NativeBridge :
         ) { handle ->
             nativeRuntimeGatewayHttpResponse(
                 handle,
-                config.strictHnsMode,
                 config.dohResolverUrl,
                 config.statelessDaneCertificates,
                 config.experimentalP2pDnsRelay,
-                config.legacyHnsDohCompatibility,
                 method,
                 scheme,
                 host,
@@ -358,11 +354,9 @@ object NativeBridge :
             ) { handle ->
                 nativeRuntimeGatewayHttpResponseBodyToFile(
                     handle,
-                    config.strictHnsMode,
                     config.dohResolverUrl,
                     config.statelessDaneCertificates,
                     config.experimentalP2pDnsRelay,
-                    config.legacyHnsDohCompatibility,
                     method,
                     scheme,
                     host,
@@ -411,11 +405,9 @@ object NativeBridge :
             ) { handle ->
                 nativeRuntimeGatewayHttpResponseStreaming(
                     handle,
-                    config.strictHnsMode,
                     config.dohResolverUrl,
                     config.statelessDaneCertificates,
                     config.experimentalP2pDnsRelay,
-                    config.legacyHnsDohCompatibility,
                     method,
                     scheme,
                     host,
@@ -444,11 +436,9 @@ object NativeBridge :
     ) { runtimeHandle ->
         val bundle = nativeRuntimeStartProxy(
             runtimeHandle,
-            config.strictHnsMode,
             config.dohResolverUrl,
             config.statelessDaneCertificates,
             config.experimentalP2pDnsRelay,
-            config.legacyHnsDohCompatibility,
             config.scopeHost,
         ) ?: return@withRuntime null
         parseRustProxyEndpointBundle(bundle) ?: run {
@@ -579,21 +569,17 @@ object NativeBridge :
 
     private external fun nativeRuntimeStartProxy(
         handle: Long,
-        strictHnsMode: Boolean,
         dohResolverUrl: String,
         statelessDaneCertificates: Boolean,
         experimentalP2pDnsRelay: Boolean,
-        legacyHnsDohCompatibility: Boolean,
         scopeRoot: String,
     ): ByteArray?
 
     private external fun nativeRuntimeGatewayHttpResponse(
         handle: Long,
-        strictHnsMode: Boolean,
         dohResolverUrl: String,
         statelessDaneCertificates: Boolean,
         experimentalP2pDnsRelay: Boolean,
-        legacyHnsDohCompatibility: Boolean,
         method: String,
         scheme: String,
         host: String,
@@ -605,11 +591,9 @@ object NativeBridge :
 
     private external fun nativeRuntimeGatewayHttpResponseBodyToFile(
         handle: Long,
-        strictHnsMode: Boolean,
         dohResolverUrl: String,
         statelessDaneCertificates: Boolean,
         experimentalP2pDnsRelay: Boolean,
-        legacyHnsDohCompatibility: Boolean,
         method: String,
         scheme: String,
         host: String,
@@ -622,11 +606,9 @@ object NativeBridge :
 
     private external fun nativeRuntimeGatewayHttpResponseStreaming(
         handle: Long,
-        strictHnsMode: Boolean,
         dohResolverUrl: String,
         statelessDaneCertificates: Boolean,
         experimentalP2pDnsRelay: Boolean,
-        legacyHnsDohCompatibility: Boolean,
         method: String,
         scheme: String,
         host: String,
