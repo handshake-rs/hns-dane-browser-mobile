@@ -18,10 +18,10 @@ use hns_wallet_mobile::{
     HnsDirectShakescapeMessage, HnsDirectShakescapePeer, HnsInboundMobilePeer,
     HnsInboundNetworkPeer, HnsLightFloor, HnsNetwork, HnsPublicPeerSessions, HnsReadSystemClock,
     MAX_MOBILE_RECOVERY_PHRASE_BYTES, MobileBitcoinDirectConfig, MobileBitcoinValueController,
-    MobileDatabaseKey, MobileHnsValueController, MobileHnsValueIntent, MobilePlatform,
-    MobileRecoveryPhrase, MobileShakedexQuery, MobileShakescapeBitcoinFundingPermit,
-    MobileShakescapeBitcoinWatchPermit, MobileShakescapeSessionController, MobileWalletController,
-    MobileWalletError,
+    MobileDatabaseKey, MobileDirectHnsValueController, MobileHnsValueController,
+    MobileHnsValueIntent, MobilePlatform, MobileRecoveryPhrase, MobileShakedexQuery,
+    MobileShakescapeBitcoinFundingPermit, MobileShakescapeBitcoinWatchPermit,
+    MobileShakescapeSessionController, MobileWalletController, MobileWalletError,
 };
 use hns_wallet_types::{BaseUnits, SessionId};
 use jni::JNIEnv;
@@ -551,7 +551,7 @@ enum AndroidWalletController {
     /// all use ordinary HNS peers through the same encrypted wallet store.
     DirectValue {
         coordinator: HnsDirectPeerCoordinator,
-        controller: Box<MobileHnsValueController<EmbeddedHnsBackend>>,
+        controller: Box<MobileDirectHnsValueController>,
         shakescape_sessions: Box<MobileShakescapeSessionController>,
         shakescape_listener: Option<HnsDirectShakescapeListener>,
         shakescape_reachability: Option<Box<ShakescapeReachabilityCascade>>,
@@ -912,9 +912,12 @@ impl AndroidWalletController {
         hns_mobile_platform_runtime::register_wallet_header_transport(
             coordinator.public_header_transport(),
         );
-        let backend = coordinator.backend().clone();
-        match lifecycle.into_hns_value_with_wallet_owned_direct_shakedex(database_key, backend) {
+        match lifecycle.into_wallet_owned_direct_hns_value_with_wallet_owned_direct_shakedex(
+            database_key,
+            coordinator,
+        ) {
             Ok(controller) => {
+                let coordinator = controller.coordinator().clone();
                 let bitcoin_config = MobileBitcoinDirectConfig::for_hns_wallet(
                     controller.account_config().network,
                     bitcoin_data_dir,
