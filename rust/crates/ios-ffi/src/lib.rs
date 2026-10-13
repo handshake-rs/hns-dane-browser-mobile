@@ -11,6 +11,7 @@
 
 use hns_header_consensus::{HEADER_SIZE, Header};
 use hns_light_sync::SyncState;
+use hns_mobile_platform_runtime::shakescape_execution::{self, ExecutionAccess};
 use hns_mobile_platform_runtime::{
     BrowserNameClass, BrowserProxy, BrowserProxyResolverPolicy, BrowserProxySecurityPath,
     BrowserProxyStatus, BrowserProxyStatusObserver, BrowserProxyTlsPolicy, BrowserRuntime,
@@ -27,11 +28,10 @@ use hns_wallet_mobile::{
     HnsInboundNetworkPeer, HnsLightFloor, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig,
     HnsPublicPeerSessions, HnsReadSystemClock, MAX_MOBILE_RECOVERY_PHRASE_BYTES,
     MOBILE_DATABASE_KEY_BYTES, MobileBitcoinDirectConfig, MobileBitcoinValueController,
-    MobileDatabaseKey, MobileDirectOfferSummary, MobileHnsNameSummary, MobileHnsReadController,
-    MobileHnsReadSnapshot, MobileHnsValueController, MobileHnsValueIntent, MobilePlatform,
-    MobileRecoveryPhrase, MobileShakedexQuery, MobileShakescapeBitcoinFundingPermit,
-    MobileShakescapeBitcoinWatchPermit, MobileShakescapeSessionController, MobileWalletController,
-    MobileWalletError,
+    MobileDatabaseKey, MobileHnsNameSummary, MobileHnsReadController, MobileHnsReadSnapshot,
+    MobileHnsValueController, MobileHnsValueIntent, MobilePlatform, MobileRecoveryPhrase,
+    MobileShakedexQuery, MobileShakescapeBitcoinFundingPermit, MobileShakescapeBitcoinWatchPermit,
+    MobileShakescapeSessionController, MobileWalletController, MobileWalletError,
 };
 use hns_wallet_types::{BaseUnits, SessionId};
 use serde_json::{Value, json};
@@ -1639,54 +1639,6 @@ impl NativeWalletController {
         shakescape_sessions.local_btc_for_hns_offers(HnsReadSystemClock.now_unix()?)
     }
 
-    fn shakescape_executions(
-        &self,
-    ) -> Result<Vec<hns_wallet_mobile::MobileShakescapeExecutionSummary>, MobileWalletError> {
-        let Self::DirectHnsValue {
-            shakescape_sessions,
-            ..
-        } = self
-        else {
-            return Err(MobileWalletError::ControllerFailed);
-        };
-        shakescape_sessions.durable_executions()
-    }
-
-    fn pending_direct_offer_acceptances(
-        &self,
-    ) -> Result<Vec<hns_wallet_mobile::MobileDirectOfferAcceptanceSummary>, MobileWalletError> {
-        let Self::DirectHnsValue {
-            shakescape_sessions,
-            ..
-        } = self
-        else {
-            return Err(MobileWalletError::ControllerFailed);
-        };
-        shakescape_sessions.pending_direct_offer_acceptances(HnsReadSystemClock.now_unix()?)
-    }
-
-    fn pending_offer_responses(&self) -> Result<Vec<MobileDirectOfferSummary>, MobileWalletError> {
-        let Self::DirectHnsValue {
-            shakescape_sessions,
-            ..
-        } = self
-        else {
-            return Err(MobileWalletError::ControllerFailed);
-        };
-        shakescape_sessions.pending_local_offer_responses(HnsReadSystemClock.now_unix()?)
-    }
-
-    fn pending_first_bitcoin_funding_sessions(&self) -> Result<Vec<SessionId>, MobileWalletError> {
-        let Self::DirectHnsValue {
-            shakescape_sessions,
-            ..
-        } = self
-        else {
-            return Err(MobileWalletError::ControllerFailed);
-        };
-        shakescape_sessions.pending_first_bitcoin_funding_sessions()
-    }
-
     fn maybe_begin_bitcoin_funding_observation(
         &mut self,
         session_id: SessionId,
@@ -1717,43 +1669,7 @@ impl NativeWalletController {
         else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        if redeem {
-            shakescape_sessions.authorize_local_bitcoin_redeem(session_id)
-        } else {
-            shakescape_sessions.authorize_local_bitcoin_refund(session_id)
-        }
-    }
-
-    fn reconcile_bitcoin_funding(
-        &mut self,
-        session_id: SessionId,
-        observation_permit: Option<hns_wallet_mobile::MobileShakescapeFirstFundingObservation>,
-        observation: hns_wallet_mobile::ReconciledShakescapeBitcoinFunding,
-    ) -> Result<bool, MobileWalletError> {
-        let Self::DirectHnsValue {
-            shakescape_sessions,
-            ..
-        } = self
-        else {
-            return Err(MobileWalletError::ControllerFailed);
-        };
-        let now_unix = HnsReadSystemClock.now_unix()?;
-        match observation_permit {
-            Some(observation_permit) => shakescape_sessions.reconcile_local_bitcoin_funding(
-                session_id,
-                observation_permit,
-                observation,
-                now_unix,
-            ),
-            None => match observation {
-                hns_wallet_mobile::ReconciledShakescapeBitcoinFunding::Confirmed(lock) => {
-                    shakescape_sessions
-                        .apply_local_verified_bitcoin_funding(session_id, lock, now_unix)
-                        .map(|_| false)
-                }
-                hns_wallet_mobile::ReconciledShakescapeBitcoinFunding::NotConfirmed => Ok(false),
-            },
-        }
+        shakescape_execution::authorize_bitcoin_settlement(shakescape_sessions, session_id, redeem)
     }
 
     fn prepare_hns_for_btc_funding(
@@ -1787,36 +1703,11 @@ impl NativeWalletController {
         else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        let now_unix = HnsReadSystemClock.now_unix()?;
-        if let Ok(permit) =
-            shakescape_sessions.authorize_local_hns_first_funding(session_id, now_unix)
-        {
-            return Ok(permit);
-        }
-        match first_bitcoin_funding {
-            Some((
-                observation_permit,
-                hns_wallet_mobile::ReconciledShakescapeBitcoinFunding::Confirmed(lock),
-            )) => shakescape_sessions.authorize_local_hns_second_funding(
-                session_id,
-                observation_permit,
-                lock,
-                now_unix,
-            ),
-            Some((
-                observation_permit,
-                hns_wallet_mobile::ReconciledShakescapeBitcoinFunding::NotConfirmed,
-            )) => {
-                shakescape_sessions.reconcile_local_bitcoin_funding(
-                    session_id,
-                    observation_permit,
-                    hns_wallet_mobile::ReconciledShakescapeBitcoinFunding::NotConfirmed,
-                    now_unix,
-                )?;
-                Err(MobileWalletError::InvalidShakescapeSessionMessage)
-            }
-            None => Err(MobileWalletError::InvalidShakescapeSessionMessage),
-        }
+        shakescape_execution::authorize_hns_funding(
+            shakescape_sessions,
+            session_id,
+            first_bitcoin_funding,
+        )
     }
 
     fn pending_hns_swap_funding_session_id(&self) -> Result<Option<SessionId>, MobileWalletError> {
@@ -1887,14 +1778,11 @@ impl NativeWalletController {
         else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        let permit = match action {
-            hns_wallet_mobile::MobileShakescapeSettlementAction::Redeem => {
-                shakescape_sessions.authorize_local_hns_redeem(session_id)?
-            }
-            hns_wallet_mobile::MobileShakescapeSettlementAction::Refund => {
-                shakescape_sessions.authorize_local_hns_refund(session_id)?
-            }
-        };
+        let permit = shakescape_execution::authorize_hns_settlement(
+            shakescape_sessions,
+            session_id,
+            action,
+        )?;
         controller.prepare_shakescape_hns_settlement(permit, maximum_fee_dollarydoos)
     }
 
@@ -1913,108 +1801,6 @@ impl NativeWalletController {
             return Err(MobileWalletError::ControllerFailed);
         };
         controller.reject_shakescape_hns_settlement(action_token)
-    }
-
-    fn reconcile_verified_hns_funding(&mut self) -> Result<(), MobileWalletError> {
-        let Self::DirectHnsValue {
-            controller,
-            shakescape_sessions,
-            ..
-        } = self
-        else {
-            return Err(MobileWalletError::ControllerFailed);
-        };
-        for permit in shakescape_sessions.pending_second_hns_funding_verifications()? {
-            let session_id = permit.session_id();
-            let observation = shakescape_sessions.maybe_begin_local_hns_first_funding_observation(
-                session_id,
-                HnsReadSystemClock.now_unix()?,
-            )?;
-            let lock = controller.verified_shakescape_hns_funding(permit)?;
-            let now_unix = HnsReadSystemClock.now_unix()?;
-            match observation {
-                Some(observation) => {
-                    shakescape_sessions.reconcile_local_hns_funding(
-                        session_id,
-                        observation,
-                        lock,
-                        now_unix,
-                    )?;
-                }
-                None => {
-                    if let Some(lock) = lock {
-                        shakescape_sessions
-                            .apply_local_verified_hns_funding(session_id, lock, now_unix)?;
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn reconcile_verified_hns_spends(&mut self) -> Result<(), MobileWalletError> {
-        let Self::DirectHnsValue {
-            controller,
-            shakescape_sessions,
-            ..
-        } = self
-        else {
-            return Err(MobileWalletError::ControllerFailed);
-        };
-        for permit in shakescape_sessions.pending_hns_spend_verifications()? {
-            let session_id = permit.session_id();
-            match controller.verified_shakescape_hns_spend(permit)? {
-                Some(spend) => {
-                    shakescape_sessions.apply_local_verified_hns_spend(
-                        session_id,
-                        spend,
-                        HnsReadSystemClock.now_unix()?,
-                    )?;
-                }
-                None => shakescape_sessions.invalidate_recovered_spend_observation(
-                    session_id,
-                    hns_wallet_types::ModuleId::Handshake,
-                    HnsReadSystemClock.now_unix()?,
-                )?,
-            }
-        }
-        Ok(())
-    }
-
-    fn pending_bitcoin_spend_sessions(&self) -> Result<Vec<SessionId>, MobileWalletError> {
-        let Self::DirectHnsValue {
-            shakescape_sessions,
-            ..
-        } = self
-        else {
-            return Err(MobileWalletError::ControllerFailed);
-        };
-        shakescape_sessions.pending_bitcoin_spend_sessions()
-    }
-
-    fn apply_verified_bitcoin_spend(
-        &mut self,
-        session_id: SessionId,
-        spend: Option<hns_wallet_mobile::VerifiedBitcoinHtlcSpendObservation>,
-    ) -> Result<(), MobileWalletError> {
-        let Self::DirectHnsValue {
-            shakescape_sessions,
-            ..
-        } = self
-        else {
-            return Err(MobileWalletError::ControllerFailed);
-        };
-        let now_unix = HnsReadSystemClock.now_unix()?;
-        match spend {
-            Some(spend) => shakescape_sessions
-                .apply_local_verified_bitcoin_spend(session_id, spend, now_unix)
-                .map(|_| ()),
-            None => shakescape_sessions.invalidate_recovered_spend_observation(
-                session_id,
-                hns_wallet_types::ModuleId::Bitcoin,
-                now_unix,
-            ),
-        }
     }
 
     fn cancel_btc_for_hns_offer(&mut self, offer_id: &str) -> Result<(), MobileWalletError> {
@@ -2183,34 +1969,7 @@ impl NativeWalletController {
         else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        let now_unix = HnsReadSystemClock.now_unix()?;
-        if let Ok(permit) =
-            shakescape_sessions.authorize_local_btc_first_funding(session_id, now_unix)
-        {
-            return Ok(permit);
-        }
-        let verification = shakescape_sessions.hns_funding_verification_permit(session_id)?;
-        let observation =
-            shakescape_sessions.begin_local_hns_first_funding_observation(session_id, now_unix)?;
-        let first_funding = controller.verified_shakescape_hns_funding(verification)?;
-        let observation_now_unix = HnsReadSystemClock.now_unix()?;
-        match first_funding {
-            Some(first_funding) => shakescape_sessions.authorize_local_btc_second_funding(
-                session_id,
-                observation,
-                first_funding,
-                observation_now_unix,
-            ),
-            None => {
-                shakescape_sessions.reconcile_local_hns_funding(
-                    session_id,
-                    observation,
-                    None,
-                    observation_now_unix,
-                )?;
-                Err(MobileWalletError::InvalidShakescapeSessionMessage)
-            }
-        }
+        shakescape_execution::authorize_bitcoin_funding(controller, shakescape_sessions, session_id)
     }
 
     fn next_counterparty_bitcoin_watch(
@@ -6512,183 +6271,109 @@ pub unsafe extern "C" fn hns_browser_wallet_local_btc_for_hns_offers(
 }
 
 /// Advance chain observations before reading the durable execution projection.
+struct IosExecutionAccess(HnsBrowserWalletHandle);
+
+impl ExecutionAccess for IosExecutionAccess {
+    type Error = FfiFailure;
+
+    fn with_sessions<T>(
+        &self,
+        operation: impl FnOnce(&mut MobileShakescapeSessionController) -> T,
+    ) -> Result<T, Self::Error> {
+        let entry = wallet_entry(self.0)?;
+        let mut entry = entry.try_lock().map_err(|error| match error {
+            TryLockError::WouldBlock => {
+                direct_hns_not_ready("direct ShakeScape controller is busy")
+            }
+            TryLockError::Poisoned(_) => FfiFailure::internal(),
+        })?;
+        ensure_wallet_active(&entry)?;
+        let NativeWalletController::DirectHnsValue {
+            shakescape_sessions,
+            ..
+        } = &mut entry.controller
+        else {
+            return Err(wallet_runtime_failure(
+                "direct ShakeScape wallet is unavailable",
+            ));
+        };
+        Ok(operation(shakescape_sessions))
+    }
+
+    fn with_hns<T>(
+        &self,
+        operation: impl FnOnce(
+            &MobileHnsValueController<EmbeddedHnsBackend>,
+            &mut MobileShakescapeSessionController,
+        ) -> T,
+    ) -> Result<T, Self::Error> {
+        let entry = wallet_entry(self.0)?;
+        let mut entry = entry.try_lock().map_err(|error| match error {
+            TryLockError::WouldBlock => {
+                direct_hns_not_ready("direct ShakeScape controller is busy")
+            }
+            TryLockError::Poisoned(_) => FfiFailure::internal(),
+        })?;
+        ensure_wallet_active(&entry)?;
+        let NativeWalletController::DirectHnsValue {
+            controller,
+            shakescape_sessions,
+            ..
+        } = &mut entry.controller
+        else {
+            return Err(wallet_runtime_failure(
+                "direct ShakeScape wallet is unavailable",
+            ));
+        };
+        Ok(operation(controller, shakescape_sessions))
+    }
+
+    fn with_bitcoin<T>(
+        &self,
+        required: bool,
+        operation: impl FnOnce(Option<&MobileBitcoinValueController>) -> T,
+    ) -> Result<T, Self::Error> {
+        let control = wallet_bitcoin_control_entry(self.0);
+        let control = match control {
+            Ok(control) => control,
+            Err(error) if required => return Err(error),
+            Err(_) => return Ok(operation(None)),
+        };
+        match control.controller.try_lock() {
+            Ok(slot) => Ok(operation(slot.as_ref())),
+            Err(TryLockError::WouldBlock) => Ok(operation(None)),
+            Err(TryLockError::Poisoned(_)) => Err(FfiFailure::internal()),
+        }
+    }
+
+    fn wallet_error(&self, context: &'static str, error: MobileWalletError) -> Self::Error {
+        eprintln!("{context}: {error}");
+        wallet_runtime_failure(context)
+    }
+}
+
+/// The shared coordinator owns the funding/spend transitions; the iOS adapter
+/// supplies only handle validation and the controller lock domains.
 fn reconcile_shakescape_execution_observations(
     wallet: HnsBrowserWalletHandle,
 ) -> Result<(), FfiFailure> {
-    let candidates = {
-        let entry = wallet_entry(wallet)?;
-        let mut entry = entry.try_lock().map_err(|error| match error {
-            TryLockError::WouldBlock => {
-                direct_hns_not_ready("direct ShakeScape controller is busy")
-            }
-            TryLockError::Poisoned(_) => FfiFailure::internal(),
-        })?;
-        ensure_wallet_active(&entry)?;
-        let candidates = entry
-            .controller
-            .pending_first_bitcoin_funding_sessions()
-            .map_err(|_| wallet_runtime_failure("Shakescape execution recovery failed"))?;
-        candidates
-            .into_iter()
-            .map(|session_id| {
-                entry
-                    .controller
-                    .maybe_begin_bitcoin_funding_observation(session_id)
-                    .map(|observation| (session_id, observation))
-            })
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| wallet_runtime_failure("Bitcoin observation setup failed"))?
-    };
-    let reconciled = if candidates.is_empty() {
-        Vec::new()
-    } else {
-        let control = wallet_bitcoin_control_entry(wallet)?;
-        match control.controller.try_lock() {
-            Ok(slot) => slot.as_ref().map_or_else(Vec::new, |bitcoin| {
-                candidates
-                    .into_iter()
-                    .filter_map(|(session_id, observation_permit)| {
-                        bitcoin
-                            .reconciled_shakescape_htlc_funding(session_id)
-                            .ok()
-                            .flatten()
-                            .map(|observation| (session_id, observation_permit, observation))
-                    })
-                    .collect()
-            }),
-            Err(TryLockError::WouldBlock) => Vec::new(),
-            Err(TryLockError::Poisoned(_)) => return Err(FfiFailure::internal()),
-        }
-    };
-    if !reconciled.is_empty() {
-        let entry = wallet_entry(wallet)?;
-        let mut entry = entry.try_lock().map_err(|error| match error {
-            TryLockError::WouldBlock => {
-                direct_hns_not_ready("direct ShakeScape controller is busy")
-            }
-            TryLockError::Poisoned(_) => FfiFailure::internal(),
-        })?;
-        ensure_wallet_active(&entry)?;
-        for (session_id, observation_permit, observation) in reconciled {
-            entry
-                .controller
-                .reconcile_bitcoin_funding(session_id, observation_permit, observation)
-                .map_err(|_| wallet_runtime_failure("Bitcoin funding reconciliation failed"))?;
-        }
-    }
-    let spend_candidates = {
-        let entry = wallet_entry(wallet)?;
-        let entry = entry.try_lock().map_err(|error| match error {
-            TryLockError::WouldBlock => {
-                direct_hns_not_ready("direct ShakeScape controller is busy")
-            }
-            TryLockError::Poisoned(_) => FfiFailure::internal(),
-        })?;
-        ensure_wallet_active(&entry)?;
-        entry
-            .controller
-            .pending_bitcoin_spend_sessions()
-            .map_err(|_| wallet_runtime_failure("Bitcoin spend recovery failed"))?
-    };
-    let verified_spends = if spend_candidates.is_empty() {
-        Vec::new()
-    } else {
-        let control = wallet_bitcoin_control_entry(wallet)?;
-        match control.controller.try_lock() {
-            Ok(slot) => slot.as_ref().map_or_else(Vec::new, |bitcoin| {
-                spend_candidates
-                    .into_iter()
-                    .filter_map(|session_id| {
-                        bitcoin
-                            .verified_shakescape_htlc_spend(session_id)
-                            .ok()
-                            .map(|spend| (session_id, spend))
-                    })
-                    .collect()
-            }),
-            Err(TryLockError::WouldBlock) => Vec::new(),
-            Err(TryLockError::Poisoned(_)) => return Err(FfiFailure::internal()),
-        }
-    };
-    if !verified_spends.is_empty() {
-        let entry = wallet_entry(wallet)?;
-        let mut entry = entry.try_lock().map_err(|error| match error {
-            TryLockError::WouldBlock => {
-                direct_hns_not_ready("direct ShakeScape controller is busy")
-            }
-            TryLockError::Poisoned(_) => FfiFailure::internal(),
-        })?;
-        ensure_wallet_active(&entry)?;
-        for (session_id, spend) in verified_spends {
-            entry
-                .controller
-                .apply_verified_bitcoin_spend(session_id, spend)
-                .map_err(|_| wallet_runtime_failure("Bitcoin spend recovery failed"))?;
-        }
-    }
-    {
-        let entry = wallet_entry(wallet)?;
-        let mut entry = entry.try_lock().map_err(|error| match error {
-            TryLockError::WouldBlock => {
-                direct_hns_not_ready("direct ShakeScape controller is busy")
-            }
-            TryLockError::Poisoned(_) => FfiFailure::internal(),
-        })?;
-        ensure_wallet_active(&entry)?;
-        // A temporarily unavailable HNS read must not hide the durable
-        // execution projection. It simply cannot advance it this refresh.
-        let _ = entry.controller.reconcile_verified_hns_funding();
-        let _ = entry.controller.reconcile_verified_hns_spends();
-    }
-    Ok(())
+    shakescape_execution::reconcile_observations(&IosExecutionAccess(wallet))
 }
 
 fn refresh_shakescape_execution_snapshot(wallet: HnsBrowserWalletHandle) -> Result<(), FfiFailure> {
     let snapshot_slot = wallet_execution_snapshot_entry(wallet)?;
-    let bitcoin_broadcast_recovery =
-        wallet_bitcoin_control_entry(wallet)
-            .ok()
-            .and_then(|control| match control.controller.try_lock() {
-                Ok(slot) => slot
-                    .as_ref()
-                    .and_then(|bitcoin| bitcoin.approved_broadcast_recovery().ok()),
-                Err(_) => None,
-            });
-    let entry = wallet_entry(wallet)?;
-    let entry = entry.try_lock().map_err(|error| match error {
-        TryLockError::WouldBlock => direct_hns_not_ready("direct ShakeScape controller is busy"),
-        TryLockError::Poisoned(_) => FfiFailure::internal(),
-    })?;
-    ensure_wallet_active(&entry)?;
-    // durable_executions() may recover HNS publications in hns-wallet-mobile.
-    // Run it only while building a new snapshot in this reconciliation step.
-    let executions = entry
-        .controller
-        .shakescape_executions()
-        .map_err(|_| wallet_runtime_failure("Shakescape execution listing failed"))?;
-    let pending_acceptances = entry
-        .controller
-        .pending_direct_offer_acceptances()
-        .map_err(|_| wallet_runtime_failure("pending Shakescape acceptance listing failed"))?;
-    let pending_offer_responses = entry
-        .controller
-        .pending_offer_responses()
-        .map_err(|_| wallet_runtime_failure("pending Shakescape response listing failed"))?;
-    let bundle = wallet_bitcoin_bundle(&json!({
-        "executions": executions,
-        "pendingAcceptances": pending_acceptances,
-        "pendingOfferResponses": pending_offer_responses,
-        "bitcoinBroadcastRecovery": bitcoin_broadcast_recovery,
-    }))?;
-    let mut snapshot = snapshot_slot.lock().map_err(|_| FfiFailure::internal())?;
-    if !snapshot.active {
-        return Err(FfiFailure::new(
-            HNS_BROWSER_RESULT_NOT_FOUND,
-            "wallet handle is invalid or stale",
-        ));
-    }
-    snapshot.bundle = Some(bundle);
-    Ok(())
+    shakescape_execution::publish_execution_snapshot(&IosExecutionAccess(wallet), |projection| {
+        let bundle = wallet_bitcoin_bundle(&projection)?;
+        let mut snapshot = snapshot_slot.lock().map_err(|_| FfiFailure::internal())?;
+        if !snapshot.active {
+            return Err(FfiFailure::new(
+                HNS_BROWSER_RESULT_NOT_FOUND,
+                "wallet handle is invalid or stale",
+            ));
+        }
+        snapshot.bundle = Some(bundle);
+        Ok(())
+    })
 }
 
 #[unsafe(no_mangle)]

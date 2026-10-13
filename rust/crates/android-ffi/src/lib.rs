@@ -7,6 +7,7 @@
 
 use hns_header_consensus::{HEADER_SIZE, Header};
 use hns_light_sync::SyncState;
+use hns_mobile_platform_runtime::shakescape_execution::{self, ExecutionAccess};
 use hns_mobile_platform_runtime::*;
 use hns_wallet_ffi::ServiceErrorCode;
 use hns_wallet_mobile::{
@@ -1543,75 +1544,6 @@ impl AndroidWalletController {
         bundle
     }
 
-    fn shakescape_executions(
-        &self,
-        bitcoin_broadcast_recovery: Option<hns_wallet_mobile::BitcoinBroadcastRecoverySummary>,
-    ) -> Option<Vec<u8>> {
-        let Self::DirectValue {
-            shakescape_sessions,
-            ..
-        } = self
-        else {
-            return None;
-        };
-        let now_unix = match HnsReadSystemClock.now_unix() {
-            Ok(now_unix) => now_unix,
-            Err(error) => {
-                android_log_error(&format!(
-                    "ShakeScape execution refresh could not read network time: {error}"
-                ));
-                return None;
-            }
-        };
-        let executions = match shakescape_sessions.durable_executions() {
-            Ok(executions) => executions,
-            Err(error) => {
-                android_log_error(&format!(
-                    "ShakeScape execution refresh could not load durable executions: {error}"
-                ));
-                return None;
-            }
-        };
-        let pending_acceptances =
-            match shakescape_sessions.pending_direct_offer_acceptances(now_unix) {
-                Ok(pending_acceptances) => pending_acceptances,
-                Err(error) => {
-                    android_log_error(&format!(
-                        "ShakeScape execution refresh could not load pending acceptances: {error}"
-                    ));
-                    return None;
-                }
-            };
-        let pending_offer_responses = match shakescape_sessions
-            .pending_local_offer_responses(now_unix)
-        {
-            Ok(responses) => responses,
-            Err(error) => {
-                android_log_error(&format!(
-                    "ShakeScape execution refresh could not load pending offer responses: {error}"
-                ));
-                return None;
-            }
-        };
-        let mut json = match serde_json::to_vec(&serde_json::json!({
-            "executions": executions,
-            "pendingAcceptances": pending_acceptances,
-            "pendingOfferResponses": pending_offer_responses,
-            "bitcoinBroadcastRecovery": bitcoin_broadcast_recovery,
-        })) {
-            Ok(json) => json,
-            Err(error) => {
-                android_log_error(&format!(
-                    "ShakeScape execution refresh could not encode its status: {error}"
-                ));
-                return None;
-            }
-        };
-        let bundle = bitcoin_json_bundle(json.as_slice());
-        json.fill(0);
-        bundle
-    }
-
     fn cancel_btc_for_hns_offer(&mut self, offer_id: &str) -> bool {
         let Self::DirectValue {
             shakescape_sessions,
@@ -1839,88 +1771,13 @@ impl AndroidWalletController {
         else {
             return None;
         };
-        let now_unix = match HnsReadSystemClock.now_unix() {
-            Ok(now_unix) => now_unix,
-            Err(error) => {
+        shakescape_execution::authorize_bitcoin_funding(controller, shakescape_sessions, session_id)
+            .map_err(|error| {
                 android_log_error(&format!(
-                    "Bitcoin HTLC funding authorization could not read the system clock: {error}"
-                ));
-                return None;
-            }
-        };
-        let first_error =
-            match shakescape_sessions.authorize_local_btc_first_funding(session_id, now_unix) {
-                Ok(permit) => return Some(permit),
-                Err(error) => error,
-            };
-        let verification = match shakescape_sessions.hns_funding_verification_permit(session_id) {
-            Ok(verification) => verification,
-            Err(error) => {
-                android_log_error(&format!(
-                    "Bitcoin HTLC funding authorization rejected: first-chain={first_error}; HNS verification permit={error}",
-                ));
-                return None;
-            }
-        };
-        let observation = match shakescape_sessions
-            .begin_local_hns_first_funding_observation(session_id, now_unix)
-        {
-            Ok(observation) => observation,
-            Err(error) => {
-                android_log_error(&format!(
-                    "Bitcoin HTLC funding authorization could not begin an HNS observation: {error}"
-                ));
-                return None;
-            }
-        };
-        let first_funding = match controller.verified_shakescape_hns_funding(verification) {
-            Ok(first_funding) => first_funding,
-            Err(error) => {
-                android_log_error(&format!(
-                    "Bitcoin HTLC funding authorization could not verify HNS funding: {error}"
-                ));
-                return None;
-            }
-        };
-        let observation_now_unix = match HnsReadSystemClock.now_unix() {
-            Ok(now_unix) => now_unix,
-            Err(error) => {
-                android_log_error(&format!(
-                    "Bitcoin HTLC funding authorization could not refresh the system clock: {error}"
-                ));
-                return None;
-            }
-        };
-        let Some(first_funding) = first_funding else {
-            if let Err(error) = shakescape_sessions.reconcile_local_hns_funding(
-                session_id,
-                observation,
-                None,
-                observation_now_unix,
-            ) {
-                android_log_error(&format!(
-                    "Bitcoin HTLC funding authorization could not revoke absent HNS funding: {error}"
-                ));
-            }
-            android_log_error(
-                "Bitcoin HTLC funding authorization requires current first-chain confirmation",
-            );
-            return None;
-        };
-        match shakescape_sessions.authorize_local_btc_second_funding(
-            session_id,
-            observation,
-            first_funding,
-            observation_now_unix,
-        ) {
-            Ok(permit) => Some(permit),
-            Err(second_error) => {
-                android_log_error(&format!(
-                    "Bitcoin HTLC funding authorization rejected: first-chain={first_error}; second-chain={second_error}",
-                ));
-                None
-            }
-        }
+                    "Bitcoin HTLC funding authorization failed: {error}"
+                ))
+            })
+            .ok()
     }
 
     fn authorize_bitcoin_swap_settlement(
@@ -1935,20 +1792,13 @@ impl AndroidWalletController {
         else {
             return None;
         };
-        let authorization = if redeem {
-            shakescape_sessions.authorize_local_bitcoin_redeem(session_id)
-        } else {
-            shakescape_sessions.authorize_local_bitcoin_refund(session_id)
-        };
-        match authorization {
-            Ok(permit) => Some(permit),
-            Err(error) => {
+        shakescape_execution::authorize_bitcoin_settlement(shakescape_sessions, session_id, redeem)
+            .map_err(|error| {
                 android_log_error(&format!(
                     "Bitcoin HTLC settlement authorization failed: {error}"
-                ));
-                None
-            }
-        }
+                ))
+            })
+            .ok()
     }
 
     fn next_counterparty_bitcoin_watch(
@@ -2049,25 +1899,6 @@ impl AndroidWalletController {
         }
     }
 
-    fn pending_first_bitcoin_funding_sessions(&self) -> Option<Vec<SessionId>> {
-        let Self::DirectValue {
-            shakescape_sessions,
-            ..
-        } = self
-        else {
-            return None;
-        };
-        match shakescape_sessions.pending_first_bitcoin_funding_sessions() {
-            Ok(sessions) => Some(sessions),
-            Err(error) => {
-                android_log_error(&format!(
-                    "ShakeScape execution refresh could not enumerate pending Bitcoin funding: {error}"
-                ));
-                None
-            }
-        }
-    }
-
     fn maybe_begin_bitcoin_funding_observation(
         &mut self,
         session_id: SessionId,
@@ -2089,55 +1920,6 @@ impl AndroidWalletController {
                     "ShakeScape Bitcoin funding observation could not begin for session {session_id:?}: {error}"
                 ));
                 None
-            }
-        }
-    }
-
-    fn reconcile_bitcoin_funding(
-        &mut self,
-        session_id: SessionId,
-        observation_permit: Option<hns_wallet_mobile::MobileShakescapeFirstFundingObservation>,
-        observation: hns_wallet_mobile::ReconciledShakescapeBitcoinFunding,
-    ) -> bool {
-        let Self::DirectValue {
-            shakescape_sessions,
-            ..
-        } = self
-        else {
-            return false;
-        };
-        let now_unix = match HnsReadSystemClock.now_unix() {
-            Ok(now_unix) => now_unix,
-            Err(error) => {
-                android_log_error(&format!(
-                    "ShakeScape Bitcoin funding reconciliation could not read the system clock: {error}"
-                ));
-                return false;
-            }
-        };
-        let result = match observation_permit {
-            Some(observation_permit) => shakescape_sessions.reconcile_local_bitcoin_funding(
-                session_id,
-                observation_permit,
-                observation,
-                now_unix,
-            ),
-            None => match observation {
-                hns_wallet_mobile::ReconciledShakescapeBitcoinFunding::Confirmed(lock) => {
-                    shakescape_sessions
-                        .apply_local_verified_bitcoin_funding(session_id, lock, now_unix)
-                        .map(|_| false)
-                }
-                hns_wallet_mobile::ReconciledShakescapeBitcoinFunding::NotConfirmed => Ok(false),
-            },
-        };
-        match result {
-            Ok(_) => true,
-            Err(error) => {
-                android_log_error(&format!(
-                    "ShakeScape Bitcoin funding reconciliation failed for session {session_id:?}: {error}"
-                ));
-                false
             }
         }
     }
@@ -2195,62 +1977,15 @@ impl AndroidWalletController {
         else {
             return None;
         };
-        let now_unix = match HnsReadSystemClock.now_unix() {
-            Ok(now_unix) => now_unix,
-            Err(error) => {
-                android_log_error(&format!(
-                    "ShakeScape HNS funding preparation could not read network time for session {session_id:?}: {error}"
-                ));
-                return None;
-            }
-        };
-        let first_error =
-            match shakescape_sessions.authorize_local_hns_first_funding(session_id, now_unix) {
-                Ok(permit) => return Some(permit),
-                Err(error) => error,
-            };
-        let (observation_permit, first_funding) = match first_bitcoin_funding {
-            Some((
-                observation_permit,
-                hns_wallet_mobile::ReconciledShakescapeBitcoinFunding::Confirmed(lock),
-            )) => (observation_permit, lock),
-            Some((
-                observation_permit,
-                hns_wallet_mobile::ReconciledShakescapeBitcoinFunding::NotConfirmed,
-            )) => {
-                if let Err(error) = shakescape_sessions.reconcile_local_bitcoin_funding(
-                    session_id,
-                    observation_permit,
-                    hns_wallet_mobile::ReconciledShakescapeBitcoinFunding::NotConfirmed,
-                    now_unix,
-                ) {
-                    android_log_error(&format!(
-                        "ShakeScape HNS funding authorization could not revoke absent Bitcoin funding: {error}"
-                    ));
-                }
-                android_log_error(
-                    "ShakeScape HNS funding authorization requires current first-chain confirmation",
-                );
-                return None;
-            }
-            None => {
-                return None;
-            }
-        };
-        match shakescape_sessions.authorize_local_hns_second_funding(
+        shakescape_execution::authorize_hns_funding(
+            shakescape_sessions,
             session_id,
-            observation_permit,
-            first_funding,
-            now_unix,
-        ) {
-            Ok(permit) => Some(permit),
-            Err(second_error) => {
-                android_log_error(&format!(
-                    "ShakeScape HNS funding authorization failed for session {session_id:?}: first-funding={first_error}; second-funding={second_error}"
-                ));
-                None
-            }
-        }
+            first_bitcoin_funding,
+        )
+        .map_err(|error| {
+            android_log_error(&format!("HNS HTLC funding authorization failed: {error}"))
+        })
+        .ok()
     }
 
     fn pending_hns_swap_funding_session_id(&self) -> Option<SessionId> {
@@ -2360,30 +2095,14 @@ impl AndroidWalletController {
         else {
             return None;
         };
-        let permit = match action {
-            hns_wallet_mobile::MobileShakescapeSettlementAction::Redeem => {
-                match shakescape_sessions.authorize_local_hns_redeem(session_id) {
-                    Ok(permit) => permit,
-                    Err(error) => {
-                        android_log_error(&format!(
-                            "HNS HTLC redeem authorization failed: {error}"
-                        ));
-                        return None;
-                    }
-                }
-            }
-            hns_wallet_mobile::MobileShakescapeSettlementAction::Refund => {
-                match shakescape_sessions.authorize_local_hns_refund(session_id) {
-                    Ok(permit) => permit,
-                    Err(error) => {
-                        android_log_error(&format!(
-                            "HNS HTLC refund authorization failed: {error}"
-                        ));
-                        return None;
-                    }
-                }
-            }
-        };
+        let permit =
+            shakescape_execution::authorize_hns_settlement(shakescape_sessions, session_id, action)
+                .map_err(|error| {
+                    android_log_error(&format!(
+                        "HNS HTLC settlement authorization failed: {error}"
+                    ))
+                })
+                .ok()?;
         let approval =
             match controller.prepare_shakescape_hns_settlement(permit, maximum_fee_dollarydoos) {
                 Ok(approval) => approval,
@@ -2418,166 +2137,6 @@ impl AndroidWalletController {
         controller
             .reject_shakescape_hns_settlement(action_token)
             .is_ok()
-    }
-
-    fn reconcile_verified_hns_funding(&mut self) -> bool {
-        let Self::DirectValue {
-            controller,
-            shakescape_sessions,
-            ..
-        } = self
-        else {
-            return false;
-        };
-        let permits = match shakescape_sessions.pending_second_hns_funding_verifications() {
-            Ok(permits) => permits,
-            Err(error) => {
-                android_log_error(&format!(
-                    "ShakeScape HNS funding reconciliation could not enumerate pending verifications: {error}"
-                ));
-                return false;
-            }
-        };
-        for permit in permits {
-            let session_id = permit.session_id();
-            let observation_now = match HnsReadSystemClock.now_unix() {
-                Ok(now_unix) => now_unix,
-                Err(error) => {
-                    android_log_error(&format!(
-                        "ShakeScape HNS funding observation could not read the system clock: {error}"
-                    ));
-                    return false;
-                }
-            };
-            let observation = match shakescape_sessions
-                .maybe_begin_local_hns_first_funding_observation(session_id, observation_now)
-            {
-                Ok(observation) => observation,
-                Err(error) => {
-                    android_log_error(&format!(
-                        "ShakeScape HNS funding observation could not begin for session {session_id:?}: {error}"
-                    ));
-                    return false;
-                }
-            };
-            let verified = match controller.verified_shakescape_hns_funding(permit) {
-                Ok(verified) => verified,
-                Err(error) => {
-                    android_log_error(&format!(
-                        "ShakeScape HNS funding verification failed for session {session_id:?}: {error}"
-                    ));
-                    return false;
-                }
-            };
-            let now_unix = match HnsReadSystemClock.now_unix() {
-                Ok(now_unix) => now_unix,
-                Err(error) => {
-                    android_log_error(&format!(
-                        "ShakeScape HNS funding reconciliation could not read the system clock: {error}"
-                    ));
-                    return false;
-                }
-            };
-            let reconciled = match observation {
-                Some(observation) => shakescape_sessions.reconcile_local_hns_funding(
-                    session_id,
-                    observation,
-                    verified,
-                    now_unix,
-                ),
-                None => match verified {
-                    Some(lock) => shakescape_sessions
-                        .apply_local_verified_hns_funding(session_id, lock, now_unix)
-                        .map(|_| false),
-                    None => Ok(false),
-                },
-            };
-            if let Err(error) = reconciled {
-                android_log_error(&format!(
-                    "ShakeScape HNS funding could not be reconciled for session {session_id:?}: {error}"
-                ));
-                return false;
-            }
-        }
-        true
-    }
-
-    fn reconcile_verified_hns_spends(&mut self) -> bool {
-        let Self::DirectValue {
-            controller,
-            shakescape_sessions,
-            ..
-        } = self
-        else {
-            return false;
-        };
-        let Ok(permits) = shakescape_sessions.pending_hns_spend_verifications() else {
-            return false;
-        };
-        for permit in permits {
-            let session_id = permit.session_id();
-            let now_unix = HnsReadSystemClock.now_unix().unwrap_or(0);
-            let result = match controller.verified_shakescape_hns_spend(permit) {
-                Ok(Some(spend)) => shakescape_sessions
-                    .apply_local_verified_hns_spend(session_id, spend, now_unix)
-                    .map(|_| ()),
-                Ok(None) => shakescape_sessions.invalidate_recovered_spend_observation(
-                    session_id,
-                    hns_wallet_types::ModuleId::Handshake,
-                    now_unix,
-                ),
-                Err(_) => continue,
-            };
-            if result.is_err() {
-                return false;
-            }
-        }
-        true
-    }
-
-    fn pending_bitcoin_spend_sessions(&self) -> Option<Vec<SessionId>> {
-        let Self::DirectValue {
-            shakescape_sessions,
-            ..
-        } = self
-        else {
-            return None;
-        };
-        match shakescape_sessions.pending_bitcoin_spend_sessions() {
-            Ok(sessions) => Some(sessions),
-            Err(error) => {
-                android_log_error(&format!(
-                    "ShakeScape execution refresh could not enumerate pending Bitcoin spends: {error}"
-                ));
-                None
-            }
-        }
-    }
-
-    fn apply_verified_bitcoin_spend(
-        &mut self,
-        session_id: SessionId,
-        spend: Option<hns_wallet_mobile::VerifiedBitcoinHtlcSpendObservation>,
-    ) -> bool {
-        let Self::DirectValue {
-            shakescape_sessions,
-            ..
-        } = self
-        else {
-            return false;
-        };
-        let now_unix = HnsReadSystemClock.now_unix().unwrap_or(0);
-        match spend {
-            Some(spend) => shakescape_sessions
-                .apply_local_verified_bitcoin_spend(session_id, spend, now_unix)
-                .map(|_| ()),
-            None => shakescape_sessions.invalidate_recovered_spend_observation(
-                session_id,
-                hns_wallet_types::ModuleId::Bitcoin,
-                now_unix,
-            ),
-        }
-        .is_ok()
     }
 
     /// Retry the wallet-owned listener while retaining every other controller
@@ -4514,10 +4073,10 @@ impl AndroidWalletRecord {
             return false;
         };
         let hns_locked = controller.lock();
-        if let Ok(mut snapshot) = self.shakescape_execution_snapshot.lock() {
-            if let Some(mut previous) = snapshot.take() {
-                previous.fill(0);
-            }
+        if let Ok(mut snapshot) = self.shakescape_execution_snapshot.lock()
+            && let Some(mut previous) = snapshot.take()
+        {
+            previous.fill(0);
         }
         bitcoin_stopped && hns_locked
     }
@@ -8332,105 +7891,81 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
     .unwrap_or(std::ptr::null_mut())
 }
 
-/// Advance chain observations separately from the durable execution projection.
-/// The foreground worker invokes this before reading a status snapshot; callers
-/// that only need to display executions never perform wallet verification.
+impl ExecutionAccess for AndroidWalletRecord {
+    type Error = ();
+
+    fn with_sessions<T>(
+        &self,
+        operation: impl FnOnce(&mut MobileShakescapeSessionController) -> T,
+    ) -> Result<T, Self::Error> {
+        let mut controller = self.controller_try_if_active().ok_or(())?;
+        let AndroidWalletController::DirectValue {
+            shakescape_sessions,
+            ..
+        } = &mut *controller
+        else {
+            return Err(());
+        };
+        Ok(operation(shakescape_sessions))
+    }
+
+    fn with_hns<T>(
+        &self,
+        operation: impl FnOnce(
+            &MobileHnsValueController<EmbeddedHnsBackend>,
+            &mut MobileShakescapeSessionController,
+        ) -> T,
+    ) -> Result<T, Self::Error> {
+        let mut entry = self.controller_try_if_active().ok_or(())?;
+        let AndroidWalletController::DirectValue {
+            controller,
+            shakescape_sessions,
+            ..
+        } = &mut *entry
+        else {
+            return Err(());
+        };
+        Ok(operation(controller, shakescape_sessions))
+    }
+
+    fn with_bitcoin<T>(
+        &self,
+        _required: bool,
+        operation: impl FnOnce(Option<&MobileBitcoinValueController>) -> T,
+    ) -> Result<T, Self::Error> {
+        let bitcoin = self.bitcoin_try_if_active();
+        Ok(operation(bitcoin.as_ref().and_then(|slot| slot.as_ref())))
+    }
+
+    fn wallet_error(&self, context: &'static str, error: MobileWalletError) -> Self::Error {
+        android_log_error(&format!("{context}: {error}"));
+    }
+}
+
+/// Reconciliation runs under the shared wallet coordinator; status reads use
+/// only the last published projection.
 fn reconcile_shakescape_execution_observations(record: &AndroidWalletRecord) -> Option<()> {
-    let candidates = {
-        let controller = record.controller_try_if_active()?;
-        controller.pending_first_bitcoin_funding_sessions()?
-    };
-    let candidates = {
-        let mut controller = record.controller_try_if_active()?;
-        candidates
-            .into_iter()
-            .map(|session_id| {
-                controller
-                    .maybe_begin_bitcoin_funding_observation(session_id)
-                    .map(|observation| (session_id, observation))
-            })
-            .collect::<Option<Vec<_>>>()?
-    };
-    let reconciled = if candidates.is_empty() {
-        Vec::new()
-    } else if let Some(bitcoin) = record.bitcoin_try_if_active() {
-        bitcoin.as_ref().map_or_else(Vec::new, |bitcoin| {
-            candidates
-                .into_iter()
-                .filter_map(|(session_id, observation_permit)| {
-                    bitcoin
-                        .reconciled_shakescape_htlc_funding(session_id)
-                        .ok()
-                        .flatten()
-                        .map(|observation| (session_id, observation_permit, observation))
-                })
-                .collect::<Vec<_>>()
-        })
-    } else {
-        Vec::new()
-    };
-    if !reconciled.is_empty() {
-        let mut controller = record.controller_try_if_active()?;
-        for (session_id, observation_permit, observation) in reconciled {
-            if !controller.reconcile_bitcoin_funding(session_id, observation_permit, observation) {
-                return None;
-            }
-        }
-    }
-    let spend_candidates = {
-        let controller = record.controller_try_if_active()?;
-        controller.pending_bitcoin_spend_sessions()?
-    };
-    let verified_spends = record
-        .bitcoin_try_if_active()
-        .and_then(|bitcoin| {
-            bitcoin.as_ref().map(|bitcoin| {
-                spend_candidates
-                    .into_iter()
-                    .filter_map(|session_id| {
-                        bitcoin
-                            .verified_shakescape_htlc_spend(session_id)
-                            .ok()
-                            .map(|spend| (session_id, spend))
-                    })
-                    .collect::<Vec<_>>()
-            })
-        })
-        .unwrap_or_default();
-    if !verified_spends.is_empty() {
-        let mut controller = record.controller_try_if_active()?;
-        for (session_id, spend) in verified_spends {
-            if !controller.apply_verified_bitcoin_spend(session_id, spend) {
-                return None;
-            }
-        }
-    }
-    let mut controller = record.controller_try_if_active()?;
-    // A temporarily unavailable HNS verification read cannot advance the
-    // execution this round, but it must not hide durable execution state.
-    let _ = controller.reconcile_verified_hns_funding();
-    let _ = controller.reconcile_verified_hns_spends();
-    Some(())
+    shakescape_execution::reconcile_observations(record).ok()
 }
 
 fn refresh_shakescape_execution_snapshot(record: &AndroidWalletRecord) -> Option<()> {
-    let bitcoin_broadcast_recovery = record.bitcoin_try_if_active().and_then(|bitcoin| {
-        bitcoin
-            .as_ref()
-            .and_then(|bitcoin| bitcoin.approved_broadcast_recovery().ok())
-    });
-    let controller = record.controller_try_if_active()?;
-    // durable_executions() may recover HNS publications in hns-wallet-mobile.
-    // Keep that work in this explicit reconciliation step, never in a read.
-    let bundle = controller.shakescape_executions(bitcoin_broadcast_recovery)?;
-    // Publish while the controller is still held so a newer action cannot be
-    // overwritten by an older projection assembled before that action.
-    let mut snapshot = lock_if_active(&record.active, &record.shakescape_execution_snapshot)?;
-    if let Some(mut previous) = snapshot.replace(bundle) {
-        previous.fill(0);
-    }
-    drop(controller);
-    Some(())
+    // The published wallet crate may recover HNS publications while listing;
+    // do that only on this explicit worker path, before storing the snapshot.
+    shakescape_execution::publish_execution_snapshot(record, |projection| {
+        let mut json = serde_json::to_vec(&projection).map_err(|_| ())?;
+        let bundle = bitcoin_json_bundle(&json);
+        json.fill(0);
+        let bundle = bundle.ok_or(())?;
+        // Keep the controller held through publication: a newer action must
+        // never be overwritten by an older projection.
+        let mut snapshot =
+            lock_if_active(&record.active, &record.shakescape_execution_snapshot).ok_or(())?;
+        if let Some(mut previous) = snapshot.replace(bundle) {
+            previous.fill(0);
+        }
+        Ok(())
+    })
+    .ok()
 }
 
 #[unsafe(no_mangle)]
@@ -10087,10 +9622,10 @@ fn retire_android_wallet_record(
     // so retirement does not wait for every remaining peer/scan round.
     record.request_hns_sync_cancellation_if_active();
     record.deactivate();
-    if let Ok(mut snapshot) = record.shakescape_execution_snapshot.lock() {
-        if let Some(mut previous) = snapshot.take() {
-            previous.fill(0);
-        }
+    if let Ok(mut snapshot) = record.shakescape_execution_snapshot.lock()
+        && let Some(mut previous) = snapshot.take()
+    {
+        previous.fill(0);
     }
     record.request_bitcoin_shutdown();
     if let Ok(mut bitcoin) = record.bitcoin_controller.lock() {

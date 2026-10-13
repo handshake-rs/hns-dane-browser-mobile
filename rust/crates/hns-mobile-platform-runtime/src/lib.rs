@@ -10,6 +10,7 @@
 )]
 
 mod icann_locked_names;
+pub mod shakescape_execution;
 mod shared_hns_sync;
 pub use shared_hns_sync::register_wallet_header_transport;
 pub mod shakescape_reachability;

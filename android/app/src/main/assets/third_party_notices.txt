@@ -28,12 +28,12 @@ Generated input SHA-256:
   android/app/src/main/assets/fonts/Orbitron-VariableFont_wght.ttf = f42db2dd16e642258e35782916eceb1dcdbea06fb958d77ad71dc5963587e8fd
   android/app/src/main/assets/fonts/OFL-Orbitron.txt = dd6fdb6716fd179d1fe891759efb3f9200753fdf6abf513b55b712c4ae16e512
   rust/Cargo.toml = d466b9126d89c8cab0aecad0531f67867841b802a15b7125971aa4ba7b5545da
-  rust/Cargo.lock = b33f48fba9389410aed7cb36364d204f998b759c28ceb6869c4a3e540590143a
+  rust/Cargo.lock = 2dda0e0f2eb264e2072534473b966955f2d574824ac902cbfe6ad185f2b8fe5e
   android/gradle/libs.versions.toml = 6e6aa686c60e39364e82418f57bb4e2cb0b1cdc420db5dc20dcb48b9f9e58214
   android/app/gradle.lockfile = af2b566239607d09657d3a5930a2d60e9a765d3a1cae7bbf212080b592766ab3
   android/gradle/verification-metadata.xml = 904a6b05ddaea646070bd1a7d077a5bcaf415cb3c71605e5549042e60651df52
   rust/crates/android-ffi/Cargo.toml = 7b9d094fb71e56aa3b967bad12dc40cae284878c0459a69c40eeebee128a4cba
-  rust/crates/hns-mobile-platform-runtime/Cargo.toml = 427b6430fef31acd63ea2eafb92d98a878db3d445a82ae1f8a715a1c64de5aab
+  rust/crates/hns-mobile-platform-runtime/Cargo.toml = be7148cd488221bf5feafe742529aca3843e8bb8f78a52fbc4ddb146a2777411
   rust/crates/ios-ffi/Cargo.toml = 43803888cb9a38bf9aa28544fdaddcc6a658e4ca36edde10befbd2b0bf1fcb6d
 
 ANDROID RUNTIME COMPONENTS (42)
