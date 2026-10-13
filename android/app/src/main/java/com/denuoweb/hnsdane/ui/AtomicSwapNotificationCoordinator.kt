@@ -22,7 +22,7 @@ internal fun swapFundingActionRequired(
     nowUnix: Long,
 ): Boolean {
     if (nowUnix >= execution.fundingDeadlineUnix ||
-        execution.localFundingState in setOf("broadcast", "seen", "confirmed")
+        execution.localFundingState in setOf("broadcast", "seen", "confirmed", "reorged")
     ) return false
     return when (execution.localRole) {
         "maker" -> execution.state == "first_funding_pending" &&

@@ -242,8 +242,8 @@ require_source_contains "$android_wallet_bootstrap" \
   'expected.hasCurrentStorageLease()' \
   "Android wallet-read admission must retain the exact current storage lease."
 require_source_contains "$android_wallet_bridge" \
-  'configuration.consumeFor(currentAuthority)' \
-  "Android native wallet-read composition must consume an authority-bound one-shot credential."
+  'currentAuthority.hasCurrentStorageLease()' \
+  "Android direct wallet-read composition must recheck its current storage lease before native installation."
 require_source_contains "$android_wallet_name_import" \
   'val characters = CharArray(value.length) { index -> value[index] }' \
   "Android trusted-native name import must preserve exact entered characters in a mutable buffer."
@@ -337,11 +337,11 @@ require_source_contains "$ios_wallet_controller" \
   'try wallet.configureDirectHnsValue(' \
   "iOS wallet reads must install the wallet-owned direct HNS controller."
 require_source_contains "$ios_wallet_controller" \
-  'configuration.authority == expectedAuthority' \
-  "iOS wallet-read admission must retain the authority requested before credential acquisition."
+  'walletReadBootstrapMayInstall(' \
+  "iOS direct wallet-read admission must retain the current authority before key acquisition."
 require_source_contains "$ios_wallet_controller" \
-  'currentAuthority == expectedAuthority' \
-  "iOS wallet-read admission must reject authority rotation during credential acquisition."
+  'guard WalletStorageLeaseRegistry.isCurrent(expectedLease) else {' \
+  "iOS direct wallet-read installation must reject lease rotation after key acquisition."
 require_source_contains "$ios_native_wallet" \
   'for byte in exactText.utf8.prefix(64)' \
   "iOS trusted-native name import must bound exact UTF-8 before materializing input bytes."
@@ -403,8 +403,11 @@ require_source_contains "$ios_app_delegate" \
   'delegate.presentWalletFromAtomicSwapNotification()' \
   "Tapping an iOS atomic-swap notification must return to the wallet."
 require_source_contains "$ios_ffi_dir/src/lib.rs" \
-  'NativeWalletController::HnsReads(controller) =>' \
-  "iOS native name import must be unavailable outside the synchronized HNS read controller."
+  'NativeWalletController::DirectHnsValue {' \
+  "iOS native name import must require the active direct HNS value controller."
+require_source_contains "$ios_ffi_dir/src/lib.rs" \
+  '.connect_sync_quorum_available(now_unix)' \
+  "iOS native name import must require current direct HNS peer evidence."
 require_source_contains "$ios_ffi_dir/src/lib.rs" \
   'const WALLET_NAME_IMPORT_BUNDLE_FLAGS: u8 = 0;' \
   "iOS HNWI-v1 output must retain the coordinated zero-flags contract."

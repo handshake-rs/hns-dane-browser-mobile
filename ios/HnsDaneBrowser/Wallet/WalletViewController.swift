@@ -53,6 +53,23 @@ private func swapExecutionHasUnverifiedMakerFunding(
         !["broadcast", "seen", "confirmed"].contains(execution.localFundingState ?? "")
 }
 
+private func swapFundingActionRequired(
+    _ execution: NativeShakescapeExecutionSummary, now: UInt64
+) -> Bool {
+    guard now < execution.fundingDeadlineUnix,
+          !["broadcast", "seen", "confirmed", "reorged"]
+            .contains(execution.localFundingState ?? "") else { return false }
+    switch execution.localRole {
+    case "maker":
+        return execution.state == "first_funding_pending" &&
+            now <= execution.firstFundingCutoffUnix
+    case "taker":
+        return ["first_funded", "second_funding_pending"].contains(execution.state)
+    default:
+        return false
+    }
+}
+
 /// Presents authenticated journal and confirmed-receive transitions without
 /// persisting wallet contents. UserDefaults contains random session IDs,
 /// presentation deadlines, and one-way account/transaction fingerprints;
@@ -267,7 +284,7 @@ private final class AtomicSwapNotificationCoordinator {
                 )
             ))
         }
-        for execution in status.executions where fundingActionRequired(execution, now: now) {
+        for execution in status.executions where swapFundingActionRequired(execution, now: now) {
             let identifier = fundingWarningIdentifier(execution.sessionId)
             guard execution.fundingDeadlineUnix > 60 * 60 else {
                 center.removePendingNotificationRequests(withIdentifiers: [identifier])
@@ -386,34 +403,17 @@ private final class AtomicSwapNotificationCoordinator {
         if fundingStates.contains(execution.state), now >= execution.fundingDeadlineUnix {
             return "funding-expired"
         }
-        if fundingActionRequired(execution, now: now),
+        if swapFundingActionRequired(execution, now: now),
            execution.fundingDeadlineUnix - now <= 60 * 60 {
             return "funding-one-hour"
         }
-        if fundingActionRequired(execution, now: now), execution.localRole == "taker" {
+        if swapFundingActionRequired(execution, now: now), execution.localRole == "taker" {
             return "second-funding-action"
         }
-        if fundingActionRequired(execution, now: now), execution.localRole == "maker" {
+        if swapFundingActionRequired(execution, now: now), execution.localRole == "maker" {
             return "first-funding-action"
         }
         return execution.state
-    }
-
-    private func fundingActionRequired(
-        _ execution: NativeShakescapeExecutionSummary,
-        now: UInt64
-    ) -> Bool {
-        guard now < execution.fundingDeadlineUnix,
-              !["broadcast", "seen", "confirmed"].contains(execution.localFundingState ?? "")
-        else { return false }
-        switch execution.localRole {
-        case "maker":
-            return execution.state == "first_funding_pending" &&
-                now <= execution.firstFundingCutoffUnix
-        case "taker":
-            return ["first_funded", "second_funding_pending"].contains(execution.state)
-        default: return false
-        }
     }
 
     private func notificationRequiresAction(
@@ -2415,11 +2415,22 @@ final class WalletViewController: UIViewController {
         DispatchQueue.global(qos: .userInitiated).async { [wallet] in
             let outcome = Result { try wallet.localDirectOffers() }
             DispatchQueue.main.async { [weak self] in
-                guard let self, self.wallet === wallet else { return }
+                guard let self, self.wallet === wallet, self.walletIsUnlocked,
+                      self.walletAuthorityRequested, self.viewIfLoaded?.window != nil else {
+                    return
+                }
                 switch outcome {
                 case .success(let offers) where offers.isEmpty:
                     self.swapActionStatusLabel.text = WalletCopy.text(
                         "wallet_swap_no_active_offers"
+                    )
+                    self.presentWalletMenu(
+                        title: WalletCopy.text("wallet_swap_my_offers"),
+                        rows: [WalletMenuRow(
+                            title: WalletCopy.text("wallet_swap_my_offers"),
+                            detail: WalletCopy.text("wallet_swap_no_active_offers")
+                        )],
+                        actions: []
                     )
                 case .success(let offers):
                     self.presentWalletMenu(
@@ -2489,7 +2500,10 @@ final class WalletViewController: UIViewController {
         DispatchQueue.global(qos: .userInitiated).async { [wallet] in
             let outcome = Result { try wallet.availableDirectOffers() }
             DispatchQueue.main.async { [weak self] in
-                guard let self, self.wallet === wallet else { return }
+                guard let self, self.wallet === wallet, self.walletIsUnlocked,
+                      self.walletAuthorityRequested, self.viewIfLoaded?.window != nil else {
+                    return
+                }
                 switch outcome {
                 case .success(let offers) where offers.isEmpty:
                     self.swapActionStatusLabel.text = WalletCopy.text("wallet_swap_no_available_offers")
@@ -2732,7 +2746,7 @@ final class WalletViewController: UIViewController {
     }
 
     @objc private func showShakescapeExecutions() {
-        guard let wallet, walletIsUnlocked, bitcoinValueAvailable, !isOperating else { return }
+        guard let wallet, walletIsUnlocked, shakedexAvailable, !isOperating else { return }
         swapActionStatusLabel.text = WalletCopy.text("wallet_swap_loading_executions")
         DispatchQueue.global(qos: .userInitiated).async { [wallet] in
             let outcome = Result {
@@ -2741,7 +2755,10 @@ final class WalletViewController: UIViewController {
                 return try wallet.shakescapeExecutions()
             }
             DispatchQueue.main.async { [weak self] in
-                guard let self, self.wallet === wallet else { return }
+                guard let self, self.wallet === wallet, self.walletIsUnlocked,
+                      self.walletAuthorityRequested, self.viewIfLoaded?.window != nil else {
+                    return
+                }
                 switch outcome {
                 case .success(let status) where
                     status.executions.isEmpty && status.pendingAcceptances.isEmpty &&
@@ -2769,10 +2786,8 @@ final class WalletViewController: UIViewController {
                     let terminal: Set<String> = ["completed", "refunded", "failed"]
                     let now = UInt64(Date().timeIntervalSince1970)
                     let orderedExecutions = status.executions.sorted {
-                        let leftRank = swapExecutionHasUnverifiedMakerFunding($0, now: now)
-                            ? 2 : terminal.contains($0.state) ? 1 : 0
-                        let rightRank = swapExecutionHasUnverifiedMakerFunding($1, now: now)
-                            ? 2 : terminal.contains($1.state) ? 1 : 0
+                        let leftRank = self.swapExecutionPriority($0, now: now)
+                        let rightRank = self.swapExecutionPriority($1, now: now)
                         if leftRank != rightRank { return leftRank < rightRank }
                         return $0.lastVerifiedAtUnix > $1.lastVerifiedAtUnix
                     }
@@ -2786,22 +2801,24 @@ final class WalletViewController: UIViewController {
                         self.showShakescapeExecution(execution, wallet: wallet)
                         return
                     }
-                    let alert = UIAlertController(
-                        title: WalletCopy.text("wallet_swap_executions"),
-                        message: self.bitcoinBroadcastRecoveryText(
-                            status.bitcoinBroadcastRecovery
-                        ),
-                        preferredStyle: .alert
-                    )
-                    for offer in status.pendingOfferResponses {
-                        alert.addAction(UIAlertAction(
-                            title: WalletCopy.format(
-                                "wallet_swap_notification_offer_accepted_detail",
-                                String(offer.sessionId.prefix(12))
-                            ),
-                            style: .default
+                    var rows: [WalletMenuRow] = []
+                    if let recovery = status.bitcoinBroadcastRecovery,
+                       recovery.totalApproved > 0 {
+                        rows.append(WalletMenuRow(
+                            title: WalletCopy.text("wallet_swap_executions"),
+                            detail: self.bitcoinBroadcastRecoveryText(recovery)
                         ))
                     }
+                    for offer in status.pendingOfferResponses {
+                        rows.append(WalletMenuRow(
+                            title: WalletCopy.text("wallet_swap_notification_offer_accepted"),
+                            detail: WalletCopy.format(
+                                "wallet_swap_notification_offer_accepted_detail",
+                                String(offer.sessionId.prefix(12))
+                            )
+                        ))
+                    }
+                    var actions: [WalletMenuAction] = []
                     for acceptance in status.pendingAcceptances {
                         let offered = self.swapAmount(
                             acceptance.offeredAmount,
@@ -2811,7 +2828,7 @@ final class WalletViewController: UIViewController {
                             acceptance.receivedAmount,
                             asset: acceptance.receivedAsset
                         )
-                        alert.addAction(UIAlertAction(
+                        actions.append(WalletMenuAction(
                             title: WalletCopy.format(
                                 "wallet_swap_pending_acceptance",
                                 offered,
@@ -2821,9 +2838,8 @@ final class WalletViewController: UIViewController {
                                     asset: acceptance.receivedAsset
                                 ),
                                 String(acceptance.sessionId.prefix(12))
-                            ),
-                            style: .default
-                        ) { [weak self, weak wallet] _ in
+                            )
+                        ) { [weak self, weak wallet] in
                             guard let self, let wallet, self.wallet === wallet else { return }
                             self.confirmAbandonPendingAcceptance(acceptance, wallet: wallet)
                         })
@@ -2834,20 +2850,23 @@ final class WalletViewController: UIViewController {
                                 "wallet_swap_stage_funding_recovery_pending",
                                 self.swapChainLabel(execution.firstChain)
                             )
-                            : execution.state.replacingOccurrences(of: "_", with: " ")
-                        alert.addAction(UIAlertAction(
-                            title: "\(self.shakescapeExecutionProgress(execution).summary) · \(state) · \(execution.sessionId.prefix(12))…",
-                            style: .default
-                        ) { [weak self, weak wallet] _ in
+                            : self.shakescapeExecutionStage(execution, includeBitcoinSync: false)
+                        actions.append(WalletMenuAction(
+                            title: "\(self.shakescapeExecutionProgress(execution).summary) · " +
+                                "\(self.swapAmount(execution.offeredAmount, asset: execution.offeredAsset)) → " +
+                                "\(self.swapAmount(execution.receivedAmount, asset: execution.receivedAsset))\n" +
+                                "\(state) · \(execution.sessionId.prefix(12))…",
+                            primary: self.swapExecutionNeedsAttention(execution, now: now)
+                        ) { [weak self, weak wallet] in
                             guard let self, let wallet, self.wallet === wallet else { return }
                             self.showShakescapeExecution(execution, wallet: wallet)
                         })
                     }
-                    alert.addAction(UIAlertAction(
-                        title: WalletCopy.text("wallet_action_done"),
-                        style: .cancel
-                    ))
-                    self.walletPresentationHost.present(alert, animated: true)
+                    self.presentWalletMenu(
+                        title: WalletCopy.text("wallet_swap_executions"),
+                        rows: rows,
+                        actions: actions
+                    )
                 case .failure(let error):
                     self.swapActionStatusLabel.text = WalletCopy.text("wallet_swap_execution_list_failed")
                     self.showError(error)
@@ -2861,6 +2880,28 @@ final class WalletViewController: UIViewController {
             return "\(WalletReadPresenter.formatHnsBaseUnits(String(amount))) HNS"
         }
         return "\(amount) sats"
+    }
+
+    private func swapExecutionNeedsAttention(
+        _ execution: NativeShakescapeExecutionSummary,
+        now: UInt64
+    ) -> Bool {
+        swapFundingActionRequired(execution, now: now) ||
+            execution.state == "refund_eligible" ||
+            (execution.state == "first_funded" && execution.localRole == "maker" &&
+                now >= execution.firstRefundAtUnix) ||
+            (execution.state == "both_funded" && execution.localRole == "maker") ||
+            (["first_redeemed", "secret_observed"].contains(execution.state) &&
+                execution.localRole == "taker")
+    }
+
+    private func swapExecutionPriority(
+        _ execution: NativeShakescapeExecutionSummary,
+        now: UInt64
+    ) -> Int {
+        if swapExecutionNeedsAttention(execution, now: now) { return 0 }
+        if swapExecutionHasUnverifiedMakerFunding(execution, now: now) { return 1 }
+        return ["completed", "refunded", "failed"].contains(execution.state) ? 3 : 2
     }
 
     private func automaticSwapMinimumReceive(
@@ -2960,7 +3001,11 @@ final class WalletViewController: UIViewController {
         )
         let alert = UIAlertController(
             title: WalletCopy.text("wallet_swap_execution_title"),
-            message: "\(shakescapeExecutionProgress(execution).summary)\n\(shakescapeExecutionProgress(execution).detail)\n\n\(message)",
+            message: "\(shakescapeExecutionProgress(execution).summary)\n" +
+                "\(swapAmount(execution.offeredAmount, asset: execution.offeredAsset)) → " +
+                "\(swapAmount(execution.receivedAmount, asset: execution.receivedAsset))\n" +
+                "\(shakescapeExecutionStage(execution, includeBitcoinSync: false))\n\n" +
+                "\(shakescapeExecutionProgress(execution).detail)\n\n\(message)",
             preferredStyle: .alert
         )
         alert.addAction(UIAlertAction(
@@ -2972,27 +3017,24 @@ final class WalletViewController: UIViewController {
         // that exact preview/approval and surface readiness as an immediate
         // action-required notification.
         let now = UInt64(Date().timeIntervalSince1970)
-        let newFundingWindowOpen = now < execution.fundingDeadlineUnix
-        let firstFundingMayStart = now <= execution.firstFundingCutoffUnix
-        if execution.state == "first_funding_pending" && firstFundingMayStart &&
-            execution.localRole == "maker" && execution.firstChain == "bitcoin" {
+        let fundingActionRequired = swapFundingActionRequired(execution, now: now)
+        if fundingActionRequired && execution.localRole == "maker" &&
+            execution.firstChain == "bitcoin" {
             alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_swap_fund_bitcoin"), style: .destructive) {
                 [weak self, weak wallet] _ in
                 guard let self, let wallet, self.wallet === wallet else { return }
                 self.showBtcForHnsFundingFee(execution, wallet: wallet)
             })
         }
-        if execution.state == "first_funding_pending" && firstFundingMayStart &&
-            execution.localRole == "maker" && execution.firstChain == "handshake" {
+        if fundingActionRequired && execution.localRole == "maker" &&
+            execution.firstChain == "handshake" {
             alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_swap_fund_hns"), style: .destructive) {
                 [weak self, weak wallet] _ in
                 guard let self, let wallet, self.wallet === wallet else { return }
                 self.showHnsForBtcFundingFee(execution, wallet: wallet)
             })
         }
-        if (execution.state == "first_funded" || execution.state == "second_funding_pending") &&
-            newFundingWindowOpen &&
-            execution.localRole == "taker" &&
+        if fundingActionRequired && execution.localRole == "taker" &&
             execution.secondChain == "handshake" {
             alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_swap_fund_hns"), style: .destructive) {
                 [weak self, weak wallet] _ in
@@ -3000,9 +3042,7 @@ final class WalletViewController: UIViewController {
                 self.showHnsForBtcFundingFee(execution, wallet: wallet)
             })
         }
-        if (execution.state == "first_funded" || execution.state == "second_funding_pending") &&
-            newFundingWindowOpen &&
-            execution.localRole == "taker" &&
+        if fundingActionRequired && execution.localRole == "taker" &&
             execution.secondChain == "bitcoin" {
             alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_swap_fund_bitcoin"), style: .destructive) {
                 [weak self, weak wallet] _ in
@@ -4223,8 +4263,15 @@ final class WalletViewController: UIViewController {
         var lines: [String] = []
         if let status = shakescapeExecutionStatusSnapshot {
             let terminal: Set<String> = ["completed", "refunded", "failed"]
+            let now = UInt64(Date().timeIntervalSince1970)
             if let execution = status.executions.filter({ !terminal.contains($0.state) })
-                .max(by: { $0.lastVerifiedAtUnix < $1.lastVerifiedAtUnix }) {
+                .sorted(by: {
+                    let left = swapExecutionPriority($0, now: now)
+                    let right = swapExecutionPriority($1, now: now)
+                    return left == right
+                        ? $0.lastVerifiedAtUnix > $1.lastVerifiedAtUnix
+                        : left < right
+                }).first {
                 lines.append("\(shakescapeExecutionProgress(execution).summary) · \(shakescapeExecutionStage(execution))")
             } else if !status.pendingAcceptances.isEmpty || !status.pendingOfferResponses.isEmpty {
                 lines.append(WalletCopy.text("wallet_dashboard_swap_negotiating"))
@@ -4260,7 +4307,8 @@ final class WalletViewController: UIViewController {
             ) { [weak self] in self?.showPairDirectShakescapeForm() })
         }
         actions.append(WalletMenuAction(title: WalletCopy.text("wallet_swap_executions"),
-            enabled: available, primary: hasActiveSwapOverview
+            enabled: walletIsUnlocked && wallet != nil && shakedexAvailable && !isOperating,
+            primary: hasActiveSwapOverview
         ) { [weak self] in self?.showShakescapeExecutions() })
         if paired {
             actions.append(WalletMenuAction(title: WalletCopy.text("wallet_swap_available_offers"),
@@ -7728,6 +7776,12 @@ final class WalletViewController: UIViewController {
                     let configured = try keychain.withDatabaseKey(
                         prompt: "Authenticate to enable your direct HNS wallet"
                     ) { databaseKey in
+                        guard WalletStorageLeaseRegistry.isCurrent(expectedLease) else {
+                            throw WalletProviderError(
+                                code: "walletAuthorityChanged",
+                                message: "The wallet changed while direct HNS setup was waiting for authentication."
+                            )
+                        }
                         try wallet.configureDirectHnsValue(
                             databaseKey: databaseKey,
                             rollbackFloor: &openingFloor,
@@ -7760,6 +7814,12 @@ final class WalletViewController: UIViewController {
                     }
                 } else {
                     try install(nil)
+                }
+                guard WalletStorageLeaseRegistry.isCurrent(expectedLease) else {
+                    throw WalletProviderError(
+                        code: "walletAuthorityChanged",
+                        message: "The wallet changed before its direct HNS checkpoint was saved."
+                    )
                 }
                 var installedFloor = try wallet.directHnsRollbackFloor()
                 defer { WalletSecretBytes.wipe(&installedFloor) }

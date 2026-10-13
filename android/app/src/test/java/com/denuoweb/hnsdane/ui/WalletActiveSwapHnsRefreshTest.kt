@@ -57,6 +57,7 @@ class WalletActiveSwapHnsRefreshTest {
         assertEquals(true, swapFundingActionRequired(execution("maker", "first_funding_pending"), 100))
         assertEquals(false, swapFundingActionRequired(execution("maker", "first_funding_pending"), 151))
         assertEquals(false, swapFundingActionRequired(execution("maker", "first_funding_pending", "broadcast"), 100))
+        assertEquals(false, swapFundingActionRequired(execution("maker", "first_funding_pending", "reorged"), 100))
         assertEquals(true, swapFundingActionRequired(execution("taker", "first_funded"), 100))
         assertEquals(true, swapFundingActionRequired(execution("taker", "first_funded").copy(
             firstChain = "bitcoin", secondChain = "handshake",
@@ -64,6 +65,7 @@ class WalletActiveSwapHnsRefreshTest {
         ), 100))
         assertEquals(true, swapFundingActionRequired(execution("taker", "second_funding_pending"), 100))
         assertEquals(false, swapFundingActionRequired(execution("taker", "second_funding_pending", "confirmed"), 100))
+        assertEquals(false, swapFundingActionRequired(execution("taker", "second_funding_pending", "reorged"), 100))
         assertEquals(false, swapFundingActionRequired(execution("taker", "second_funding_pending"), 200))
         assertEquals(false, swapFundingActionRequired(execution("maker", "first_funded"), 100))
     }

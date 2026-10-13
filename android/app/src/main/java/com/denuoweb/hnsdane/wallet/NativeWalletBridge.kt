@@ -124,6 +124,7 @@ internal object NativeWalletBridge {
         consumeDatabaseKey(databaseKey) { key ->
             consumeDirectHnsRollbackFloor(rollbackFloor) { floor ->
                 isValidHandle(currentAuthority.walletHandle) &&
+                    currentAuthority.hasCurrentStorageLease() &&
                     isAvailable &&
                     runCatching {
                         nativeConfigureWalletOwnedDirectHnsValue(
