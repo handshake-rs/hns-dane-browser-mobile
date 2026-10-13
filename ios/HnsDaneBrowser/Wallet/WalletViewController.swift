@@ -2455,6 +2455,9 @@ final class WalletViewController: UIViewController {
                         actions: []
                     )
                 case .success(let offers):
+                    if self.swapActionStatusLabel.text == WalletCopy.text("wallet_swap_loading_available_offers") {
+                        self.swapActionStatusLabel.text = nil
+                    }
                     self.showAvailableDirectOffersPage(offers, page: 0)
                 case .failure(let error):
                     self.swapActionStatusLabel.text = WalletCopy.text(

@@ -5656,6 +5656,11 @@ class WalletActivity : ComponentActivity() {
                         .setPositiveButton(android.R.string.ok, null)
                         .show()
                 } else {
+                    if (swapActionStatusView.text.toString() ==
+                        getString(R.string.wallet_swap_loading_available_offers)
+                    ) {
+                        swapActionStatusView.text = ""
+                    }
                     showAvailableDirectOffersPage(offers, 0)
                 }
             }
@@ -7341,6 +7346,11 @@ class WalletActivity : ComponentActivity() {
                     return@runOnUiThread
                 }
                 busy = false
+                if (statusView.text.toString() ==
+                    getString(R.string.wallet_status_connecting_direct_shakescape)
+                ) {
+                    statusView.text = getString(R.string.wallet_status_unlocked)
+                }
                 refreshControllerState(resetReads = false)
                 val message = directShakescapeConnectionMessage(result)
                 shakedexQueryStatusView.text = message
