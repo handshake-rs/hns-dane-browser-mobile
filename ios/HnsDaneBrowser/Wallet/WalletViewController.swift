@@ -27,6 +27,23 @@ private let maximumVisibleDirectShakescapePeers = 3
 private let maximumVisibleDirectOffers = 5
 private let showShakedexWalletCard = true
 
+private final class WalletMaintenancePauseSignal: @unchecked Sendable {
+    private let lock = NSLock()
+    private var paused = false
+
+    func set(_ value: Bool) {
+        lock.lock()
+        paused = value
+        lock.unlock()
+    }
+
+    func isPaused() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return paused
+    }
+}
+
 /// The deadline alone cannot prove a maker's first-chain lock was never sent.
 private func swapExecutionHasUnverifiedMakerFunding(
     _ execution: NativeShakescapeExecutionSummary, now: UInt64
@@ -647,7 +664,10 @@ final class WalletViewController: UIViewController {
     private var unconfirmedDatabaseKey: [UInt8]?
     private var persistentWalletExists = false
     private var protectedStorageIsAvailable = true
-    private var isOperating = false
+    private let directServicePauseSignal = WalletMaintenancePauseSignal()
+    private var isOperating = false {
+        didSet { updateDirectServicePause() }
+    }
     private var walletIsUnlocked = false
     private var directHnsValueAvailable = false
     private var shakedexAvailable = false
@@ -667,7 +687,9 @@ final class WalletViewController: UIViewController {
     private var receiveTargets: WalletReceiveTargets?
     private var resolvedDatabasePath: String?
     private var storageLease: WalletStorageLeaseToken?
-    private var walletAuthorityRequested = false
+    private var walletAuthorityRequested = false {
+        didSet { updateDirectServicePause() }
+    }
     private var walletLifecycleSuspended = false
     private var retirementGeneration: UInt64 = 0
     private var walletAuthorityGeneration: UInt64 = 0
@@ -4872,6 +4894,10 @@ final class WalletViewController: UIViewController {
         }
     }
 
+    private func updateDirectServicePause() {
+        directServicePauseSignal.set(isOperating || !walletAuthorityRequested)
+    }
+
     private func serviceDirectShakescapeOnce() {
         guard !directShakescapeServiceInFlight,
               !isOperating,
@@ -4882,11 +4908,21 @@ final class WalletViewController: UIViewController {
         let identity = ObjectIdentifier(wallet)
         let authority = walletAuthorityGeneration
         let pollExecutions = directShakescapeExecutionTicks == 0
+        let pauseSignal = directServicePauseSignal
         DispatchQueue.global(qos: .utility).async {
             var transportWorkServiced = false
             for _ in 0..<maximumDirectShakescapeFramesPerTick {
+                // An action or wallet retirement can start after this burst
+                // was queued. Yield the controller after the current frame.
+                if pauseSignal.isPaused() { break }
                 guard (try? wallet.serviceDirectShakescapeTransport()) == true else { break }
                 transportWorkServiced = true
+            }
+            if pauseSignal.isPaused() {
+                DispatchQueue.main.async { [weak self] in
+                    self?.directShakescapeServiceInFlight = false
+                }
+                return
             }
             // Reconcile once after the receive burst. The transport loop must
             // not repeat database and swap recovery work for every queued frame.
