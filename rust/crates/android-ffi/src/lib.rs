@@ -1676,10 +1676,7 @@ impl AndroidWalletController {
         else {
             return false;
         };
-        let Some(now_unix) = HnsReadSystemClock.now_unix().ok() else {
-            return false;
-        };
-        match shakescape_sessions.fail_expired_local_bitcoin_first_funding(proof, now_unix) {
+        match shakescape_execution::apply_unfunded_bitcoin_proof(shakescape_sessions, proof) {
             Ok(()) => {
                 android_log_info(
                     "hns-shakescape",
@@ -1705,41 +1702,18 @@ impl AndroidWalletController {
         else {
             return false;
         };
-        let Some(now_unix) = HnsReadSystemClock.now_unix().ok() else {
-            return false;
-        };
-        let permits = match shakescape_sessions.expired_local_hns_first_funding_permits(now_unix) {
-            Ok(permits) => permits,
-            Err(error) => {
-                android_log_error(&format!(
-                    "expired HNS-first swap enumeration failed: {error}"
-                ));
-                return false;
-            }
-        };
-        let mut changed = false;
-        for permit in permits {
-            match controller.prove_shakescape_hns_htlc_unfunded(&permit) {
-                Ok(Some(proof)) => {
-                    match shakescape_sessions.fail_expired_local_hns_first_funding(proof, now_unix)
-                    {
-                        Ok(()) => {
-                            android_log_info(
-                                "hns-shakescape",
-                                "released an expired HNS-first swap reservation after durable broadcast-journal absence",
-                            );
-                            changed = true;
-                        }
-                        Err(error) => android_log_error(&format!(
-                            "verified expired HNS-first swap cleanup failed: {error}"
-                        )),
-                    }
-                }
-                Ok(None) => {}
-                Err(error) => {
-                    android_log_error(&format!("expired HNS-first swap proof failed: {error}"))
-                }
-            }
+        let changed = shakescape_execution::release_expired_hns_first_funding(
+            controller,
+            shakescape_sessions,
+            |stage, error| {
+                android_log_error(&format!("expired HNS-first swap {stage} failed: {error}"))
+            },
+        );
+        if changed {
+            android_log_info(
+                "hns-shakescape",
+                "released an expired HNS-first swap reservation after durable broadcast-journal absence",
+            );
         }
         changed
     }

@@ -8,8 +8,9 @@ use hns_wallet_mobile::{
     MobileHnsValueController, MobileShakescapeBitcoinFundingPermit,
     MobileShakescapeBitcoinSettlementPermit, MobileShakescapeFirstFundingObservation,
     MobileShakescapeHnsFundingPermit, MobileShakescapeHnsSettlementPermit,
-    MobileShakescapeSessionController, MobileShakescapeSettlementAction, MobileWalletError,
-    ReconciledShakescapeBitcoinFunding, VerifiedBitcoinHtlcSpendObservation,
+    MobileShakescapeSessionController, MobileShakescapeSettlementAction,
+    MobileShakescapeUnfundedBitcoinProof, MobileWalletError, ReconciledShakescapeBitcoinFunding,
+    VerifiedBitcoinHtlcSpendObservation,
 };
 use hns_wallet_types::{ModuleId, SessionId};
 
@@ -127,6 +128,47 @@ pub fn authorize_bitcoin_settlement(
     } else {
         sessions.authorize_local_bitcoin_refund(session_id)
     }
+}
+
+/// Release a timed-out Bitcoin-first reservation only after the Bitcoin
+/// controller has supplied its verified absence proof outside this lock.
+pub fn apply_unfunded_bitcoin_proof(
+    sessions: &mut MobileShakescapeSessionController,
+    proof: MobileShakescapeUnfundedBitcoinProof,
+) -> Result<(), MobileWalletError> {
+    sessions.fail_expired_local_bitcoin_first_funding(proof, now_unix()?)
+}
+
+/// Check the HNS broadcast journal before releasing any expired HNS-first
+/// reservation. Individual proof failures leave their reservations intact and
+/// do not prevent other expired sessions from being checked.
+pub fn release_expired_hns_first_funding(
+    hns: &MobileHnsValueController<EmbeddedHnsBackend>,
+    sessions: &mut MobileShakescapeSessionController,
+    mut report_error: impl FnMut(&'static str, &MobileWalletError),
+) -> bool {
+    let Ok(now) = now_unix() else {
+        return false;
+    };
+    let permits = match sessions.expired_local_hns_first_funding_permits(now) {
+        Ok(permits) => permits,
+        Err(error) => {
+            report_error("enumeration", &error);
+            return false;
+        }
+    };
+    let mut changed = false;
+    for permit in permits {
+        match hns.prove_shakescape_hns_htlc_unfunded(&permit) {
+            Ok(Some(proof)) => match sessions.fail_expired_local_hns_first_funding(proof, now) {
+                Ok(()) => changed = true,
+                Err(error) => report_error("cleanup", &error),
+            },
+            Ok(None) => {}
+            Err(error) => report_error("proof", &error),
+        }
+    }
+    changed
 }
 
 fn reconcile_bitcoin_funding(

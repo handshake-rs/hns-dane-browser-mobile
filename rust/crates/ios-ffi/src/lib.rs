@@ -1902,8 +1902,7 @@ impl NativeWalletController {
         else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        shakescape_sessions
-            .fail_expired_local_bitcoin_first_funding(proof, HnsReadSystemClock.now_unix()?)
+        shakescape_execution::apply_unfunded_bitcoin_proof(shakescape_sessions, proof)
     }
 
     fn release_expired_local_hns_first_funding(&mut self) -> bool {
@@ -1915,33 +1914,11 @@ impl NativeWalletController {
         else {
             return false;
         };
-        let Ok(now_unix) = HnsReadSystemClock.now_unix() else {
-            return false;
-        };
-        let permits = match shakescape_sessions.expired_local_hns_first_funding_permits(now_unix) {
-            Ok(permits) => permits,
-            Err(error) => {
-                eprintln!("expired HNS-first swap enumeration failed: {error}");
-                return false;
-            }
-        };
-        let mut changed = false;
-        for permit in permits {
-            match controller.prove_shakescape_hns_htlc_unfunded(&permit) {
-                Ok(Some(proof)) => {
-                    match shakescape_sessions.fail_expired_local_hns_first_funding(proof, now_unix)
-                    {
-                        Ok(()) => changed = true,
-                        Err(error) => {
-                            eprintln!("verified expired HNS-first swap cleanup failed: {error}")
-                        }
-                    }
-                }
-                Ok(None) => {}
-                Err(error) => eprintln!("expired HNS-first swap proof failed: {error}"),
-            }
-        }
-        changed
+        shakescape_execution::release_expired_hns_first_funding(
+            controller,
+            shakescape_sessions,
+            |stage, error| eprintln!("expired HNS-first swap {stage} failed: {error}"),
+        )
     }
 
     fn advance_local_first_funding_readiness(&mut self) -> Result<bool, MobileWalletError> {
