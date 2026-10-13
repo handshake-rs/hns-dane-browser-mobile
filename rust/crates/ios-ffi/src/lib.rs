@@ -1837,12 +1837,12 @@ impl NativeWalletController {
         controller.approve_shakescape_hns_funding(action_token, reauthorization)
     }
 
-    fn retain_automatic_settlement_approval(
-        &self,
-        session_id: SessionId,
-        now_unix: u64,
-    ) -> bool {
-        let Self::DirectHnsValue { shakescape_sessions, .. } = self else {
+    fn retain_automatic_settlement_approval(&self, session_id: SessionId, now_unix: u64) -> bool {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
             return false;
         };
         shakescape_sessions
@@ -1854,8 +1854,13 @@ impl NativeWalletController {
         &self,
         session_id: SessionId,
         redeem: bool,
-    ) -> Result<Option<hns_wallet_mobile::MobileAutomaticSettlementPermission>, MobileWalletError> {
-        let Self::DirectHnsValue { shakescape_sessions, .. } = self else {
+    ) -> Result<Option<hns_wallet_mobile::MobileAutomaticSettlementPermission>, MobileWalletError>
+    {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
             return Err(MobileWalletError::ControllerFailed);
         };
         shakescape_sessions.authorized_automatic_settlement(session_id, redeem)
@@ -7731,11 +7736,15 @@ pub unsafe extern "C" fn hns_browser_wallet_approve_btc_for_hns_funding(
                 HnsReadSystemClock.now_unix().unwrap_or(0),
             )
         };
-        let mut receipt_json = serde_json::to_value(&receipt).map_err(|_| FfiFailure::internal())?;
-        receipt_json.as_object_mut().ok_or_else(FfiFailure::internal)?.insert(
-            "automaticSettlementAuthorized".to_owned(),
-            serde_json::Value::Bool(automatic_settlement_authorized),
-        );
+        let mut receipt_json =
+            serde_json::to_value(&receipt).map_err(|_| FfiFailure::internal())?;
+        receipt_json
+            .as_object_mut()
+            .ok_or_else(FfiFailure::internal)?
+            .insert(
+                "automaticSettlementAuthorized".to_owned(),
+                serde_json::Value::Bool(automatic_settlement_authorized),
+            );
         let bundle = wallet_bitcoin_bundle(&receipt_json)?;
         let output = allocate_output(&bundle.0, true)?;
         unsafe { write_output(out_receipt_bundle, output) };
@@ -7885,15 +7894,19 @@ pub unsafe extern "C" fn hns_browser_wallet_approve_hns_for_btc_funding(
                 let entry = wallet_entry(wallet)?;
                 let entry = entry.lock().map_err(|_| FfiFailure::internal())?;
                 ensure_wallet_active(&entry)?;
-                entry.controller.retain_automatic_settlement_approval(
-                    session_id, receipt.accepted_at_unix,
-                )
+                entry
+                    .controller
+                    .retain_automatic_settlement_approval(session_id, receipt.accepted_at_unix)
             };
-            let mut receipt_json = serde_json::to_value(&receipt).map_err(|_| FfiFailure::internal())?;
-            receipt_json.as_object_mut().ok_or_else(FfiFailure::internal)?.insert(
-                "automaticSettlementAuthorized".to_owned(),
-                serde_json::Value::Bool(automatic_settlement_authorized),
-            );
+            let mut receipt_json =
+                serde_json::to_value(&receipt).map_err(|_| FfiFailure::internal())?;
+            receipt_json
+                .as_object_mut()
+                .ok_or_else(FfiFailure::internal)?
+                .insert(
+                    "automaticSettlementAuthorized".to_owned(),
+                    serde_json::Value::Bool(automatic_settlement_authorized),
+                );
             let bundle = wallet_bitcoin_bundle(&receipt_json)?;
             let output = allocate_output(&bundle.0, true)?;
             unsafe { write_output(out_receipt_bundle, output) };
@@ -7939,13 +7952,18 @@ pub unsafe extern "C" fn hns_browser_wallet_approve_hns_for_btc_funding(
             .controller
             .approve_hns_for_btc_funding(&token, reauthorization)
             .map_err(|_| wallet_runtime_failure("HNS-for-BTC funding approval failed"))?;
-        let automatic_settlement_authorized = entry.controller
+        let automatic_settlement_authorized = entry
+            .controller
             .retain_automatic_settlement_approval(session_id, receipt.accepted_at_unix);
-        let mut receipt_json = serde_json::to_value(&receipt).map_err(|_| FfiFailure::internal())?;
-        receipt_json.as_object_mut().ok_or_else(FfiFailure::internal)?.insert(
-            "automaticSettlementAuthorized".to_owned(),
-            serde_json::Value::Bool(automatic_settlement_authorized),
-        );
+        let mut receipt_json =
+            serde_json::to_value(&receipt).map_err(|_| FfiFailure::internal())?;
+        receipt_json
+            .as_object_mut()
+            .ok_or_else(FfiFailure::internal)?
+            .insert(
+                "automaticSettlementAuthorized".to_owned(),
+                serde_json::Value::Bool(automatic_settlement_authorized),
+            );
         let bundle = wallet_bitcoin_bundle(&receipt_json)?;
         let output = allocate_output(&bundle.0, true)?;
         unsafe { write_output(out_receipt_bundle, output) };
@@ -7990,7 +8008,8 @@ pub unsafe extern "C" fn hns_browser_wallet_automatic_swap_settlement_permission
         let entry = wallet_entry(wallet)?;
         let entry = entry.lock().map_err(|_| FfiFailure::internal())?;
         ensure_wallet_active(&entry)?;
-        let permission = entry.controller
+        let permission = entry
+            .controller
             .automatic_settlement_permission(session_id, redeem)
             .map_err(|_| wallet_runtime_failure("automatic swap approval is unavailable"))?
             .ok_or_else(|| wallet_runtime_failure("this swap has no automatic approval"))?;

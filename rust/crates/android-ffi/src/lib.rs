@@ -2280,14 +2280,13 @@ impl AndroidWalletController {
         let automatic_settlement_authorized = canonical_session_id(receipt.session_id.as_str())
             .is_some_and(|session_id| {
                 shakescape_sessions
-                    .retain_automatic_settlement_approval(
-                        session_id,
-                        receipt.accepted_at_unix,
-                    )
+                    .retain_automatic_settlement_approval(session_id, receipt.accepted_at_unix)
                     .is_ok()
             });
         if !automatic_settlement_authorized {
-            android_log_error("HNS funding submitted but automatic settlement approval could not be retained");
+            android_log_error(
+                "HNS funding submitted but automatic settlement approval could not be retained",
+            );
         }
         if let (Some(session_id), Some(transaction_id), Some(peer)) = (
             canonical_session_id(receipt.session_id.as_str()),
@@ -2335,7 +2334,11 @@ impl AndroidWalletController {
         session_id: SessionId,
         redeem: bool,
     ) -> Option<hns_wallet_mobile::MobileAutomaticSettlementPermission> {
-        let Self::DirectValue { shakescape_sessions, .. } = self else {
+        let Self::DirectValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
             return None;
         };
         shakescape_sessions
