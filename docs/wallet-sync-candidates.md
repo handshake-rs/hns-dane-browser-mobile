@@ -49,14 +49,11 @@ Run `./scripts/check.sh` for the complete Rust, ABI, fuzz, and supply-chain gate
 
 ## Registry handoff
 
-The original HNS/market 0.4.2 patches were published from audited wallet source
-`5789a88caeb6b0410e0f472bedd1047a01cf9edc`. Current patch sources and exact
-versions are recorded in [the dependency guide](released-dependency-cohort.md).
-Market/mobile 0.5.0 was published from
-`511ead402c7881d7b0046db41f45504b98f3053a`. The HNS patch also negotiates
-browser reserve peers concurrently, preventing stalled handshakes from imposing
-serial browser delays. A real-socket regression test requires both candidate
-connections to begin before either handshake is released.
+Current patch sources and exact versions are recorded in
+[the dependency guide](released-dependency-cohort.md). HNS wallet peer
+negotiation starts browser reserve connections concurrently, so one stalled
+handshake does not delay the others. A real-socket regression test requires
+both candidates to begin before either handshake is released.
 
 The mobile manifest and lockfile use registry sources for every selected wallet
 package. The unchanged API and consumer packages remain on 0.4.1. The source

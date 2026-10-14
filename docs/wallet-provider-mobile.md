@@ -312,8 +312,6 @@ and event sequence envelopes remain private and are rejected if they appear in
 page-visible data. Event delivery is compare-and-clear bound to the exact
 browser authority, wallet session, and permission generation; a delayed event
 from an older provider session cannot publish into or revoke a newer session.
-The bridge no longer accepts a caller-selected event name and arbitrary
-payload.
 
 ## Integration and qualification
 

@@ -60,7 +60,8 @@ _8443._tcp.crewball. 3600 IN TLSA 3 1 1 <spki-sha256>
 ```
 
 The `_8443._tcp.crewball.` TLSA RR is not used to bootstrap proof-pinned ADoH; the verified HNS `tlsa=` field does that without an authoritative DNS bootstrap query. Website DANE remains a separate `_443._tcp.crewball.` TLSA RR, or the TLSA owner for whatever web-origin port HTTPS/SVCB selects.
-The `_dns` SVCB line shows the older optional RFC 9461/WebPKI discovery path; it is not required by the HNS-only proof-pinned setup above.
+The `_dns` SVCB line represents optional RFC 9461 discovery with WebPKI. The
+proof-pinned setup above does not require it.
 
 The browser evaluates supported protocols in the effective RFC 9460 HTTPS
 ALPN set as `h3`, `h2`, then `http/1.1`; the HTTP/1.1 scheme default applies

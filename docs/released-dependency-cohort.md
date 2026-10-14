@@ -19,16 +19,12 @@ source overrides and Git dependencies, and requires one copy of each package.
 | `hns-wallet-market` | 0.5.1 |
 | `hns-wallet-mobile` | 0.6.0 |
 
-The HNS 0.4.3 peer-race/reconnect patch was published from
-`1c0ff8247e21e11522a8caf7307386e0361` in `hns-wallet-rs`. The market package
-remains on 0.5.1. HNS 0.4.5 was selected from wallet source
-`64deb1db53dcd669919e88556d5a63569edc5d51`; Bitcoin 0.4.5 followed in
-`9a744d4`, and mobile-wallet 0.6.0 in `23e438d`. Unchanged wallet packages
-retain their existing versions. The Bitcoin transport, Kyoto adapter and
-mobile controller originally received the 0.4.2 resume patch from
-`527aa27f71a7054c7f2efc99a50a33d12ef3d784`. It saves verified headers, agreed
-filter headers and raw filters in the encrypted wallet store, resumes partial
-network work after process death, and reruns matching from the genuine birthday.
+HNS 0.4.5 uses wallet source `64deb1db53dcd669919e88556d5a63569edc5d51`;
+Bitcoin 0.4.5 uses `9a744d4`, and mobile-wallet 0.6.0 uses `23e438d`.
+The Bitcoin transport, Kyoto adapter, and mobile controller save verified
+headers, agreed filter headers, and raw filters in the encrypted wallet store.
+They resume partial network work after process death and rerun matching from
+the genuine birthday.
 Cargo aliases such as `hns-core`, `hns-chain`, `hns-p2p`, and `hns-urkel`
 select the corresponding `hns-browser-*` packages.
 
@@ -47,10 +43,10 @@ and archive digests, update the exact requirements and checksum manifest,
 regenerate notices, and run the complete locked mobile gate.
 
 The recovery cohort was published from wallet source
-`ce222cba1abb60d6380121482e21ad2c83484f49` on main. Market/mobile 0.5.1 add chain-visible contract terms,
-automatic seed-only discovery, exact reclaim actions and independently verified
-settlement observations for both assets and offer directions. The former guide
-incorrectly stated that the owner accepted incomplete recovery in 1.0.16;
-that acceptance was never given. All six downloaded registry archives were checked against crates.io checksums,
-clean VCS metadata and the exact reviewed Rust source before app dependency
-resolution. Their digests are pinned in `rust/wallet-crates.sha256`.
+`ce222cba1abb60d6380121482e21ad2c83484f49` on main. It provides
+chain-visible contract terms, automatic seed-only discovery, exact reclaim
+actions, and independently verified settlement observations for both assets
+and offer directions. All six downloaded registry archives were checked against
+crates.io checksums, clean VCS metadata, and the exact reviewed Rust source
+before app dependency resolution. Their digests are pinned in
+`rust/wallet-crates.sha256`.

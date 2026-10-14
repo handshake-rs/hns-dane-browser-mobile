@@ -264,7 +264,7 @@ Configured baseline:
 
 - minSdk: 28 (Android 9), with AndroidX window-inset compatibility and guarded
   API-29 paths for typed foreground services, certificate extraction, and
-  scoped Downloads storage; search queries use the older explicit-UTF-8
+  scoped Downloads storage; search queries use the explicit-UTF-8
   URL-encoder overload
 - compileSdk and targetSdk: 37
 - native NDK API: 28, aligned with the application minSdk
