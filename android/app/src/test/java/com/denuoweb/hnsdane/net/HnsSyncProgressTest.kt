@@ -96,12 +96,42 @@ class HnsSyncProgressTest {
         assertTrue(progress.atTime(nowMillis).isAuthorityReady)
         assertEquals(60_000L, progress.nextStatusPollDelayMillis(nowMillis, preparing = false))
         assertEquals(2_000L, progress.nextStatusPollDelayMillis(nowMillis, preparing = true))
+        assertFalse(progress.needsFullStatusRefresh(nowMillis, nowMillis + 59_000L, "mainnet"))
+        assertTrue(progress.needsFullStatusRefresh(nowMillis, nowMillis + 60_000L, "mainnet"))
+        assertFalse(
+            progress.needsFullStatusRefresh(nowMillis + 60_000L, nowMillis + 61_000L, "mainnet"),
+        )
+        assertTrue(progress.needsFullStatusRefresh(nowMillis, nowMillis, "testnet"))
 
         val expired = progress.atTime(nowMillis + 60_000L)
         assertFalse(expired.isAuthorityReady)
         assertEquals(null, expired.effectiveTargetHeight)
         assertEquals(true, expired.targetEvidenceExpired)
         assertEquals(2_000L, progress.nextStatusPollDelayMillis(nowMillis + 60_000L, false))
+    }
+
+    @Test
+    fun transientProgressOverlaysRetainedStatusWithoutExtendingAuthority() {
+        val snapshot = HnsSyncProgress.fromJson(
+            """{"syncStatusSchemaVersion":3,"network":"mainnet","status":"up_to_date","bestHeight":335684,"effectiveTargetHeight":335684,"lagBlocks":0,"freshness":"current","freshnessThresholdBlocks":2,"treeIntervalBlocks":36,"authoritativeTreeRootHeight":335665,"localTreeRootHeight":335665,"treeRootReady":true,"blocksUntilAuthoritativeTreeRoot":0,"targetSource":"corroboratedPeers","targetPeerGroups":3,"targetEvidenceExpired":false,"targetEvidenceValidUntilUnix":1700000060}""",
+        )
+        val progress = HnsSyncTransientProgress.fromJson(
+            """{"syncInFlight":true,"stagedBestHeight":335690,"stagedAccepted":6}""",
+        )!!
+        val overlaid = progress.applyTo(snapshot)
+        assertTrue(overlaid.syncInFlight)
+        assertEquals(335_690L, overlaid.stagedBestHeight)
+        assertEquals(6L, overlaid.stagedAccepted)
+        assertEquals(335_684L, overlaid.bestHeight)
+        assertTrue(overlaid.isAuthorityReady)
+        assertFalse(overlaid.atTime(1_700_000_060_000L).isAuthorityReady)
+
+        val completed = HnsSyncTransientProgress.fromJson(
+            """{"syncInFlight":false,"stagedBestHeight":null,"stagedAccepted":0}""",
+        )!!
+        assertFalse(completed.applyTo(overlaid).syncInFlight)
+        assertEquals(null, completed.applyTo(overlaid).stagedBestHeight)
+        assertEquals(null, HnsSyncTransientProgress.fromJson("""{"syncInFlight":true,"stagedBestHeight":"1","stagedAccepted":1}"""))
     }
 
     @Test

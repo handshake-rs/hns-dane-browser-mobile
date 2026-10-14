@@ -3628,6 +3628,34 @@ impl BrowserRuntime {
         Ok(status)
     }
 
+    /// Reports private catch-up progress without reading the published SQLite stores.
+    /// The caller must retain a separately authenticated status snapshot and
+    /// expire its peer evidence before using it for browser presentation.
+    pub fn transient_sync_progress_json(&self) -> Result<String, RuntimeError> {
+        let progress = *self
+            .inner
+            .coordination
+            .header_sync_progress
+            .lock()
+            .map_err(|_| RuntimeError::Synchronization("header sync progress"))?;
+        let staged_best_height = progress
+            .in_flight
+            .then_some(progress.staged_best_height)
+            .flatten()
+            .map(|height| height.to_string())
+            .unwrap_or_else(|| "null".to_owned());
+        Ok(format!(
+            r#"{{"syncInFlight":{},"stagedBestHeight":{},"stagedAccepted":{}}}"#,
+            progress.in_flight,
+            staged_best_height,
+            if progress.in_flight {
+                progress.staged_accepted
+            } else {
+                0
+            },
+        ))
+    }
+
     /// Returns the authoritative Handshake name-tree epoch used to scope validated HTTP objects.
     pub fn chain_tip_token(&self) -> Result<String, RuntimeError> {
         let _maintenance = self
@@ -17134,11 +17162,13 @@ fn estimated_mainnet_tip_height(now: u64) -> Option<u32> {
 fn read_sync_status(data_dir: &str, network: NetworkKind) -> Result<NativeSyncStatus, String> {
     let base = network_base_path(data_dir, network);
     let chain = open_initialized_header_chain(&base, network)?;
+    let best = chain
+        .best_header()
+        .map_err(|error| format!("read best header: {error}"))?;
     let header_generation = chain
         .into_store()
         .sync_generation()
         .map_err(|error| format!("read header sync generation: {error}"))?;
-    let chain = open_initialized_header_chain(&base, network)?;
     let peer_store = SqlitePeerStore::open(base.join("peers.sqlite"))
         .map_err(|error| format!("open peer store: {error}"))?;
     let peer_generation = peer_store
@@ -17148,9 +17178,6 @@ fn read_sync_status(data_dir: &str, network: NetworkKind) -> Result<NativeSyncSt
         .load_manager()
         .map_err(|error| format!("load peer store: {error}"))?;
     retain_allowed_peer_endpoints(&mut peers, &network.network());
-    let best = chain
-        .best_header()
-        .map_err(|error| format!("read best header: {error}"))?;
     let now = now_unix_seconds();
     let best_height = best.map(|header| header.height.0);
     let best_peer_height = best_peer_height(&peers);
@@ -20174,6 +20201,10 @@ mod tests {
         assert!(in_flight.sync_in_flight);
         assert_eq!(in_flight.staged_best_height, Some(42));
         assert_eq!(in_flight.staged_accepted, 42);
+        assert_eq!(
+            runtime.transient_sync_progress_json().unwrap(),
+            r#"{"syncInFlight":true,"stagedBestHeight":42,"stagedAccepted":42}"#,
+        );
 
         drop(run);
         let completed = runtime.sync_status().unwrap();
@@ -20181,6 +20212,10 @@ mod tests {
         assert!(!completed.sync_in_flight);
         assert_eq!(completed.staged_best_height, None);
         assert_eq!(completed.staged_accepted, 0);
+        assert_eq!(
+            runtime.transient_sync_progress_json().unwrap(),
+            r#"{"syncInFlight":false,"stagedBestHeight":null,"stagedAccepted":0}"#,
+        );
         cleanup_dir(&data_dir);
     }
 

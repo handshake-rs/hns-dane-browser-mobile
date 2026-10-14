@@ -228,6 +228,13 @@ object NativeBridge :
         block = ::nativeRuntimeSyncStatus,
     )
 
+    fun syncProgress(dataDir: String, network: String = DEFAULT_NETWORK): String = withRuntime(
+        dataDir = dataDir,
+        network = network,
+        unavailable = "",
+        block = ::nativeRuntimeSyncProgress,
+    )
+
     fun chainTipToken(dataDir: String, network: String = DEFAULT_NETWORK): String? {
         val token = withRuntime(
             dataDir = dataDir,
@@ -554,6 +561,8 @@ object NativeBridge :
     private external fun nativeRuntimeSyncOnce(handle: Long): String
 
     private external fun nativeRuntimeSyncStatus(handle: Long): String
+
+    private external fun nativeRuntimeSyncProgress(handle: Long): String
 
     private external fun nativeRuntimeChainTipToken(handle: Long): String
 

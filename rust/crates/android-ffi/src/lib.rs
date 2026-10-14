@@ -5968,6 +5968,20 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeS
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeSyncProgress(
+    env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jstring {
+    let progress = runtime_from_handle(handle)
+        .and_then(|runtime| runtime.transient_sync_progress_json().ok())
+        .unwrap_or_default();
+    env.new_string(progress)
+        .map(|value| value.into_raw())
+        .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeChainTipToken(
     env: JNIEnv<'_>,
     _class: JClass<'_>,

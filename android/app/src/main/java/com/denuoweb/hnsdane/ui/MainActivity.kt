@@ -78,6 +78,7 @@ import com.denuoweb.hnsdane.net.GatewayEventLog
 import com.denuoweb.hnsdane.net.HnsServiceWorkerGatewayClient
 import com.denuoweb.hnsdane.net.HnsSyncProgress
 import com.denuoweb.hnsdane.net.HnsSyncSnapshot
+import com.denuoweb.hnsdane.net.HnsSyncTransientProgress
 import com.denuoweb.hnsdane.net.HnsNativeDownloadFetcher
 import com.denuoweb.hnsdane.net.HnsProxyWebSocketPolicy
 import com.denuoweb.hnsdane.net.HnsWebViewGatewayInterceptor
@@ -157,6 +158,7 @@ class MainActivity : ComponentActivity() {
     private var mainFrameHnsTraceJson: String? = null
     private var mainFrameHnsStatusUrl: String? = null
     private var lastSyncProgress = HnsSyncProgress()
+    private var lastSyncStatusRefreshMillis = 0L
     private var syncSnapshotSubscription: Closeable? = null
     private var syncPreparationSubscription: Closeable? = null
     private var foregroundSyncPreparing: Boolean = false
@@ -655,9 +657,8 @@ class MainActivity : ComponentActivity() {
     private fun startSyncStatusPolling() {
         syncStatusPolling = true
         mainHandler.removeCallbacks(syncStatusPollRunnable)
-        // The first persisted-status read can race the scheduler's immediate
-        // foreground pass. Recheck promptly, then return to the low-overhead
-        // steady two-second cadence in pollSyncStatusOnce().
+        // The first status read can race the scheduler's immediate foreground
+        // pass. Recheck promptly; later active polls use transient progress.
         mainHandler.postDelayed(syncStatusPollRunnable, INITIAL_SYNC_STATUS_POLL_MS)
     }
 
@@ -684,20 +685,35 @@ class MainActivity : ComponentActivity() {
         if (!syncStatusPolling) {
             return
         }
-
+        val network = HnsResolutionPreferences.handshakeNetworkId(this)
+        val nowMillis = System.currentTimeMillis()
+        val fullRead = lastSyncProgress.needsFullStatusRefresh(
+            lastSyncStatusRefreshMillis,
+            nowMillis,
+            network,
+        )
         syncStatusExecutor.execute {
-            val snapshot = HnsSyncSnapshot(
-                statusJson = NativeBridge.syncStatus(
-                    filesDir.absolutePath,
-                    HnsResolutionPreferences.handshakeNetworkId(this),
-                ),
-                updatedAtMillis = System.currentTimeMillis(),
+            val transient = if (fullRead) null else HnsSyncTransientProgress.fromJson(
+                NativeBridge.syncProgress(filesDir.absolutePath, network),
             )
+            val snapshot = if (fullRead || transient == null) HnsSyncSnapshot(
+                statusJson = NativeBridge.syncStatus(filesDir.absolutePath, network),
+                updatedAtMillis = System.currentTimeMillis(),
+            ) else null
             runOnUiThread {
                 if (!syncStatusPolling) {
                     return@runOnUiThread
                 }
-                updateSyncSnapshot(snapshot)
+                if (network != HnsResolutionPreferences.handshakeNetworkId(this)) {
+                    scheduleNextSyncStatusPoll(forceSoon = true)
+                    return@runOnUiThread
+                }
+                if (snapshot != null) {
+                    updateSyncSnapshot(snapshot)
+                } else if (transient != null) {
+                    lastSyncProgress = transient.applyTo(lastSyncProgress)
+                        .atTime(System.currentTimeMillis())
+                }
                 refreshSecurityState()
                 refreshSyncProgress()
                 scheduleNextSyncStatusPoll()
@@ -1213,7 +1229,9 @@ class MainActivity : ComponentActivity() {
             !isIcannBootstrapTarget(target)
 
     private fun updateSyncSnapshot(snapshot: HnsSyncSnapshot) {
+        if (snapshot.updatedAtMillis < lastSyncStatusRefreshMillis) return
         lastSyncProgress = HnsSyncProgress.fromJson(snapshot.statusJson)
+        lastSyncStatusRefreshMillis = snapshot.updatedAtMillis
     }
 
     private fun currentSyncProgress(): HnsSyncProgress =

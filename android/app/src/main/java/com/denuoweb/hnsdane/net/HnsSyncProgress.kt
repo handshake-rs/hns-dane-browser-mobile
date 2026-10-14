@@ -65,6 +65,20 @@ data class HnsSyncProgress(
         return untilDeadline.coerceIn(MIN_STATUS_POLL_MS, IDLE_STATUS_POLL_MS)
     }
 
+    /** Revalidate storage when the retained quorum reaches its expiry boundary. */
+    fun needsFullStatusRefresh(
+        snapshotUpdatedAtMillis: Long,
+        nowMillis: Long,
+        expectedNetwork: String,
+    ): Boolean {
+        val ageMillis = nowMillis - snapshotUpdatedAtMillis
+        if (snapshotUpdatedAtMillis <= 0L || ageMillis < 0L || ageMillis >= IDLE_STATUS_POLL_MS ||
+            network != expectedNetwork
+        ) return true
+        val deadline = targetEvidenceValidUntilUnix ?: return false
+        return snapshotUpdatedAtMillis / 1_000L < deadline && nowMillis / 1_000L >= deadline
+    }
+
     /**
      * Header-tip maintenance is not browser synchronization when the committed
      * chain already contains the name-tree root authoritative for the peer
@@ -356,6 +370,44 @@ data class HnsSyncProgress(
 
         private fun JSONObject.booleanField(name: String): Boolean? =
             opt(name) as? Boolean
+    }
+}
+
+/** Process-local progress layered over the most recent published status. */
+internal data class HnsSyncTransientProgress(
+    val inFlight: Boolean,
+    val stagedBestHeight: Long?,
+    val stagedAccepted: Long,
+) {
+    fun applyTo(status: HnsSyncProgress): HnsSyncProgress = status.copy(
+        syncInFlight = inFlight,
+        stagedBestHeight = if (inFlight) stagedBestHeight else null,
+        stagedAccepted = if (inFlight) stagedAccepted else 0L,
+    )
+
+    companion object {
+        fun fromJson(raw: String?): HnsSyncTransientProgress? {
+            val json = raw
+                ?.takeIf { it.isNotBlank() && it.length <= 256 }
+                ?.let { runCatching { JSONObject(it) }.getOrNull() }
+                ?: return null
+            val inFlight = json.opt("syncInFlight") as? Boolean ?: return null
+            if (!json.has("stagedBestHeight")) return null
+            val heightValue = json.opt("stagedBestHeight")
+            val height = when (heightValue) {
+                JSONObject.NULL -> null
+                is Number -> heightValue.toString().toLongOrNull()?.takeIf { it in 0L..0xffff_ffffL }
+                    ?: return null
+                else -> return null
+            }
+            val accepted = (json.opt("stagedAccepted") as? Number)
+                ?.toString()
+                ?.toLongOrNull()
+                ?.takeIf { it >= 0L }
+                ?: return null
+            if (!inFlight && (height != null || accepted != 0L)) return null
+            return HnsSyncTransientProgress(inFlight, height, accepted)
+        }
     }
 }
 
