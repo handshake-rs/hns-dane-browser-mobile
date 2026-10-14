@@ -37,9 +37,9 @@ fn transport_for(network: NetworkKind) -> Option<HnsPublicHeaderTransport> {
 /// Reuse existing wallet sockets instead of starting another browser peer
 /// pool. Each response is independently validated against the staged browser
 /// chain, and only actual canonical header responses refresh peer evidence.
-pub(super) fn sync_with_wallet_transport(
+pub(super) fn sync_with_wallet_transport<S: HeaderStore>(
     network: NetworkKind,
-    coordinator: &mut HeaderSyncCoordinator<SqliteHeaderStore>,
+    coordinator: &mut HeaderSyncCoordinator<S>,
     peers: &mut hns_p2p::PeerManager,
     store: &SqlitePeerStore,
     on_progress: &mut impl FnMut(Option<u32>, usize),
@@ -84,8 +84,8 @@ pub(super) fn sync_with_wallet_transport(
     .map(Some)
 }
 
-fn sync_shared_headers(
-    coordinator: &mut HeaderSyncCoordinator<SqliteHeaderStore>,
+fn sync_shared_headers<S: HeaderStore>(
+    coordinator: &mut HeaderSyncCoordinator<S>,
     peers: &mut hns_p2p::PeerManager,
     store: &SqlitePeerStore,
     addresses: Vec<SocketAddr>,
