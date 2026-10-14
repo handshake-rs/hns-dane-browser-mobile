@@ -17,6 +17,7 @@ enum class SecurityState {
     StatelessDane,
     DaneViaIcannDoh,
     WebPkiOnly,
+    PlainHttp,
     ValidationFailed,
     ProofUnavailable,
 }

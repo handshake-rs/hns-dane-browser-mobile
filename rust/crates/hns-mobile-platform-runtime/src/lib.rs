@@ -3336,6 +3336,18 @@ impl BrowserRuntime {
         })
     }
 
+    pub fn start_icann_bootstrap_proxy_with_policy_and_observer(
+        &self,
+        policy: RuntimePolicy,
+        observer: Arc<dyn BrowserProxyStatusObserver>,
+    ) -> Result<BrowserProxy, RuntimeError> {
+        self.with_policy_operation(policy, |runtime| {
+            runtime
+                .start_icann_bootstrap_proxy_with_observer(observer)
+                .map_err(|error| RuntimeError::Operation(error.to_string()))
+        })
+    }
+
     pub fn sync_once(&self) -> Result<SyncStatus, RuntimeError> {
         let _sync = self
             .inner

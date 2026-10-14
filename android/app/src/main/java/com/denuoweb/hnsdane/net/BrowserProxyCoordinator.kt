@@ -815,6 +815,7 @@ private fun RustBrowserProxyConfig.normalized(): RustBrowserProxyConfig {
             dohResolverUrl = dohResolverUrl,
             statelessDaneCertificates = statelessDaneCertificates,
             experimentalP2pDnsRelay = experimentalP2pDnsRelay,
+            icannBootstrap = icannBootstrap,
         )
     }
 }
@@ -830,7 +831,8 @@ private fun sameProxySettings(first: RustBrowserProxyConfig, second: RustBrowser
         first.network == second.network &&
         first.dohResolverUrl == second.dohResolverUrl &&
         first.statelessDaneCertificates == second.statelessDaneCertificates &&
-        first.experimentalP2pDnsRelay == second.experimentalP2pDnsRelay
+        first.experimentalP2pDnsRelay == second.experimentalP2pDnsRelay &&
+        first.icannBootstrap == second.icannBootstrap
 
 internal fun canonicalBrowserProxyHost(host: String): String? {
     val canonical = host.trim().removePrefix("[").removeSuffix("]").trimEnd('.').lowercase(Locale.US)

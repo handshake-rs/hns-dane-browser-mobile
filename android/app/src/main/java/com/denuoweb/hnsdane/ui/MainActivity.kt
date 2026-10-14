@@ -168,6 +168,8 @@ class MainActivity : ComponentActivity() {
     private var activeMainFrameUrl: String? = null
     private var pendingMainFrameUrl: String? = null
     private var admittedMainFrameUrl: String? = null
+    @Volatile
+    private var activePageIcannBootstrap: Boolean = false
     private var reloadHnsPageOnNextStart: Boolean = false
     private var pageIsLoading: Boolean = false
     private var pageLoadProgress: Int = 0
@@ -490,9 +492,10 @@ class MainActivity : ComponentActivity() {
         }
         resumeUrl?.let { url ->
             val target = classifier.classify(url)
-            val mayRestoreProxy =
-                !targetRequiresDualRootReadiness(target) || hasCurrentHeaderAuthority()
-            proxyCoordinator.ensure(if (mayRestoreProxy) proxyConfigForTarget(target) else null)
+            val mayRestoreProxy = !targetWaitsForHeaders(target) || activePageIcannBootstrap
+            proxyCoordinator.ensure(
+                if (mayRestoreProxy) proxyConfigForTarget(target, activePageIcannBootstrap) else null,
+            )
         }
         refreshSecurityState()
         refreshSyncProgress()
@@ -704,7 +707,7 @@ class MainActivity : ComponentActivity() {
                     val activeUrl = pendingMainFrameUrl ?: activeMainFrameUrl
                     val target = activeUrl?.let(classifier::classify)
                     if (
-                        target?.let(::targetRequiresDualRootReadiness) == true &&
+                        target?.let(::targetWaitsForHeaders) == true &&
                         !isAuthorityReadyForSelectedNetwork(currentSyncProgress())
                     ) {
                         proxyCoordinator.ensure(null)
@@ -1090,6 +1093,7 @@ class MainActivity : ComponentActivity() {
         val generation = navigationGeneration
         pendingNavigation = null
         pendingHistoryTraversal = null
+        activePageIcannBootstrap = false
         onGenerationStarted(generation)
         proxyNavigationSubmittedGeneration = null
         failedMainFrameUrl = null
@@ -1116,7 +1120,7 @@ class MainActivity : ComponentActivity() {
         }
         pendingMainFrameUrl = target.url
         pendingNavigation = PendingNavigation(target, generation, load)
-        if (targetRequiresDualRootReadiness(target) && !hasCurrentHeaderAuthority()) {
+        if (targetWaitsForHeaders(target)) {
             pageIsLoading = false
             pageLoadProgress = 0
             refreshSecurityState()
@@ -1130,11 +1134,11 @@ class MainActivity : ComponentActivity() {
 
     private fun startAdmittedNavigation(target: BrowserTarget, generation: Long, load: () -> Unit) {
         if (generation != navigationGeneration || activityDestroyed || activityStopped) return
-        val requiresReadiness = targetRequiresDualRootReadiness(target)
-        if (requiresReadiness && !hasCurrentHeaderAuthority()) return
+        val waitsForHeaders = targetWaitsForHeaders(target)
+        if (waitsForHeaders) return
         if (proxyNavigationSubmittedGeneration == generation) return
         proxyNavigationSubmittedGeneration = generation
-        if (requiresReadiness) {
+        if (targetRequiresDualRootReadiness(target)) {
             refreshSyncGateNotice()
         }
         val config = proxyConfigForTarget(target)
@@ -1148,7 +1152,7 @@ class MainActivity : ComponentActivity() {
                 activityStopped ||
                 generation != navigationGeneration ||
                 pendingMainFrameUrl?.mainFrameMatchKey() != target.url.mainFrameMatchKey() ||
-                (requiresReadiness && !hasCurrentHeaderAuthority())
+                targetWaitsForHeaders(target)
             ) {
                 return@navigate
             }
@@ -1159,6 +1163,7 @@ class MainActivity : ComponentActivity() {
             pendingMainFrameUrl = null
             admittedMainFrameUrl = target.url
             activeMainFrameUrl = target.url
+            activePageIcannBootstrap = config?.icannBootstrap == true
             currentTargetKind = target.kind
             failedMainFrameUrl = null
             pageIsLoading = true
@@ -1179,6 +1184,17 @@ class MainActivity : ComponentActivity() {
                 NativeBridge,
             )
     }
+
+    private fun isIcannBootstrapTarget(target: BrowserTarget): Boolean =
+        (target.url.startsWith("https://", ignoreCase = true) ||
+            target.url.startsWith("http://", ignoreCase = true)) &&
+            target.displayHost?.let(NativeBridge::isIcannBootstrapEligible) == true &&
+            targetRequiresDualRootReadiness(target)
+
+    private fun targetWaitsForHeaders(target: BrowserTarget): Boolean =
+        targetRequiresDualRootReadiness(target) &&
+            !hasCurrentHeaderAuthority() &&
+            !isIcannBootstrapTarget(target)
 
     private fun updateSyncSnapshot(snapshot: HnsSyncSnapshot) {
         lastSyncProgress = HnsSyncProgress.fromJson(snapshot.statusJson)
@@ -1203,7 +1219,8 @@ class MainActivity : ComponentActivity() {
         if (pending.generation != navigationGeneration) return
         if (
             targetRequiresDualRootReadiness(pending.target) &&
-            !hasCurrentHeaderAuthority(progress)
+            !hasCurrentHeaderAuthority(progress) &&
+            !isIcannBootstrapTarget(pending.target)
         ) {
             return
         }
@@ -1211,7 +1228,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun restoreActiveProxyIfReady(progress: HnsSyncProgress) {
-        if (!hasCurrentHeaderAuthority(progress) || pendingNavigation != null || activityStopped) return
+        if (!hasCurrentHeaderAuthority(progress) || pendingNavigation != null || activityStopped ||
+            activePageIcannBootstrap) return
         val activeUrl = activeMainFrameUrl ?: return
         val target = classifier.classify(activeUrl)
         if (!targetRequiresDualRootReadiness(target)) return
@@ -1238,7 +1256,7 @@ class MainActivity : ComponentActivity() {
     private fun refreshSyncGateNotice() {
         if (!::syncGateNotice.isInitialized) return
         val pending = pendingNavigation
-        if (pending == null || !targetRequiresDualRootReadiness(pending.target)) {
+        if (pending == null || !targetWaitsForHeaders(pending.target)) {
             syncGateNotice.visibility = View.GONE
             return
         }
@@ -1287,9 +1305,26 @@ class MainActivity : ComponentActivity() {
             ((application as? HnsDaneApplication)?.isHeaderRecoveryInProgress == true ||
                 (foregroundSyncPreparing &&
                     !isAuthorityReadyForSelectedNetwork(syncProgress))) &&
-            securityTarget?.let(::targetRequiresDualRootReadiness) == true
+            securityTarget?.let(::targetWaitsForHeaders) == true
         ) {
             setSecurityState(SecurityState.Syncing)
+            return
+        }
+        if (activePageIcannBootstrap && pendingMainFrameUrl == null &&
+            !pageIsLoading && proxyAvailable) {
+            val activeTarget = activeMainFrameUrl?.let(classifier::classify)
+            if (activeTarget?.let(::isIcannBootstrapTarget) != true ||
+                mainFrameHnsStatusCode?.let { it in 400..599 } == true) {
+                setSecurityState(SecurityState.ValidationFailed)
+                return
+            }
+            setSecurityState(
+                if (activeMainFrameUrl?.startsWith("https://", ignoreCase = true) == true) {
+                    SecurityState.WebPkiOnly
+                } else {
+                    SecurityState.PlainHttp
+                },
+            )
             return
         }
         if (
@@ -1471,6 +1506,7 @@ class MainActivity : ComponentActivity() {
             SecurityState.StatelessDane -> getString(R.string.security_stateless_dane)
             SecurityState.DaneViaIcannDoh -> getString(R.string.security_dane_via_icann_doh)
             SecurityState.WebPkiOnly -> getString(R.string.security_webpki)
+            SecurityState.PlainHttp -> getString(R.string.http_transport_warning)
             SecurityState.ValidationFailed -> getString(R.string.security_failed)
             SecurityState.ProofUnavailable -> getString(R.string.security_proof_unavailable)
         }
@@ -1500,6 +1536,7 @@ class MainActivity : ComponentActivity() {
     private fun securityStatusIconColor(state: SecurityState): Int = when (state) {
         SecurityState.ValidationFailed -> themeColors().destructive
         SecurityState.ProofUnavailable,
+        SecurityState.PlainHttp,
         SecurityState.HnsVerified,
         SecurityState.HnsViaAuthoritativeDoh,
         SecurityState.HnsViaAuthoritativeDns53,
@@ -1629,7 +1666,8 @@ class MainActivity : ComponentActivity() {
                 return when (
                     protectedWebViewRequestAction(
                         proxyAvailable = proxyAvailable,
-                        treeRootReady = hasCurrentHeaderAuthority(),
+                        treeRootReady = hasCurrentHeaderAuthority() ||
+                            (activePageIcannBootstrap && isIcannBootstrapTarget(target)),
                     )
                 ) {
                     ProtectedWebViewRequestAction.ProcessProxy -> null
@@ -2077,7 +2115,10 @@ class MainActivity : ComponentActivity() {
                 .trim()
                 .takeIf { it.isNotBlank() && it != "about:blank" }
 
-    private fun proxyConfigForTarget(target: BrowserTarget): RustBrowserProxyConfig? {
+    private fun proxyConfigForTarget(
+        target: BrowserTarget,
+        preserveIcannBootstrap: Boolean = false,
+    ): RustBrowserProxyConfig? {
         val host = if (target.kind in NATIVE_GATEWAY_TARGET_KINDS) {
             target.displayHost
         } else {
@@ -2098,6 +2139,8 @@ class MainActivity : ComponentActivity() {
             dohResolverUrl = HnsResolutionPreferences.dohResolverUrl(this),
             statelessDaneCertificates = HnsResolutionPreferences.statelessDaneCertificates(this),
             experimentalP2pDnsRelay = HnsResolutionPreferences.experimentalP2pDnsRelay(this),
+            icannBootstrap = preserveIcannBootstrap ||
+                (!hasCurrentHeaderAuthority() && isIcannBootstrapTarget(target)),
         )
     }
 
@@ -2164,6 +2207,7 @@ internal fun securityStatusIconResource(state: SecurityState): Int =
         SecurityState.HnsViaP2pDnsRelay,
         SecurityState.HnsViaUserConfiguredRecoveryDoh,
         SecurityState.ValidationFailed,
+        SecurityState.PlainHttp,
         SecurityState.ProofUnavailable -> android.R.drawable.ic_dialog_alert
         else -> android.R.drawable.ic_lock_lock
     }

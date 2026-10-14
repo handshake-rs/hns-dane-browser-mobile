@@ -10,6 +10,7 @@ class SecurityStatusIconTest {
     fun omnibarDistinguishesSecurePagesFromPlainHttpAndPendingState() {
         assertEquals(android.R.drawable.ic_lock_lock, securityStatusIconResource(SecurityState.DaneVerified))
         assertEquals(android.R.drawable.ic_lock_lock, securityStatusIconResource(SecurityState.WebPkiOnly))
+        assertEquals(android.R.drawable.ic_dialog_alert, securityStatusIconResource(SecurityState.PlainHttp))
         assertEquals(android.R.drawable.ic_dialog_alert, securityStatusIconResource(SecurityState.HnsVerified))
         assertEquals(android.R.drawable.ic_dialog_alert, securityStatusIconResource(SecurityState.ValidationFailed))
         assertEquals(android.R.drawable.ic_popup_sync, securityStatusIconResource(SecurityState.Syncing))

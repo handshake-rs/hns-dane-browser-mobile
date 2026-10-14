@@ -196,6 +196,9 @@ object NativeBridge :
         }
     }
 
+    fun isIcannBootstrapEligible(host: String): Boolean =
+        isLoaded && runCatching { nativeIsIcannBootstrapEligible(host) }.getOrDefault(false)
+
     override fun webSocketScopePolicyScript(): String? =
         if (isLoaded) {
             runCatching { nativeBrowserWebSocketScopePolicyScript() }
@@ -440,6 +443,7 @@ object NativeBridge :
             config.statelessDaneCertificates,
             config.experimentalP2pDnsRelay,
             config.scopeHost,
+            config.icannBootstrap,
         ) ?: return@withRuntime null
         parseRustProxyEndpointBundle(bundle) ?: run {
             rustProxyHandleFromBundle(bundle)?.let(::nativeProxyDestroy)
@@ -539,6 +543,8 @@ object NativeBridge :
 
     private external fun nativeClassifyBrowserHost(host: String): Int
 
+    private external fun nativeIsIcannBootstrapEligible(host: String): Boolean
+
     private external fun nativeBrowserWebSocketScopePolicyScript(): String?
 
     private external fun nativeRuntimeCreate(dataDir: String, network: String): Long
@@ -573,6 +579,7 @@ object NativeBridge :
         statelessDaneCertificates: Boolean,
         experimentalP2pDnsRelay: Boolean,
         scopeRoot: String,
+        icannBootstrap: Boolean,
     ): ByteArray?
 
     private external fun nativeRuntimeGatewayHttpResponse(

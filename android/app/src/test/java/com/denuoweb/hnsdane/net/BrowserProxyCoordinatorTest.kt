@@ -15,6 +15,37 @@ import java.util.concurrent.TimeUnit
 
 class BrowserProxyCoordinatorTest {
     @Test
+    fun bootstrapProxyIsReplacedBeforeDualRootNavigationLoads() {
+        val fixture = Fixture()
+        val bootstrap = fixture.proxy("alpha")
+        val dualRoot = fixture.proxy("alpha", port = 43211)
+        fixture.factory.results += bootstrap
+        fixture.factory.results += dualRoot
+        fixture.coordinator.resume(null)
+        fixture.coordinator.navigate(fixture.config("alpha", icannBootstrap = true), "alpha") {
+            fixture.loads += "bootstrap"
+        }
+        fixture.worker.runNext()
+        fixture.overrideController.completeApply(true)
+        assertEquals(listOf("bootstrap"), fixture.loads)
+
+        fixture.coordinator.navigate(fixture.config("alpha"), "alpha") {
+            fixture.loads += "dual-root"
+        }
+        assertEquals(1, bootstrap.stopCalls)
+        assertEquals(listOf("bootstrap"), fixture.loads)
+        fixture.overrideController.completeClear()
+        fixture.worker.runNext()
+        fixture.worker.runNext()
+        fixture.overrideController.completeApply(true)
+
+        assertEquals(listOf("bootstrap", "dual-root"), fixture.loads)
+        assertEquals(listOf(true, false), fixture.factory.startedConfigs.map { it.icannBootstrap })
+        assertEquals(1, bootstrap.joinCalls)
+        assertTrue(fixture.coordinator.isProxyAvailable)
+    }
+
+    @Test
     fun directNavigationWaitsForProcessOverrideOwnershipBarrier() {
         val fixture = Fixture()
         fixture.overrideController.autoAcquire = false
@@ -751,13 +782,18 @@ class BrowserProxyCoordinatorTest {
             onAvailabilityChanged = availability::add,
         )
 
-        fun config(host: String, statelessDane: Boolean = false): RustBrowserProxyConfig =
+        fun config(
+            host: String,
+            statelessDane: Boolean = false,
+            icannBootstrap: Boolean = false,
+        ): RustBrowserProxyConfig =
             RustBrowserProxyConfig(
                 dataDir = "/tmp/browser",
                 network = "regtest",
                 scopeHost = host,
                 dohResolverUrl = "https://resolver.test/dns-query",
                 statelessDaneCertificates = statelessDane,
+                icannBootstrap = icannBootstrap,
             )
 
         fun proxy(host: String, port: Int = 43210): FakeProxy = FakeProxy(host, port)

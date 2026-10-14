@@ -35,12 +35,12 @@ checkpoint. The iOS catch-up path already makes the equivalent transition.
 
 ## ICANN startup browsing
 
-Version 1.0.18 updates the published mobile proxy dependency to 0.2.4.
-The iOS browser admits permanently reserved ICANN roots through its
-authenticated loopback proxy while Handshake headers synchronize. HTTPS uses
-opaque CONNECT and WebKit WebPKI in this period. Handshake names remain gated
-on verified headers; the browser rotates to its dual-root proxy once they are
-authoritative. The normal Android browser route remains unchanged.
+Both mobile browsers admit sites under permanently reserved ICANN roots
+through a temporary authenticated loopback proxy while Handshake headers
+synchronize. The browser validates the site's certificate with WebPKI during
+this period for HTTPS. Handshake names remain gated on verified headers.
+The next Android navigation after headers become authoritative rotates to
+the dual-root proxy.
 
 ## Seed-only swap recovery
 

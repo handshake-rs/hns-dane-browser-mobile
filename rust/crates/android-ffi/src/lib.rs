@@ -5788,6 +5788,21 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeClassify
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeIsIcannBootstrapEligible(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    host: JString<'_>,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| {
+        env.get_string(&host).ok().is_some_and(|host| {
+            let host = host.to_string_lossy();
+            host.len() <= MAX_BROWSER_NAMESPACE_INPUT_BYTES && is_icann_bootstrap_eligible(&host)
+        })
+    }))
+    .unwrap_or(false) as jboolean
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeBrowserWebSocketScopePolicyScript(
     env: JNIEnv<'_>,
     _class: JClass<'_>,
@@ -6093,6 +6108,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeS
     stateless_dane_certificates: jboolean,
     experimental_p2p_dns_relay: jboolean,
     scope_root: JString<'_>,
+    icann_bootstrap: jboolean,
 ) -> jbyteArray {
     catch_unwind(AssertUnwindSafe(|| {
         let result = runtime_from_handle(handle)
@@ -6109,14 +6125,20 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeS
                 let scope_root = scope_root.to_string_lossy();
                 let hns_scope = android_proxy_hns_scope(&scope_root)?;
                 let statuses = Arc::new(AndroidProxyStatusMailbox::new());
-                runtime
-                    .start_whole_browser_proxy_with_policy_and_observer(
+                (if icann_bootstrap != 0 {
+                    runtime.start_icann_bootstrap_proxy_with_policy_and_observer(
+                        policy,
+                        statuses.clone(),
+                    )
+                } else {
+                    runtime.start_whole_browser_proxy_with_policy_and_observer(
                         hns_scope.as_deref(),
                         policy,
                         statuses.clone(),
                     )
-                    .ok()
-                    .map(|proxy| (proxy, statuses))
+                })
+                .ok()
+                .map(|proxy| (proxy, statuses))
             })
             .and_then(|(proxy, statuses)| register_proxy(proxy, statuses));
         let Some((proxy_handle, record)) = result else {
