@@ -33,8 +33,8 @@ Both participants can reclaim their own funded asset after independently
 verified consensus maturity. A restored taker can claim the other leg after
 its funded leg reveals the public secret in a verified spend. Per-chain
 observations revoke stale settlement state after reorganization. A recovered
-record cannot authorize fresh funding. No original offer records, user-managed
-recovery file, legacy derivation adapter or online counterparty is required.
+record cannot authorize fresh funding. Recovery needs neither the original
+offer records nor an online counterparty.
 
 The audited source passed the market (30), mobile controller (38) and service
 (37) suites, four funded refund/redeem fixtures covering both assets and
@@ -50,5 +50,5 @@ transaction fees. Native spending still requires a verified current chain view,
 exact unspent contract and explicit approval. Tests use synthetic funded
 transactions and fresh encrypted stores, not real account seeds or funds.
 
-The historical beta output whose private derivation context was lost remains
-unchanged. This release introduces no legacy recovery adapter.
+The earlier beta output whose private derivation data was lost remains
+unrecoverable.

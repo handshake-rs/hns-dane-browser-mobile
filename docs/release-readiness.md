@@ -52,10 +52,6 @@ participants and both offer directions. Native signing still requires current
 verified evidence, an unspent contract and consensus maturity. Recovery has
 been qualified with funded synthetic transactions and fresh wallet profiles.
 
-The earlier statement that the owner accepted incomplete recovery was incorrect
-and has been removed. No legacy derivation adapter or recovery-file workflow
-is included.
-
 ## Required before delivery
 
 - Qualify the exact source commit with the portable checks, strict Rust lint,

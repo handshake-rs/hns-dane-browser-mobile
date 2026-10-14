@@ -75,5 +75,4 @@ transaction ancestors committed by the funded contract. A fresh seed restore
 discovers the exact contract and reconstructs reclaim authority without the
 original offers, local key allocations or an online counterparty. Per-chain
 verified observations also restore eligible public-secret claims. Signing
-still requires verified unspent evidence and consensus maturity. No recovery
-file or legacy derivation adapter is included.
+still requires verified unspent evidence and consensus maturity.
