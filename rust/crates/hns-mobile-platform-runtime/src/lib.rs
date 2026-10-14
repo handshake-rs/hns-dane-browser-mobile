@@ -5379,16 +5379,25 @@ impl BrowserRuntime {
         fs::create_dir_all(&base).map_err(|error| {
             RuntimeError::Operation(format!("create gateway directory: {error}"))
         })?;
-        let persistent = self.persistent_gateway_resolver(
-            base.clone(),
-            GatewayResolverContext {
-                network,
-                runtime_policy,
-                peer_state: Some(Arc::clone(&self.inner.coordination.peer_state)),
-                relay: Some(self.inner.coordination.relay.clone()),
-                http: self.inner.transport.clone(),
-            },
-        )?;
+        let request_authority = read_request_authority_snapshot(&base, network)
+            .ok()
+            .map(Arc::new);
+        let resolver_context = GatewayResolverContext {
+            network,
+            runtime_policy,
+            peer_state: Some(Arc::clone(&self.inner.coordination.peer_state)),
+            relay: Some(self.inner.coordination.relay.clone()),
+            http: self.inner.transport.clone(),
+        };
+        let persistent = if let Some(snapshot) = request_authority.as_ref() {
+            self.persistent_gateway_resolver_at_root(
+                base.clone(),
+                resolver_context,
+                snapshot.authority_root_key(),
+            )?
+        } else {
+            self.persistent_gateway_resolver(base.clone(), resolver_context)?
+        };
         // The stack outlives this request; clear any request-scoped state a
         // previous request left behind on this thread.
         persistent.reset_request_state();
@@ -5407,7 +5416,8 @@ impl BrowserRuntime {
             &persistent,
             origin.clone(),
             Arc::clone(&self.inner.namespace_plans),
-        );
+        )
+        .with_authority_snapshot(request_authority);
         let request_plan = resolver.retained_request_plan();
         let stateless_dane =
             stateless_dane_config(&base, parsed_headers.stateless_dane_certificates);
@@ -5461,6 +5471,15 @@ impl BrowserRuntime {
         let authority_root = authoritative_tree_root_header(&base, context.network)
             .ok()
             .map(|best| (best.height.0, best.header.tree_root.to_string()));
+        self.persistent_gateway_resolver_at_root(base, context, authority_root)
+    }
+
+    fn persistent_gateway_resolver_at_root(
+        &self,
+        base: PathBuf,
+        context: GatewayResolverContext,
+        authority_root: Option<(u32, String)>,
+    ) -> Result<Arc<PersistentGatewayResolver>, RuntimeError> {
         let key = GatewayResolverKey {
             base: base.clone(),
             authority_root: authority_root.clone(),
@@ -7495,6 +7514,7 @@ struct AndroidGatewayResolver {
     build_lock: Mutex<()>,
     request_plan: SharedRequestNamespacePlan,
     trace: DnsTraceRecorder,
+    authority_snapshot: Option<Arc<RequestAuthoritySnapshot>>,
 }
 
 impl AndroidGatewayResolver {
@@ -7518,7 +7538,13 @@ impl AndroidGatewayResolver {
             build_lock: Mutex::new(()),
             request_plan: Arc::new(Mutex::new(None)),
             trace,
+            authority_snapshot: None,
         }
+    }
+
+    fn with_authority_snapshot(mut self, snapshot: Option<Arc<RequestAuthoritySnapshot>>) -> Self {
+        self.authority_snapshot = snapshot;
+        self
     }
 
     fn retained_request_plan(&self) -> SharedRequestNamespacePlan {
@@ -7540,19 +7566,27 @@ impl AndroidGatewayResolver {
             plans.retain(|_, plan| plan.expires_at_unix > now);
             plans.get(&origin.key).cloned()
         }?;
-        if let Some(observation) = plan.hns_observation
-            && (!hns_anchor_matches_authoritative_tree_root(
-                &origin.base,
-                origin.network,
-                observation.anchor,
-            )
-            .ok()?
-                || local_chain_lacks_authoritative_tree_root(&origin.base, origin.network).ok()?)
-        {
-            if let Ok(mut plans) = self.plans.lock() {
-                plans.remove(&origin.key);
+        if let Some(observation) = plan.hns_observation {
+            let anchor_current = if let Some(snapshot) = &self.authority_snapshot {
+                snapshot
+                    .matches_anchor(&origin.base, origin.network, observation.anchor)
+                    .ok()?
+            } else {
+                hns_anchor_matches_authoritative_tree_root(
+                    &origin.base,
+                    origin.network,
+                    observation.anchor,
+                )
+                .ok()?
+                    && !local_chain_lacks_authoritative_tree_root(&origin.base, origin.network)
+                        .ok()?
+            };
+            if !anchor_current {
+                if let Ok(mut plans) = self.plans.lock() {
+                    plans.remove(&origin.key);
+                }
+                return None;
             }
-            return None;
         }
         Some(plan)
     }
@@ -16587,6 +16621,77 @@ struct LocalChainCurrentness {
     blocks_until_authoritative_tree_root: Option<u32>,
 }
 
+/// One request's view of the committed chain and corroborated peer target.
+/// Callers hold the shared header-maintenance guard while using this value;
+/// wall-clock expiry is still checked before reusing HNS evidence.
+struct RequestAuthoritySnapshot {
+    base: PathBuf,
+    network: NetworkKind,
+    currentness: LocalChainCurrentness,
+    authority: Option<hns_chain::StoredHeader>,
+    peer_evidence_valid_until_unix: Option<u64>,
+    canonical_roots: Mutex<HashMap<u32, Option<hns_core::Hash>>>,
+}
+
+impl RequestAuthoritySnapshot {
+    fn authority_root_key(&self) -> Option<(u32, String)> {
+        self.authority
+            .as_ref()
+            .map(|header| (header.height.0, header.header.tree_root.to_string()))
+    }
+
+    fn matches_anchor(
+        &self,
+        base: &Path,
+        network: NetworkKind,
+        anchor: ResourceValueAnchor,
+    ) -> Result<bool, ResolverError> {
+        if self.base != base || self.network != network {
+            return Ok(false);
+        }
+        if self.currentness.tree_root_ready != Some(true) {
+            return Ok(false);
+        }
+        if network != NetworkKind::Regtest
+            && self
+                .peer_evidence_valid_until_unix
+                .is_none_or(|deadline| now_unix_seconds() > deadline)
+        {
+            return Ok(false);
+        }
+        let Some(authority) = self.authority.as_ref() else {
+            return Ok(false);
+        };
+        if authority.header.tree_root != anchor.tree_root {
+            return Ok(false);
+        }
+        let cached = self
+            .canonical_roots
+            .lock()
+            .map_err(|_| ResolverError::CachePoisoned)?
+            .get(&anchor.height.0)
+            .cloned();
+        let canonical_root = match cached {
+            Some(root) => root,
+            None => {
+                let store =
+                    SqliteHeaderStore::open(base.join("headers.sqlite")).map_err(|error| {
+                        ResolverError::Storage(format!("open header store: {error}"))
+                    })?;
+                let root = chain_for_network(store, network)
+                    .canonical_header(anchor.height)
+                    .map(|header| header.header.tree_root);
+                self.canonical_roots
+                    .lock()
+                    .map_err(|_| ResolverError::CachePoisoned)?
+                    .insert(anchor.height.0, root);
+                root
+            }
+        };
+        Ok(canonical_root == Some(anchor.tree_root))
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ChainFreshness {
     Current,
@@ -16691,18 +16796,8 @@ fn authoritative_tree_root_header(
     base: &Path,
     network: NetworkKind,
 ) -> Result<hns_chain::StoredHeader, ResolverError> {
-    let currentness = local_chain_currentness(base, network)?;
-    if currentness.tree_root_ready != Some(true) {
-        return Err(ResolverError::LocalChainNotCurrent);
-    }
-    let required_height = currentness
-        .authoritative_tree_root_height
-        .or(currentness.local_tree_root_height)
-        .ok_or(ResolverError::LocalChainNotCurrent)?;
-    let store = SqliteHeaderStore::open(base.join("headers.sqlite"))
-        .map_err(|error| ResolverError::Storage(format!("open header store: {error}")))?;
-    chain_for_network(store, network)
-        .canonical_header(Height(required_height))
+    read_request_authority_snapshot(base, network)?
+        .authority
         .ok_or(ResolverError::LocalChainNotCurrent)
 }
 
@@ -16710,6 +16805,44 @@ fn local_chain_currentness(
     base: &Path,
     network: NetworkKind,
 ) -> Result<LocalChainCurrentness, ResolverError> {
+    Ok(read_chain_currentness(base, network)?.1)
+}
+
+fn read_request_authority_snapshot(
+    base: &Path,
+    network: NetworkKind,
+) -> Result<RequestAuthoritySnapshot, ResolverError> {
+    let (chain, currentness, peer_evidence_valid_until_unix) =
+        read_chain_currentness(base, network)?;
+    let authority = if currentness.tree_root_ready == Some(true) {
+        currentness
+            .authoritative_tree_root_height
+            .or(currentness.local_tree_root_height)
+            .and_then(|height| chain.canonical_header(Height(height)))
+    } else {
+        None
+    };
+    Ok(RequestAuthoritySnapshot {
+        base: base.to_path_buf(),
+        network,
+        currentness,
+        authority,
+        peer_evidence_valid_until_unix,
+        canonical_roots: Mutex::new(HashMap::new()),
+    })
+}
+
+fn read_chain_currentness(
+    base: &Path,
+    network: NetworkKind,
+) -> Result<
+    (
+        HeaderChain<SqliteHeaderStore>,
+        LocalChainCurrentness,
+        Option<u64>,
+    ),
+    ResolverError,
+> {
     let header_store = SqliteHeaderStore::open(base.join("headers.sqlite"))
         .map_err(|error| ResolverError::Storage(format!("open header store: {error}")))?;
     let header_generation = header_store
@@ -16736,13 +16869,14 @@ fn local_chain_currentness(
     let network_policy = network.network();
     retain_allowed_peer_endpoints(&mut peers, &network_policy);
     let now = now_unix_seconds();
-    let target_height = assess_peer_target(&peers, &network_policy, now).height;
-    Ok(LocalChainCurrentness::new(
+    let peer_target = assess_peer_target(&peers, &network_policy, now);
+    let currentness = LocalChainCurrentness::new(
         network,
         best_height,
-        target_height,
+        peer_target.height,
         estimated_tip_height_for_network(network, now),
-    ))
+    );
+    Ok((chain, currentness, peer_target.evidence_valid_until_unix))
 }
 
 fn select_live_proof_peers(
@@ -28132,6 +28266,51 @@ mod tests {
         assert!(Arc::ptr_eq(&first, &second));
         assert!(!Arc::ptr_eq(&first, &relayed));
         assert_eq!(runtime.inner.gateway_resolvers.lock().unwrap().len(), 2);
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn request_authority_snapshot_reuses_a_canonical_anchor_without_extending_peer_expiry() {
+        let (data_dir, _runtime) = runtime_with_cached_loopback_name("request-authority-snapshot");
+        let base = data_dir.join("hns-regtest");
+        let mut snapshot = read_request_authority_snapshot(&base, NetworkKind::Regtest).unwrap();
+        let authority = snapshot.authority.as_ref().unwrap();
+        let anchor = ResourceValueAnchor {
+            tree_root: authority.header.tree_root,
+            height: authority.height,
+        };
+
+        assert!(
+            snapshot
+                .matches_anchor(&base, NetworkKind::Regtest, anchor)
+                .unwrap()
+        );
+        assert!(
+            snapshot
+                .matches_anchor(&base, NetworkKind::Regtest, anchor)
+                .unwrap()
+        );
+        assert_eq!(snapshot.canonical_roots.lock().unwrap().len(), 1);
+        assert!(
+            !snapshot
+                .matches_anchor(
+                    &base,
+                    NetworkKind::Regtest,
+                    ResourceValueAnchor {
+                        tree_root: Hash::new([77; 32]),
+                        height: anchor.height,
+                    },
+                )
+                .unwrap()
+        );
+
+        snapshot.network = NetworkKind::Mainnet;
+        snapshot.peer_evidence_valid_until_unix = Some(0);
+        assert!(
+            !snapshot
+                .matches_anchor(&base, NetworkKind::Mainnet, anchor)
+                .unwrap()
+        );
         cleanup_dir(&data_dir);
     }
 
