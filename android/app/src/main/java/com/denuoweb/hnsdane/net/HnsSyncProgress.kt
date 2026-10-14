@@ -34,7 +34,37 @@ data class HnsSyncProgress(
     val targetSource: String = "unknown",
     val targetPeerGroups: Long? = null,
     val targetEvidenceExpired: Boolean? = null,
+    val targetEvidenceValidUntilUnix: Long? = null,
 ) {
+    /** A retained snapshot cannot authorize navigation after its peer quorum expires. */
+    fun atTime(nowMillis: Long): HnsSyncProgress {
+        val deadline = targetEvidenceValidUntilUnix ?: return this
+        if (nowMillis / 1_000L < deadline) return this
+        return copy(
+            status = if (status in CURRENT_STATUSES) "syncing" else status,
+            effectiveTargetHeight = null,
+            lagBlocks = null,
+            freshness = "unknown",
+            authoritativeTreeRootHeight = null,
+            treeRootReady = null,
+            blocksUntilAuthoritativeTreeRoot = null,
+            targetSource = "unknown",
+            targetPeerGroups = 0,
+            targetEvidenceExpired = true,
+        )
+    }
+
+    /** Poll frequently only while native work can publish intermediate progress. */
+    fun nextStatusPollDelayMillis(nowMillis: Long, preparing: Boolean): Long {
+        val current = atTime(nowMillis)
+        if (preparing || current.syncInFlight || !current.isAuthorityReady) {
+            return ACTIVE_STATUS_POLL_MS
+        }
+        val deadline = current.targetEvidenceValidUntilUnix ?: return ACTIVE_STATUS_POLL_MS
+        val untilDeadline = deadline.coerceAtMost(Long.MAX_VALUE / 1_000L) * 1_000L - nowMillis
+        return untilDeadline.coerceIn(MIN_STATUS_POLL_MS, IDLE_STATUS_POLL_MS)
+    }
+
     /**
      * Header-tip maintenance is not browser synchronization when the committed
      * chain already contains the name-tree root authoritative for the peer
@@ -262,6 +292,9 @@ data class HnsSyncProgress(
         private const val REQUIRED_TARGET_PEER_GROUPS = 3L
         private const val MAX_STATUS_JSON_CHARS = 64 * 1024
         private const val MAX_U32 = 0xffff_ffffL
+        private const val MIN_STATUS_POLL_MS = 250L
+        private const val ACTIVE_STATUS_POLL_MS = 2_000L
+        private const val IDLE_STATUS_POLL_MS = 10L * 60L * 1_000L
         private val EXPECTED_TREE_INTERVAL_BLOCKS = mapOf(
             "mainnet" to 36L,
             "testnet" to 36L,
@@ -302,6 +335,8 @@ data class HnsSyncProgress(
                 targetSource = json.stringField("targetSource") ?: "unknown",
                 targetPeerGroups = json.nonnegativeLongField("targetPeerGroups"),
                 targetEvidenceExpired = json.booleanField("targetEvidenceExpired"),
+                targetEvidenceValidUntilUnix =
+                    json.nonnegativeLongField("targetEvidenceValidUntilUnix"),
             )
         }
 

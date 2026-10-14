@@ -661,6 +661,20 @@ class MainActivity : ComponentActivity() {
         mainHandler.postDelayed(syncStatusPollRunnable, INITIAL_SYNC_STATUS_POLL_MS)
     }
 
+    private fun scheduleNextSyncStatusPoll(forceSoon: Boolean = false) {
+        if (!syncStatusPolling) return
+        val delay = if (forceSoon) {
+            INITIAL_SYNC_STATUS_POLL_MS
+        } else {
+            lastSyncProgress.nextStatusPollDelayMillis(
+                nowMillis = System.currentTimeMillis(),
+                preparing = foregroundSyncPreparing,
+            )
+        }
+        mainHandler.removeCallbacks(syncStatusPollRunnable)
+        mainHandler.postDelayed(syncStatusPollRunnable, delay)
+    }
+
     private fun stopSyncStatusPolling() {
         syncStatusPolling = false
         mainHandler.removeCallbacks(syncStatusPollRunnable)
@@ -686,7 +700,7 @@ class MainActivity : ComponentActivity() {
                 updateSyncSnapshot(snapshot)
                 refreshSecurityState()
                 refreshSyncProgress()
-                mainHandler.postDelayed(syncStatusPollRunnable, SYNC_STATUS_POLL_MS)
+                scheduleNextSyncStatusPoll()
             }
         }
     }
@@ -703,6 +717,7 @@ class MainActivity : ComponentActivity() {
                     return@post
                 }
                 foregroundSyncPreparing = preparing
+                if (preparing) scheduleNextSyncStatusPoll(forceSoon = true)
                 if (preparing) {
                     val activeUrl = pendingMainFrameUrl ?: activeMainFrameUrl
                     val target = activeUrl?.let(classifier::classify)
@@ -725,6 +740,7 @@ class MainActivity : ComponentActivity() {
                 updateSyncSnapshot(snapshot)
                 refreshSecurityState()
                 refreshSyncProgress()
+                scheduleNextSyncStatusPoll()
             }
         }
     }
@@ -1200,7 +1216,8 @@ class MainActivity : ComponentActivity() {
         lastSyncProgress = HnsSyncProgress.fromJson(snapshot.statusJson)
     }
 
-    private fun currentSyncProgress(): HnsSyncProgress = lastSyncProgress
+    private fun currentSyncProgress(): HnsSyncProgress =
+        lastSyncProgress.atTime(System.currentTimeMillis())
 
     private fun isAuthorityReadyForSelectedNetwork(progress: HnsSyncProgress): Boolean =
         progress.isAuthorityReadyFor(HnsResolutionPreferences.handshakeNetworkId(this))
@@ -2168,7 +2185,6 @@ class MainActivity : ComponentActivity() {
         private const val SYNC_PROGRESS_MAX = 1000
         private const val PAGE_PROGRESS_MAX = 100
         private const val INITIAL_SYNC_STATUS_POLL_MS = 250L
-        private const val SYNC_STATUS_POLL_MS = 2_000L
         private const val TOOLBAR_CONTROL_HEIGHT_DP = 48
         private const val TAB_BUTTON_SIZE_DP = 48
         private const val HTTP_WARNING_BAR_HEIGHT_DP = 22

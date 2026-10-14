@@ -87,6 +87,24 @@ class HnsSyncProgressTest {
     }
 
     @Test
+    fun publishedStatusSleepsUntilPeerEvidenceExpiresThenFailsClosed() {
+        val nowMillis = 1_700_000_000_000L
+        val progress = HnsSyncProgress.fromJson(
+            """{"syncStatusSchemaVersion":3,"network":"mainnet","status":"up_to_date","bestHeight":335684,"effectiveTargetHeight":335684,"lagBlocks":0,"freshness":"current","freshnessThresholdBlocks":2,"treeIntervalBlocks":36,"authoritativeTreeRootHeight":335665,"localTreeRootHeight":335665,"treeRootReady":true,"blocksUntilAuthoritativeTreeRoot":0,"targetSource":"corroboratedPeers","targetPeerGroups":3,"targetEvidenceExpired":false,"targetEvidenceValidUntilUnix":1700000060}""",
+        )
+
+        assertTrue(progress.atTime(nowMillis).isAuthorityReady)
+        assertEquals(60_000L, progress.nextStatusPollDelayMillis(nowMillis, preparing = false))
+        assertEquals(2_000L, progress.nextStatusPollDelayMillis(nowMillis, preparing = true))
+
+        val expired = progress.atTime(nowMillis + 60_000L)
+        assertFalse(expired.isAuthorityReady)
+        assertEquals(null, expired.effectiveTargetHeight)
+        assertEquals(true, expired.targetEvidenceExpired)
+        assertEquals(2_000L, progress.nextStatusPollDelayMillis(nowMillis + 60_000L, false))
+    }
+
+    @Test
     fun doesNotPresentEstimatedTipWhenAuthoritativeTargetIsUnknown() {
         val progress = HnsSyncProgress.fromJson(
             """{"syncStatusSchemaVersion":3,"network":"mainnet","status":"syncing","accepted":2000,"bestHeight":92000,"bestPeerHeight":null,"estimatedTipHeight":335684,"effectiveTargetHeight":null,"lagBlocks":null,"freshness":"unknown","freshnessThresholdBlocks":2,"treeIntervalBlocks":36,"authoritativeTreeRootHeight":null,"localTreeRootHeight":91981,"treeRootReady":null,"blocksUntilAuthoritativeTreeRoot":null,"targetSource":"unknown","targetPeerGroups":0,"targetEvidenceExpired":true,"peerCount":0}""",
