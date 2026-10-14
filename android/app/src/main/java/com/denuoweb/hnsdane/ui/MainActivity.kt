@@ -5,6 +5,7 @@ import android.app.DownloadManager
 import android.content.ActivityNotFoundException
 import android.content.ContentValues
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
@@ -129,7 +130,7 @@ class MainActivity : ComponentActivity() {
     private var omniboxFullUrl: String = ""
     private lateinit var securityStatusIcon: ImageButton
     private var securityStatusText: String = ""
-    private lateinit var hamburgerButton: TextView
+    private lateinit var hamburgerButton: ImageButton
     private var hamburgerPopup: PopupWindow? = null
     private lateinit var tabButton: TextView
     private var tabPopup: PopupWindow? = null
@@ -276,8 +277,9 @@ class MainActivity : ComponentActivity() {
 
         securityStatusIcon = ImageButton(this).apply {
             scaleType = ImageView.ScaleType.CENTER_INSIDE
-            setPadding(dp(2), dp(2), dp(2), dp(2))
+            setPadding(dp(10), dp(10), dp(10), dp(10))
             setImageResource(securityStatusIconResource(SecurityState.Syncing))
+            imageTintList = ColorStateList.valueOf(securityStatusIconColor(SecurityState.Syncing))
             contentDescription = getString(R.string.security_status_content_description)
             isClickable = true
             isFocusable = true
@@ -732,18 +734,18 @@ class MainActivity : ComponentActivity() {
         foregroundSyncPreparing = false
     }
 
-    private fun menuButton(): TextView =
-        TextView(this).apply {
+    private fun menuButton(): ImageButton =
+        ImageButton(this).apply {
             val colors = themeColors()
             hamburgerButton = this
-            text = "☰"
-            textSize = 34f
-            gravity = Gravity.CENTER
+            setImageResource(android.R.drawable.ic_menu_more)
+            imageTintList = ColorStateList.valueOf(colors.primaryText)
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
             contentDescription = getString(R.string.menu_hamburger_content_description)
-            minWidth = dp(MENU_ICON_BUTTON_SIZE_DP)
-            minHeight = dp(MENU_ICON_BUTTON_SIZE_DP)
-            setPadding(dp(14), 0, dp(14), 0)
-            setTextColor(colors.primaryText)
+            minimumWidth = dp(MENU_ICON_BUTTON_SIZE_DP)
+            minimumHeight = dp(MENU_ICON_BUTTON_SIZE_DP)
+            setPadding(dp(14), dp(14), dp(14), dp(14))
+            applyScreenSelectableBackground()
             setOnClickListener { showHamburgerMenu() }
         }
 
@@ -1490,8 +1492,24 @@ class MainActivity : ComponentActivity() {
         }
         securityStatusText = namespaceBadge?.let { "$baseLabel · $it" } ?: baseLabel
         securityStatusIcon.setImageResource(securityStatusIconResource(state))
+        securityStatusIcon.imageTintList = ColorStateList.valueOf(securityStatusIconColor(state))
         securityStatusIcon.contentDescription =
             "$securityStatusText. ${getString(R.string.security_status_content_description)}"
+    }
+
+    private fun securityStatusIconColor(state: SecurityState): Int = when (state) {
+        SecurityState.ValidationFailed -> themeColors().destructive
+        SecurityState.ProofUnavailable,
+        SecurityState.HnsVerified,
+        SecurityState.HnsViaAuthoritativeDoh,
+        SecurityState.HnsViaAuthoritativeDns53,
+        SecurityState.HnsViaP2pDnsRelay,
+        SecurityState.HnsViaUserConfiguredRecoveryDoh ->
+            if (BrowserThemePreferences.effectiveDark(this)) Color.rgb(255, 193, 7)
+            else Color.rgb(177, 104, 0)
+        SecurityState.LocalContent, SecurityState.Syncing, SecurityState.Loading ->
+            themeColors().secondaryText
+        else -> themeColors().securityText
     }
 
     private inner class BrowserClient : WebViewClient() {
@@ -2135,27 +2153,19 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/** Exact omnibar badge supplied for each browser security state. */
+/** Familiar security symbols; the resolver trace retains the exact provenance. */
 internal fun securityStatusIconResource(state: SecurityState): Int =
     when (state) {
-        SecurityState.LocalContent -> R.drawable.omnibar_status_local
-        SecurityState.Syncing -> R.drawable.omnibar_status_sync
-        SecurityState.Loading -> R.drawable.omnibar_status_load
-        SecurityState.HnsVerified -> R.drawable.omnibar_status_http
-        SecurityState.HnsViaAuthoritativeDoh -> R.drawable.omnibar_status_http_adoh
-        SecurityState.HnsViaAuthoritativeDns53 -> R.drawable.omnibar_status_http_dns53
-        SecurityState.HnsViaP2pDnsRelay -> R.drawable.omnibar_status_http_p2p
-        SecurityState.HnsViaUserConfiguredRecoveryDoh -> R.drawable.omnibar_status_http_rdoh
-        SecurityState.DaneVerified -> R.drawable.omnibar_status_https
-        SecurityState.DaneViaAuthoritativeDoh -> R.drawable.omnibar_status_https_adoh
-        SecurityState.DaneViaAuthoritativeDns53 -> R.drawable.omnibar_status_https_dns53
-        SecurityState.DaneViaP2pDnsRelay -> R.drawable.omnibar_status_https_p2p
-        SecurityState.DaneViaUserConfiguredRecoveryDoh -> R.drawable.omnibar_status_https_rdoh
-        SecurityState.StatelessDane -> R.drawable.omnibar_status_sdane
-        SecurityState.DaneViaIcannDoh -> R.drawable.omnibar_status_icann
-        SecurityState.WebPkiOnly -> R.drawable.omnibar_status_webpki
-        SecurityState.ValidationFailed -> R.drawable.omnibar_status_fail
-        SecurityState.ProofUnavailable -> R.drawable.omnibar_status_noproof
+        SecurityState.LocalContent -> android.R.drawable.ic_menu_info_details
+        SecurityState.Syncing, SecurityState.Loading -> android.R.drawable.ic_popup_sync
+        SecurityState.HnsVerified,
+        SecurityState.HnsViaAuthoritativeDoh,
+        SecurityState.HnsViaAuthoritativeDns53,
+        SecurityState.HnsViaP2pDnsRelay,
+        SecurityState.HnsViaUserConfiguredRecoveryDoh,
+        SecurityState.ValidationFailed,
+        SecurityState.ProofUnavailable -> android.R.drawable.ic_dialog_alert
+        else -> android.R.drawable.ic_lock_lock
     }
 
 private data class PendingNavigation(

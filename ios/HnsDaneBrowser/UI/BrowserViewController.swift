@@ -274,7 +274,7 @@ final class BrowserViewController: UIViewController {
         configureButton(forwardButton, symbol: "chevron.forward", label: "Forward", action: #selector(goForward))
         configureButton(reloadButton, symbol: "arrow.clockwise", label: "Reload", action: #selector(reloadOrStop))
         configureTabsButton()
-        controlsButton.setImage(UIImage(systemName: "gearshape"), for: .normal)
+        controlsButton.setImage(UIImage(systemName: "ellipsis.circle"), for: .normal)
         controlsButton.accessibilityLabel = "Browser menu"
         controlsButton.accessibilityHint = "Opens settings and page sharing actions"
         controlsButton.accessibilityIdentifier = "app-store-screenshot.controls"
