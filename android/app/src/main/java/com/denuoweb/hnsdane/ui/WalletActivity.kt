@@ -2694,6 +2694,11 @@ class WalletActivity : ComponentActivity() {
         )
     }
 
+    /** Color the final submission control after Android has created its dialog buttons. */
+    private fun AlertDialog.markFinalSubmission(): AlertDialog = apply {
+        getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(themeColors().destructive)
+    }
+
     /** A locked native wallet must never remain visually covered by wallet data. */
     private fun dismissWalletPopupsForLock() {
         // Detach approval listeners before the general sweep. Native lock or
@@ -3838,6 +3843,7 @@ class WalletActivity : ComponentActivity() {
             if (walletDeletionDialog === dialog) walletDeletionDialog = null
         }
         dialog.show()
+        dialog.markFinalSubmission()
     }
 
     private fun requestHnsSyncCancellation() {
@@ -3903,6 +3909,7 @@ class WalletActivity : ComponentActivity() {
             }
         }
         dialog.show()
+        dialog.markFinalSubmission()
     }
 
     private fun deleteConfirmedWallet(
@@ -6023,7 +6030,7 @@ class WalletActivity : ComponentActivity() {
                     }
                 }
             }
-            .show()
+            .show().markFinalSubmission()
     }
 
     private fun bitcoinBroadcastRecoveryText(
@@ -6312,7 +6319,7 @@ class WalletActivity : ComponentActivity() {
                 }
             }
             .setOnCancelListener { reject() }
-            .show()
+            .show().markFinalSubmission()
     }
 
     private fun prepareBtcForHnsFunding(execution: NativeShakescapeExecutionSummary, maximumFeeSats: Long) {
@@ -6430,7 +6437,7 @@ class WalletActivity : ComponentActivity() {
                 }
             }
             .setOnCancelListener { reject() }
-            .show()
+            .show().markFinalSubmission()
     }
 
     private fun prepareHnsForBtcFunding(
@@ -6561,7 +6568,7 @@ class WalletActivity : ComponentActivity() {
                 }
             }
             .setOnCancelListener { reject() }
-            .show()
+            .show().markFinalSubmission()
     }
 
     private fun confirmCancelDirectOffer(offer: NativeDirectOfferSummary) {
@@ -6587,7 +6594,7 @@ class WalletActivity : ComponentActivity() {
                     }
                 }
             }
-            .show()
+            .show().markFinalSubmission()
     }
 
     private fun prepareHnsForBtcOffer(
@@ -6698,7 +6705,7 @@ class WalletActivity : ComponentActivity() {
                 }
             }
             .setOnCancelListener { reject() }
-            .show()
+            .show().markFinalSubmission()
     }
 
     private fun prepareDirectOfferAcceptance(offer: NativeDirectOfferSummary, feeReserve: Long) {
@@ -6889,7 +6896,7 @@ class WalletActivity : ComponentActivity() {
                 }
             }
             .setOnCancelListener { reject() }
-            .show()
+            .show().markFinalSubmission()
     }
 
     private fun prepareBtcForHnsOffer(
@@ -7042,7 +7049,7 @@ class WalletActivity : ComponentActivity() {
                 }
             }
             .setOnCancelListener { reject() }
-            .show()
+            .show().markFinalSubmission()
     }
 
     private fun prepareBitcoinSend(destination: String, amountSats: Long, maximumFeeSats: Long) {
@@ -7207,7 +7214,7 @@ class WalletActivity : ComponentActivity() {
                 }
             }
             .setOnCancelListener { reject() }
-            .show()
+            .show().markFinalSubmission()
     }
 
     private fun showTransferNameForm() = showWalletActionForm(
@@ -7918,6 +7925,7 @@ class WalletActivity : ComponentActivity() {
             }
         }
         dialog.show()
+        dialog.markFinalSubmission()
     }
 
     private fun approvePreparedValueAction(
@@ -8536,6 +8544,7 @@ class WalletActivity : ComponentActivity() {
             }
         }
         dialog.show()
+        dialog.markFinalSubmission()
     }
 
     private fun approvePreparedSend(

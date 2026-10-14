@@ -5591,7 +5591,7 @@ final class WalletViewController: UIViewController {
             "wallet_value_actions_expires", expiry
         )]).joined(separator: "\n\n")
         let alert = UIAlertController(
-            title: WalletCopy.text("action_approve_hns_value"),
+            title: approval.title,
             message: message,
             preferredStyle: .alert
         )
@@ -5604,7 +5604,7 @@ final class WalletViewController: UIViewController {
                 authorityGeneration: authorityGeneration
             )
         })
-        alert.addAction(UIAlertAction(title: WalletCopy.text("action_broadcast_hns"), style: .destructive) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: WalletCopy.text("action_approve_hns_value"), style: .destructive) { [weak self] _ in
             self?.approveHnsValueApproval(
                 approval,
                 lease: lease,

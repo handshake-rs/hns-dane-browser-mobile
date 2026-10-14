@@ -35,9 +35,9 @@
     <string name="action_wallet_bitcoin_birthday">Set recovery birthday</string>
     <string name="action_apply">Apply</string>
     <string name="action_reject">Reject</string>
-    <string name="action_broadcast_hns">Approve and broadcast</string>
+    <string name="action_broadcast_hns">Send transaction now</string>
     <string name="action_prepare">Review</string>
-    <string name="action_approve_hns_value">Approve action</string>
+    <string name="action_approve_hns_value">Submit action now</string>
     <string name="wallet_action_cancel">Cancel</string>
     <string name="wallet_action_done">Done</string>
     <string name="wallet_action_ok">OK</string>
@@ -450,8 +450,8 @@
     <string name="wallet_send_maximum_fee_invalid">Enter a positive maximum fee in HNS with up to 6 decimal places.</string>
     <string name="wallet_send_preparing">Preparing the transaction from the verified wallet balance…</string>
     <string name="wallet_send_prepare_failed">No transaction was signed. Check the address, confirmed balance, and fee, then synchronize and retry.</string>
-    <string name="wallet_send_approval_title">Approve this HNS transaction?</string>
-    <string name="wallet_send_approval_message">Recipient:&#10;%1$s&#10;&#10;Amount: %2$s HNS&#10;Maximum fee: %3$s HNS&#10;Finality: %4$s&#10;Warning: %5$s&#10;Approval expires: %6$s&#10;&#10;Only this transaction can be broadcast.</string>
+    <string name="wallet_send_approval_title">Send this HNS transaction now?</string>
+    <string name="wallet_send_approval_message">Recipient:&#10;%1$s&#10;&#10;Amount: %2$s HNS&#10;Maximum fee: %3$s HNS&#10;Finality: %4$s&#10;Warning: %5$s&#10;Approval expires: %6$s&#10;&#10;This button submits the transaction to the network now. The wallet cannot undo it after submission; confirmation still requires a block.</string>
     <string name="wallet_send_finality_pow">Proof-of-work confirmations</string>
     <string name="wallet_send_warning_fee_change">The final fee estimate may change but cannot exceed the approved maximum.</string>
     <string name="wallet_send_broadcasting">Broadcasting the exact approved transaction through the wallet-owned peer set…</string>
@@ -532,8 +532,8 @@
     <string name="wallet_bitcoin_send_fee_cap_too_low">The current direct-peer fee is above your maximum fee. Increase the fee cap and review the transaction again.</string>
     <string name="wallet_bitcoin_send_action_pending">A Bitcoin transaction is already awaiting review or broadcast. Finish it or reopen and synchronize before preparing another.</string>
     <string name="wallet_bitcoin_send_invalid_request">Enter a positive whole-satoshi amount and a maximum fee of at least 1,000 satoshis.</string>
-    <string name="wallet_bitcoin_send_approval_title">Approve this Bitcoin transaction?</string>
-    <string name="wallet_bitcoin_send_approval_message">Recipient:&#10;%1$s&#10;&#10;Amount: %2$d sats&#10;Fee: %3$d sats&#10;Maximum fee: %4$d sats&#10;Approval expires: %5$s&#10;&#10;Only this transaction can be broadcast.</string>
+    <string name="wallet_bitcoin_send_approval_title">Send this Bitcoin transaction now?</string>
+    <string name="wallet_bitcoin_send_approval_message">Recipient:&#10;%1$s&#10;&#10;Amount: %2$d sats&#10;Fee: %3$d sats&#10;Maximum fee: %4$d sats&#10;Approval expires: %5$s&#10;&#10;This button submits the transaction to the network now. The wallet cannot undo it after submission; confirmation still requires a block.</string>
     <string name="wallet_bitcoin_send_broadcasting">Broadcasting the exact approved Bitcoin transaction through direct Kyoto peers…</string>
     <string name="wallet_bitcoin_send_accepted">Direct peers accepted Bitcoin transaction %1$s.</string>
     <string name="wallet_bitcoin_send_ambiguous">This Bitcoin transaction is saved but not yet submitted. Unlock and synchronize to retry it. Do not create another send.</string>

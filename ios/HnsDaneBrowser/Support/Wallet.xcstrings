@@ -150,7 +150,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Approve action"
+            "value": "Submit action now"
           }
         },
         "es": {
@@ -281,7 +281,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Approve and broadcast"
+            "value": "Send transaction now"
           }
         },
         "es": {
@@ -14691,7 +14691,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Recipient:\n%1$@\n\nAmount: %2$d sats\nFee: %3$d sats\nMaximum fee: %4$d sats\nApproval expires: %5$@\n\nOnly this transaction can be broadcast."
+            "value": "Recipient:\n%1$@\n\nAmount: %2$d sats\nFee: %3$d sats\nMaximum fee: %4$d sats\nApproval expires: %5$@\n\nThis button submits the transaction to the network now. The wallet cannot undo it after submission; confirmation still requires a block."
           }
         },
         "es": {
@@ -14822,7 +14822,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Approve this Bitcoin transaction?"
+            "value": "Send this Bitcoin transaction now?"
           }
         },
         "es": {
@@ -39188,7 +39188,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Recipient:\n%1$@\n\nAmount: %2$@ HNS\nMaximum fee: %3$@ HNS\nFinality: %4$@\nWarning: %5$@\nApproval expires: %6$@\n\nOnly this transaction can be broadcast."
+            "value": "Recipient:\n%1$@\n\nAmount: %2$@ HNS\nMaximum fee: %3$@ HNS\nFinality: %4$@\nWarning: %5$@\nApproval expires: %6$@\n\nThis button submits the transaction to the network now. The wallet cannot undo it after submission; confirmation still requires a block."
           }
         },
         "es": {
@@ -39319,7 +39319,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Approve this HNS transaction?"
+            "value": "Send this HNS transaction now?"
           }
         },
         "es": {
