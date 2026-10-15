@@ -7956,9 +7956,6 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let mut bitcoin = record.bitcoin_try_if_active()?;
         let bitcoin = bitcoin.as_mut()?;
         let synchronization = android_synchronize_bitcoin(bitcoin);
-        if let Some(error) = bitcoin.last_node_error() {
-            android_log_error(&format!("wallet Bitcoin node exited during synchronization: {error}"));
-        }
         if record.bitcoin_sync_cancellation_requested() {
             // Kyoto update futures are deliberately not dropped in place.
             // The out-of-lock stop signal wakes the active call, after which
@@ -8606,10 +8603,16 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         )?)?;
         let record = wallet_from_handle(handle)?;
         let mut bitcoin = record.bitcoin_try_if_active()?;
-        let receipt = bitcoin
+        let receipt = match bitcoin
             .as_mut()?
             .approve_shakescape_htlc_settlement(token.0.as_str())
-            .ok()?;
+        {
+            Ok(receipt) => receipt,
+            Err(error) => {
+                android_log_error(&format!("Bitcoin HTLC settlement approval failed: {error}"));
+                return None;
+            }
+        };
         let mut json = serde_json::to_vec(&receipt).ok()?;
         let mut bundle = bitcoin_json_bundle(&json)?;
         json.fill(0);
