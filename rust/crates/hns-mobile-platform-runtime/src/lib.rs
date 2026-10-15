@@ -173,6 +173,7 @@ const HEADER_STATE_RECORD_BYTES: usize = 58;
 const HEADER_STATE_UPDATING: u8 = 0;
 const HEADER_STATE_READY: u8 = 1;
 const HEADER_SYNC_STAGE_STALE_AFTER_SECONDS: u64 = 24 * 60 * 60;
+const NAMESPACE_BINDING_CONNECTIONS: usize = 8;
 
 /// Legacy diagnostic classification retained for compatibility.
 ///
@@ -7462,6 +7463,9 @@ fn namespace_bindings_path(base: &Path) -> PathBuf {
     base.join("namespace-bindings.sqlite")
 }
 
+static NAMESPACE_BINDING_POOL: OnceLock<Mutex<BoundedFifo<PathBuf, Arc<Mutex<Connection>>>>> =
+    OnceLock::new();
+
 fn open_namespace_bindings(base: &Path) -> Result<Connection, ResolverError> {
     let connection = Connection::open(namespace_bindings_path(base))
         .map_err(|error| ResolverError::Storage(error.to_string()))?;
@@ -7499,6 +7503,29 @@ fn open_namespace_bindings(base: &Path) -> Result<Connection, ResolverError> {
     Ok(connection)
 }
 
+fn with_namespace_bindings<T>(
+    base: &Path,
+    operation: impl FnOnce(&Connection) -> Result<T, ResolverError>,
+) -> Result<T, ResolverError> {
+    let path = namespace_bindings_path(base);
+    let pool = NAMESPACE_BINDING_POOL
+        .get_or_init(|| Mutex::new(BoundedFifo::new(NAMESPACE_BINDING_CONNECTIONS)));
+    let connection = {
+        let mut pool = pool.lock().map_err(|_| ResolverError::CachePoisoned)?;
+        if let Some(connection) = pool.get(&path) {
+            connection
+        } else {
+            let connection = Arc::new(Mutex::new(open_namespace_bindings(base)?));
+            pool.insert(path, Arc::clone(&connection));
+            connection
+        }
+    };
+    let connection = connection
+        .lock()
+        .map_err(|_| ResolverError::CachePoisoned)?;
+    operation(&connection)
+}
+
 fn load_namespace_binding(
     base: &Path,
     scheme: &str,
@@ -7506,33 +7533,35 @@ fn load_namespace_binding(
     port: u16,
     network: u8,
 ) -> Result<NamespaceBindingSnapshot, ResolverError> {
-    open_namespace_bindings(base)?
-        .query_row(
-            "
+    with_namespace_bindings(base, |connection| {
+        connection
+            .query_row(
+                "
             SELECT explicit_pin, sticky_namespace, revision
             FROM origin_namespace_bindings
             WHERE scheme = ?1 AND host = ?2 AND port = ?3 AND network = ?4
             ",
-            params![scheme, host, i64::from(port), i64::from(network)],
-            |row| {
-                let explicit_pin: Option<i64> = row.get(0)?;
-                let sticky_binding: Option<i64> = row.get(1)?;
-                let revision: i64 = row.get(2)?;
-                Ok((explicit_pin, sticky_binding, revision))
-            },
-        )
-        .optional()
-        .map_err(|error| ResolverError::Storage(error.to_string()))?
-        .map(|(explicit_pin, sticky_binding, revision)| {
-            Ok(NamespaceBindingSnapshot {
-                explicit_pin: stored_namespace(explicit_pin)?,
-                sticky_binding: stored_namespace(sticky_binding)?,
-                revision: u64::try_from(revision)
-                    .map_err(|error| ResolverError::Storage(error.to_string()))?,
+                params![scheme, host, i64::from(port), i64::from(network)],
+                |row| {
+                    let explicit_pin: Option<i64> = row.get(0)?;
+                    let sticky_binding: Option<i64> = row.get(1)?;
+                    let revision: i64 = row.get(2)?;
+                    Ok((explicit_pin, sticky_binding, revision))
+                },
+            )
+            .optional()
+            .map_err(|error| ResolverError::Storage(error.to_string()))?
+            .map(|(explicit_pin, sticky_binding, revision)| {
+                Ok(NamespaceBindingSnapshot {
+                    explicit_pin: stored_namespace(explicit_pin)?,
+                    sticky_binding: stored_namespace(sticky_binding)?,
+                    revision: u64::try_from(revision)
+                        .map_err(|error| ResolverError::Storage(error.to_string()))?,
+                })
             })
-        })
-        .transpose()
-        .map(|snapshot| snapshot.unwrap_or_default())
+            .transpose()
+            .map(|snapshot| snapshot.unwrap_or_default())
+    })
 }
 
 fn stored_namespace(value: Option<i64>) -> Result<Option<Namespace>, ResolverError> {
@@ -7557,11 +7586,11 @@ fn persist_successful_namespace_binding(
     origin: &NamespaceOriginContext,
     selected: Namespace,
 ) -> Result<bool, ResolverError> {
-    let connection = open_namespace_bindings(&origin.base)?;
     let binding_scheme = namespace_binding_scheme(&origin.key.scheme);
-    let changed = connection
-        .execute(
-            "
+    let changed = with_namespace_bindings(&origin.base, |connection| {
+        connection
+            .execute(
+                "
             INSERT INTO origin_namespace_bindings(
                 scheme, host, port, network, explicit_pin, sticky_namespace,
                 revision, updated_at_unix
@@ -7573,16 +7602,16 @@ fn persist_successful_namespace_binding(
                 updated_at_unix = excluded.updated_at_unix
             WHERE origin_namespace_bindings.sticky_namespace IS NOT excluded.sticky_namespace
             ",
-            params![
-                binding_scheme,
-                origin.key.host,
-                i64::from(origin.key.port),
-                i64::from(origin.key.network),
-                namespace_storage_value(selected),
-            ],
-        )
-        .map_err(|error| ResolverError::Storage(error.to_string()))?
-        != 0;
+                params![
+                    binding_scheme,
+                    origin.key.host,
+                    i64::from(origin.key.port),
+                    i64::from(origin.key.network),
+                    namespace_storage_value(selected),
+                ],
+            )
+            .map_err(|error| ResolverError::Storage(error.to_string()))
+    })? != 0;
     Ok(changed)
 }
 
@@ -27075,6 +27104,42 @@ mod tests {
             Some(SelectionReason::StickyBinding)
         );
         assert_eq!(decision.query().scheme(), OriginScheme::Wss);
+        cleanup_dir(&base);
+    }
+
+    #[test]
+    fn namespace_binding_connection_reuse_sees_external_revisions() {
+        let base = temp_dir_path("namespace-binding-connection-reuse");
+        fs::create_dir_all(&base).unwrap();
+        let first = load_namespace_binding(&base, "https", "origin.example", 443, 0).unwrap();
+        assert_eq!(first, NamespaceBindingSnapshot::default());
+        let cached = NAMESPACE_BINDING_POOL
+            .get()
+            .unwrap()
+            .lock()
+            .unwrap()
+            .get(&namespace_bindings_path(&base))
+            .unwrap();
+
+        let external = Connection::open(namespace_bindings_path(&base)).unwrap();
+        external
+            .execute(
+                "INSERT INTO origin_namespace_bindings(scheme, host, port, network, explicit_pin, sticky_namespace, revision, updated_at_unix) VALUES ('https', 'origin.example', 443, 0, 2, NULL, 7, unixepoch())",
+                [],
+            )
+            .unwrap();
+        let next = load_namespace_binding(&base, "https", "origin.example", 443, 0).unwrap();
+        assert_eq!(next.explicit_pin, Some(Namespace::Icann));
+        assert_eq!(next.revision, 7);
+        let reused = NAMESPACE_BINDING_POOL
+            .get()
+            .unwrap()
+            .lock()
+            .unwrap()
+            .get(&namespace_bindings_path(&base))
+            .unwrap();
+        assert!(Arc::ptr_eq(&cached, &reused));
+        drop(external);
         cleanup_dir(&base);
     }
 
