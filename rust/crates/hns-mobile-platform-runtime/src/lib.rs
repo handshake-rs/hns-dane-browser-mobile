@@ -3425,12 +3425,10 @@ impl BrowserRuntime {
                 },
             )
             .map_err(RuntimeError::Operation)?
-            {
-                if let Some(status) =
+                && let Some(status) =
                     self.try_publish_peer_only_stage(&probe_stage, probe_status)?
-                {
-                    return Ok(status);
-                }
+            {
+                return Ok(status);
             }
         }
 
@@ -6987,10 +6985,10 @@ impl GatewayProofProvider {
         let now = now_unix_seconds();
         let mut available = HashSet::new();
         for attempt in attempts {
-            if !current
-                .get(attempt.address)
-                .is_some_and(|peer| !peer.is_banned(now))
-            {
+            let Some(latest) = current.get(attempt.address) else {
+                continue;
+            };
+            if latest.is_banned(now) {
                 continue;
             }
             available.insert(attempt.address);
@@ -6999,7 +6997,6 @@ impl GatewayProofProvider {
                     // Proof transport cannot advance sync-owned height evidence.
                     // A penalty recorded while this proof was in flight also
                     // remains in force when counting the transport success.
-                    let latest = current.get(attempt.address).expect("checked above");
                     let newer_penalty = selected_from.get(attempt.address).is_some_and(|before| {
                         latest.score > before.score
                             || latest.failures > before.failures
@@ -7884,7 +7881,28 @@ fn build_namespace_plan(
             hns_evidence,
             icann_evidence,
         );
-        let (icann_build, icann_trace) = worker.join().expect("ICANN namespace worker panicked");
+        let worker_id = worker.thread().id();
+        let (icann_build, icann_trace) = match worker.join() {
+            Ok(result) => result,
+            Err(_) => {
+                icann_evidence.reset_thread(worker_id);
+                if let Some(trace) = trace {
+                    trace.reset_thread(worker_id);
+                }
+                (
+                    RootPlanBuild {
+                        lookup: RootLookup::Failed(RootFailure::new(
+                            Namespace::Icann,
+                            query.clone(),
+                            RootFailureKind::Internal,
+                            None,
+                        )),
+                        answers: HashMap::new(),
+                    },
+                    None,
+                )
+            }
+        };
         (icann_build, icann_trace, hns_build)
     });
     if let (Some(trace), Some(icann_trace)) = (trace, icann_trace) {
@@ -9691,8 +9709,12 @@ impl DnsTraceRecorder {
     }
 
     fn reset(&self) {
+        self.reset_thread(thread::current().id());
+    }
+
+    fn reset_thread(&self, thread_id: thread::ThreadId) {
         if let Ok(mut traces) = self.traces.lock() {
-            traces.remove(&thread::current().id());
+            traces.remove(&thread_id);
         }
     }
 }
@@ -11072,8 +11094,12 @@ impl IcannEvidenceRecorder {
     }
 
     fn reset(&self) {
+        self.reset_thread(thread::current().id());
+    }
+
+    fn reset_thread(&self, thread_id: thread::ThreadId) {
         if let Ok(mut states) = self.states.lock() {
-            states.remove(&thread::current().id());
+            states.remove(&thread_id);
         }
     }
 
@@ -16180,6 +16206,10 @@ impl HeaderStore for PeerOnlyProbeHeaderStore {
     }
 }
 
+#[allow(
+    clippy::large_enum_variant,
+    reason = "the peer-only probe returns once; boxing its successful status would allocate on the fast path"
+)]
 enum PeerOnlyProbeResult {
     Complete(NativeSyncStatus),
     NeedsFullStage,
@@ -26745,6 +26775,62 @@ mod tests {
         assert_eq!(trace.snapshot().len(), 1);
         assert_eq!(trace.snapshot()[0].server, "icann-worker");
         assert_eq!(trace.traces.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn panicking_icann_worker_fails_closed_and_discards_worker_state() {
+        struct PanickingResolver(DnsTraceRecorder);
+
+        impl Resolver for PanickingResolver {
+            fn resolve(
+                &self,
+                _request: &ResolutionRequest,
+            ) -> Result<ResolutionAnswer, ResolverError> {
+                self.0.push(DnsTraceEvent {
+                    protocol: "test",
+                    server: "panicking-worker".to_owned(),
+                    question_name: None,
+                    question_type: None,
+                    status: "started".to_owned(),
+                    elapsed_ms: 0,
+                    error: None,
+                });
+                panic!("test ICANN worker failure");
+            }
+        }
+
+        let base = temp_dir_path("panicking-icann-worker");
+        let origin = NamespaceOriginContext {
+            key: NamespaceOriginKey {
+                profile: base.clone(),
+                host: "origin.example".to_owned(),
+                scheme: "http".to_owned(),
+                port: 80,
+                supported_protocols: ProtocolCapabilities::all(),
+                network: 0,
+                policy_revision: 0,
+                binding_revision: 0,
+            },
+            base,
+            network: NetworkKind::Mainnet,
+            binding: NamespaceBindingSnapshot::default(),
+        };
+        let trace = DnsTraceRecorder::default();
+        let evidence = IcannEvidenceRecorder::default();
+        let plan = build_namespace_plan(
+            &TestResolver::error(|| ResolverError::DnsTransport("test".to_owned())),
+            &PanickingResolver(trace.clone()),
+            &origin,
+            &HnsProofEvidenceRecorder::default(),
+            &evidence,
+            Some(&trace),
+        );
+        assert_eq!(
+            plan.icann_root_failure.as_ref().map(RootFailure::kind),
+            Some(RootFailureKind::Internal)
+        );
+        assert!(trace.traces.lock().unwrap().is_empty());
+        assert!(evidence.states.lock().unwrap().is_empty());
     }
 
     #[test]
