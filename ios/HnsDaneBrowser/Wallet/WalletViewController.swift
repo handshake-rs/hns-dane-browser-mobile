@@ -2985,6 +2985,21 @@ final class WalletViewController: UIViewController {
         )
     }
 
+    private func reservedHnsForSwapSession(_ execution: NativeShakescapeExecutionSummary) -> UInt64? {
+        let beforeDeadline = UInt64(Date().timeIntervalSince1970) < execution.fundingDeadlineUnix
+        if execution.localRole == "maker", execution.offeredAsset == "hns",
+           ["terms_frozen", "refunds_prepared", "first_funding_pending",
+            "second_funding_pending"].contains(execution.state) ||
+            (execution.state == "first_funded" && beforeDeadline) {
+            return execution.offeredAmount
+        }
+        if execution.localRole == "taker", execution.receivedAsset == "hns",
+           ["terms_frozen", "refunds_prepared", "first_funding_pending"].contains(execution.state) {
+            return execution.receivedAmount
+        }
+        return nil
+    }
+
     private func showShakescapeExecution(
         _ execution: NativeShakescapeExecutionSummary, wallet: RustNativeWallet
     ) {
@@ -3002,13 +3017,23 @@ final class WalletViewController: UIViewController {
             formatAtomicSwapDeadline(execution.secondRefundAtUnix),
             execution.failureReason ?? WalletCopy.text("wallet_swap_failure_none")
         )
+        let reservation = reservedHnsForSwapSession(execution).map { amount in
+            "\n\n" + WalletCopy.format(
+                "wallet_ux_swap_session_hns_reserved",
+                WalletReadPresenter.formatHnsBaseUnits(String(amount))
+            ) + "\n" + WalletCopy.text(
+                UInt64(Date().timeIntervalSince1970) >= execution.fundingDeadlineUnix
+                    ? "wallet_ux_swap_session_hns_expired"
+                    : "wallet_ux_swap_session_hns_release"
+            )
+        } ?? ""
         let alert = UIAlertController(
             title: WalletCopy.text("wallet_swap_execution_title"),
             message: "\(shakescapeExecutionProgress(execution).summary)\n" +
                 "\(swapAmount(execution.offeredAmount, asset: execution.offeredAsset)) → " +
                 "\(swapAmount(execution.receivedAmount, asset: execution.receivedAsset))\n" +
                 "\(shakescapeExecutionStage(execution, includeBitcoinSync: false))\n\n" +
-                "\(shakescapeExecutionProgress(execution).detail)\n\n\(message)",
+                "\(shakescapeExecutionProgress(execution).detail)\n\n\(message)\(reservation)",
             preferredStyle: .alert
         )
         alert.addAction(UIAlertAction(
@@ -7452,9 +7477,13 @@ final class WalletViewController: UIViewController {
                     at: 0
                 )
             }
+            if balance.hasPendingOutgoing {
+                balanceLines.append(WalletCopy.text("wallet_ux_hns_pending_change"))
+            }
             balanceLabel.text = balanceLines.joined(separator: "\n")
         } else {
-            balanceLabel.text = presentation.balance
+            balanceLabel.text = presentation.balance + (balance.hasPendingOutgoing
+                ? "\n" + WalletCopy.text("wallet_ux_hns_pending_change") : "")
         }
         paymentReceiveLabel.text = presentation.paymentReceive
         historyLabel.text = presentation.history

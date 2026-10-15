@@ -6119,6 +6119,21 @@ class WalletActivity : ComponentActivity() {
         )
     }
 
+    private fun reservedHnsForSwapSession(execution: NativeShakescapeExecutionSummary): Long? {
+        val state = execution.state
+        val beforeDeadline = System.currentTimeMillis() / 1_000L < execution.fundingDeadlineUnix
+        return when {
+            execution.localRole == "maker" && execution.offeredAsset == "hns" &&
+                (state in setOf("terms_frozen", "refunds_prepared", "first_funding_pending",
+                    "second_funding_pending") || (state == "first_funded" && beforeDeadline)) ->
+                execution.offeredAmount
+            execution.localRole == "taker" && execution.receivedAsset == "hns" &&
+                state in setOf("terms_frozen", "refunds_prepared", "first_funding_pending") ->
+                execution.receivedAmount
+            else -> null
+        }
+    }
+
     private fun showShakescapeExecution(execution: NativeShakescapeExecutionSummary) {
         val message = getString(
             R.string.wallet_swap_execution_detail,
@@ -6134,6 +6149,13 @@ class WalletActivity : ComponentActivity() {
             formatAtomicSwapDeadline(execution.secondRefundAtUnix),
             execution.failureReason ?: getString(R.string.wallet_swap_failure_none),
         )
+        val reservation = reservedHnsForSwapSession(execution)?.let {
+            "\n\n" + getString(R.string.wallet_ux_swap_session_hns_reserved,
+                formatHnsBaseUnits(it.toString())) + "\n" +
+                getString(if (System.currentTimeMillis() / 1_000L >= execution.fundingDeadlineUnix)
+                    R.string.wallet_ux_swap_session_hns_expired
+                else R.string.wallet_ux_swap_session_hns_release)
+        }.orEmpty()
         val builder = walletAlertDialogBuilder()
             .setTitle(R.string.wallet_swap_execution_title)
             .setMessage(
@@ -6141,7 +6163,7 @@ class WalletActivity : ComponentActivity() {
                     "${formatSwapAmount(execution.offeredAsset, execution.offeredAmount)} → " +
                     "${formatSwapAmount(execution.receivedAsset, execution.receivedAmount)}\n" +
                     "${swapExecutionStage(execution, includeBitcoinSync = false)}\n\n" +
-                    "${swapExecutionProgress(execution).second}\n\n$message"
+                    "${swapExecutionProgress(execution).second}\n\n$message$reservation"
             )
             .setNegativeButton(R.string.action_cancel, null)
         // Offer acceptance binds amounts, participants, and timeouts, but it
@@ -10014,7 +10036,7 @@ class WalletActivity : ComponentActivity() {
         }
         val swapReserved = NativeWalletBridge.reservedHnsForDirectOffers(walletHandle) ?: 0L
         balanceView.textSize = if (balance.hasPendingOutgoing || swapReserved > 0L) 18f else 24f
-        balanceView.text = if (swapReserved > 0L) {
+        balanceView.text = (if (swapReserved > 0L) {
             val spendable = balance.spendableBaseUnits.toLongOrNull() ?: 0L
             val available = (spendable - swapReserved).coerceAtLeast(0L)
             val confirmedText = if (balance.hasPendingOutgoing) {
@@ -10036,7 +10058,9 @@ class WalletActivity : ComponentActivity() {
             )
         } else {
             onChainBalanceText
-        }
+        }) + if (balance.hasPendingOutgoing) {
+            "\n" + getString(R.string.wallet_ux_hns_pending_change)
+        } else ""
         paymentReceiveView.text = getString(
             R.string.wallet_reads_receive,
             snapshot.paymentReceiveTarget.display,

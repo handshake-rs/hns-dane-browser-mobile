@@ -69094,6 +69094,17 @@
         }
       }
     },
+    "wallet_ux_hns_pending_change": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A pending HNS send can leave change unconfirmed. The verified spendable amount updates after the change confirms."
+          }
+        }
+      }
+    },
     "wallet_ux_immature_sats": {
       "extractionState": "manual",
       "localizations": {
@@ -69442,6 +69453,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "Continue Bitcoin sync"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_session_hns_expired": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This session’s funding deadline has passed. Its HNS reservation remains until the wallet verifies that no lock was submitted."
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_session_hns_release": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "After the funding deadline, the wallet checks its saved broadcast record and verified chain before releasing an unfunded session’s reservation."
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_session_hns_reserved": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This open session reserves %1$@ HNS for its HNS lock."
           }
         }
       }
