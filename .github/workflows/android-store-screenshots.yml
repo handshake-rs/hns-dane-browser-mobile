@@ -120,12 +120,21 @@ jobs:
           atexit.register(preserve_logs)
           apk = pathlib.Path(os.environ['RUNNER_TEMP']) / 'shakescape-capture.apk'
           package = 'com.denuoweb.hnsdane'
+          release_metadata = json.loads(pathlib.Path(
+              'android/app/build/outputs/apk/release/output-metadata.json').read_text())
+          assert release_metadata['variantName'] == 'release'
+          assert release_metadata['applicationId'] == package
+          assert len(release_metadata['elements']) == 1
+          version_code = release_metadata['elements'][0]['versionCode']
+          version_name = release_metadata['elements'][0]['versionName']
+          assert isinstance(version_code, int) and version_code > 0
+          assert isinstance(version_name, str) and version_name
           adb('install', str(apk))
           installed = adb('shell', 'dumpsys', 'package', package).decode()
-          assert re.search(r'\bversionCode=68\b', installed)
-          assert re.search(r'\bversionName=1\.0\.15\s', installed)
+          assert re.search(rf'\bversionCode={version_code}\b', installed)
+          assert re.search(rf'\bversionName={re.escape(version_name)}\s', installed)
           assert not re.search(r'pkgFlags=\[[^\]]*\bDEBUGGABLE\b', installed)
-          manifest = {'sourceCommit': commit, 'version': '1.0.18', 'versionCode': 70,
+          manifest = {'sourceCommit': commit, 'version': version_name, 'versionCode': version_code,
                       'buildType': 'release', 'abi': 'x86_64', 'emulator': True,
                       'installedApkSha256': hashlib.sha256(apk.read_bytes()).hexdigest(),
                       'signingPurpose': 'ephemeral simulator installation only',
@@ -143,6 +152,8 @@ jobs:
               previous = json.loads(manifest_path.read_text())
               assert previous['sourceCommit'] == commit
               assert previous['installedApkSha256'] == manifest['installedApkSha256']
+              assert previous['version'] == version_name
+              assert previous['versionCode'] == version_code
               manifest = previous
           sequence = 0
           def tree():
