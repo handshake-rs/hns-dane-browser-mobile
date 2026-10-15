@@ -1,20 +1,20 @@
 # App Store metadata
 
-This directory contains the reviewed listing source for iOS `1.0.18` / build
-`81`, bundle ID `com.denuoweb.hnsdane.ios`. Validate screenshots and signed artifacts against this exact candidate.
+This directory contains the reviewed listing source for iOS `1.0.19` / build
+`82`, bundle ID `com.denuoweb.hnsdane.ios`. Validate screenshots and signed artifacts against this exact candidate.
 
-- Version: `1.0.18`
-- Build: `81`
+- Version: `1.0.19`
+- Build: `82`
 
-This update lets the iOS browser load permanently reserved ICANN websites
-while Handshake headers synchronize, with WebKit WebPKI for HTTPS. It retains
-the published seed-only swap recovery cohort. The app registers
+The iOS browser loads permanently reserved ICANN websites while Handshake
+headers synchronize, with WebKit WebPKI for HTTPS. It retains the published
+seed-only swap recovery cohort. The app registers
 `http` and `https` URL schemes, routes incoming URLs directly, and keeps exact
 `marketplace-kit` navigation in WebKit. The managed default-browser and
 MarketplaceKit app-installation entitlements remain absent pending Apple
 approval.
 
-Build 81 retains the protected, owner-only native-wallet storage boundary and
+Build 82 retains the protected, owner-only native-wallet storage boundary and
 uses one hsd/Bob-compatible account-zero receive chain for ordinary HNS and
 Handshake name ownership. The iOS shell, Apple C ABI, and native wallet all use
 that single receive contract.

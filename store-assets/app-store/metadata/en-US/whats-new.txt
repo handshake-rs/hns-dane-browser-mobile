@@ -1,1 +1,1 @@
-Ordinary HTTPS pages now open while Handshake headers synchronize. The address bar and security status stay in sync with the loaded page. Handshake names continue to use verified proofs and DANE.
+This update includes security and dependency maintenance while retaining verified Handshake browsing, ordinary HTTPS browsing, and the native wallet.
