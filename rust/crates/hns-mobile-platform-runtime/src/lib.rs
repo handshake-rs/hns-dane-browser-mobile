@@ -11736,7 +11736,7 @@ struct IcannRootCachingResolver<R> {
     inner: R,
     evidence: IcannEvidenceRecorder,
     states: Mutex<BoundedFifo<String, CachedIcannRootEntry>>,
-    probe_lock: Mutex<()>,
+    probe_locks: Mutex<HashMap<String, Weak<Mutex<()>>>>,
 }
 
 impl<R> IcannRootCachingResolver<R>
@@ -11748,8 +11748,22 @@ where
             inner,
             evidence,
             states: Mutex::new(BoundedFifo::new(ROOT_STATE_CACHE_ENTRIES)),
-            probe_lock: Mutex::new(()),
+            probe_locks: Mutex::new(HashMap::new()),
         }
+    }
+
+    fn probe_lock(&self, root: &String) -> Result<Arc<Mutex<()>>, ResolverError> {
+        let mut locks = self
+            .probe_locks
+            .lock()
+            .map_err(|_| ResolverError::CachePoisoned)?;
+        if let Some(lock) = locks.get(root).and_then(Weak::upgrade) {
+            return Ok(lock);
+        }
+        locks.retain(|_, lock| lock.strong_count() > 0);
+        let lock = Arc::new(Mutex::new(()));
+        locks.insert(root.clone(), Arc::downgrade(&lock));
+        Ok(lock)
     }
 
     fn root_label(request: &ResolutionRequest) -> Result<String, ResolverError> {
@@ -11815,8 +11829,8 @@ where
         if let Some(state) = self.cached_state(root)? {
             return Ok(state);
         }
-        let _probe = self
-            .probe_lock
+        let probe_lock = self.probe_lock(root)?;
+        let _probe = probe_lock
             .lock()
             .map_err(|_| ResolverError::CachePoisoned)?;
         if let Some(state) = self.cached_state(root)? {
@@ -11877,8 +11891,8 @@ where
                     }
                 };
             }
-            let _probe = self
-                .probe_lock
+            let probe_lock = self.probe_lock(&root)?;
+            let _probe = probe_lock
                 .lock()
                 .map_err(|_| ResolverError::CachePoisoned)?;
             if let Some(state) = self.cached_state(&root)? {
@@ -30335,6 +30349,83 @@ mod tests {
             }
         });
         assert_eq!(calls.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn unrelated_icann_root_probes_do_not_wait_for_each_other() {
+        struct BlockingRootResolver {
+            evidence: IcannEvidenceRecorder,
+            entered: std::sync::mpsc::Sender<String>,
+            release_slow: Mutex<std::sync::mpsc::Receiver<()>>,
+        }
+
+        impl Resolver for BlockingRootResolver {
+            fn resolve(
+                &self,
+                request: &ResolutionRequest,
+            ) -> Result<ResolutionAnswer, ResolverError> {
+                if request.qtype == RecordType::Ns.code() && !request.qname.contains('.') {
+                    let now = now_unix_seconds();
+                    self.evidence.insert_observation(
+                        request.clone(),
+                        IcannResponseObservation {
+                            kind: IcannResponseKind::Answer,
+                            secure: true,
+                            observed_at_unix: now,
+                            expires_at_unix: now + 30,
+                        },
+                    );
+                    self.entered.send(request.qname.clone()).unwrap();
+                    if request.qname == "slow" {
+                        self.release_slow.lock().unwrap().recv().unwrap();
+                    }
+                }
+                Ok(ResolutionAnswer {
+                    name: DnsName::from_ascii(&request.qname).unwrap(),
+                    records: Vec::new(),
+                    secure: true,
+                })
+            }
+        }
+
+        let evidence = IcannEvidenceRecorder::default();
+        let (entered_tx, entered_rx) = std::sync::mpsc::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let resolver = IcannRootCachingResolver::new(
+            BlockingRootResolver {
+                evidence: evidence.clone(),
+                entered: entered_tx,
+                release_slow: Mutex::new(release_rx),
+            },
+            evidence,
+        );
+        thread::scope(|scope| {
+            let slow = scope.spawn(|| {
+                resolver
+                    .resolve(&ResolutionRequest {
+                        qname: "app.slow".to_owned(),
+                        qtype: RecordType::A.code(),
+                    })
+                    .unwrap();
+            });
+            assert_eq!(
+                entered_rx.recv_timeout(Duration::from_secs(2)).unwrap(),
+                "slow"
+            );
+            let fast = scope.spawn(|| {
+                resolver
+                    .resolve(&ResolutionRequest {
+                        qname: "app.fast".to_owned(),
+                        qtype: RecordType::A.code(),
+                    })
+                    .unwrap();
+            });
+            let fast_entered = entered_rx.recv_timeout(Duration::from_secs(2));
+            release_tx.send(()).unwrap();
+            slow.join().unwrap();
+            fast.join().unwrap();
+            assert_eq!(fast_entered.unwrap(), "fast");
+        });
     }
 
     #[test]
