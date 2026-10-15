@@ -69501,6 +69501,39 @@
         }
       }
     },
+    "wallet_ux_swap_settlement_not_ready": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This action is unavailable in the current verified session state. Check this execution and Bitcoin activity; an earlier submission may still be waiting for a scan."
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_settlement_queued": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swap %1$@ transaction saved for broadcast recovery. Transaction ID: %2$@. Track this ID in Bitcoin activity while peer submission and the chain scan finish."
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_settlement_submitted": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swap %1$@ transaction submitted. Transaction ID: %2$@. Track this ID in Bitcoin activity and wait for a verified chain scan."
+          }
+        }
+      }
+    },
     "wallet_ux_sync_progress": {
       "extractionState": "manual",
       "localizations": {

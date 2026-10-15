@@ -4916,12 +4916,14 @@ class WalletActivity : ComponentActivity() {
                     if (current) {
                         refreshControllerState(resetReads = false)
                         swapActionStatusView.text = if (receipt == null) {
-                            getString(R.string.wallet_swap_settlement_prepare_failed)
+                            getString(R.string.wallet_ux_swap_settlement_not_ready)
                         } else {
                             automaticSwapSettlementAttempts[attemptKey] = Long.MAX_VALUE
                             getString(
-                                R.string.wallet_swap_settlement_submitted,
-                                receipt.action, receipt.transactionId.take(12),
+                                if (bitcoin && receipt.submittedAtUnix == null)
+                                    R.string.wallet_ux_swap_settlement_queued
+                                else R.string.wallet_ux_swap_settlement_submitted,
+                                receipt.action, receipt.transactionId,
                             )
                         }
                     }
@@ -6156,6 +6158,9 @@ class WalletActivity : ComponentActivity() {
                     R.string.wallet_ux_swap_session_hns_expired
                 else R.string.wallet_ux_swap_session_hns_release)
         }.orEmpty()
+        val bitcoinScan = bitcoinSnapshot?.synchronizedHeight?.takeIf { it > 0L }?.let {
+            "\n" + getString(R.string.wallet_ux_last_scanned, it)
+        }.orEmpty()
         val builder = walletAlertDialogBuilder()
             .setTitle(R.string.wallet_swap_execution_title)
             .setMessage(
@@ -6163,9 +6168,12 @@ class WalletActivity : ComponentActivity() {
                     "${formatSwapAmount(execution.offeredAsset, execution.offeredAmount)} → " +
                     "${formatSwapAmount(execution.receivedAsset, execution.receivedAmount)}\n" +
                     "${swapExecutionStage(execution, includeBitcoinSync = false)}\n\n" +
-                    "${swapExecutionProgress(execution).second}\n\n$message$reservation"
+                    "${swapExecutionProgress(execution).second}\n\n$message$bitcoinScan$reservation"
             )
             .setNegativeButton(R.string.action_cancel, null)
+            .setNeutralButton(R.string.wallet_bitcoin_recent_activity) { _, _ ->
+                showBitcoinActivityDetails()
+            }
         // Offer acceptance binds amounts, participants, and timeouts, but it
         // cannot safely approve a fee-selected transaction which does not yet
         // exist. Keep the exact funding preview/approval and make its durable
@@ -6326,7 +6334,7 @@ class WalletActivity : ComponentActivity() {
                     releaseStorageLeaseAfterOperation(lease)
                 } else if (approval == null) {
                     finishWalletOperationIfOwned(operationSerial)
-                    val message = getString(R.string.wallet_swap_settlement_prepare_failed)
+                    val message = getString(R.string.wallet_ux_swap_settlement_not_ready)
                     statusView.text = message
                     swapActionStatusView.text = message
                     releaseStorageLeaseAfterOperation(lease)
@@ -6401,8 +6409,10 @@ class WalletActivity : ComponentActivity() {
                                 getString(R.string.wallet_swap_settlement_broadcast_failed)
                             } else {
                                 getString(
-                                    R.string.wallet_swap_settlement_submitted,
-                                    receipt.action, receipt.transactionId.take(12),
+                                    if (bitcoin && receipt.submittedAtUnix == null)
+                                        R.string.wallet_ux_swap_settlement_queued
+                                    else R.string.wallet_ux_swap_settlement_submitted,
+                                    receipt.action, receipt.transactionId,
                                 )
                             }
                         }

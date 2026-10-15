@@ -2985,6 +2985,17 @@ final class WalletViewController: UIViewController {
         )
     }
 
+    private func swapSettlementReceiptText(
+        _ receipt: NativeSwapSettlementReceipt, bitcoin: Bool
+    ) -> String {
+        WalletCopy.format(
+            bitcoin && receipt.submittedAtUnix == nil
+                ? "wallet_ux_swap_settlement_queued"
+                : "wallet_ux_swap_settlement_submitted",
+            receipt.action.rawValue, receipt.transactionId
+        )
+    }
+
     private func reservedHnsForSwapSession(_ execution: NativeShakescapeExecutionSummary) -> UInt64? {
         let beforeDeadline = UInt64(Date().timeIntervalSince1970) < execution.fundingDeadlineUnix
         if execution.localRole == "maker", execution.offeredAsset == "hns",
@@ -3027,19 +3038,26 @@ final class WalletViewController: UIViewController {
                     : "wallet_ux_swap_session_hns_release"
             )
         } ?? ""
+        let bitcoinScan = bitcoinSnapshot.flatMap { $0.synchronizedHeight > 0
+            ? "\n" + WalletCopy.format("wallet_ux_last_scanned", Int($0.synchronizedHeight))
+            : nil
+        } ?? ""
         let alert = UIAlertController(
             title: WalletCopy.text("wallet_swap_execution_title"),
             message: "\(shakescapeExecutionProgress(execution).summary)\n" +
                 "\(swapAmount(execution.offeredAmount, asset: execution.offeredAsset)) → " +
                 "\(swapAmount(execution.receivedAmount, asset: execution.receivedAsset))\n" +
                 "\(shakescapeExecutionStage(execution, includeBitcoinSync: false))\n\n" +
-                "\(shakescapeExecutionProgress(execution).detail)\n\n\(message)\(reservation)",
+                "\(shakescapeExecutionProgress(execution).detail)\n\n\(message)\(bitcoinScan)\(reservation)",
             preferredStyle: .alert
         )
         alert.addAction(UIAlertAction(
             title: WalletCopy.text("wallet_action_done"),
             style: .cancel
         ))
+        alert.addAction(UIAlertAction(
+            title: WalletCopy.text("wallet_bitcoin_recent_activity"), style: .default
+        ) { [weak self] _ in self?.showBitcoinActivity() })
         // Acceptance binds the trade and its timeouts, not a later
         // fee-selected transaction which the user has never reviewed. Keep
         // that exact preview/approval and surface readiness as an immediate
@@ -3241,7 +3259,7 @@ final class WalletViewController: UIViewController {
                     )
                 case .failure(let error):
                     self.swapActionStatusLabel.text = WalletCopy.text(
-                        "wallet_swap_settlement_prepare_failed"
+                        "wallet_ux_swap_settlement_not_ready"
                     )
                     self.showError(error)
                 }
@@ -3337,10 +3355,8 @@ final class WalletViewController: UIViewController {
                     self.isOperating = false
                     switch outcome {
                     case .success(let receipt):
-                        self.swapActionStatusLabel.text = WalletCopy.format(
-                            "wallet_swap_settlement_submitted",
-                            receipt.action.rawValue,
-                            String(receipt.transactionId.prefix(12))
+                        self.swapActionStatusLabel.text = self.swapSettlementReceiptText(
+                            receipt, bitcoin: isBitcoin
                         )
                     case .failure(let error):
                         self.swapActionStatusLabel.text = WalletCopy.text(
@@ -5180,10 +5196,8 @@ final class WalletViewController: UIViewController {
                     self.isOperating = false
                     if case .success(let receipt) = result {
                         self.automaticSwapSettlementAttempts[key] = .infinity
-                        self.swapActionStatusLabel.text = WalletCopy.format(
-                            "wallet_swap_settlement_submitted",
-                            receipt.action.rawValue,
-                            String(receipt.transactionId.prefix(12))
+                        self.swapActionStatusLabel.text = self.swapSettlementReceiptText(
+                            receipt, bitcoin: bitcoin
                         )
                     }
                     self.refreshButtonStates()

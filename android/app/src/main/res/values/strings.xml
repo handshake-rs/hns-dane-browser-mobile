@@ -1326,6 +1326,9 @@
     <string name="wallet_ux_swap_session_hns_reserved" translatable="false">This open session reserves %1$s HNS for its HNS lock.</string>
     <string name="wallet_ux_swap_session_hns_release" translatable="false">After the funding deadline, the wallet checks its saved broadcast record and verified chain before releasing an unfunded session’s reservation.</string>
     <string name="wallet_ux_swap_session_hns_expired" translatable="false">This session’s funding deadline has passed. Its HNS reservation remains until the wallet verifies that no lock was submitted.</string>
+    <string name="wallet_ux_swap_settlement_queued" translatable="false">Swap %1$s transaction saved for broadcast recovery. Transaction ID: %2$s. Track this ID in Bitcoin activity while peer submission and the chain scan finish.</string>
+    <string name="wallet_ux_swap_settlement_submitted" translatable="false">Swap %1$s transaction submitted. Transaction ID: %2$s. Track this ID in Bitcoin activity and wait for a verified chain scan.</string>
+    <string name="wallet_ux_swap_settlement_not_ready" translatable="false">This action is unavailable in the current verified session state. Check this execution and Bitcoin activity; an earlier submission may still be waiting for a scan.</string>
     <string name="wallet_ux_actions" translatable="false">Actions</string>
     <string name="wallet_ux_done" translatable="false">Done</string>
     <string name="wallet_ux_sync_progress" translatable="false">Syncing Bitcoin · %1$d%%</string>
