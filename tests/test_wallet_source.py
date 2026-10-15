@@ -95,7 +95,7 @@ class WalletSourceTests(unittest.TestCase):
             self.verify()
 
     def test_unrelated_manifest_git_dependency_fails(self):
-        self.edit("rust/Cargo.toml", 'hex = "0.4"', 'hex = { git = "https://example.invalid/source", branch = "main" }')
+        self.edit("rust/Cargo.toml", 'sha2 = "0.10"', 'sha2 = { git = "https://example.invalid/source", branch = "main" }')
         with self.assertRaisesRegex(ValueError, "unreviewed Git"):
             self.verify()
 
