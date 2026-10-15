@@ -69347,6 +69347,105 @@
         }
       }
     },
+    "wallet_ux_swap_readiness_blocked": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Current task: %1$@"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_readiness_btc": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitcoin last scanned at block %1$@: %2$@ confirmed sats"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_readiness_btc_missing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitcoin balance needs its first verified scan."
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_readiness_hns": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS verified at block %1$@: %2$@ HNS"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_readiness_hns_missing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS balance needs a verified wallet sync."
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_readiness_peer": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Offer peer: %1$@"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_readiness_peer_missing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Offer peer: connect before browsing or publishing."
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_readiness_ready": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No wallet task is blocking swap actions. Check the last scanned heights before funding."
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_readiness_sync_bitcoin": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue Bitcoin sync"
+          }
+        }
+      }
+    },
     "wallet_ux_swap_settlement_default_fee_message": {
       "extractionState": "manual",
       "localizations": {

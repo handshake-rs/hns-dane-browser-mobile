@@ -1313,6 +1313,15 @@
     <string name="wallet_ux_name_market" translatable="false">Name marketplace</string>
     <string name="wallet_ux_manage_offers" translatable="false">Manage offers and sessions</string>
     <string name="wallet_ux_bitcoin_setup_trade" translatable="false">Set up Bitcoin before creating a coin offer.</string>
+    <string name="wallet_ux_swap_readiness_hns" translatable="false">HNS verified at block %1$s: %2$s HNS</string>
+    <string name="wallet_ux_swap_readiness_hns_missing" translatable="false">HNS balance needs a verified wallet sync.</string>
+    <string name="wallet_ux_swap_readiness_btc" translatable="false">Bitcoin last scanned at block %1$s: %2$s confirmed sats</string>
+    <string name="wallet_ux_swap_readiness_btc_missing" translatable="false">Bitcoin balance needs its first verified scan.</string>
+    <string name="wallet_ux_swap_readiness_peer" translatable="false">Offer peer: %1$s</string>
+    <string name="wallet_ux_swap_readiness_peer_missing" translatable="false">Offer peer: connect before browsing or publishing.</string>
+    <string name="wallet_ux_swap_readiness_blocked" translatable="false">Current task: %1$s</string>
+    <string name="wallet_ux_swap_readiness_ready" translatable="false">No wallet task is blocking swap actions. Check the last scanned heights before funding.</string>
+    <string name="wallet_ux_swap_readiness_sync_bitcoin" translatable="false">Continue Bitcoin sync</string>
     <string name="wallet_ux_actions" translatable="false">Actions</string>
     <string name="wallet_ux_done" translatable="false">Done</string>
     <string name="wallet_ux_sync_progress" translatable="false">Syncing Bitcoin · %1$d%%</string>

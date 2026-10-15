@@ -4286,12 +4286,48 @@ final class WalletViewController: UIViewController {
             lines.append(WalletCopy.text(paired ? "wallet_dashboard_connected" : "wallet_dashboard_not_connected"))
         }
         if includeHelp {
+            lines.append(shakedexReadinessSummary())
             lines.append(WalletCopy.text(paired ? "wallet_ux_connected_help" : "wallet_ux_connect_help"))
             if isOperating || bitcoinSyncInProgress { lines.append(WalletCopy.text("wallet_ux_busy")) }
             if !synchronizedReadsAvailable { lines.append(WalletCopy.text("wallet_dashboard_sync_required")) }
             if let update = swapActionStatusLabel.text, !update.isEmpty { lines.append(update) }
         }
         return lines.joined(separator: "\n\n")
+    }
+
+    private func shakedexReadinessSummary() -> String {
+        var lines: [String] = []
+        if let hns = latestReadSnapshot {
+            lines.append(WalletCopy.format(
+                "wallet_ux_swap_readiness_hns", String(hns.moduleStatus.validatedHeight),
+                WalletReadPresenter.formatHnsBaseUnits(hns.balance.baseUnits)
+            ))
+        } else {
+            lines.append(WalletCopy.text("wallet_ux_swap_readiness_hns_missing"))
+        }
+        if let bitcoin = bitcoinSnapshot, bitcoin.synchronizedHeight > 0 {
+            lines.append(WalletCopy.format(
+                "wallet_ux_swap_readiness_btc", String(bitcoin.synchronizedHeight),
+                String(bitcoin.confirmedSats)
+            ))
+        } else {
+            lines.append(WalletCopy.text("wallet_ux_swap_readiness_btc_missing"))
+        }
+        if let peer = directShakescapeStatusSnapshot?.peerEndpoint {
+            lines.append(WalletCopy.format("wallet_ux_swap_readiness_peer", peer))
+        } else {
+            lines.append(WalletCopy.text("wallet_ux_swap_readiness_peer_missing"))
+        }
+        if bitcoinSyncInProgress || bitcoinLastSyncFailed || bitcoinStage != .sync {
+            lines.append(WalletCopy.format("wallet_ux_swap_readiness_blocked", bitcoinSetupSummary()))
+        } else if isOperating || !synchronizedReadsAvailable {
+            lines.append(WalletCopy.format(
+                "wallet_ux_swap_readiness_blocked", WalletCopy.text("wallet_dashboard_sync_required")
+            ))
+        } else {
+            lines.append(WalletCopy.text("wallet_ux_swap_readiness_ready"))
+        }
+        return lines.joined(separator: "\n")
     }
 
     private var hasActiveSwapOverview: Bool {
@@ -4304,6 +4340,12 @@ final class WalletViewController: UIViewController {
         let available = shakedexActionMayStart && !bitcoinSyncInProgress && !bitcoinBirthdayResetInProgress
         let paired = directShakescapeStatusSnapshot?.peerEndpoint != nil
         var actions: [WalletMenuAction] = []
+        if bitcoinStage == .firstSync || bitcoinStage == .sync {
+            actions.append(WalletMenuAction(
+                title: WalletCopy.text("wallet_ux_swap_readiness_sync_bitcoin"),
+                enabled: available && bitcoinValueAvailable
+            ) { [weak self] in self?.startBitcoinSynchronization() })
+        }
         if !paired {
             actions.append(WalletMenuAction(title: WalletCopy.text("row_wallet_pair_direct_shakescape"),
                 enabled: available, dismissBeforeAction: true, primary: !hasActiveSwapOverview

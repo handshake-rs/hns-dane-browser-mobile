@@ -2540,6 +2540,7 @@ class WalletActivity : ComponentActivity() {
 
     private fun shakedexOverviewSummary(): String = buildList {
         add(shakedexSummary())
+        add(shakedexReadinessSummary())
         add(getString(if (directShakescapePeerEndpoint == null)
             R.string.wallet_ux_connect_help else R.string.wallet_ux_connected_help))
         if (latestReadSnapshot == null) add(getString(R.string.wallet_dashboard_sync_required))
@@ -2547,6 +2548,31 @@ class WalletActivity : ComponentActivity() {
         val feedback = swapActionStatusView.text.toString()
         if (feedback.isNotBlank() && feedback != getString(R.string.wallet_swap_status_none)) add(feedback)
     }.joinToString("\n\n")
+
+    private fun shakedexReadinessSummary(): String = buildList {
+        val hns = latestReadSnapshot
+        add(if (hns == null) getString(R.string.wallet_ux_swap_readiness_hns_missing) else getString(
+            R.string.wallet_ux_swap_readiness_hns, hns.height.toString(),
+            formatHnsBaseUnits(hns.balanceBaseUnits),
+        ))
+        val bitcoin = bitcoinSnapshot
+        add(if (bitcoin == null || bitcoin.synchronizedHeight == 0L) {
+            getString(R.string.wallet_ux_swap_readiness_btc_missing)
+        } else getString(
+            R.string.wallet_ux_swap_readiness_btc,
+            bitcoin.synchronizedHeight.toString(), bitcoin.confirmedSats.toString(),
+        ))
+        add(directShakescapePeerEndpoint?.let {
+            getString(R.string.wallet_ux_swap_readiness_peer, it)
+        } ?: getString(R.string.wallet_ux_swap_readiness_peer_missing))
+        add(if (walletBitcoinSyncInProgress || bitcoinLastSyncFailed ||
+            bitcoinStage() != BitcoinOverviewStage.Sync) {
+            getString(R.string.wallet_ux_swap_readiness_blocked, bitcoinSetupSummary())
+        } else if (busy || latestReadSnapshot == null || hasActiveWalletHnsSynchronization()) {
+            getString(R.string.wallet_ux_swap_readiness_blocked,
+                getString(R.string.wallet_dashboard_sync_required))
+        } else getString(R.string.wallet_ux_swap_readiness_ready))
+    }.joinToString("\n")
 
     private fun showShakedexDashboard() {
         refreshDirectShakescapeStatus()
@@ -2557,6 +2583,13 @@ class WalletActivity : ComponentActivity() {
                 val available = overviewActionsAvailable() && latestReadSnapshot != null
                 val paired = directShakescapePeerEndpoint != null
                 val main = buildList {
+                    if (bitcoinStage() in setOf(BitcoinOverviewStage.FirstSync, BitcoinOverviewStage.Sync)) {
+                        add(WalletModalAction(
+                            getString(R.string.wallet_ux_swap_readiness_sync_bitcoin),
+                            available && !walletBitcoinSyncInProgress,
+                            { automaticSwapBitcoinSyncPausedUntilElapsedMillis = Long.MIN_VALUE; synchronizeBitcoin() },
+                        ))
+                    }
                     if (!paired) add(WalletModalAction(
                         getString(R.string.row_wallet_pair_direct_shakescape), available,
                         ::showPairDirectShakescapeForm, dismissParent = true, primary = !hasLiveAtomicSwap(),
