@@ -6932,6 +6932,104 @@ struct GatewayProofProvider {
 }
 
 impl GatewayProofProvider {
+    fn load_live_proof_peers(&self) -> Result<hns_p2p::PeerManager, ResolverError> {
+        let peer_store_path = self.base.join("peers.sqlite");
+        let _peer_state = match self.peer_state.as_ref() {
+            Some(peer_state) => Some(
+                peer_state
+                    .lock()
+                    .map_err(|_| ResolverError::CachePoisoned)?,
+            ),
+            None => None,
+        };
+        let lock_path = peer_state_lock_path(&peer_store_path).map_err(ResolverError::Storage)?;
+        let _process_peer_state =
+            HeaderStateFileLock::shared(&lock_path).map_err(ResolverError::Storage)?;
+        SqlitePeerStore::open(peer_store_path)
+            .map_err(|error| ResolverError::Storage(format!("open peer store: {error}")))?
+            .load_manager()
+            .map_err(|error| ResolverError::Storage(format!("load peer store: {error}")))
+    }
+
+    fn persist_live_proof_outcomes(
+        &self,
+        seeded_peers: &[SocketAddr],
+        selected_from: &hns_p2p::PeerManager,
+        attempts: &[LiveProofPeerAttempt],
+    ) -> Result<HashSet<SocketAddr>, ResolverError> {
+        let peer_store_path = self.base.join("peers.sqlite");
+        let _peer_state = match self.peer_state.as_ref() {
+            Some(peer_state) => Some(
+                peer_state
+                    .lock()
+                    .map_err(|_| ResolverError::CachePoisoned)?,
+            ),
+            None => None,
+        };
+        let lock_path = peer_state_lock_path(&peer_store_path).map_err(ResolverError::Storage)?;
+        let _process_peer_state =
+            HeaderStateFileLock::exclusive(&lock_path).map_err(ResolverError::Storage)?;
+        let peer_store = SqlitePeerStore::open(peer_store_path)
+            .map_err(|error| ResolverError::Storage(format!("open peer store: {error}")))?;
+        let mut current = peer_store
+            .load_manager()
+            .map_err(|error| ResolverError::Storage(format!("reload peer store: {error}")))?;
+        let network = self.network.network();
+        let mut changed = HashSet::new();
+        if allowed_peer_count(&current, &network) == 0 {
+            for address in seeded_peers {
+                if current.get(*address).is_none() && is_allowed_peer_endpoint(&network, *address) {
+                    current.upsert(*address);
+                    changed.insert(*address);
+                }
+            }
+        }
+        let now = now_unix_seconds();
+        let mut available = HashSet::new();
+        for attempt in attempts {
+            if !current
+                .get(attempt.address)
+                .is_some_and(|peer| !peer.is_banned(now))
+            {
+                continue;
+            }
+            available.insert(attempt.address);
+            match attempt.outcome {
+                LiveProofPeerOutcome::Success => {
+                    // Proof transport cannot advance sync-owned height evidence.
+                    // A penalty recorded while this proof was in flight also
+                    // remains in force when counting the transport success.
+                    let latest = current.get(attempt.address).expect("checked above");
+                    let newer_penalty = selected_from.get(attempt.address).is_some_and(|before| {
+                        latest.score > before.score
+                            || latest.failures > before.failures
+                            || latest.banned_until > before.banned_until
+                    });
+                    let latest_score = latest.score;
+                    current.record_transport_success(attempt.address, now);
+                    if newer_penalty {
+                        current.upsert(attempt.address).score = latest_score;
+                    }
+                }
+                LiveProofPeerOutcome::StaleHeight => current.record_stale_tip(attempt.address),
+                LiveProofPeerOutcome::Failed => current.record_transient_failure(attempt.address),
+                LiveProofPeerOutcome::Cancelled => continue,
+            }
+            changed.insert(attempt.address);
+        }
+        if !changed.is_empty() {
+            let updates = hns_p2p::PeerManager::from_states(
+                changed
+                    .into_iter()
+                    .filter_map(|address| current.get(address).cloned()),
+            );
+            peer_store
+                .save_manager(&updates)
+                .map_err(|error| ResolverError::Storage(format!("save peer outcomes: {error}")))?;
+        }
+        Ok(available)
+    }
+
     fn request_authority(&self) -> Result<hns_chain::StoredHeader, ResolverError> {
         if let Some(snapshot) = RequestAuthorityScope::current(&self.base, self.network) {
             snapshot.current_authority(&self.base, self.network)
@@ -7084,14 +7182,6 @@ impl GatewayProofProvider {
         name_hash: NameHash,
     ) -> Result<(), ResolverError> {
         let mut metrics = LiveProofRaceMetricsCapture::begin(&self.trace);
-        let _peer_state = match self.peer_state.as_ref() {
-            Some(peer_state) => Some(
-                peer_state
-                    .lock()
-                    .map_err(|_| ResolverError::CachePoisoned)?,
-            ),
-            None => None,
-        };
         match self.cached_records(root_name, name_hash) {
             Ok(_) => return Ok(()),
             Err(ResolverError::ProofUnavailable) => {}
@@ -7103,28 +7193,21 @@ impl GatewayProofProvider {
             return Err(ResolverError::LocalChainNotCurrent);
         }
         let network = self.network.network();
-        let peer_store = SqlitePeerStore::open(self.base.join("peers.sqlite"))
-            .map_err(|error| ResolverError::Storage(format!("open peer store: {error}")))?;
-        let mut peers = peer_store
-            .load_manager()
-            .map_err(|error| ResolverError::Storage(format!("load peer store: {error}")))?;
+        let mut peers = self.load_live_proof_peers()?;
         retain_allowed_peer_endpoints(&mut peers, &network);
+        let selection_started = Instant::now();
+        let mut seeded_peers = Vec::new();
         if self.seed_on_empty && allowed_peer_count(&peers, &network) == 0 {
             let _ = seed_peers_for_network(&mut peers, &network, self.network);
+            seeded_peers.extend(peers.iter().map(|peer| peer.address));
         }
 
         let now = now_unix_seconds();
-        let selection_started = Instant::now();
         let selected =
             select_live_proof_peers(&peers, &network, self.preferred_peers, now, best.height);
         metrics.metrics.selection_ms = elapsed_millis(selection_started);
         metrics.metrics.peers_started = selected.len();
         if selected.is_empty() {
-            let persistence_started = Instant::now();
-            peer_store
-                .save_manager(&peers)
-                .map_err(|error| ResolverError::Storage(format!("save peer store: {error}")))?;
-            metrics.metrics.persistence_ms = elapsed_millis(persistence_started);
             return Err(ResolverError::ProofUnavailable);
         }
 
@@ -7175,40 +7258,30 @@ impl GatewayProofProvider {
             metrics.metrics.verify_store_ms = attributed.verify_store_ms;
         }
 
-        for attempt in &attempts {
-            match attempt.outcome {
-                LiveProofPeerOutcome::Success => {
-                    // Exact-root proof verification is the authority. A live
-                    // proof transport success must not promote the remote
-                    // version height into sync-owned target evidence.
-                    peers.record_transport_success(attempt.address, now);
-                }
-                LiveProofPeerOutcome::StaleHeight => {
-                    peers.record_stale_tip(attempt.address);
-                }
-                LiveProofPeerOutcome::Cancelled => {}
-                LiveProofPeerOutcome::Failed => peers.record_transient_failure(attempt.address),
-            }
-        }
-
         let winning_address = attempts
             .iter()
             .find(|attempt| attempt.won_race)
             .map(|attempt| attempt.address);
-        if let Some(address) = winning_address
+        let persistence_started = Instant::now();
+        let available = self.persist_live_proof_outcomes(&seeded_peers, &peers, &attempts)?;
+        metrics.metrics.persistence_ms = elapsed_millis(persistence_started);
+        let Some(winning_address) = winning_address else {
+            return Err(ResolverError::ProofUnavailable);
+        };
+        // Peer target evidence can change while sockets are in flight. Read
+        // the committed authority once more before publishing this proof.
+        let latest_authority = read_request_authority_snapshot(&self.base, self.network)?
+            .current_authority(&self.base, self.network)?;
+        if latest_authority.header.tree_root != authority.header.tree_root {
+            return Err(ResolverError::LocalChainNotCurrent);
+        }
+        if available.contains(&winning_address)
             && let Some(proof_peer) = self.proof_peer.as_ref()
             && let Ok(mut selected) = proof_peer.lock()
         {
-            *selected = Some(address);
+            *selected = Some(winning_address);
         }
-        let persistence_started = Instant::now();
-        peer_store
-            .save_manager(&peers)
-            .map_err(|error| ResolverError::Storage(format!("save peer store: {error}")))?;
-        metrics.metrics.persistence_ms = elapsed_millis(persistence_started);
-        winning_address
-            .map(|_| ())
-            .ok_or(ResolverError::ProofUnavailable)
+        Ok(())
     }
 
     fn fetch_from_peer(
@@ -25547,6 +25620,116 @@ mod tests {
         for server in stalled {
             server.join().unwrap();
         }
+        cleanup_dir(&path);
+    }
+
+    #[test]
+    fn live_proof_network_wait_releases_peer_state_and_preserves_newer_ban() {
+        let path = temp_dir_path("live-proof-peer-state-release");
+        let base = path.join("hns-regtest");
+        fs::create_dir_all(&base).unwrap();
+        let root_name = "welcome".to_owned();
+        let name_hash = NameHash::from_name(&root_name).unwrap();
+        let proof_height = store_best_header_for_network_with_tree_root(
+            &base,
+            NetworkKind::Regtest,
+            Hash::new([66; 32]),
+        );
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let server = thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            ready_tx.send(()).unwrap();
+            release_rx.recv_timeout(TEST_CONCURRENCY_TIMEOUT).unwrap();
+            drop(stream);
+        });
+        let peer_store = SqlitePeerStore::open(base.join("peers.sqlite")).unwrap();
+        let mut initial = PeerManager::default();
+        initial.seed([address]);
+        peer_store.save_manager(&initial).unwrap();
+        let peer_state = Arc::new(Mutex::new(()));
+        let proof_peer_state = Arc::clone(&peer_state);
+        let proof_base = base.clone();
+        let proof = thread::spawn(move || {
+            let mut provider = GatewayProofProvider::new(
+                proof_base.clone(),
+                SqliteResourceValueProvider::open(proof_base.join("resources.sqlite")).unwrap(),
+                NetworkKind::Regtest,
+            )
+            .with_peer_state(Some(proof_peer_state));
+            provider.seed_on_empty = false;
+            provider.timeout = Duration::from_secs(3);
+            provider.prove_name(&root_name, name_hash)
+        });
+        ready_rx.recv_timeout(TEST_CONCURRENCY_TIMEOUT).unwrap();
+        let state_guard = peer_state.try_lock();
+        let lock_released = state_guard.is_ok();
+        if let Ok(_guard) = state_guard {
+            let mut current = peer_store.load_manager().unwrap();
+            current.record_observed_height(address, Height(proof_height.0 + 5), 123);
+            current.upsert(address).banned_until = Some(now_unix_seconds() + 3_600);
+            peer_store.save_manager(&current).unwrap();
+        }
+        release_tx.send(()).unwrap();
+        assert!(matches!(
+            proof.join().unwrap(),
+            Err(ResolverError::ProofUnavailable)
+        ));
+        server.join().unwrap();
+        assert!(
+            lock_released,
+            "live proof held peer state during socket I/O"
+        );
+        let merged = peer_store.load_peer(address).unwrap().unwrap();
+        assert_eq!(merged.last_height, Height(proof_height.0 + 5));
+        assert_eq!(merged.last_height_observed_at, Some(123));
+        assert!(merged.is_banned(now_unix_seconds()));
+        assert_eq!(merged.failures, 0);
+        cleanup_dir(&path);
+    }
+
+    #[test]
+    fn live_proof_success_merges_into_latest_height_without_replacing_other_peers() {
+        let path = temp_dir_path("live-proof-peer-merge");
+        fs::create_dir_all(&path).unwrap();
+        let address = SocketAddr::from((Ipv4Addr::LOCALHOST, 12038));
+        let other = SocketAddr::from((Ipv4Addr::LOCALHOST, 12039));
+        let peer_store = SqlitePeerStore::open(path.join("peers.sqlite")).unwrap();
+        let mut selected_from = PeerManager::default();
+        selected_from.seed([address, other]);
+        peer_store.save_manager(&selected_from).unwrap();
+        let mut current = peer_store.load_manager().unwrap();
+        current.record_observed_height(address, Height(42), 500);
+        current.record_transient_failure(address);
+        current.upsert(other).banned_until = Some(now_unix_seconds() + 3_600);
+        peer_store.save_manager(&current).unwrap();
+        let previous_other = peer_store.load_peer(other).unwrap().unwrap();
+        let provider = GatewayProofProvider::new(
+            path.clone(),
+            SqliteResourceValueProvider::open(path.join("resources.sqlite")).unwrap(),
+            NetworkKind::Regtest,
+        );
+        let available = provider
+            .persist_live_proof_outcomes(
+                &[],
+                &selected_from,
+                &[LiveProofPeerAttempt {
+                    outcome: LiveProofPeerOutcome::Success,
+                    won_race: true,
+                    ..LiveProofPeerAttempt::new(address)
+                }],
+            )
+            .unwrap();
+        assert!(available.contains(&address));
+        let merged = peer_store.load_peer(address).unwrap().unwrap();
+        assert_eq!(merged.last_height, Height(42));
+        assert_eq!(merged.last_height_observed_at, Some(500));
+        assert_eq!(merged.successes, 1);
+        assert_eq!(merged.failures, 1);
+        assert_eq!(merged.score, current.get(address).unwrap().score);
+        assert_eq!(peer_store.load_peer(other).unwrap(), Some(previous_other));
         cleanup_dir(&path);
     }
 
