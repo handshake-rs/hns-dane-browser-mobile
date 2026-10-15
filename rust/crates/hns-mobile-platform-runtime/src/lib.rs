@@ -6591,6 +6591,49 @@ struct HnsProofEvidenceRecorder {
 }
 
 impl HnsProofEvidenceRecorder {
+    fn copy_from_thread(&self, source: thread::ThreadId) -> Result<(), ResolverError> {
+        let mut states = self
+            .states
+            .lock()
+            .map_err(|_| ResolverError::CachePoisoned)?;
+        let evidence = states.get(&source).cloned().unwrap_or_default();
+        states.insert(thread::current().id(), evidence);
+        Ok(())
+    }
+
+    fn take_thread(
+        &self,
+        thread_id: thread::ThreadId,
+    ) -> Result<HnsProofEvidenceState, ResolverError> {
+        Ok(self
+            .states
+            .lock()
+            .map_err(|_| ResolverError::CachePoisoned)?
+            .remove(&thread_id)
+            .unwrap_or_default())
+    }
+
+    fn merge_current(&self, other: HnsProofEvidenceState) -> Result<(), ResolverError> {
+        if other.conflicts.is_empty() && other.observations.is_empty() {
+            return Ok(());
+        }
+        {
+            let mut states = self
+                .states
+                .lock()
+                .map_err(|_| ResolverError::CachePoisoned)?;
+            states
+                .entry(thread::current().id())
+                .or_default()
+                .conflicts
+                .extend(other.conflicts);
+        }
+        for (root, observation) in other.observations {
+            self.record(&root, observation)?;
+        }
+        Ok(())
+    }
+
     fn begin(&self) -> Result<(), ResolverError> {
         let mut states = self
             .states
@@ -6928,6 +6971,7 @@ struct GatewayProofProvider {
     evidence: HnsProofEvidenceRecorder,
     trace: DnsTraceRecorder,
     root_states: Arc<Mutex<HnsRootStateCache>>,
+    proof_flights: Mutex<HashMap<NameHash, Weak<Mutex<()>>>>,
 }
 
 impl GatewayProofProvider {
@@ -7049,6 +7093,7 @@ impl GatewayProofProvider {
             evidence: HnsProofEvidenceRecorder::default(),
             trace: DnsTraceRecorder::default(),
             root_states: Arc::new(Mutex::new(HnsRootStateCache::new())),
+            proof_flights: Mutex::new(HashMap::new()),
         }
     }
 
@@ -7179,12 +7224,31 @@ impl GatewayProofProvider {
         root_name: &str,
         name_hash: NameHash,
     ) -> Result<(), ResolverError> {
-        let mut metrics = LiveProofRaceMetricsCapture::begin(&self.trace);
+        // A proof covers the root name for every RR family. Coalesce cold
+        // misses before contacting peers, then recheck the cache under lock.
+        let proof_lock = {
+            let mut flights = self
+                .proof_flights
+                .lock()
+                .map_err(|_| ResolverError::CachePoisoned)?;
+            if let Some(lock) = flights.get(&name_hash).and_then(Weak::upgrade) {
+                lock
+            } else {
+                flights.retain(|_, lock| lock.strong_count() > 0);
+                let lock = Arc::new(Mutex::new(()));
+                flights.insert(name_hash, Arc::downgrade(&lock));
+                lock
+            }
+        };
+        let _proof = proof_lock
+            .lock()
+            .map_err(|_| ResolverError::CachePoisoned)?;
         match self.cached_records(root_name, name_hash) {
             Ok(_) => return Ok(()),
             Err(ResolverError::ProofUnavailable) => {}
             Err(error) => return Err(error),
         }
+        let mut metrics = LiveProofRaceMetricsCapture::begin(&self.trace);
         let authority = self.request_authority()?;
         let best = best_synced_header(&self.base, self.network)?;
         if best.header.tree_root != authority.header.tree_root {
@@ -7693,6 +7757,7 @@ struct AndroidGatewayResolver {
     build_lock: Mutex<()>,
     request_plan: SharedRequestNamespacePlan,
     trace: DnsTraceRecorder,
+    fallback_marker: FallbackMarker,
     authority_snapshot: Option<Arc<RequestAuthoritySnapshot>>,
 }
 
@@ -7706,6 +7771,7 @@ impl AndroidGatewayResolver {
         hns_evidence: HnsProofEvidenceRecorder,
         icann_evidence: IcannEvidenceRecorder,
         trace: DnsTraceRecorder,
+        fallback_marker: FallbackMarker,
     ) -> Self {
         Self {
             hns,
@@ -7717,6 +7783,7 @@ impl AndroidGatewayResolver {
             build_lock: Mutex::new(()),
             request_plan: Arc::new(Mutex::new(None)),
             trace,
+            fallback_marker,
             authority_snapshot: None,
         }
     }
@@ -7794,6 +7861,7 @@ impl AndroidGatewayResolver {
             &self.hns_evidence,
             &self.icann_evidence,
             Some(&self.trace),
+            Some(&self.fallback_marker),
         );
         if let Ok(mut plans) = self.plans.lock() {
             plans.insert(origin.key, plan.clone());
@@ -7842,13 +7910,37 @@ struct RootPlanBuild {
     answers: HashMap<ResolutionRequest, ResolutionAnswer>,
 }
 
+#[derive(Clone, Copy)]
+struct RootPlanRecorders<'a> {
+    hns_evidence: &'a HnsProofEvidenceRecorder,
+    icann_evidence: &'a IcannEvidenceRecorder,
+    trace: Option<&'a DnsTraceRecorder>,
+    fallback_marker: Option<&'a FallbackMarker>,
+}
+
+impl<'a> RootPlanRecorders<'a> {
+    #[cfg(test)]
+    fn new(
+        hns_evidence: &'a HnsProofEvidenceRecorder,
+        icann_evidence: &'a IcannEvidenceRecorder,
+    ) -> Self {
+        Self {
+            hns_evidence,
+            icann_evidence,
+            trace: None,
+            fallback_marker: None,
+        }
+    }
+}
+
 fn build_namespace_plan(
-    hns: &dyn Resolver,
+    hns: &(dyn Resolver + Sync),
     icann: &(dyn Resolver + Sync),
     origin: &NamespaceOriginContext,
     hns_evidence: &HnsProofEvidenceRecorder,
     icann_evidence: &IcannEvidenceRecorder,
     trace: Option<&DnsTraceRecorder>,
+    fallback_marker: Option<&FallbackMarker>,
 ) -> CachedNamespacePlan {
     let now = now_unix_seconds();
     let host = match CanonicalHost::parse(&origin.key.host) {
@@ -7871,6 +7963,12 @@ fn build_namespace_plan(
         Some(port),
         origin.key.supported_protocols,
     );
+    let recorders = RootPlanRecorders {
+        hns_evidence,
+        icann_evidence,
+        trace,
+        fallback_marker,
+    };
     let parent_thread = thread::current().id();
     let (icann_build, icann_trace, mut hns_build) = thread::scope(|scope| {
         let worker = scope.spawn(|| {
@@ -7878,15 +7976,7 @@ fn build_namespace_plan(
             // the request thread. Give this leg its own copy and discard it
             // before the worker exits so another request cannot inherit it.
             let build = if icann_evidence.copy_from_thread(parent_thread).is_ok() {
-                build_root_plan(
-                    icann,
-                    Namespace::Icann,
-                    &query,
-                    origin,
-                    now,
-                    hns_evidence,
-                    icann_evidence,
-                )
+                build_root_plan(icann, Namespace::Icann, &query, origin, now, recorders)
             } else {
                 RootPlanBuild {
                     lookup: RootLookup::Failed(RootFailure::new(
@@ -7901,15 +7991,7 @@ fn build_namespace_plan(
             icann_evidence.reset();
             (build, trace.and_then(DnsTraceRecorder::take_current))
         });
-        let hns_build = build_root_plan(
-            hns,
-            Namespace::Hns,
-            &query,
-            origin,
-            now,
-            hns_evidence,
-            icann_evidence,
-        );
+        let hns_build = build_root_plan(hns, Namespace::Hns, &query, origin, now, recorders);
         let worker_id = worker.thread().id();
         let (icann_build, icann_trace) = match worker.join() {
             Ok(result) => result,
@@ -7954,8 +8036,7 @@ fn build_namespace_plan(
             &query,
             origin,
             joined_at_unix,
-            hns_evidence,
-            icann_evidence,
+            recorders,
         );
     }
     let hns_state = root_lookup_state(&hns_build.lookup);
@@ -8097,13 +8178,12 @@ fn root_lookup_state(lookup: &RootLookup) -> NamespaceRootState {
 }
 
 fn build_root_plan(
-    resolver: &dyn Resolver,
+    resolver: &(dyn Resolver + Sync),
     namespace: Namespace,
     query: &OriginQuery,
     origin: &NamespaceOriginContext,
     build_started_at_unix: u64,
-    hns_evidence: &HnsProofEvidenceRecorder,
-    icann_evidence: &IcannEvidenceRecorder,
+    recorders: RootPlanRecorders<'_>,
 ) -> RootPlanBuild {
     match build_present_root_plan(
         resolver,
@@ -8111,8 +8191,7 @@ fn build_root_plan(
         query,
         origin,
         build_started_at_unix,
-        hns_evidence,
-        icann_evidence,
+        recorders,
     ) {
         Ok(build) => build,
         Err((failure, answers)) => RootPlanBuild {
@@ -8122,15 +8201,109 @@ fn build_root_plan(
     }
 }
 
+fn resolve_origin_record_families(
+    resolver: &(dyn Resolver + Sync),
+    requests: &[ResolutionRequest],
+    origin: &NamespaceOriginContext,
+    hns_evidence: &HnsProofEvidenceRecorder,
+    icann_evidence: &IcannEvidenceRecorder,
+    trace: Option<&DnsTraceRecorder>,
+    fallback_marker: Option<&FallbackMarker>,
+) -> Result<Vec<Result<ResolutionAnswer, ResolverError>>, ResolverError> {
+    // Resolver evidence and diagnostics are keyed by thread. Each family gets
+    // the request's starting state, then its result is merged before the
+    // namespace plan can use any answer.
+    let parent = thread::current().id();
+    let authority_snapshot = RequestAuthorityScope::current(&origin.base, origin.network);
+    thread::scope(|scope| {
+        let workers = requests
+            .iter()
+            .cloned()
+            .map(|request| {
+                let authority_snapshot = authority_snapshot.clone();
+                scope.spawn(move || {
+                    let _authority_scope = RequestAuthorityScope::enter(authority_snapshot);
+                    hns_evidence.copy_from_thread(parent)?;
+                    icann_evidence.copy_from_thread(parent)?;
+                    if let Some(marker) = fallback_marker {
+                        marker.copy_from_thread(parent)?;
+                    }
+                    resolver.resolve(&request)
+                })
+            })
+            .collect::<Vec<_>>();
+        let mut results = Vec::with_capacity(workers.len());
+        let mut merge_error = None;
+        for worker in workers {
+            let worker_id = worker.thread().id();
+            let result = match worker.join() {
+                Ok(result) => result,
+                Err(_) => {
+                    if let Err(error) = hns_evidence.take_thread(worker_id) {
+                        merge_error.get_or_insert(error);
+                    }
+                    if let Err(error) = icann_evidence.take_thread(worker_id) {
+                        merge_error.get_or_insert(error);
+                    }
+                    if let Some(trace) = trace {
+                        trace.take_thread(worker_id);
+                    }
+                    if let Some(marker) = fallback_marker
+                        && let Err(error) = marker.take_thread(worker_id)
+                    {
+                        merge_error.get_or_insert(error);
+                    }
+                    results.push(Err(ResolverError::CachePoisoned));
+                    continue;
+                }
+            };
+            if let Err(error) = hns_evidence
+                .take_thread(worker_id)
+                .and_then(|state| hns_evidence.merge_current(state))
+            {
+                merge_error.get_or_insert(error);
+            }
+            if let Err(error) = icann_evidence
+                .take_thread(worker_id)
+                .and_then(|state| icann_evidence.merge_current(state))
+            {
+                merge_error.get_or_insert(error);
+            }
+            if let Some(trace) = trace
+                && let Some(state) = trace.take_thread(worker_id)
+            {
+                trace.merge_current(state);
+            }
+            if let Some(marker) = fallback_marker
+                && let Err(error) = marker
+                    .take_thread(worker_id)
+                    .and_then(|state| marker.merge_current(state))
+            {
+                merge_error.get_or_insert(error);
+            }
+            results.push(result);
+        }
+        match merge_error {
+            Some(error) => Err(error),
+            None => Ok(results),
+        }
+    })
+}
+
 fn build_present_root_plan(
-    resolver: &dyn Resolver,
+    resolver: &(dyn Resolver + Sync),
     namespace: Namespace,
     query: &OriginQuery,
     origin: &NamespaceOriginContext,
     build_started_at_unix: u64,
-    hns_evidence: &HnsProofEvidenceRecorder,
-    icann_evidence: &IcannEvidenceRecorder,
+    recorders: RootPlanRecorders<'_>,
 ) -> Result<RootPlanBuild, (RootFailure, HashMap<ResolutionRequest, ResolutionAnswer>)> {
+    let RootPlanRecorders {
+        hns_evidence,
+        icann_evidence,
+        trace,
+        fallback_marker,
+    } = recorders;
     let mut answers = HashMap::new();
     let mut origin_requests = Vec::new();
     let mut origin_name_errors = Vec::new();
@@ -8139,26 +8312,44 @@ fn build_present_root_plan(
         origin_record_types.push(RecordType::Https);
     }
     for record_type in origin_record_types {
-        let request = ResolutionRequest {
+        origin_requests.push(ResolutionRequest {
             qname: origin.key.host.clone(),
             qtype: record_type.code(),
-        };
-        origin_requests.push(request.clone());
-        match resolver.resolve(&request) {
+        });
+    }
+    let results = resolve_origin_record_families(
+        resolver,
+        &origin_requests,
+        origin,
+        hns_evidence,
+        icann_evidence,
+        trace,
+        fallback_marker,
+    )
+    .map_err(|error| {
+        (
+            root_failure(namespace, query.clone(), &error),
+            answers.clone(),
+        )
+    })?;
+    let mut resolution_error = None;
+    for (request, result) in origin_requests.iter().cloned().zip(results) {
+        match result {
             Ok(answer) => {
                 answers.insert(request, answer);
             }
             Err(ResolverError::NameNotFound) => {
                 origin_name_errors.push(request);
-                // NXDOMAIN is whole-name evidence. Stop querying other RR
-                // families; any earlier family-specific NODATA or positive
-                // answer will make the collected evidence inconsistent below.
-                break;
             }
             Err(error) => {
-                return Err((root_failure(namespace, query.clone(), &error), answers));
+                if resolution_error.is_none() {
+                    resolution_error = Some(error);
+                }
             }
         }
+    }
+    if let Some(error) = resolution_error {
+        return Err((root_failure(namespace, query.clone(), &error), answers));
     }
     if !origin_name_errors.is_empty() {
         if origin_name_errors.len() != origin_requests.len()
@@ -9620,6 +9811,10 @@ impl DnsTraceRecorder {
         self.traces.lock().ok()?.remove(&thread::current().id())
     }
 
+    fn take_thread(&self, thread_id: thread::ThreadId) -> Option<DnsTraceState> {
+        self.traces.lock().ok()?.remove(&thread_id)
+    }
+
     fn merge_current(&self, mut other: DnsTraceState) {
         if let Ok(mut traces) = self.traces.lock() {
             let current = traces.entry(thread::current().id()).or_default();
@@ -9632,6 +9827,18 @@ impl DnsTraceRecorder {
             }
             if current.live_proof.is_none() {
                 current.live_proof = other.live_proof;
+            }
+            let delegation = &mut current.authenticated_hns_delegation;
+            let other_delegation = other.authenticated_hns_delegation;
+            if other_delegation.conflicted
+                || (delegation.observation.is_some()
+                    && other_delegation.observation.is_some()
+                    && delegation.observation != other_delegation.observation)
+            {
+                delegation.observation = None;
+                delegation.conflicted = true;
+            } else if !delegation.conflicted && delegation.observation.is_none() {
+                delegation.observation = other_delegation.observation;
             }
         }
     }
@@ -10760,6 +10967,43 @@ struct FallbackState {
 }
 
 impl FallbackMarker {
+    fn copy_from_thread(&self, source: thread::ThreadId) -> Result<(), ResolverError> {
+        let mut states = self
+            .states
+            .lock()
+            .map_err(|_| ResolverError::CachePoisoned)?;
+        let state = states.get(&source).cloned().unwrap_or_default();
+        states.insert(thread::current().id(), state);
+        Ok(())
+    }
+
+    fn take_thread(&self, thread_id: thread::ThreadId) -> Result<FallbackState, ResolverError> {
+        Ok(self
+            .states
+            .lock()
+            .map_err(|_| ResolverError::CachePoisoned)?
+            .remove(&thread_id)
+            .unwrap_or_default())
+    }
+
+    fn merge_current(&self, other: FallbackState) -> Result<(), ResolverError> {
+        if !other.used && other.p2p_roots.is_empty() && other.recovery_roots.is_empty() {
+            return Ok(());
+        }
+        let mut states = self
+            .states
+            .lock()
+            .map_err(|_| ResolverError::CachePoisoned)?;
+        let current = states.entry(thread::current().id()).or_default();
+        current.used |= other.used;
+        if current.reason.is_none() {
+            current.reason = other.reason;
+        }
+        current.p2p_roots.extend(other.p2p_roots);
+        current.recovery_roots.extend(other.recovery_roots);
+        Ok(())
+    }
+
     fn mark(&self, reason: &'static str) {
         if let Ok(mut states) = self.states.lock() {
             let state = states.entry(thread::current().id()).or_default();
@@ -11102,6 +11346,50 @@ struct IcannEvidenceRecorder {
 }
 
 impl IcannEvidenceRecorder {
+    fn take_thread(
+        &self,
+        thread_id: thread::ThreadId,
+    ) -> Result<HashMap<ResolutionRequest, IcannResponseObservation>, ResolverError> {
+        Ok(self
+            .states
+            .lock()
+            .map_err(|_| ResolverError::CachePoisoned)?
+            .remove(&thread_id)
+            .unwrap_or_default())
+    }
+
+    fn merge_current(
+        &self,
+        other: HashMap<ResolutionRequest, IcannResponseObservation>,
+    ) -> Result<(), ResolverError> {
+        if other.is_empty() {
+            return Ok(());
+        }
+        let mut states = self
+            .states
+            .lock()
+            .map_err(|_| ResolverError::CachePoisoned)?;
+        let current = states.entry(thread::current().id()).or_default();
+        for (request, observation) in other {
+            match current.get_mut(&request) {
+                Some(previous)
+                    if previous.kind == observation.kind
+                        && previous.secure == observation.secure =>
+                {
+                    previous.observed_at_unix =
+                        previous.observed_at_unix.max(observation.observed_at_unix);
+                    previous.expires_at_unix =
+                        previous.expires_at_unix.min(observation.expires_at_unix);
+                }
+                Some(_) => return Err(ResolverError::InvalidDnsResponse),
+                None => {
+                    current.insert(request, observation);
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn copy_from_thread(&self, source: thread::ThreadId) -> Result<(), ResolverError> {
         let mut states = self
             .states
@@ -13135,6 +13423,7 @@ fn gateway_resolver_from_stack(
         stack.hns_evidence.clone(),
         stack.icann_evidence.clone(),
         stack.dns_trace.clone(),
+        stack.fallback_marker.clone(),
     )
 }
 
@@ -25991,6 +26280,7 @@ mod tests {
             &HnsProofEvidenceRecorder::default(),
             &IcannEvidenceRecorder::default(),
             None,
+            None,
         );
 
         assert_eq!(
@@ -26433,6 +26723,69 @@ mod tests {
     }
 
     #[test]
+    fn concurrent_origin_families_reject_nxdomain_with_positive_answer() {
+        let host = CanonicalHost::parse("origin.example").unwrap();
+        let query = OriginQuery::new(
+            host.clone(),
+            OriginScheme::Http,
+            None,
+            ProtocolCapabilities::all(),
+        );
+        let base = temp_dir_path("origin-family-nxdomain-conflict");
+        let origin = NamespaceOriginContext {
+            key: NamespaceOriginKey {
+                profile: base.clone(),
+                host: host.as_str().to_owned(),
+                scheme: "http".to_owned(),
+                port: 80,
+                supported_protocols: ProtocolCapabilities::all(),
+                network: 0,
+                policy_revision: 0,
+                binding_revision: 0,
+            },
+            base,
+            network: NetworkKind::Mainnet,
+            binding: NamespaceBindingSnapshot::default(),
+        };
+        let a_request = ResolutionRequest {
+            qname: host.as_str().to_owned(),
+            qtype: RecordType::A.code(),
+        };
+        let aaaa_request = ResolutionRequest {
+            qname: host.as_str().to_owned(),
+            qtype: RecordType::Aaaa.code(),
+        };
+        let resolver = RequestMapResolver {
+            answers: HashMap::from([(
+                a_request,
+                resolution_answer(
+                    host.as_str(),
+                    vec![address_record(host.as_str(), [192, 0, 2, 1])],
+                    true,
+                ),
+            )]),
+            name_not_found: HashSet::from([aaaa_request]),
+            requests: Arc::new(Mutex::new(Vec::new())),
+        };
+
+        let failure = match build_present_root_plan(
+            &resolver,
+            Namespace::Hns,
+            &query,
+            &origin,
+            now_unix_seconds(),
+            RootPlanRecorders::new(
+                &HnsProofEvidenceRecorder::default(),
+                &IcannEvidenceRecorder::default(),
+            ),
+        ) {
+            Ok(_) => panic!("conflicting record families must fail closed"),
+            Err((failure, _)) => failure,
+        };
+        assert_eq!(failure.kind(), RootFailureKind::MalformedResponse);
+    }
+
+    #[test]
     fn icann_query_scoped_independent_address_lineages_keep_one_complete_route() {
         let origin = CanonicalHost::parse("origin.example").unwrap();
         let ipv6 = "2001:db8::1".parse().unwrap();
@@ -26809,14 +27162,20 @@ mod tests {
             &HnsProofEvidenceRecorder::default(),
             &IcannEvidenceRecorder::default(),
             Some(&trace),
+            None,
         );
         assert!(gate.0.lock().unwrap().1);
         assert!(matches!(
             plan.terminal,
             Some(NamespacePlanTerminal::Indeterminate)
         ));
-        assert_eq!(trace.snapshot().len(), 1);
-        assert_eq!(trace.snapshot()[0].server, "icann-worker");
+        assert_eq!(trace.snapshot().len(), 2);
+        assert!(
+            trace
+                .snapshot()
+                .iter()
+                .all(|event| event.server == "icann-worker")
+        );
         assert_eq!(trace.traces.lock().unwrap().len(), 1);
     }
 
@@ -26867,6 +27226,7 @@ mod tests {
             &HnsProofEvidenceRecorder::default(),
             &evidence,
             Some(&trace),
+            None,
         );
         assert_eq!(
             plan.icann_root_failure.as_ref().map(RootFailure::kind),
@@ -26970,8 +27330,15 @@ mod tests {
             binding: NamespaceBindingSnapshot::default(),
         };
 
-        let cached =
-            build_namespace_plan(&hns, &icann, &origin, &hns_evidence, &icann_evidence, None);
+        let cached = build_namespace_plan(
+            &hns,
+            &icann,
+            &origin,
+            &hns_evidence,
+            &icann_evidence,
+            None,
+            None,
+        );
         let decision = cached.decision.unwrap_or_else(|| {
             panic!(
                 "dual-root plan failed: HNS={:?}, ICANN={:?}",
@@ -26994,19 +27361,26 @@ mod tests {
                 .iter()
                 .any(|endpoint| endpoint.ip() == IpAddr::V6(hns_v6))
         );
+        let hns_requests = hns_requests.lock().unwrap();
+        assert_eq!(hns_requests.len(), 4);
         assert_eq!(
-            *hns_requests.lock().unwrap(),
-            vec![
-                a_request.clone(),
-                aaaa_request.clone(),
-                a_request.clone(),
-                aaaa_request.clone(),
-            ]
+            hns_requests
+                .iter()
+                .filter(|request| **request == a_request)
+                .count(),
+            2
         );
         assert_eq!(
-            *icann_requests.lock().unwrap(),
-            vec![a_request, aaaa_request]
+            hns_requests
+                .iter()
+                .filter(|request| **request == aaaa_request)
+                .count(),
+            2
         );
+        let icann_requests = icann_requests.lock().unwrap();
+        assert_eq!(icann_requests.len(), 2);
+        assert!(icann_requests.contains(&a_request));
+        assert!(icann_requests.contains(&aaaa_request));
     }
 
     #[test]
@@ -27372,8 +27746,7 @@ mod tests {
             &query,
             &origin,
             now,
-            &delegated_evidence,
-            &IcannEvidenceRecorder::default(),
+            RootPlanRecorders::new(&delegated_evidence, &IcannEvidenceRecorder::default()),
         )
         .unwrap();
         let RootLookup::Present(delegated_plan) = delegated.lookup else {
@@ -27404,8 +27777,7 @@ mod tests {
             &query,
             &origin,
             now,
-            &native_evidence,
-            &IcannEvidenceRecorder::default(),
+            RootPlanRecorders::new(&native_evidence, &IcannEvidenceRecorder::default()),
         ) {
             Ok(_) => panic!("native HNS TLSA NXDOMAIN must fail closed"),
             Err(error) => error,
@@ -27516,8 +27888,7 @@ mod tests {
             &query,
             &origin,
             now,
-            &evidence,
-            &IcannEvidenceRecorder::default(),
+            RootPlanRecorders::new(&evidence, &IcannEvidenceRecorder::default()),
         )
         .unwrap();
         let RootLookup::Present(plan) = build.lookup else {
@@ -27636,8 +28007,7 @@ mod tests {
             &query,
             &origin,
             now,
-            &evidence,
-            &IcannEvidenceRecorder::default(),
+            RootPlanRecorders::new(&evidence, &IcannEvidenceRecorder::default()),
         )
         .unwrap();
         let RootLookup::Present(plan) = build.lookup else {
@@ -27769,8 +28139,7 @@ mod tests {
             &query,
             &origin,
             build_started_at_unix,
-            &HnsProofEvidenceRecorder::default(),
-            &evidence,
+            RootPlanRecorders::new(&HnsProofEvidenceRecorder::default(), &evidence),
         )
         .unwrap();
         let RootLookup::Present(plan) = build.lookup else {
@@ -27905,8 +28274,7 @@ mod tests {
                 &query,
                 &origin,
                 now,
-                &evidence,
-                &IcannEvidenceRecorder::default(),
+                RootPlanRecorders::new(&evidence, &IcannEvidenceRecorder::default()),
             ) {
                 Ok(_) => panic!("insecure UDP TLSA evidence must fail closed"),
                 Err(error) => error,
@@ -28380,8 +28748,7 @@ mod tests {
             &query,
             &origin,
             now,
-            &HnsProofEvidenceRecorder::default(),
-            &evidence,
+            RootPlanRecorders::new(&HnsProofEvidenceRecorder::default(), &evidence),
         )
         .unwrap();
         let RootLookup::Present(plan) = build.lookup else {
@@ -28489,8 +28856,7 @@ mod tests {
             &query,
             &origin,
             now,
-            &HnsProofEvidenceRecorder::default(),
-            &evidence,
+            RootPlanRecorders::new(&HnsProofEvidenceRecorder::default(), &evidence),
         )
         .unwrap();
         let RootLookup::Present(plan) = build.lookup else {
@@ -30207,6 +30573,137 @@ mod tests {
         evidence.reset();
         assert!(trace.snapshot().is_empty());
         assert!(evidence.observation("pirate").unwrap().is_none());
+    }
+
+    #[test]
+    fn origin_record_families_resolve_concurrently_and_merge_request_evidence() {
+        struct CoordinatedResolver {
+            entered: std::sync::mpsc::Sender<u16>,
+            release: Mutex<std::sync::mpsc::Receiver<()>>,
+            hns_evidence: HnsProofEvidenceRecorder,
+            icann_evidence: IcannEvidenceRecorder,
+            trace: DnsTraceRecorder,
+            fallback: FallbackMarker,
+        }
+
+        impl Resolver for CoordinatedResolver {
+            fn resolve(
+                &self,
+                request: &ResolutionRequest,
+            ) -> Result<ResolutionAnswer, ResolverError> {
+                self.entered.send(request.qtype).unwrap();
+                self.release
+                    .lock()
+                    .unwrap()
+                    .recv_timeout(Duration::from_secs(3))
+                    .map_err(|error| ResolverError::DnsTransport(error.to_string()))?;
+                let now = now_unix_seconds();
+                self.hns_evidence.record(
+                    "example",
+                    HnsProofObservation {
+                        anchor: ResourceValueAnchor {
+                            tree_root: Hash::new([1; 32]),
+                            height: Height(1),
+                        },
+                        exists: true,
+                        has_delegation: true,
+                        observed_at_unix: now,
+                        expires_at_unix: now + 30,
+                    },
+                )?;
+                self.icann_evidence.insert_observation(
+                    request.clone(),
+                    IcannResponseObservation {
+                        kind: IcannResponseKind::NoData,
+                        secure: true,
+                        observed_at_unix: now,
+                        expires_at_unix: now + 30,
+                    },
+                );
+                self.trace.push(DnsTraceEvent {
+                    protocol: "test",
+                    server: "192.0.2.53:53".to_owned(),
+                    question_name: Some(request.qname.clone()),
+                    question_type: Some(request.qtype),
+                    status: "success".to_owned(),
+                    elapsed_ms: 1,
+                    error: None,
+                });
+                self.fallback.mark("test");
+                Ok(resolution_answer(&request.qname, Vec::new(), true))
+            }
+        }
+
+        let base = temp_dir_path("parallel-origin-record-families");
+        let origin = NamespaceOriginContext {
+            key: NamespaceOriginKey {
+                profile: base.clone(),
+                host: "origin.example".to_owned(),
+                scheme: "https".to_owned(),
+                port: 443,
+                supported_protocols: ProtocolCapabilities::all(),
+                network: 0,
+                policy_revision: 0,
+                binding_revision: 0,
+            },
+            base,
+            network: NetworkKind::Mainnet,
+            binding: NamespaceBindingSnapshot::default(),
+        };
+        let requests =
+            [RecordType::A, RecordType::Aaaa, RecordType::Https].map(|qtype| ResolutionRequest {
+                qname: origin.key.host.clone(),
+                qtype: qtype.code(),
+            });
+        let hns_evidence = HnsProofEvidenceRecorder::default();
+        let icann_evidence = IcannEvidenceRecorder::default();
+        let trace = DnsTraceRecorder::default();
+        let fallback = FallbackMarker::default();
+        let (entered_tx, entered_rx) = std::sync::mpsc::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let resolver = CoordinatedResolver {
+            entered: entered_tx,
+            release: Mutex::new(release_rx),
+            hns_evidence: hns_evidence.clone(),
+            icann_evidence: icann_evidence.clone(),
+            trace: trace.clone(),
+            fallback: fallback.clone(),
+        };
+        let (entered, results) = thread::scope(|scope| {
+            let request_count = requests.len();
+            let controller = scope.spawn(move || {
+                let mut entered = Vec::new();
+                for _ in 0..request_count {
+                    match entered_rx.recv_timeout(Duration::from_secs(2)) {
+                        Ok(qtype) => entered.push(qtype),
+                        Err(_) => break,
+                    }
+                }
+                for _ in 0..request_count {
+                    release_tx.send(()).unwrap();
+                }
+                entered
+            });
+            let results = resolve_origin_record_families(
+                &resolver,
+                &requests,
+                &origin,
+                &hns_evidence,
+                &icann_evidence,
+                Some(&trace),
+                Some(&fallback),
+            )
+            .unwrap();
+            (controller.join().unwrap(), results)
+        });
+        assert_eq!(entered.len(), requests.len());
+        assert!(results.into_iter().all(|result| result.is_ok()));
+        assert!(hns_evidence.observation("example").unwrap().is_some());
+        for request in &requests {
+            assert!(icann_evidence.observation(request).unwrap().is_some());
+        }
+        assert_eq!(trace.snapshot().len(), requests.len());
+        assert!(fallback.used());
     }
 
     struct RootCacheTestIcannResolver {
