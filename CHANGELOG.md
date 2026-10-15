@@ -2,6 +2,13 @@
 
 This file describes the current application candidate.
 
+## 1.0.20 - 2026-10-15
+
+Android `1.0.20` / code `72` includes the patched Rust TLS dependency and
+removes unused Android KTX artifacts. Store screenshot captures now read the
+version from the Release APK build metadata. iOS remains at `1.0.18` / build
+`81` until its next candidate.
+
 ## 1.0.19 - 2026-10-12
 
 Android `1.0.19` / code `71` resumes direct HNS wallet scanning after each

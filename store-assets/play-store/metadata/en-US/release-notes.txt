@@ -1,1 +1,1 @@
-1.0.19 Keeps HNS wallet scanning after each saved checkpoint while headers are current.
+1.0.20 Includes security and dependency maintenance for browsing and wallet features.
