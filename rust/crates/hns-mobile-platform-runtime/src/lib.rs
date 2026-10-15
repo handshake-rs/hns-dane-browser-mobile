@@ -7688,43 +7688,19 @@ impl AndroidGatewayResolver {
         }
         self.hns_evidence.begin()?;
         self.icann_evidence.begin()?;
-        self.preflight_root_states(&origin);
         let plan = build_namespace_plan(
             self.hns.as_ref(),
             self.icann.as_ref(),
             &origin,
             &self.hns_evidence,
             &self.icann_evidence,
+            Some(&self.trace),
         );
         if let Ok(mut plans) = self.plans.lock() {
             plans.insert(origin.key, plan.clone());
         }
         self.trace.record_namespace(plan.metadata.clone());
         self.finish_plan(plan)
-    }
-
-    fn preflight_root_states(&self, origin: &NamespaceOriginContext) {
-        let Ok(root) = hns_root_label(&origin.key.host) else {
-            return;
-        };
-        let request = ResolutionRequest {
-            qname: root,
-            qtype: RecordType::Ns.code(),
-        };
-        thread::scope(|scope| {
-            scope.spawn(|| {
-                let _authority_scope =
-                    RequestAuthorityScope::enter(self.authority_snapshot.clone());
-                let _ = self.hns_evidence.begin();
-                let _ = self.hns.resolve(&request);
-                self.hns_evidence.reset();
-            });
-            scope.spawn(|| {
-                let _ = self.icann_evidence.begin();
-                let _ = self.icann.resolve(&request);
-                self.icann_evidence.reset();
-            });
-        });
     }
 
     fn origin_for_query(
@@ -7769,10 +7745,11 @@ struct RootPlanBuild {
 
 fn build_namespace_plan(
     hns: &dyn Resolver,
-    icann: &dyn Resolver,
+    icann: &(dyn Resolver + Sync),
     origin: &NamespaceOriginContext,
     hns_evidence: &HnsProofEvidenceRecorder,
     icann_evidence: &IcannEvidenceRecorder,
+    trace: Option<&DnsTraceRecorder>,
 ) -> CachedNamespacePlan {
     let now = now_unix_seconds();
     let host = match CanonicalHost::parse(&origin.key.host) {
@@ -7795,28 +7772,72 @@ fn build_namespace_plan(
         Some(port),
         origin.key.supported_protocols,
     );
-    // Resolve ICANN first because delegated HNS validation currently retains
-    // the authenticated result but not the DNSSEC material needed to publish
-    // its full lifetime. Mint the deliberately ephemeral HNS freshness after
-    // the potentially slow independent leg, immediately before classification.
-    let icann_build = build_root_plan(
-        icann,
-        Namespace::Icann,
-        &query,
-        origin,
-        now,
-        hns_evidence,
-        icann_evidence,
-    );
-    let hns_build = build_root_plan(
-        hns,
-        Namespace::Hns,
-        &query,
-        origin,
-        now,
-        hns_evidence,
-        icann_evidence,
-    );
+    let parent_thread = thread::current().id();
+    let (icann_build, icann_trace, mut hns_build) = thread::scope(|scope| {
+        let worker = scope.spawn(|| {
+            // Cached and test-injected evidence may already be attached to
+            // the request thread. Give this leg its own copy and discard it
+            // before the worker exits so another request cannot inherit it.
+            let build = if icann_evidence.copy_from_thread(parent_thread).is_ok() {
+                build_root_plan(
+                    icann,
+                    Namespace::Icann,
+                    &query,
+                    origin,
+                    now,
+                    hns_evidence,
+                    icann_evidence,
+                )
+            } else {
+                RootPlanBuild {
+                    lookup: RootLookup::Failed(RootFailure::new(
+                        Namespace::Icann,
+                        query.clone(),
+                        RootFailureKind::Internal,
+                        None,
+                    )),
+                    answers: HashMap::new(),
+                }
+            };
+            icann_evidence.reset();
+            (build, trace.and_then(DnsTraceRecorder::take_current))
+        });
+        let hns_build = build_root_plan(
+            hns,
+            Namespace::Hns,
+            &query,
+            origin,
+            now,
+            hns_evidence,
+            icann_evidence,
+        );
+        let (icann_build, icann_trace) = worker.join().expect("ICANN namespace worker panicked");
+        (icann_build, icann_trace, hns_build)
+    });
+    if let (Some(trace), Some(icann_trace)) = (trace, icann_trace) {
+        trace.merge_current(icann_trace);
+    }
+    // Delegated HNS DNSSEC material is not retained, so its one-second
+    // freshness may expire while an independent ICANN leg is still running.
+    // Revalidate that leg after the join only when its validated result is
+    // already stale; cached proof and delegated answers keep this cheap.
+    let joined_at_unix = now_unix_seconds();
+    let hns_expired = match &hns_build.lookup {
+        RootLookup::Present(plan) => plan.freshness().expires_at_unix() <= joined_at_unix,
+        RootLookup::Absent(absence) => absence.freshness().expires_at_unix() <= joined_at_unix,
+        RootLookup::Failed(_) => false,
+    };
+    if hns_expired {
+        hns_build = build_root_plan(
+            hns,
+            Namespace::Hns,
+            &query,
+            origin,
+            joined_at_unix,
+            hns_evidence,
+            icann_evidence,
+        );
+    }
     let hns_state = root_lookup_state(&hns_build.lookup);
     let icann_state = root_lookup_state(&icann_build.lookup);
     let hns_observation = hns_root_label(query.host().as_str())
@@ -9475,6 +9496,26 @@ struct LiveProofRaceMetrics {
 }
 
 impl DnsTraceRecorder {
+    fn take_current(&self) -> Option<DnsTraceState> {
+        self.traces.lock().ok()?.remove(&thread::current().id())
+    }
+
+    fn merge_current(&self, mut other: DnsTraceState) {
+        if let Ok(mut traces) = self.traces.lock() {
+            let current = traces.entry(thread::current().id()).or_default();
+            current.events.append(&mut other.events);
+            if current.relay.is_none() {
+                current.relay = other.relay;
+            }
+            if current.namespace.is_none() {
+                current.namespace = other.namespace;
+            }
+            if current.live_proof.is_none() {
+                current.live_proof = other.live_proof;
+            }
+        }
+    }
+
     fn push(&self, event: DnsTraceEvent) {
         if let Ok(mut traces) = self.traces.lock() {
             traces
@@ -10937,6 +10978,16 @@ struct IcannEvidenceRecorder {
 }
 
 impl IcannEvidenceRecorder {
+    fn copy_from_thread(&self, source: thread::ThreadId) -> Result<(), ResolverError> {
+        let mut states = self
+            .states
+            .lock()
+            .map_err(|_| ResolverError::CachePoisoned)?;
+        let evidence = states.get(&source).cloned().unwrap_or_default();
+        states.insert(thread::current().id(), evidence);
+        Ok(())
+    }
+
     fn begin(&self) -> Result<(), ResolverError> {
         self.states
             .lock()
@@ -25528,6 +25579,54 @@ mod tests {
         requests: Arc<Mutex<Vec<ResolutionRequest>>>,
     }
 
+    struct CoordinatedFailureResolver {
+        gate: Arc<(Mutex<(usize, bool)>, std::sync::Condvar)>,
+        trace: Option<DnsTraceRecorder>,
+    }
+
+    struct DelayFirstResolver<R> {
+        inner: R,
+        delay: Duration,
+        first_seen: AtomicBool,
+    }
+
+    impl<R: Resolver> Resolver for DelayFirstResolver<R> {
+        fn resolve(&self, request: &ResolutionRequest) -> Result<ResolutionAnswer, ResolverError> {
+            if !self.first_seen.swap(true, Ordering::AcqRel) {
+                thread::sleep(self.delay);
+            }
+            self.inner.resolve(request)
+        }
+    }
+
+    impl Resolver for CoordinatedFailureResolver {
+        fn resolve(&self, request: &ResolutionRequest) -> Result<ResolutionAnswer, ResolverError> {
+            if let Some(trace) = &self.trace {
+                trace.push(DnsTraceEvent {
+                    protocol: "test",
+                    server: "icann-worker".to_owned(),
+                    question_name: Some(request.qname.clone()),
+                    question_type: Some(request.qtype),
+                    status: "failed".to_owned(),
+                    elapsed_ms: 0,
+                    error: None,
+                });
+            }
+            let (lock, ready) = &*self.gate;
+            let mut state = lock.lock().unwrap();
+            state.0 += 1;
+            if state.0 == 2 {
+                state.1 = true;
+            }
+            ready.notify_all();
+            let (mut state, _) = ready
+                .wait_timeout_while(state, Duration::from_millis(300), |state| !state.1)
+                .unwrap();
+            state.0 -= 1;
+            Err(ResolverError::DnsTransport("test failure".to_owned()))
+        }
+    }
+
     #[derive(Clone, Default)]
     struct TestRelayDnssecFeedback {
         attempt_peers: Arc<Mutex<std::collections::VecDeque<Vec<SocketAddr>>>>,
@@ -25635,6 +25734,7 @@ mod tests {
             &origin,
             &HnsProofEvidenceRecorder::default(),
             &IcannEvidenceRecorder::default(),
+            None,
         );
 
         assert_eq!(
@@ -26419,7 +26519,53 @@ mod tests {
     }
 
     #[test]
-    fn same_a_but_different_aaaa_is_dual_root_divergence() {
+    fn full_namespace_legs_overlap_and_retain_icann_worker_trace() {
+        let gate = Arc::new((Mutex::new((0, false)), std::sync::Condvar::new()));
+        let trace = DnsTraceRecorder::default();
+        let hns = CoordinatedFailureResolver {
+            gate: Arc::clone(&gate),
+            trace: None,
+        };
+        let icann = CoordinatedFailureResolver {
+            gate: Arc::clone(&gate),
+            trace: Some(trace.clone()),
+        };
+        let base = temp_dir_path("concurrent-namespace-legs");
+        let origin = NamespaceOriginContext {
+            key: NamespaceOriginKey {
+                profile: base.clone(),
+                host: "origin.example".to_owned(),
+                scheme: "http".to_owned(),
+                port: 80,
+                supported_protocols: ProtocolCapabilities::all(),
+                network: 0,
+                policy_revision: 0,
+                binding_revision: 0,
+            },
+            base,
+            network: NetworkKind::Mainnet,
+            binding: NamespaceBindingSnapshot::default(),
+        };
+        let plan = build_namespace_plan(
+            &hns,
+            &icann,
+            &origin,
+            &HnsProofEvidenceRecorder::default(),
+            &IcannEvidenceRecorder::default(),
+            Some(&trace),
+        );
+        assert!(gate.0.lock().unwrap().1);
+        assert!(matches!(
+            plan.terminal,
+            Some(NamespacePlanTerminal::Indeterminate)
+        ));
+        assert_eq!(trace.snapshot().len(), 1);
+        assert_eq!(trace.snapshot()[0].server, "icann-worker");
+        assert_eq!(trace.traces.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn slow_icann_leg_revalidates_hns_and_keeps_dual_root_divergence() {
         let now = now_unix_seconds();
         let host = "origin.com";
         let a_request = ResolutionRequest {
@@ -26449,19 +26595,23 @@ mod tests {
             name_not_found: HashSet::new(),
             requests: Arc::clone(&hns_requests),
         };
-        let icann = RequestMapResolver {
-            answers: HashMap::from([
-                (
-                    a_request.clone(),
-                    resolution_answer(host, vec![common_a], true),
-                ),
-                (
-                    aaaa_request.clone(),
-                    resolution_answer(host, vec![address_record_v6_for(host, icann_v6)], true),
-                ),
-            ]),
-            name_not_found: HashSet::new(),
-            requests: Arc::clone(&icann_requests),
+        let icann = DelayFirstResolver {
+            inner: RequestMapResolver {
+                answers: HashMap::from([
+                    (
+                        a_request.clone(),
+                        resolution_answer(host, vec![common_a], true),
+                    ),
+                    (
+                        aaaa_request.clone(),
+                        resolution_answer(host, vec![address_record_v6_for(host, icann_v6)], true),
+                    ),
+                ]),
+                name_not_found: HashSet::new(),
+                requests: Arc::clone(&icann_requests),
+            },
+            delay: Duration::from_millis(1_200),
+            first_seen: AtomicBool::new(false),
         };
         let hns_evidence = HnsProofEvidenceRecorder::default();
         hns_evidence
@@ -26473,7 +26623,7 @@ mod tests {
                         height: Height(42),
                     },
                     exists: true,
-                    has_delegation: false,
+                    has_delegation: true,
                     observed_at_unix: now,
                     expires_at_unix: now.saturating_add(60),
                 },
@@ -26508,7 +26658,8 @@ mod tests {
             binding: NamespaceBindingSnapshot::default(),
         };
 
-        let cached = build_namespace_plan(&hns, &icann, &origin, &hns_evidence, &icann_evidence);
+        let cached =
+            build_namespace_plan(&hns, &icann, &origin, &hns_evidence, &icann_evidence, None);
         let decision = cached.decision.unwrap_or_else(|| {
             panic!(
                 "dual-root plan failed: HNS={:?}, ICANN={:?}",
@@ -26533,7 +26684,12 @@ mod tests {
         );
         assert_eq!(
             *hns_requests.lock().unwrap(),
-            vec![a_request.clone(), aaaa_request.clone()]
+            vec![
+                a_request.clone(),
+                aaaa_request.clone(),
+                a_request.clone(),
+                aaaa_request.clone(),
+            ]
         );
         assert_eq!(
             *icann_requests.lock().unwrap(),
