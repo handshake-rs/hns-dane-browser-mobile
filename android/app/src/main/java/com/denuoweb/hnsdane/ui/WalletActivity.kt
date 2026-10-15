@@ -5589,7 +5589,8 @@ class WalletActivity : ComponentActivity() {
                 WalletActionInput(
                     R.string.wallet_swap_btc_amount_hint,
                     numeric = true,
-                    initial = NativeWalletBridge.MINIMUM_BITCOIN_HTLC_SATS.toString(),
+                    initial = (NativeWalletBridge.BITCOIN_HTLC_RECEIVER_DUST_SATS +
+                        DEFAULT_BITCOIN_SWAP_FEE_RESERVE_SATS).toString(),
                 ),
                 WalletActionInput(R.string.wallet_swap_hns_amount_hint),
                 WalletActionInput(R.string.wallet_swap_lifetime_hours_hint, initial = "48", numeric = true),
@@ -5599,7 +5600,7 @@ class WalletActivity : ComponentActivity() {
                 ?.takeIf { it >= NativeWalletBridge.MINIMUM_BITCOIN_HTLC_SATS }
             val hns = parsePositiveHnsToBaseUnits(values[1])?.toLongOrNull()
                 ?.takeIf { it >= NativeWalletBridge.MINIMUM_HNS_SWAP_DOLLARYDOOS }
-            val reserve = NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS
+            val reserve = DEFAULT_BITCOIN_SWAP_FEE_RESERVE_SATS
             val lifetime = values[2].toLongOrNull()
                 ?.takeIf { it in 48L..168L }
                 ?.let { runCatching { Math.multiplyExact(it, 3_600L) }.getOrNull() }
@@ -5622,7 +5623,8 @@ class WalletActivity : ComponentActivity() {
                 WalletActionInput(
                     R.string.wallet_swap_btc_requested_hint,
                     numeric = true,
-                    initial = NativeWalletBridge.MINIMUM_BITCOIN_HTLC_SATS.toString(),
+                    initial = (NativeWalletBridge.BITCOIN_HTLC_RECEIVER_DUST_SATS +
+                        DEFAULT_BITCOIN_SWAP_FEE_RESERVE_SATS).toString(),
                 ),
                 WalletActionInput(
                     R.string.wallet_swap_lifetime_hours_hint,
@@ -5783,7 +5785,7 @@ class WalletActivity : ComponentActivity() {
             summary = directOfferAcceptanceLabel(offer),
             primaryLabel = R.string.wallet_swap_acceptance_review,
         ) { _ ->
-            val reserve = if (bitcoin) NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS
+            val reserve = if (bitcoin) DEFAULT_BITCOIN_SWAP_FEE_RESERVE_SATS
                 else DEFAULT_HNS_SWAP_FEE_RESERVE_BASE_UNITS.toLong()
             val leavesSpendableOutput = offer.receivedAmount >= reserve &&
                 if (bitcoin) {
@@ -5991,7 +5993,7 @@ class WalletActivity : ComponentActivity() {
             else execution.offeredAsset
         val gross = if (execution.localRole == "maker") execution.receivedAmount
             else execution.offeredAmount
-        val cap = if (asset == "btc") NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS
+        val cap = if (asset == "btc") DEFAULT_BITCOIN_SWAP_FEE_RESERVE_SATS
             else NativeWalletBridge.AUTOMATIC_HNS_REDEMPTION_FEE_CAP_DOLLARYDOOS
         return formatSwapAmount(asset, (gross - cap).coerceAtLeast(0L))
     }
@@ -6090,7 +6092,7 @@ class WalletActivity : ComponentActivity() {
         if (fundingChain == "bitcoin") {
             builder.setPositiveButton(R.string.wallet_swap_fund_bitcoin) { _, _ ->
                 prepareBtcForHnsFunding(
-                    execution, NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS,
+                    execution, DEFAULT_BITCOIN_SWAP_FEE_RESERVE_SATS,
                 )
             }
         } else if (fundingChain == "handshake") {
@@ -10595,6 +10597,10 @@ class WalletActivity : ComponentActivity() {
         const val DEFAULT_HNS_MAXIMUM_FEE = "0.1"
         const val DEFAULT_HNS_MAXIMUM_FEE_BASE_UNITS = "100000"
         const val DEFAULT_HNS_SWAP_FEE_RESERVE = "0.5"
+        // Bitcoin recovery publishes three data ancestors plus the HTLC lock.
+        // Their aggregate fee at the 2 sat/vB floor exceeds the protocol's
+        // 1,000 sat admission minimum, so new swap terms need a usable cap.
+        const val DEFAULT_BITCOIN_SWAP_FEE_RESERVE_SATS = 4_000L
         const val DEFAULT_HNS_SWAP_FEE_RESERVE_BASE_UNITS = "500000"
         const val MAX_VALUE_ACTION_INPUT_CHARACTERS = 512
         const val MAX_RESOURCE_EDITOR_CHARACTERS = 4 * 1024

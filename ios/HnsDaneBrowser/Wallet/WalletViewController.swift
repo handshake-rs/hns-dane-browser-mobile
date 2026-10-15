@@ -12,9 +12,12 @@ private let defaultHnsMaximumFee = "0.1"
 private let automaticHnsRedemptionFeeCapDollarydoos: UInt64 = 100_000
 private let bitcoinHtlcReceiverDustSats: UInt64 = 330
 private let minimumBitcoinFeeReserveSats: UInt64 = 1_000
+// Recovery funding publishes three data ancestors plus the HTLC lock.
+private let defaultBitcoinSwapFeeReserveSats: UInt64 = 4_000
 private let hnsSwapReceiverDustDollarydoos: UInt64 = 546
 private let minimumHnsFeeReserveDollarydoos: UInt64 = 500_000
 private let minimumBitcoinHtlcSats = bitcoinHtlcReceiverDustSats + minimumBitcoinFeeReserveSats
+private let defaultBitcoinSwapHtlcSats = bitcoinHtlcReceiverDustSats + defaultBitcoinSwapFeeReserveSats
 private let minimumHnsSwapDollarydoos =
     hnsSwapReceiverDustDollarydoos + minimumHnsFeeReserveDollarydoos
 private let directShakescapeNetworkMaintenanceTicks = 30
@@ -2126,7 +2129,7 @@ final class WalletViewController: UIViewController {
     private func showBtcForHnsOfferFormAfterAuthentication() {
         guard let wallet, bitcoinValueAvailable, !bitcoinSyncInProgress,
               !bitcoinBirthdayResetInProgress, !isOperating else { return }
-        let reserve = minimumBitcoinFeeReserveSats
+        let reserve = defaultBitcoinSwapFeeReserveSats
         presentWalletForm(
             title: WalletCopy.text("wallet_swap_sell_btc"),
             message: nil,
@@ -2135,7 +2138,7 @@ final class WalletViewController: UIViewController {
                     label: WalletCopy.text("wallet_swap_btc_amount_hint"),
                     placeholder: WalletCopy.text("wallet_bitcoin_send_amount_hint"),
                     keyboardType: .numberPad,
-                    initialValue: String(minimumBitcoinHtlcSats)
+                    initialValue: String(defaultBitcoinSwapHtlcSats)
                 ),
                 WalletSheetFormField(
                     label: WalletCopy.text("wallet_swap_hns_amount_hint"),
@@ -2280,7 +2283,7 @@ final class WalletViewController: UIViewController {
                     label: WalletCopy.text("wallet_swap_btc_requested_hint"),
                     placeholder: WalletCopy.text("wallet_bitcoin_send_amount_hint"),
                     keyboardType: .numberPad,
-                    initialValue: String(minimumBitcoinHtlcSats)
+                    initialValue: String(defaultBitcoinSwapHtlcSats)
                 ),
                 WalletSheetFormField(
                     label: WalletCopy.text("wallet_swap_lifetime_hours_hint"),
@@ -2572,7 +2575,7 @@ final class WalletViewController: UIViewController {
         ) { [weak self] _ in
             guard let self else { return }
             let reserve = reserveIsBitcoin
-                ? minimumBitcoinFeeReserveSats
+                ? defaultBitcoinSwapFeeReserveSats
                 : minimumHnsFeeReserveDollarydoos
             let minimumReserve = reserveIsBitcoin
                 ? minimumBitcoinFeeReserveSats
@@ -2912,7 +2915,7 @@ final class WalletViewController: UIViewController {
         let gross = execution.localRole == "maker"
             ? execution.receivedAmount : execution.offeredAmount
         let cap = asset == "btc"
-            ? minimumBitcoinFeeReserveSats : automaticHnsRedemptionFeeCapDollarydoos
+            ? defaultBitcoinSwapFeeReserveSats : automaticHnsRedemptionFeeCapDollarydoos
         return swapAmount(gross > cap ? gross - cap : 0, asset: asset)
     }
 
@@ -3462,7 +3465,7 @@ final class WalletViewController: UIViewController {
     private func showBtcForHnsFundingFeeAfterAuthentication(
         _ execution: NativeShakescapeExecutionSummary, wallet: RustNativeWallet
     ) {
-        let fee = minimumBitcoinFeeReserveSats
+        let fee = defaultBitcoinSwapFeeReserveSats
         isOperating = true
         refreshButtonStates()
         DispatchQueue.global(qos: .userInitiated).async { [wallet] in
