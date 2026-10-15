@@ -994,19 +994,27 @@ internal object NativeBitcoinWalletBundle {
             ?: return null
         val localRole = json.optString("localRole", "").takeIf { it in setOf("maker", "taker") }
             ?: return null
-        val fundingDeadline = positiveLong(json, "fundingDeadlineUnix") ?: return null
-        val firstFundingCutoff = positiveLong(json, "firstFundingCutoffUnix") ?: return null
+        val recoveredPublication = json.optLong("fundingDeadlineUnix", -1) == 0L &&
+            json.optLong("firstFundingCutoffUnix", -1) == 0L
+        val fundingDeadline = if (recoveredPublication) 0L else
+            positiveLong(json, "fundingDeadlineUnix") ?: return null
+        val firstFundingCutoff = if (recoveredPublication) 0L else
+            positiveLong(json, "firstFundingCutoffUnix") ?: return null
         val firstRefund = positiveLong(json, "firstRefundAtUnix") ?: return null
         val secondRefund = positiveLong(json, "secondRefundAtUnix") ?: return null
         val localFundingState = if (json.isNull("localFundingState")) null else {
             json.optString("localFundingState", "")
-                .takeIf { it in SHAKESCAPE_FUNDING_STATES } ?: return null
+                .takeIf { it in SHAKESCAPE_FUNDING_STATES ||
+                    (recoveredPublication && it == "submitted") } ?: return null
         }
+        if (recoveredPublication && (json.optLong("revision", -1) != 1L ||
+                localFundingState != "submitted")) return null
         val failure = if (json.isNull("failureReason")) null else
             json.optString("failureReason", "").takeIf { it.isNotEmpty() && it.length <= 256 }
                 ?: return null
         if (firstChain == secondChain || offeredAsset == receivedAsset ||
-            firstFundingCutoff >= fundingDeadline || fundingDeadline >= secondRefund ||
+            (!recoveredPublication && firstFundingCutoff >= fundingDeadline) ||
+            fundingDeadline >= secondRefund ||
             firstRefund <= secondRefund
         ) {
             return null
@@ -1032,7 +1040,9 @@ internal object NativeBitcoinWalletBundle {
             firstRedemptionConfirmed = exactBoolean(json, "firstRedemptionConfirmed") ?: return null,
             secondRedemptionConfirmed = exactBoolean(json, "secondRedemptionConfirmed") ?: return null,
             refundConfirmed = exactBoolean(json, "refundConfirmed") ?: return null,
-            lastVerifiedAtUnix = positiveLong(json, "lastVerifiedAtUnix") ?: return null,
+            lastVerifiedAtUnix = if (recoveredPublication)
+                nonnegativeLong(json, "lastVerifiedAtUnix") ?: return null
+            else positiveLong(json, "lastVerifiedAtUnix") ?: return null,
             failureReason = failure,
         )
     }

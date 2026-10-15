@@ -344,6 +344,27 @@ class NativeBitcoinSyncProgressTest {
     }
 
     @Test
+    fun parses_recovered_publication_without_enabling_a_new_funding_deadline() {
+        val sessionId = "77".repeat(32)
+        val recovered = """{"sessionId":"$sessionId","revision":1,"state":"refund_eligible","firstChain":"bitcoin","secondChain":"handshake","offeredAsset":"btc","offeredAmount":1330,"receivedAsset":"hns","receivedAmount":500546,"localRole":"maker","fundingDeadlineUnix":0,"firstFundingCutoffUnix":0,"firstRefundAtUnix":2000,"secondRefundAtUnix":1500,"localFundingState":"submitted","firstFundingConfirmed":false,"secondFundingConfirmed":false,"firstRedemptionConfirmed":false,"secondRedemptionConfirmed":false,"refundConfirmed":false,"lastVerifiedAtUnix":0,"failureReason":"Recovered swap awaiting settlement"}"""
+        val status = NativeBitcoinWalletBundle.shakescapeExecutions(bundle(
+            """{"executions":[$recovered],"pendingAcceptances":[],"pendingOfferResponses":[],"bitcoinBroadcastRecovery":null}""",
+        ))
+        requireNotNull(status)
+        assertEquals(0L, status.executions.single().fundingDeadlineUnix)
+        assertEquals("submitted", status.executions.single().localFundingState)
+        val redeeming = recovered.replace("\"state\":\"refund_eligible\"", "\"state\":\"first_redeemed\"")
+            .replace("\"lastVerifiedAtUnix\":0", "\"lastVerifiedAtUnix\":1900")
+        val redeemingStatus = NativeBitcoinWalletBundle.shakescapeExecutions(bundle(
+            """{"executions":[$redeeming],"pendingAcceptances":[],"pendingOfferResponses":[],"bitcoinBroadcastRecovery":null}""",
+        ))
+        assertEquals("first_redeemed", redeemingStatus?.executions?.single()?.state)
+        assertNull(NativeBitcoinWalletBundle.shakescapeExecutions(bundle(
+            """{"executions":[${recovered.replace("\"firstFundingCutoffUnix\":0", "\"firstFundingCutoffUnix\":1")}],"pendingAcceptances":[],"pendingOfferResponses":[],"bitcoinBroadcastRecovery":null}""",
+        )))
+    }
+
+    @Test
     fun parses_only_exact_fee_capped_swap_settlement_outputs() {
         val session = "12".repeat(32)
         val transaction = "34".repeat(32)
