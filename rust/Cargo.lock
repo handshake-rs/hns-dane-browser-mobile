@@ -1666,7 +1666,6 @@ dependencies = [
  "hns-namespace-resolution",
  "hns-resolution-policy",
  "hns-wallet-hns",
- "hns-wallet-market",
  "hns-wallet-mobile",
  "hns-wallet-types",
  "httparse",

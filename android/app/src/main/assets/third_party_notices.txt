@@ -27,17 +27,16 @@ Generated input SHA-256:
   scripts/mit-0-license.txt = 0ffe1339d2b91556bf0c380453d8504e972f066adcfda678bd9ddd2986a57c58
   android/app/src/main/assets/fonts/Orbitron-VariableFont_wght.ttf = f42db2dd16e642258e35782916eceb1dcdbea06fb958d77ad71dc5963587e8fd
   android/app/src/main/assets/fonts/OFL-Orbitron.txt = dd6fdb6716fd179d1fe891759efb3f9200753fdf6abf513b55b712c4ae16e512
-  rust/Cargo.toml = 473f9710b4ada49c841ead3075cbfc89bb8b62ed76d1df2967f092cf4c9ce8f6
-  rust/Cargo.lock = f96c3243f179abc98d2b98fb08d02396af7ba4b8a2c199c6098b68b6aa156530
-  android/gradle/libs.versions.toml = 6e6aa686c60e39364e82418f57bb4e2cb0b1cdc420db5dc20dcb48b9f9e58214
-  android/app/gradle.lockfile = af2b566239607d09657d3a5930a2d60e9a765d3a1cae7bbf212080b592766ab3
-  android/gradle/verification-metadata.xml = 904a6b05ddaea646070bd1a7d077a5bcaf415cb3c71605e5549042e60651df52
+  rust/Cargo.toml = 599305f1d8f870315e16d77d2fd0ce5ad02020ea53fb69abf0e5513a70017646
+  rust/Cargo.lock = c5cf15ccaa95320ffbab9f722d08aa18a44ea8fce3913c1ec13f0e8426f20f19
+  android/gradle/libs.versions.toml = 4d4192e18d9f57560df22378ce1c5ab6162e72fff3174dd87c360035438c8206
+  android/app/gradle.lockfile = e95e57647b76cbd3bf797125325617f81ad4f803ebfa3c591bd89dd997837949
+  android/gradle/verification-metadata.xml = a77c594e2faf67153a47ff03a44cd16286c9f5018b66fa2a1456166f5bab105b
   rust/crates/android-ffi/Cargo.toml = 7b9d094fb71e56aa3b967bad12dc40cae284878c0459a69c40eeebee128a4cba
-  rust/crates/hns-mobile-platform-runtime/Cargo.toml = be7148cd488221bf5feafe742529aca3843e8bb8f78a52fbc4ddb146a2777411
+  rust/crates/hns-mobile-platform-runtime/Cargo.toml = ec53372fa3b6cf8323db5dd91e9fc33b1c7c990cb82318f0ba1689c9ed16de59
   rust/crates/ios-ffi/Cargo.toml = 43803888cb9a38bf9aa28544fdaddcc6a658e4ca36edde10befbd2b0bf1fcb6d
 
-ANDROID RUNTIME COMPONENTS (42)
-  androidx.activity:activity-ktx:1.13.0 | Apache-2.0
+ANDROID RUNTIME COMPONENTS (38)
   androidx.activity:activity:1.13.0 | Apache-2.0
   androidx.annotation:annotation-experimental:1.4.1 | Apache-2.0
   androidx.annotation:annotation-jvm:1.10.0 | Apache-2.0
@@ -55,15 +54,12 @@ ANDROID RUNTIME COMPONENTS (42)
   androidx.interpolator:interpolator:1.0.0 | Apache-2.0
   androidx.lifecycle:lifecycle-common:2.6.2 | Apache-2.0
   androidx.lifecycle:lifecycle-livedata-core:2.6.2 | Apache-2.0
-  androidx.lifecycle:lifecycle-runtime-ktx:2.6.2 | Apache-2.0
   androidx.lifecycle:lifecycle-runtime:2.6.2 | Apache-2.0
-  androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2 | Apache-2.0
   androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.2 | Apache-2.0
   androidx.lifecycle:lifecycle-viewmodel:2.6.2 | Apache-2.0
   androidx.navigationevent:navigationevent-android:1.0.0 | Apache-2.0
   androidx.navigationevent:navigationevent:1.0.0 | Apache-2.0
   androidx.profileinstaller:profileinstaller:1.4.0 | Apache-2.0
-  androidx.savedstate:savedstate-ktx:1.2.1 | Apache-2.0
   androidx.savedstate:savedstate:1.2.1 | Apache-2.0
   androidx.startup:startup-runtime:1.1.1 | Apache-2.0
   androidx.tracing:tracing:1.2.0 | Apache-2.0
@@ -4389,7 +4385,6 @@ Apache License
 ================================================================================
 Notice SHA-256: 4bf96504d6e83ce5c6fc7167f1795d9ceaa68e70ab86bc5d08ab93184262bbbe
 Applies to:
-  - androidx.activity:activity-ktx:1.13.0
   - androidx.activity:activity:1.13.0
   - androidx.annotation:annotation-experimental:1.4.1
   - androidx.annotation:annotation-jvm:1.10.0
@@ -4407,15 +4402,12 @@ Applies to:
   - androidx.interpolator:interpolator:1.0.0
   - androidx.lifecycle:lifecycle-common:2.6.2
   - androidx.lifecycle:lifecycle-livedata-core:2.6.2
-  - androidx.lifecycle:lifecycle-runtime-ktx:2.6.2
   - androidx.lifecycle:lifecycle-runtime:2.6.2
-  - androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2
   - androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.2
   - androidx.lifecycle:lifecycle-viewmodel:2.6.2
   - androidx.navigationevent:navigationevent-android:1.0.0
   - androidx.navigationevent:navigationevent:1.0.0
   - androidx.profileinstaller:profileinstaller:1.4.0
-  - androidx.savedstate:savedstate-ktx:1.2.1
   - androidx.savedstate:savedstate:1.2.1
   - androidx.startup:startup-runtime:1.1.1
   - androidx.tracing:tracing:1.2.0
