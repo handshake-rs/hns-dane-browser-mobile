@@ -7956,6 +7956,9 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let mut bitcoin = record.bitcoin_try_if_active()?;
         let bitcoin = bitcoin.as_mut()?;
         let synchronization = android_synchronize_bitcoin(bitcoin);
+        if let Some(error) = bitcoin.last_node_error() {
+            android_log_error(&format!("wallet Bitcoin node exited during synchronization: {error}"));
+        }
         if record.bitcoin_sync_cancellation_requested() {
             // Kyoto update futures are deliberately not dropped in place.
             // The out-of-lock stop signal wakes the active call, after which
