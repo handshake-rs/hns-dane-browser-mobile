@@ -6932,6 +6932,14 @@ struct GatewayProofProvider {
 }
 
 impl GatewayProofProvider {
+    fn request_authority(&self) -> Result<hns_chain::StoredHeader, ResolverError> {
+        if let Some(snapshot) = RequestAuthorityScope::current(&self.base, self.network) {
+            snapshot.current_authority(&self.base, self.network)
+        } else {
+            authoritative_tree_root_header(&self.base, self.network)
+        }
+    }
+
     fn new(base: PathBuf, values: SqliteResourceValueProvider, network: NetworkKind) -> Self {
         Self {
             base,
@@ -6973,10 +6981,7 @@ impl GatewayProofProvider {
         root_name: &str,
         name_hash: NameHash,
     ) -> Result<ProvenNameRecords, ResolverError> {
-        if local_chain_lacks_authoritative_tree_root(&self.base, self.network)? {
-            return Err(ResolverError::LocalChainNotCurrent);
-        }
-        let authority = authoritative_tree_root_header(&self.base, self.network)?;
+        let authority = self.request_authority()?;
         let authority_root = authority.header.tree_root.into_bytes();
         {
             let mut cache = self
@@ -7029,7 +7034,13 @@ impl GatewayProofProvider {
         let Some(anchor) = verified.anchor else {
             return Err(ResolverError::ProofUnavailable);
         };
-        if !hns_anchor_matches_authoritative_tree_root(&self.base, self.network, anchor)? {
+        let anchor_current =
+            if let Some(snapshot) = RequestAuthorityScope::current(&self.base, self.network) {
+                snapshot.matches_anchor(&self.base, self.network, anchor)?
+            } else {
+                hns_anchor_matches_authoritative_tree_root(&self.base, self.network, anchor)?
+            };
+        if !anchor_current {
             return Err(ResolverError::ProofUnavailable);
         }
         let exists = verified.value.is_some();
@@ -7073,9 +7084,6 @@ impl GatewayProofProvider {
         name_hash: NameHash,
     ) -> Result<(), ResolverError> {
         let mut metrics = LiveProofRaceMetricsCapture::begin(&self.trace);
-        if local_chain_lacks_authoritative_tree_root(&self.base, self.network)? {
-            return Err(ResolverError::LocalChainNotCurrent);
-        }
         let _peer_state = match self.peer_state.as_ref() {
             Some(peer_state) => Some(
                 peer_state
@@ -7089,7 +7097,7 @@ impl GatewayProofProvider {
             Err(ResolverError::ProofUnavailable) => {}
             Err(error) => return Err(error),
         }
-        let authority = authoritative_tree_root_header(&self.base, self.network)?;
+        let authority = self.request_authority()?;
         let best = best_synced_header(&self.base, self.network)?;
         if best.header.tree_root != authority.header.tree_root {
             return Err(ResolverError::LocalChainNotCurrent);
@@ -7664,6 +7672,7 @@ impl AndroidGatewayResolver {
     }
 
     fn plan(&self, query: &OriginQuery) -> Result<CachedNamespacePlan, ResolverError> {
+        let _authority_scope = RequestAuthorityScope::enter(self.authority_snapshot.clone());
         let origin = self.origin_for_query(query)?;
         if let Some(plan) = self.cached_plan(&origin) {
             self.trace.record_namespace(plan.metadata.clone());
@@ -7704,6 +7713,8 @@ impl AndroidGatewayResolver {
         };
         thread::scope(|scope| {
             scope.spawn(|| {
+                let _authority_scope =
+                    RequestAuthorityScope::enter(self.authority_snapshot.clone());
                 let _ = self.hns_evidence.begin();
                 let _ = self.hns.resolve(&request);
                 self.hns_evidence.reset();
@@ -16856,7 +16867,56 @@ struct RequestAuthoritySnapshot {
     canonical_roots: Mutex<HashMap<u32, Option<hns_core::Hash>>>,
 }
 
+thread_local! {
+    static REQUEST_AUTHORITY_SNAPSHOT: std::cell::RefCell<Option<Arc<RequestAuthoritySnapshot>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+struct RequestAuthorityScope(Option<Arc<RequestAuthoritySnapshot>>);
+
+impl RequestAuthorityScope {
+    fn enter(snapshot: Option<Arc<RequestAuthoritySnapshot>>) -> Self {
+        let previous = REQUEST_AUTHORITY_SNAPSHOT.with(|slot| slot.replace(snapshot));
+        Self(previous)
+    }
+
+    fn current(base: &Path, network: NetworkKind) -> Option<Arc<RequestAuthoritySnapshot>> {
+        REQUEST_AUTHORITY_SNAPSHOT.with(|slot| {
+            slot.borrow()
+                .as_ref()
+                .filter(|snapshot| snapshot.base == base && snapshot.network == network)
+                .cloned()
+        })
+    }
+}
+
+impl Drop for RequestAuthorityScope {
+    fn drop(&mut self) {
+        REQUEST_AUTHORITY_SNAPSHOT.with(|slot| slot.replace(self.0.take()));
+    }
+}
+
 impl RequestAuthoritySnapshot {
+    fn current_authority(
+        &self,
+        base: &Path,
+        network: NetworkKind,
+    ) -> Result<hns_chain::StoredHeader, ResolverError> {
+        if self.base != base
+            || self.network != network
+            || self.currentness.tree_root_ready != Some(true)
+            || (network != NetworkKind::Regtest
+                && self
+                    .peer_evidence_valid_until_unix
+                    .is_none_or(|deadline| now_unix_seconds() > deadline))
+        {
+            return Err(ResolverError::LocalChainNotCurrent);
+        }
+        self.authority
+            .clone()
+            .ok_or(ResolverError::LocalChainNotCurrent)
+    }
+
     fn authority_root_key(&self) -> Option<(u32, String)> {
         self.authority
             .as_ref()
@@ -16869,24 +16929,14 @@ impl RequestAuthoritySnapshot {
         network: NetworkKind,
         anchor: ResourceValueAnchor,
     ) -> Result<bool, ResolverError> {
-        if self.base != base || self.network != network {
-            return Ok(false);
-        }
-        if self.currentness.tree_root_ready != Some(true) {
-            return Ok(false);
-        }
-        if network != NetworkKind::Regtest
-            && self
-                .peer_evidence_valid_until_unix
-                .is_none_or(|deadline| now_unix_seconds() > deadline)
-        {
-            return Ok(false);
-        }
-        let Some(authority) = self.authority.as_ref() else {
+        let Ok(authority) = self.current_authority(base, network) else {
             return Ok(false);
         };
         if authority.header.tree_root != anchor.tree_root {
             return Ok(false);
+        }
+        if authority.height == anchor.height {
+            return Ok(true);
         }
         let cached = self
             .canonical_roots
@@ -28595,7 +28645,9 @@ mod tests {
                 .matches_anchor(&base, NetworkKind::Regtest, anchor)
                 .unwrap()
         );
-        assert_eq!(snapshot.canonical_roots.lock().unwrap().len(), 1);
+        // The authoritative header was already captured, so validating its
+        // own anchor does not need a second header-store read.
+        assert!(snapshot.canonical_roots.lock().unwrap().is_empty());
         assert!(
             !snapshot
                 .matches_anchor(
@@ -28616,6 +28668,13 @@ mod tests {
                 .matches_anchor(&base, NetworkKind::Mainnet, anchor)
                 .unwrap()
         );
+        let values = SqliteResourceValueProvider::open(base.join("resources.sqlite")).unwrap();
+        let provider = GatewayProofProvider::new(base.clone(), values, NetworkKind::Mainnet);
+        let _scope = RequestAuthorityScope::enter(Some(Arc::new(snapshot)));
+        assert!(matches!(
+            provider.request_authority(),
+            Err(ResolverError::LocalChainNotCurrent)
+        ));
         cleanup_dir(&data_dir);
     }
 
