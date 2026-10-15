@@ -4743,7 +4743,8 @@ class WalletActivity : ComponentActivity() {
             .filterNot { it.state in terminal }
             .sortedWith(compareBy<NativeShakescapeExecutionSummary> {
                 swapExecutionPriority(it, now)
-            }.thenByDescending { it.lastVerifiedAtUnix })
+            }.thenByDescending { swapExecutionConfirmedMilestones(it) }
+                .thenByDescending { it.lastVerifiedAtUnix })
             .firstOrNull()
         val offerResponse = status.pendingOfferResponses.maxByOrNull { it.createdAtUnix }
         val pending = status.pendingAcceptances.maxByOrNull { it.createdAtUnix }
@@ -4757,8 +4758,31 @@ class WalletActivity : ComponentActivity() {
             // off; transaction signing still requires a separate approval.
             startWalletForegroundSyncService("atomic swap monitoring")
         }
+        val latestCompleted = status.executions
+            .filter { it.state == "completed" }
+            .maxWithOrNull(compareBy<NativeShakescapeExecutionSummary> {
+                swapExecutionConfirmedMilestones(it)
+            }.thenBy { it.lastVerifiedAtUnix })
         activeShakescapeDashboardSummary = when {
-            execution != null -> "${swapExecutionProgress(execution).first} · ${swapExecutionStage(execution)}"
+            execution != null -> buildString {
+                append(getString(
+                    R.string.wallet_dashboard_swap_active_detail,
+                    formatSwapAmount(execution.offeredAsset, execution.offeredAmount),
+                    formatSwapAmount(execution.receivedAsset, execution.receivedAmount),
+                    execution.sessionId.take(12),
+                    swapExecutionProgress(execution).first,
+                    swapExecutionStage(execution),
+                ))
+                latestCompleted?.let { completed ->
+                    append('\n')
+                    append(getString(
+                        R.string.wallet_dashboard_swap_latest_completed,
+                        formatSwapAmount(completed.offeredAsset, completed.offeredAmount),
+                        formatSwapAmount(completed.receivedAsset, completed.receivedAmount),
+                        completed.sessionId.take(12),
+                    ))
+                }
+            }
             offerResponse != null -> getString(R.string.wallet_dashboard_swap_negotiating)
             pending != null -> getString(R.string.wallet_dashboard_swap_negotiating)
             else -> null
@@ -5886,14 +5910,16 @@ class WalletActivity : ComponentActivity() {
                     val orderedExecutions = status.executions.sortedWith(
                         compareBy<NativeShakescapeExecutionSummary> {
                             swapExecutionPriority(it, now)
-                        }.thenByDescending { it.lastVerifiedAtUnix },
+                        }.thenByDescending { swapExecutionConfirmedMilestones(it) }
+                            .thenByDescending { it.lastVerifiedAtUnix },
                     )
                     val liveExecutions = orderedExecutions.filterNot {
                         it.state in terminalStates
                     }
                     if (
                         status.pendingOfferResponses.isEmpty() &&
-                            status.pendingAcceptances.isEmpty() && liveExecutions.size == 1 &&
+                            status.pendingAcceptances.isEmpty() &&
+                            orderedExecutions.size == 1 && liveExecutions.size == 1 &&
                             !swapExecutionHasUnverifiedMakerFunding(liveExecutions.single(), now)
                     ) {
                         showShakescapeExecution(liveExecutions.single())
@@ -5987,6 +6013,15 @@ class WalletActivity : ComponentActivity() {
         execution.state in setOf("completed", "refunded", "failed") -> 3
         else -> 2
     }
+
+    private fun swapExecutionConfirmedMilestones(
+        execution: NativeShakescapeExecutionSummary,
+    ): Int = listOf(
+        execution.firstFundingConfirmed,
+        execution.secondFundingConfirmed,
+        execution.firstRedemptionConfirmed,
+        execution.secondRedemptionConfirmed,
+    ).count { it }
 
     private fun automaticSwapMinimumReceive(execution: NativeShakescapeExecutionSummary): String {
         val asset = if (execution.localRole == "maker") execution.receivedAsset

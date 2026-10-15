@@ -829,6 +829,8 @@
     <string name="wallet_swap_status_terminal">No active swap. Latest execution: %1$s · session %2$s…\n%3$s</string>
     <string name="wallet_swap_status_no_failure">The execution reached a terminal state.</string>
     <string name="wallet_dashboard_swap_negotiating">Connected · swap negotiating</string>
+    <string name="wallet_dashboard_swap_active_detail">Active %1$s → %2$s · session %3$s…\n%4$s · %5$s</string>
+    <string name="wallet_dashboard_swap_latest_completed">Latest completed: %1$s → %2$s · session %3$s…</string>
     <string name="wallet_swap_stage_syncing_append">%1$s · verifying Bitcoin state</string>
     <string name="wallet_swap_stage_terms_waiting">Terms frozen · automatic Bitcoin synchronization/watch preparation is next</string>
     <string name="wallet_swap_stage_with_deadline">%1$s · %2$s remaining to fund %3$s · deadline %4$s</string>
