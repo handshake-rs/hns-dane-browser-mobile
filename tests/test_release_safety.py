@@ -157,7 +157,7 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         with (ROOT / "rust/Cargo.lock").open("rb") as source:
             locked_packages = tomllib.load(source)["package"]
         locked_by_name = {package["name"]: package for package in locked_packages}
-        self.assertEqual(locked_by_name["rustls"]["version"], "0.23.45")
+        self.assertEqual(locked_by_name["rustls"]["version"], "0.23.46")
         self.assertEqual(locked_by_name["hns-wallet-mobile"]["version"], "0.6.0")
         self.assertEqual(
             locked_by_name["hns-wallet-mobile"]["source"],
