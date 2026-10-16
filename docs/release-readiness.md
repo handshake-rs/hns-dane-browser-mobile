@@ -33,9 +33,9 @@ pending retry before checking whether another wallet operation is active.
 The next bounded scan round therefore starts automatically after a saved
 checkpoint. The iOS catch-up path already makes the equivalent transition.
 
-The new Android swap execution list, hide controls, and dashboard summaries
-currently use their reviewed English text in every locale. Translations for
-those controls are pending; no machine-generated financial wording is shipped.
+The Android swap execution list, hide controls, and dashboard summaries have
+translations in all 20 supported locales. The translation coverage and format
+token check runs before release builds.
 
 ## ICANN startup browsing
 

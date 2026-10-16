@@ -325,7 +325,7 @@
     <string name="wallet_swap_cancel_offer">لغو پیشنهاد</string>
     <string name="wallet_swap_cancelled">پیشنهاد BTC-for-HNS لغو شد و رزرو محلی آن آزاد شد.</string>
     <string name="wallet_swap_cancel_failed">پیشنهاد لغو نشد. ممکن است منقضی شده باشد یا وارد جلسه مبادله شده باشد.</string>
-    <string name="wallet_swap_executions">اعدام های مبادله اتمی</string>
+    <string name="wallet_swap_executions">اجرای مبادله‌های اتمی</string>
     <string name="wallet_swap_coin_actions">اقدامات مبادله سکه</string>
     <string name="wallet_swap_name_actions">اقدامات تعویض نام</string>
     <string name="wallet_swap_loading_executions">در حال بارگیری حالت تعویض اتمی بادوام…</string>

@@ -325,7 +325,7 @@
     <string name="wallet_swap_cancel_offer">إلغاء العرض</string>
     <string name="wallet_swap_cancelled">تم إلغاء عرض BTC-for-HNS وتم تحرير الحجز المحلي الخاص به.</string>
     <string name="wallet_swap_cancel_failed">ولم يتم إلغاء العرض. ربما تكون قد انتهت صلاحيتها أو دخلت في جلسة مبادلة.</string>
-    <string name="wallet_swap_executions">عمليات إعدام المبادلة الذرية</string>
+    <string name="wallet_swap_executions">عمليات المبادلة الذرية</string>
     <string name="wallet_swap_coin_actions">إجراءات مبادلة العملة</string>
     <string name="wallet_swap_name_actions">إجراءات تبديل الأسماء</string>
     <string name="wallet_swap_loading_executions">جارٍ تحميل حالة المبادلة الذرية الدائمة…</string>

@@ -30,12 +30,17 @@ classify_path() {
       scripts/ci-changed-targets.sh | \
       tests/test_ci_changed_targets.py | \
       scripts/generate_wallet_localizations.py | \
+      scripts/generate_swap_list_localizations.py | \
       scripts/verify_android_translations.py | \
       scripts/check.sh | \
       scripts/check-runtime-boundaries.sh | \
       scripts/check-version-consistency.sh | \
       scripts/verify-supply-chain.sh)
       set_all_targets
+      ;;
+
+    localization/wallet-swap-list.json)
+      android=true
       ;;
 
     localization/*)
