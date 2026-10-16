@@ -1,0 +1,95 @@
+package com.denuoweb.hnsdane.ui
+
+import com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionSummary
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class SwapExecutionListTest {
+    @Test
+    fun dismissingAnUnfundedSessionNeverHidesLaterFundingOrRecovery() {
+        val unfunded = execution("a", state = "first_funding_pending")
+        assertTrue(swapExecutionCanDismiss(unfunded))
+        assertEquals(emptyList<NativeShakescapeExecutionSummary>(),
+            visibleSwapExecutions(listOf(unfunded), setOf("a")))
+
+        for (changed in listOf(
+            unfunded.copy(localFundingState = "broadcast"),
+            unfunded.copy(firstFundingConfirmed = true),
+            unfunded.copy(state = "refund_eligible"),
+            unfunded.copy(state = "secret_observed"),
+            unfunded.copy(state = "completed"),
+        )) {
+            assertFalse(swapExecutionCanDismiss(changed))
+            assertEquals(listOf(changed), visibleSwapExecutions(listOf(changed), setOf("a")))
+        }
+    }
+
+    @Test
+    fun recoveredAndFundedFailuresCannotBeDismissed() {
+        assertFalse(swapExecutionCanDismiss(execution("a", state = "secret_observed",
+            fundingDeadlineUnix = 0)))
+        assertFalse(swapExecutionCanDismiss(execution("b", state = "failed",
+            firstFundingConfirmed = true)))
+        assertFalse(swapExecutionCanDismiss(execution("c", state = "failed",
+            localFundingState = "reorged")))
+        assertFalse(swapExecutionCanDismiss(execution("expired", state = "first_funding_pending",
+            fundingDeadlineUnix = 100), nowUnix = 200))
+        assertTrue(swapExecutionCanDismiss(execution("d", state = "failed")))
+        assertTrue(swapExecutionCanDismiss(execution("e", state = "refunded",
+            refundConfirmed = true)))
+    }
+
+    @Test
+    fun pagesContainFourLatestExecutionsAndClampAfterListChanges() {
+        val entries = (1L..10L).map { execution(it.toString(), lastVerifiedAtUnix = it) }
+        val sorted = orderedSwapExecutions(entries)
+        assertEquals(listOf("10", "9", "8", "7"),
+            swapExecutionPage(sorted, 0).entries.map { it.sessionId })
+        assertEquals(listOf("6", "5", "4", "3"),
+            swapExecutionPage(sorted, 1).entries.map { it.sessionId })
+        assertEquals(listOf("2", "1"),
+            swapExecutionPage(sorted, 2).entries.map { it.sessionId })
+        assertEquals(3, swapExecutionPage(sorted, 99).count)
+        assertEquals(2, swapExecutionPage(sorted, 99).index)
+        assertEquals(0, swapExecutionPage(emptyList(), 99).index)
+        assertEquals("new", orderedSwapExecutions(listOf(
+            execution("old", fundingDeadlineUnix = 100, lastVerifiedAtUnix = 1_000),
+            execution("new", fundingDeadlineUnix = 200, lastVerifiedAtUnix = 100),
+        )).first().sessionId)
+    }
+
+    private fun execution(
+        id: String,
+        state: String = "completed",
+        fundingDeadlineUnix: Long = 9_999_999_999,
+        localFundingState: String? = null,
+        firstFundingConfirmed: Boolean = false,
+        refundConfirmed: Boolean = false,
+        lastVerifiedAtUnix: Long = 1,
+    ) = NativeShakescapeExecutionSummary(
+        sessionId = id,
+        revision = 1,
+        state = state,
+        firstChain = "bitcoin",
+        secondChain = "handshake",
+        offeredAsset = "btc",
+        offeredAmount = 1_330,
+        receivedAsset = "hns",
+        receivedAmount = 500_546,
+        localRole = "maker",
+        fundingDeadlineUnix = fundingDeadlineUnix,
+        firstFundingCutoffUnix = 50,
+        firstRefundAtUnix = 300,
+        secondRefundAtUnix = 200,
+        localFundingState = localFundingState,
+        firstFundingConfirmed = firstFundingConfirmed,
+        secondFundingConfirmed = false,
+        firstRedemptionConfirmed = false,
+        secondRedemptionConfirmed = false,
+        refundConfirmed = refundConfirmed,
+        lastVerifiedAtUnix = lastVerifiedAtUnix,
+        failureReason = null,
+    )
+}

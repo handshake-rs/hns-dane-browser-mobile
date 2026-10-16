@@ -2601,7 +2601,7 @@ class WalletActivity : ComponentActivity() {
                     add(WalletModalAction(getString(R.string.wallet_swap_executions),
                         walletHandle != INVALID_HANDLE && !busy &&
                             lastKnownWalletStatus?.shakedexEnabled == true,
-                        ::showShakescapeExecutions, primary = hasLiveAtomicSwap()))
+                        { showShakescapeExecutions() }, primary = hasLiveAtomicSwap()))
                     if (paired) {
                         add(WalletModalAction(getString(R.string.wallet_swap_available_offers), available,
                             ::showAvailableDirectOffers, primary = !hasLiveAtomicSwap()))
@@ -4772,17 +4772,14 @@ class WalletActivity : ComponentActivity() {
         latestShakescapeExecutionStatus = status
         publishAtomicSwapNotifications(status)
         val terminal = setOf("completed", "refunded", "failed")
-        val now = System.currentTimeMillis() / 1_000L
-        val execution = status.executions
-            .filterNot { it.state in terminal }
-            .sortedWith(compareBy<NativeShakescapeExecutionSummary> {
-                swapExecutionPriority(it, now)
-            }.thenByDescending { swapExecutionConfirmedMilestones(it) }
-                .thenByDescending { it.lastVerifiedAtUnix })
-            .firstOrNull()
+        val openCount = status.executions.count { it.state !in terminal }
+        val visibleOpenCount = visibleSwapExecutions(
+            status.executions,
+            dismissedSwapExecutionIds(),
+        ).count { it.state !in terminal }
         val offerResponse = status.pendingOfferResponses.maxByOrNull { it.createdAtUnix }
         val pending = status.pendingAcceptances.maxByOrNull { it.createdAtUnix }
-        if (execution == null && offerResponse == null && pending == null) {
+        if (openCount == 0 && offerResponse == null && pending == null) {
             activeSwapHnsRefreshAttemptedHeight = null
             finishWalletForegroundSyncIfIdle()
         } else {
@@ -4794,41 +4791,27 @@ class WalletActivity : ComponentActivity() {
         }
         val latestCompleted = status.executions
             .filter { it.state == "completed" }
-            .maxWithOrNull(compareBy<NativeShakescapeExecutionSummary> {
-                swapExecutionConfirmedMilestones(it)
-            }.thenBy { it.lastVerifiedAtUnix })
+            .maxByOrNull { it.lastVerifiedAtUnix }
         activeShakescapeDashboardSummary = when {
-            execution != null -> buildString {
+            latestCompleted != null -> buildString {
                 append(getString(
-                    R.string.wallet_dashboard_swap_active_detail,
-                    formatSwapAmount(execution.offeredAsset, execution.offeredAmount),
-                    formatSwapAmount(execution.receivedAsset, execution.receivedAmount),
-                    execution.sessionId.take(12),
-                    swapExecutionProgress(execution).first,
-                    swapExecutionStage(execution),
+                    R.string.wallet_dashboard_swap_latest_completed,
+                    formatSwapAmount(latestCompleted.offeredAsset, latestCompleted.offeredAmount),
+                    formatSwapAmount(latestCompleted.receivedAsset, latestCompleted.receivedAmount),
+                    latestCompleted.sessionId.take(12),
                 ))
-                latestCompleted?.let { completed ->
+                if (visibleOpenCount > 0) {
                     append('\n')
-                    append(getString(
-                        R.string.wallet_dashboard_swap_latest_completed,
-                        formatSwapAmount(completed.offeredAsset, completed.offeredAmount),
-                        formatSwapAmount(completed.receivedAsset, completed.receivedAmount),
-                        completed.sessionId.take(12),
-                    ))
+                    append(getString(R.string.wallet_swap_overview_open, visibleOpenCount))
                 }
             }
+            visibleOpenCount > 0 -> getString(R.string.wallet_swap_overview_open, visibleOpenCount)
             offerResponse != null -> getString(R.string.wallet_dashboard_swap_negotiating)
             pending != null -> getString(R.string.wallet_dashboard_swap_negotiating)
             else -> null
         }
         shakedexExecutionStatusView.text = when {
-            execution != null -> getString(
-                R.string.wallet_swap_status_active,
-                "${swapExecutionProgress(execution).first} · ${swapExecutionStage(execution)}",
-                formatSwapAmount(execution.offeredAsset, execution.offeredAmount),
-                formatSwapAmount(execution.receivedAsset, execution.receivedAmount),
-                execution.sessionId.take(12),
-            )
+            visibleOpenCount > 0 -> getString(R.string.wallet_swap_overview_open, visibleOpenCount)
             offerResponse != null -> getString(
                 R.string.wallet_swap_notification_offer_accepted_detail,
                 offerResponse.sessionId.take(12),
@@ -4973,19 +4956,22 @@ class WalletActivity : ComponentActivity() {
     ): String = swapExecutionStage(execution, includeBitcoinSync = false)
 
     private fun swapExecutionProgress(execution: NativeShakescapeExecutionSummary): Pair<String, String> {
+        // Recovered publications may carry verified settlement state without
+        // the original per-leg milestone records. Completed is authoritative.
+        val completed = execution.state == "completed"
         val agreed = execution.state !in setOf(
             "offer_published", "offer_acceptance_received", "offer_reserved", "failed",
-        ) || execution.firstFundingConfirmed || execution.secondFundingConfirmed
+        ) || execution.firstFundingConfirmed || execution.secondFundingConfirmed || completed
         val maker = execution.localRole == "maker"
         val milestones = listOf(
             agreed to "Terms agreed",
-            execution.firstFundingConfirmed to
+            (completed || execution.firstFundingConfirmed) to
                 "${if (maker) "You" else "Other party"} lock ${swapChainLabel(execution.firstChain)}",
-            execution.secondFundingConfirmed to
+            (completed || execution.secondFundingConfirmed) to
                 "${if (maker) "Other party" else "You"} lock ${swapChainLabel(execution.secondChain)}",
-            execution.firstRedemptionConfirmed to
+            (completed || execution.firstRedemptionConfirmed) to
                 "${if (maker) "You" else "Other party"} redeem ${swapChainLabel(execution.secondChain)}",
-            execution.secondRedemptionConfirmed to
+            (completed || execution.secondRedemptionConfirmed) to
                 "${if (maker) "Other party" else "You"} redeem ${swapChainLabel(execution.firstChain)}",
         )
         val count = milestones.count { it.first }
@@ -5951,85 +5937,206 @@ class WalletActivity : ComponentActivity() {
                         .show()
                 } else {
                     swapActionStatusView.text = bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery)
-                    val terminalStates = setOf("completed", "refunded", "failed")
-                    val now = System.currentTimeMillis() / 1_000L
-                    val orderedExecutions = status.executions.sortedWith(
-                        compareBy<NativeShakescapeExecutionSummary> {
-                            swapExecutionPriority(it, now)
-                        }.thenByDescending { swapExecutionConfirmedMilestones(it) }
-                            .thenByDescending { it.lastVerifiedAtUnix },
-                    )
-                    val liveExecutions = orderedExecutions.filterNot {
-                        it.state in terminalStates
-                    }
-                    if (
-                        status.pendingOfferResponses.isEmpty() &&
-                            status.pendingAcceptances.isEmpty() &&
-                            orderedExecutions.size == 1 && liveExecutions.size == 1 &&
-                            !swapExecutionHasUnverifiedMakerFunding(liveExecutions.single(), now)
-                    ) {
-                        showShakescapeExecution(liveExecutions.single())
-                        return@runOnUiThread
-                    }
-                    val rows = buildList {
-                        status.bitcoinBroadcastRecovery?.takeIf { it.totalApproved > 0L }?.let {
-                            add(getString(R.string.wallet_swap_executions) to
-                                bitcoinBroadcastRecoveryText(it))
-                        }
-                        status.pendingOfferResponses.forEach {
-                            add(getString(R.string.wallet_swap_notification_offer_accepted) to
-                                getString(
-                                    R.string.wallet_swap_notification_offer_accepted_detail,
-                                    it.sessionId.take(12),
-                                ))
-                        }
-                    }
-                    val actions = buildList {
-                        status.pendingAcceptances.forEach { acceptance ->
-                            add(WalletModalAction(
-                                getString(
-                                    R.string.wallet_swap_pending_acceptance,
-                                    formatSwapAmount(acceptance.offeredAsset, acceptance.offeredAmount),
-                                    formatSwapAmount(acceptance.receivedAsset, acceptance.receivedAmount),
-                                    formatSwapAmount(acceptance.receivedAsset, acceptance.receivedFeeReserve),
-                                    acceptance.sessionId.take(12),
-                                ),
-                                action = { confirmAbandonPendingAcceptance(acceptance) },
-                            ))
-                        }
-                        orderedExecutions.forEach { execution ->
-                            val stage = if (swapExecutionHasUnverifiedMakerFunding(execution, now)) {
-                                getString(R.string.wallet_swap_stage_funding_recovery_pending,
-                                    swapChainLabel(execution.firstChain))
-                            } else swapExecutionStage(execution, includeBitcoinSync = false)
-                            add(WalletModalAction(
-                                "${swapExecutionProgress(execution).first} · " +
-                                    "${formatSwapAmount(execution.offeredAsset, execution.offeredAmount)} → " +
-                                    "${formatSwapAmount(execution.receivedAsset, execution.receivedAmount)}\n" +
-                                    "$stage · ${execution.sessionId.take(12)}…",
-                                action = { showShakescapeExecution(execution) },
-                                primary = swapExecutionNeedsAttention(execution, now),
-                            ))
-                        }
-                    }
-                    // A fast native return can attach a new actionable sheet
-                    // under the originating tap. Wait for that gesture to end.
-                    window.decorView.postDelayed({
-                        if (!isFinishing && !isDestroyed && foreground &&
-                            walletHandle == handle && walletHnsJourney.isConfirmedUnlocked()
-                        ) {
-                            walletDetailDialog(
-                                title = getString(R.string.wallet_swap_executions),
-                                rows = rows,
-                                actionSections = listOf(WalletModalActionSection(
-                                    getString(R.string.wallet_modal_actions), actions,
-                                )),
-                            )
-                        }
-                    }, 500L)
+                    showShakescapeExecutionPageLater(handle, status, 0, false)
                 }
             }
         }
+    }
+
+    private fun showShakescapeExecutionPageLater(
+        handle: Long,
+        status: NativeShakescapeExecutionStatus,
+        pageIndex: Int,
+        showDismissed: Boolean,
+    ) {
+        // Let the originating tap finish before attaching a new actionable sheet.
+        window.decorView.postDelayed({
+            if (!isFinishing && !isDestroyed && foreground &&
+                walletHandle == handle && walletHnsJourney.isConfirmedUnlocked()
+            ) {
+                showShakescapeExecutionPage(handle, status, pageIndex, showDismissed)
+            }
+        }, 500L)
+    }
+
+    private fun showShakescapeExecutionPage(
+        handle: Long,
+        status: NativeShakescapeExecutionStatus,
+        pageIndex: Int,
+        showDismissed: Boolean,
+    ) {
+        val dismissed = dismissedSwapExecutionIds()
+        val ordered = orderedSwapExecutions(status.executions)
+        val entries = if (showDismissed) ordered.filter {
+            it.sessionId in dismissed && swapExecutionCanDismiss(it)
+        } else visibleSwapExecutions(status.executions, dismissed)
+        val page = swapExecutionPage(entries, pageIndex)
+        val now = System.currentTimeMillis() / 1_000L
+        val rows = buildList {
+            add(getString(R.string.wallet_swap_executions_page_title) to getString(
+                R.string.wallet_swap_executions_page_detail,
+                if (page.total == 0) 0 else page.index * SWAP_EXECUTION_PAGE_SIZE + 1,
+                (page.index * SWAP_EXECUTION_PAGE_SIZE + page.entries.size),
+                page.total,
+                page.index + 1,
+                page.count,
+            ))
+            if (entries.isEmpty()) add(getString(R.string.wallet_swap_executions) to getString(
+                if (showDismissed) R.string.wallet_swap_executions_no_hidden
+                else R.string.wallet_swap_executions_no_visible,
+            ))
+            if (showDismissed) add(getString(R.string.wallet_swap_executions_hidden_title) to
+                getString(R.string.wallet_swap_executions_hidden_explanation))
+            status.bitcoinBroadcastRecovery?.takeIf { it.totalApproved > 0L && !showDismissed }
+                ?.let { add(getString(R.string.wallet_swap_executions) to bitcoinBroadcastRecoveryText(it)) }
+            if (!showDismissed && page.index == 0) status.pendingOfferResponses.forEach {
+                add(getString(R.string.wallet_swap_notification_offer_accepted) to getString(
+                    R.string.wallet_swap_notification_offer_accepted_detail,
+                    it.sessionId.take(12),
+                ))
+            }
+        }
+        val executionActions = buildList {
+            if (!showDismissed && page.index == 0) status.pendingAcceptances.forEach { acceptance ->
+                add(WalletModalAction(
+                    getString(
+                        R.string.wallet_swap_pending_acceptance,
+                        formatSwapAmount(acceptance.offeredAsset, acceptance.offeredAmount),
+                        formatSwapAmount(acceptance.receivedAsset, acceptance.receivedAmount),
+                        formatSwapAmount(acceptance.receivedAsset, acceptance.receivedFeeReserve),
+                        acceptance.sessionId.take(12),
+                    ),
+                    action = { confirmAbandonPendingAcceptance(acceptance) },
+                ))
+            }
+            page.entries.forEach { execution ->
+                val stage = if (swapExecutionHasUnverifiedMakerFunding(execution, now)) {
+                    getString(R.string.wallet_swap_stage_funding_recovery_pending,
+                        swapChainLabel(execution.firstChain))
+                } else swapExecutionStage(execution, includeBitcoinSync = false)
+                add(WalletModalAction(
+                    "${swapExecutionProgress(execution).first} · " +
+                        "${formatSwapAmount(execution.offeredAsset, execution.offeredAmount)} → " +
+                        "${formatSwapAmount(execution.receivedAsset, execution.receivedAmount)}\n" +
+                        "$stage · ${execution.sessionId.take(12)}…",
+                    action = { showShakescapeExecution(execution) },
+                    primary = !showDismissed && swapExecutionNeedsAttention(execution, now),
+                ))
+            }
+        }
+        val managementActions = buildList {
+            if (showDismissed) {
+                page.entries.forEach { execution ->
+                    add(WalletModalAction(
+                        getString(R.string.wallet_swap_executions_restore, execution.sessionId.take(12)),
+                        action = {
+                            changeDismissedSwapExecutionIds(setOf(execution.sessionId), false)
+                            showShakescapeExecutionPageLater(handle, status, 0, false)
+                        },
+                    ))
+                }
+            } else {
+                page.entries.filter(::swapExecutionCanDismiss).forEach { execution ->
+                    add(WalletModalAction(
+                        getString(R.string.wallet_swap_executions_hide, execution.sessionId.take(12)),
+                        action = { confirmDismissSwapExecutions(handle, setOf(execution.sessionId)) },
+                    ))
+                }
+                val eligible = ordered.filter {
+                    swapExecutionCanDismiss(it) && it.sessionId !in dismissed
+                }.map { it.sessionId }.toSet()
+                if (eligible.isNotEmpty()) add(WalletModalAction(
+                    getString(R.string.wallet_swap_executions_hide_all, eligible.size),
+                    action = { confirmDismissSwapExecutions(handle, eligible) },
+                ))
+            }
+        }
+        val navigation = buildList {
+            if (page.index > 0) add(WalletModalAction(
+                getString(R.string.wallet_swap_executions_previous),
+                action = { showShakescapeExecutionPageLater(handle, status, page.index - 1, showDismissed) },
+            ))
+            if (page.index + 1 < page.count) add(WalletModalAction(
+                getString(R.string.wallet_swap_executions_next),
+                action = { showShakescapeExecutionPageLater(handle, status, page.index + 1, showDismissed) },
+            ))
+            if (showDismissed) add(WalletModalAction(
+                getString(R.string.wallet_swap_executions_show_visible),
+                action = { showShakescapeExecutionPageLater(handle, status, 0, false) },
+            )) else if (ordered.any { it.sessionId in dismissed && swapExecutionCanDismiss(it) }) {
+                add(WalletModalAction(
+                    getString(R.string.wallet_swap_executions_show_hidden),
+                    action = { showShakescapeExecutionPageLater(handle, status, 0, true) },
+                ))
+            }
+        }
+        walletDetailDialog(
+            title = getString(R.string.wallet_swap_executions),
+            rows = rows,
+            actionSections = listOf(
+                WalletModalActionSection(getString(R.string.wallet_modal_actions), executionActions),
+                WalletModalActionSection(getString(R.string.wallet_swap_executions_manage), managementActions),
+                WalletModalActionSection(getString(R.string.wallet_swap_executions_pages), navigation),
+            ),
+        )
+    }
+
+    private fun dismissedSwapExecutionIds(): Set<String> {
+        val preferences = getSharedPreferences(SWAP_EXECUTION_PREFS, MODE_PRIVATE)
+        val key = walletNetwork.id
+        val previousKeys = preferences.all.keys.filter { it.startsWith("$key:") }
+        val current = preferences.getStringSet(key, emptySet()).orEmpty().toMutableSet()
+        if (previousKeys.isNotEmpty()) {
+            previousKeys.forEach { previous ->
+                current.addAll((preferences.all[previous] as? Set<*>)?.filterIsInstance<String>().orEmpty())
+            }
+            preferences.edit().putStringSet(key, current).apply {
+                previousKeys.forEach(::remove)
+            }.commit()
+        }
+        return current
+    }
+
+    private fun changeDismissedSwapExecutionIds(
+        ids: Set<String>,
+        dismiss: Boolean,
+    ): Boolean {
+        val preferences = getSharedPreferences(SWAP_EXECUTION_PREFS, MODE_PRIVATE)
+        val current = dismissedSwapExecutionIds().toMutableSet()
+        if (dismiss) current.addAll(ids) else current.removeAll(ids)
+        return preferences.edit().putStringSet(walletNetwork.id, current).commit()
+    }
+
+    private fun confirmDismissSwapExecutions(handle: Long, ids: Set<String>) {
+        walletAlertDialogBuilder()
+            .setTitle(R.string.wallet_swap_executions_hide_title)
+            .setMessage(getString(R.string.wallet_swap_executions_hide_message, ids.size))
+            .setNegativeButton(R.string.action_cancel, null)
+            .setPositiveButton(R.string.wallet_swap_executions_hide_confirm) { _, _ ->
+                thread(name = "denuo-dismiss-executions") {
+                    NativeWalletBridge.reconcileShakescapeExecutions(handle)
+                    val current = NativeWalletBridge.shakescapeExecutions(handle)
+                    runOnUiThread {
+                        if (walletHandle != handle || !foreground ||
+                            !walletHnsJourney.isConfirmedUnlocked()
+                        ) return@runOnUiThread
+                        val eligible = current?.executions?.filter {
+                            it.sessionId in ids && swapExecutionCanDismiss(it)
+                        }?.map { it.sessionId }?.toSet().orEmpty()
+                        val saved = eligible.isNotEmpty() &&
+                            changeDismissedSwapExecutionIds(eligible, true)
+                        if (current != null) refreshShakescapeExecutionStatus(current)
+                        swapActionStatusView.text = getString(
+                            if (saved) R.string.wallet_swap_executions_hidden
+                            else R.string.wallet_swap_executions_hide_unavailable,
+                        )
+                        if (current != null) {
+                            showShakescapeExecutionPageLater(handle, current, 0, false)
+                        }
+                    }
+                }
+            }
+            .show()
     }
 
     private fun formatSwapAmount(asset: String, amount: Long): String =
@@ -10540,6 +10647,7 @@ class WalletActivity : ComponentActivity() {
         if (deleted) {
             WalletHnsLiveSyncPresentationCache.clear(walletNetwork.id)
             clearPendingOutgoingRecovery()
+            getSharedPreferences(SWAP_EXECUTION_PREFS, MODE_PRIVATE).edit().clear().commit()
         }
         return deleted
     }
@@ -10794,6 +10902,7 @@ class WalletActivity : ComponentActivity() {
         const val DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC = 5
         const val NUL_CHARACTER = "\u0000"
         const val PENDING_OUTGOING_PREFS = "wallet_pending_outgoing_recovery"
+        const val SWAP_EXECUTION_PREFS = "wallet_swap_execution_view"
         const val PENDING_OUTGOING_ACCOUNT = "account_id"
         const val PENDING_OUTGOING_HEIGHT = "snapshot_height"
     }
