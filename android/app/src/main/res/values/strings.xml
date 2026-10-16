@@ -808,27 +808,27 @@
     <string name="wallet_swap_cancelled">The BTC-for-HNS offer was cancelled and its local reservation was released.</string>
     <string name="wallet_swap_cancel_failed">The offer was not cancelled. It may have expired or entered a swap session.</string>
     <string name="wallet_swap_executions">Atomic swap executions</string>
-    <string name="wallet_swap_executions_page_title">Executions · newest first</string>
-    <string name="wallet_swap_executions_page_detail">%1$d–%2$d of %3$d · page %4$d of %5$d</string>
-    <string name="wallet_swap_executions_no_visible">No visible executions. Hidden sessions remain monitored, and any funding or recovery activity makes them visible again.</string>
-    <string name="wallet_swap_executions_no_hidden">No sessions are hidden.</string>
-    <string name="wallet_swap_executions_hidden_title">Hidden sessions</string>
-    <string name="wallet_swap_executions_hidden_explanation">These records are still in the wallet. Chain monitoring and recovery continue. A session returns to the main list if funds lock or action becomes necessary.</string>
-    <string name="wallet_swap_executions_manage">Manage list</string>
-    <string name="wallet_swap_executions_pages">Pages</string>
-    <string name="wallet_swap_executions_previous">Previous page</string>
-    <string name="wallet_swap_executions_next">Next page</string>
-    <string name="wallet_swap_executions_show_hidden">Show hidden sessions</string>
-    <string name="wallet_swap_executions_show_visible">Show visible sessions</string>
-    <string name="wallet_swap_executions_hide">Hide session %1$s…</string>
-    <string name="wallet_swap_executions_restore">Restore session %1$s…</string>
-    <string name="wallet_swap_executions_hide_all">Hide %1$d eligible sessions</string>
-    <string name="wallet_swap_executions_hide_title">Hide from this list?</string>
-    <string name="wallet_swap_executions_hide_message">Hide %1$d unfunded or fully refunded sessions from this view? This does not cancel signed terms, release reserved coins, or delete wallet records. The wallet keeps monitoring them and shows them again if funding or recovery is detected.</string>
-    <string name="wallet_swap_executions_hide_confirm">Hide from view</string>
-    <string name="wallet_swap_executions_hidden">Eligible sessions were hidden from this list. The wallet still monitors them.</string>
-    <string name="wallet_swap_executions_hide_unavailable">No sessions could be hidden. Their verified state may have changed.</string>
-    <string name="wallet_swap_overview_open">%1$d open swap sessions are monitored. Open Atomic swap executions for details and recovery actions.</string>
+    <string name="wallet_swap_executions_page_title" translatable="false">Executions · newest first</string>
+    <string name="wallet_swap_executions_page_detail" translatable="false">%1$d–%2$d of %3$d · page %4$d of %5$d</string>
+    <string name="wallet_swap_executions_no_visible" translatable="false">No visible executions. Hidden sessions remain monitored, and any funding or recovery activity makes them visible again.</string>
+    <string name="wallet_swap_executions_no_hidden" translatable="false">No sessions are hidden.</string>
+    <string name="wallet_swap_executions_hidden_title" translatable="false">Hidden sessions</string>
+    <string name="wallet_swap_executions_hidden_explanation" translatable="false">These records are still in the wallet. Chain monitoring and recovery continue. A session returns to the main list if funds lock or action becomes necessary.</string>
+    <string name="wallet_swap_executions_manage" translatable="false">Manage list</string>
+    <string name="wallet_swap_executions_pages" translatable="false">Pages</string>
+    <string name="wallet_swap_executions_previous" translatable="false">Previous page</string>
+    <string name="wallet_swap_executions_next" translatable="false">Next page</string>
+    <string name="wallet_swap_executions_show_hidden" translatable="false">Show hidden sessions</string>
+    <string name="wallet_swap_executions_show_visible" translatable="false">Show visible sessions</string>
+    <string name="wallet_swap_executions_hide" translatable="false">Hide session %1$s…</string>
+    <string name="wallet_swap_executions_restore" translatable="false">Restore session %1$s…</string>
+    <string name="wallet_swap_executions_hide_all" translatable="false">Hide %1$d eligible sessions</string>
+    <string name="wallet_swap_executions_hide_title" translatable="false">Hide from this list?</string>
+    <string name="wallet_swap_executions_hide_message" translatable="false">Hide %1$d unfunded or fully refunded sessions from this view? This does not cancel signed terms, release reserved coins, or delete wallet records. The wallet keeps monitoring them and shows them again if funding or recovery is detected.</string>
+    <string name="wallet_swap_executions_hide_confirm" translatable="false">Hide from view</string>
+    <string name="wallet_swap_executions_hidden" translatable="false">Eligible sessions were hidden from this list. The wallet still monitors them.</string>
+    <string name="wallet_swap_executions_hide_unavailable" translatable="false">No sessions could be hidden. Their verified state may have changed.</string>
+    <string name="wallet_swap_overview_open" translatable="false">%1$d open swap sessions are monitored. Open Atomic swap executions for details and recovery actions.</string>
     <string name="wallet_swap_coin_actions">Coin Swap Actions</string>
     <string name="wallet_swap_name_actions">Name Swap Actions</string>
     <string name="wallet_swap_loading_executions">Loading durable atomic swap state…</string>
@@ -850,8 +850,8 @@
     <string name="wallet_swap_status_terminal">No active swap. Latest execution: %1$s · session %2$s…\n%3$s</string>
     <string name="wallet_swap_status_no_failure">The execution reached a terminal state.</string>
     <string name="wallet_dashboard_swap_negotiating">Connected · swap negotiating</string>
-    <string name="wallet_dashboard_swap_active_detail">Active %1$s → %2$s · session %3$s…\n%4$s · %5$s</string>
-    <string name="wallet_dashboard_swap_latest_completed">Latest completed: %1$s → %2$s · session %3$s…</string>
+    <string name="wallet_dashboard_swap_active_detail" translatable="false">Active %1$s → %2$s · session %3$s…\n%4$s · %5$s</string>
+    <string name="wallet_dashboard_swap_latest_completed" translatable="false">Latest completed: %1$s → %2$s · session %3$s…</string>
     <string name="wallet_swap_stage_syncing_append">%1$s · verifying Bitcoin state</string>
     <string name="wallet_swap_stage_terms_waiting">Terms frozen · automatic Bitcoin synchronization/watch preparation is next</string>
     <string name="wallet_swap_stage_with_deadline">%1$s · %2$s remaining to fund %3$s · deadline %4$s</string>

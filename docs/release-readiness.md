@@ -33,6 +33,10 @@ pending retry before checking whether another wallet operation is active.
 The next bounded scan round therefore starts automatically after a saved
 checkpoint. The iOS catch-up path already makes the equivalent transition.
 
+The new Android swap execution list, hide controls, and dashboard summaries
+currently use their reviewed English text in every locale. Translations for
+those controls are pending; no machine-generated financial wording is shipped.
+
 ## ICANN startup browsing
 
 Both mobile browsers admit sites under permanently reserved ICANN roots
