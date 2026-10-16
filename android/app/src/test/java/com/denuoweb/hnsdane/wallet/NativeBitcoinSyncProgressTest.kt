@@ -8,6 +8,24 @@ import org.junit.Test
 
 class NativeBitcoinSyncProgressTest {
     @Test
+    fun bitcoin_funding_quote_requires_the_complete_bounded_package() {
+        val quote = NativeBitcoinWalletBundle.swapBitcoinFeePreflight(bundle(
+            """{"requiredFeeSats":2920,"feeRateSatVb":2,"transactionCount":4,"signedCapSufficient":false}""",
+        ))
+        requireNotNull(quote)
+        assertEquals(2920L, quote.requiredFeeSats)
+        assertEquals(4, quote.transactionCount)
+        assertEquals(false, quote.signedCapSufficient)
+
+        assertNull(NativeBitcoinWalletBundle.swapBitcoinFeePreflight(bundle(
+            """{"requiredFeeSats":2920,"feeRateSatVb":2,"transactionCount":1,"signedCapSufficient":true}""",
+        )))
+        assertNull(NativeBitcoinWalletBundle.swapBitcoinFeePreflight(bundle(
+            """{"requiredFeeSats":2920,"feeRateSatVb":2,"transactionCount":4,"signedCapSufficient":true,"extra":1}""",
+        )))
+    }
+
+    @Test
     fun parses_the_validated_birthday_height_in_a_snapshot() {
         val snapshot = NativeBitcoinWalletBundle.snapshot(bundle(
             """{"network":"mainnet","receiveAddress":"bc1qexample","confirmedSats":10000,"trustedPendingSats":0,"untrustedPendingSats":0,"immatureSats":0,"totalSats":10000,"birthdayHeight":855000,"birthdayState":"validated","synchronizedHeight":855123,"connectedPeerCount":3,"requiredPeerCount":3,"recentActivity":[{"txid":"1111111111111111111111111111111111111111111111111111111111111111","direction":"incoming","amountSats":5000,"feeSats":null,"status":"confirmed","blockHeight":855120,"confirmationCount":4,"lastChangedAtUnix":1700000000}],"recentActivityTotal":1}""",

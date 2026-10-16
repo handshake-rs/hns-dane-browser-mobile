@@ -5743,6 +5743,42 @@ pub unsafe extern "C" fn hns_browser_wallet_service_direct_shakescape(
 }
 
 #[unsafe(no_mangle)]
+/// Quotes the complete disposable Bitcoin funding package before offer terms
+/// are signed. The quote has no broadcast or approval authority.
+///
+/// # Safety
+/// `out_quote_bundle` must point to one writable owned-buffer value.
+pub unsafe extern "C" fn hns_browser_wallet_preflight_swap_bitcoin_fee(
+    wallet: HnsBrowserWalletHandle,
+    bitcoin_amount_sats: u64,
+    signed_fee_cap_sats: u64,
+    out_quote_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_quote_bundle)?;
+        unsafe { write_output(out_quote_bundle, HnsBrowserBuffer::empty()) };
+        let control = wallet_bitcoin_control_entry(wallet)?;
+        let slot = control.controller.try_lock().map_err(|error| match error {
+            TryLockError::WouldBlock => direct_hns_not_ready("direct Bitcoin wallet is busy"),
+            TryLockError::Poisoned(_) => FfiFailure::internal(),
+        })?;
+        let bitcoin = slot
+            .as_ref()
+            .filter(|controller| controller.is_active())
+            .ok_or_else(|| direct_hns_not_ready("direct Bitcoin wallet is not active"))?;
+        let quote = bitcoin
+            .preflight_shakescape_bitcoin_funding(bitcoin_amount_sats, signed_fee_cap_sats)
+            .map_err(|error| {
+                wallet_runtime_error("Bitcoin funding fee preflight failed", &error)
+            })?;
+        let bundle = wallet_bitcoin_bundle(&quote)?;
+        let output = allocate_output(&bundle.0, true)?;
+        unsafe { write_output(out_quote_bundle, output) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
 /// Prepares fixed BTC-for-HNS terms without signing or reserving chain inputs.
 ///
 /// # Safety

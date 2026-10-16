@@ -69347,6 +69347,50 @@
         }
       }
     },
+    "wallet_ux_swap_fee_cap_short": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "At the current %3$@ sat/vB rate, the full %4$@-transaction Bitcoin funding package needs about %1$@ sats. The proposed signed cap is %2$@ sats. Use a larger cap and, if needed, a larger Bitcoin offer amount before reviewing again."
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_fee_package_review": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Full Bitcoin funding package: %1$@ transactions, about %2$@ sats at %3$@ sat/vB under the proposed cap. Funding will be checked again against the exact signed terms."
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_fee_preflight_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitcoin funding fee cap"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_fee_preflight_unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The complete Bitcoin funding package could not be quoted. Synchronize Bitcoin and make sure confirmed, spendable BTC covers the lock plus the entered fee cap, then review again."
+          }
+        }
+      }
+    },
     "wallet_ux_swap_hns_first_funding_prepare_failed": {
       "extractionState": "manual",
       "localizations": {
@@ -69354,6 +69398,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Handshake HTLC funding was not prepared. The transaction fee may exceed this swap’s signed HNS fee reserve. Create a new offer with a larger HNS reserve before retrying."
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_package_fee_cap_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maximum Bitcoin funding package fee (sats)"
           }
         }
       }

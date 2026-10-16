@@ -309,6 +309,20 @@ internal object NativeWalletBridge {
         }
     }
 
+    fun preflightSwapBitcoinFee(
+        handle: Long,
+        bitcoinAmountSats: Long,
+        signedFeeCapSats: Long,
+    ): NativeBitcoinFundingFeePreflight? {
+        if (!isValidHandle(handle) || !isAvailable ||
+            bitcoinAmountSats <= 0L || signedFeeCapSats <= 0L) return null
+        val bundle = runCatching {
+            nativePreflightSwapBitcoinFee(handle, bitcoinAmountSats, signedFeeCapSats)
+        }.getOrNull() ?: return null
+        return try { NativeBitcoinWalletBundle.swapBitcoinFeePreflight(bundle) }
+        finally { bundle.fill(0) }
+    }
+
     fun approveBtcForHnsOffer(
         handle: Long,
         actionToken: NativeHnsValueActionToken,
@@ -1333,6 +1347,13 @@ internal object NativeWalletBridge {
 
     @JvmStatic
     private external fun nativeConnectWalletOwnedDirectShakescape(handle: Long, endpoint: String): ByteArray?
+
+    @JvmStatic
+    private external fun nativePreflightSwapBitcoinFee(
+        handle: Long,
+        bitcoinAmountSats: Long,
+        signedFeeCapSats: Long,
+    ): ByteArray?
 
     @JvmStatic
     private external fun nativePrepareBtcForHnsOffer(

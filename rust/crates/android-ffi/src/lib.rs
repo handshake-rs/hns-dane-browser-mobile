@@ -7265,6 +7265,37 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativePreflightSwapBitcoinFee(
+    env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    bitcoin_amount_sats: jlong,
+    signed_fee_cap_sats: jlong,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let amount = u64::try_from(bitcoin_amount_sats).ok()?;
+        let cap = u64::try_from(signed_fee_cap_sats).ok()?;
+        let record = wallet_from_handle(handle)?;
+        let quote = {
+            let bitcoin = record.bitcoin_if_active()?;
+            bitcoin
+                .as_ref()?
+                .preflight_shakescape_bitcoin_funding(amount, cap)
+                .ok()?
+        };
+        let mut json = serde_json::to_vec(&quote).ok()?;
+        let mut bundle = bitcoin_json_bundle(json.as_slice())?;
+        json.fill(0);
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativePrepareBtcForHnsOffer(
     env: JNIEnv<'_>,
     _class: JClass<'_>,

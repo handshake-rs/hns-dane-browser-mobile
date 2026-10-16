@@ -26,6 +26,13 @@ internal data class NativeBitcoinWalletSnapshot(
     val recentActivityTotal: Int,
 )
 
+internal data class NativeBitcoinFundingFeePreflight(
+    val requiredFeeSats: Long,
+    val feeRateSatVb: Long,
+    val transactionCount: Int,
+    val signedCapSufficient: Boolean,
+)
+
 internal data class NativeBitcoinActivity(
     val txid: String,
     val direction: String,
@@ -328,6 +335,21 @@ internal object NativeBitcoinWalletBundle {
     private const val HEADER_BYTES = 12
     private const val MAX_JSON_BYTES = 16 * 1024
     private const val MAX_RECENT_ACTIVITY = 20
+
+    fun swapBitcoinFeePreflight(bundle: ByteArray): NativeBitcoinFundingFeePreflight? =
+        parse(bundle) { json ->
+            if (!hasExactKeys(json, setOf(
+                "requiredFeeSats", "feeRateSatVb", "transactionCount", "signedCapSufficient",
+            ))) return@parse null
+            val count = json.optInt("transactionCount", -1).takeIf { it in 2..25 }
+                ?: return@parse null
+            NativeBitcoinFundingFeePreflight(
+                positiveLong(json, "requiredFeeSats") ?: return@parse null,
+                positiveLong(json, "feeRateSatVb") ?: return@parse null,
+                count,
+                exactBoolean(json, "signedCapSufficient") ?: return@parse null,
+            )
+        }
     private const val MAX_RETAINED_ACTIVITY = 4_096
     private const val MAX_DISPLAY_UNIX = 253_402_300_799L
     private const val VERSION = 1

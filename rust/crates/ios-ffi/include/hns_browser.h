@@ -537,6 +537,11 @@ HnsBrowserResult hns_browser_wallet_service_direct_shakescape(
  * Bitcoin funding transaction. HNBW-v1 JSON outputs contain only display and
  * public offer/session identifiers.
  */
+HnsBrowserResult hns_browser_wallet_preflight_swap_bitcoin_fee(
+    HnsBrowserWalletHandle wallet,
+    uint64_t bitcoin_amount_sats,
+    uint64_t signed_fee_cap_sats,
+    HnsBrowserBuffer *out_quote_bundle);
 HnsBrowserResult hns_browser_wallet_prepare_btc_for_hns_offer(
     HnsBrowserWalletHandle wallet,
     uint64_t btc_amount_sats,

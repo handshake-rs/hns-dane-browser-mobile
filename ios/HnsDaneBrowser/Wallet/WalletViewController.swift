@@ -30,6 +30,25 @@ private let maximumVisibleDirectShakescapePeers = 3
 private let maximumVisibleDirectOffers = 5
 private let showShakedexWalletCard = true
 
+private struct SwapBitcoinFeeCapTooLow: LocalizedError {
+    let quote: NativeBitcoinFundingFeePreflight
+    let signedCapSats: UInt64
+
+    var errorDescription: String? {
+        WalletCopy.format(
+            "wallet_ux_swap_fee_cap_short",
+            String(quote.requiredFeeSats), String(signedCapSats),
+            String(quote.feeRateSatVb), String(quote.transactionCount)
+        )
+    }
+}
+
+private struct SwapBitcoinFeePreflightUnavailable: LocalizedError {
+    var errorDescription: String? {
+        WalletCopy.text("wallet_ux_swap_fee_preflight_unavailable")
+    }
+}
+
 private final class WalletMaintenancePauseSignal: @unchecked Sendable {
     private let lock = NSLock()
     private var paused = false
@@ -2129,7 +2148,6 @@ final class WalletViewController: UIViewController {
     private func showBtcForHnsOfferFormAfterAuthentication() {
         guard let wallet, bitcoinValueAvailable, !bitcoinSyncInProgress,
               !bitcoinBirthdayResetInProgress, !isOperating else { return }
-        let reserve = defaultBitcoinSwapFeeReserveSats
         presentWalletForm(
             title: WalletCopy.text("wallet_swap_sell_btc"),
             message: nil,
@@ -2146,6 +2164,12 @@ final class WalletViewController: UIViewController {
                     keyboardType: .decimalPad
                 ),
                 WalletSheetFormField(
+                    label: WalletCopy.text("wallet_ux_swap_package_fee_cap_hint"),
+                    placeholder: WalletCopy.text("wallet_ux_swap_package_fee_cap_hint"),
+                    keyboardType: .numberPad,
+                    initialValue: String(defaultBitcoinSwapFeeReserveSats)
+                ),
+                WalletSheetFormField(
                     label: WalletCopy.text("wallet_swap_lifetime_hours_hint"),
                     placeholder: WalletCopy.text("wallet_swap_lifetime_hours_hint"),
                     keyboardType: .numberPad,
@@ -2155,12 +2179,13 @@ final class WalletViewController: UIViewController {
             primaryTitle: WalletCopy.text("wallet_action_review_transaction")
         ) { [weak self, weak wallet] fields in
             guard let self, let wallet, self.wallet === wallet,
-                  fields.count == 3,
+                  fields.count == 4,
                   let btc = UInt64(fields[0]), btc >= minimumBitcoinHtlcSats,
                   let hnsText = Self.positiveHnsBaseUnits(fields[1]),
                   let hns = UInt64(hnsText), hns >= minimumHnsSwapDollarydoos,
+                  let reserve = UInt64(fields[2]), reserve >= minimumBitcoinFeeReserveSats,
                   btc >= reserve, btc - reserve >= bitcoinHtlcReceiverDustSats,
-                  let hours = UInt64(fields[2]), (48...168).contains(hours),
+                  let hours = UInt64(fields[3]), (48...168).contains(hours),
                   hours <= UInt64.max / 3_600 else {
                 self?.showErrorMessage(WalletCopy.text("wallet_swap_prepare_failed"))
                 return
@@ -2170,19 +2195,33 @@ final class WalletViewController: UIViewController {
             self.refreshButtonStates()
             DispatchQueue.global(qos: .userInitiated).async { [wallet] in
                 let outcome = Result {
-                    try wallet.prepareBtcForHnsOffer(
+                    let quote: NativeBitcoinFundingFeePreflight
+                    do {
+                        quote = try wallet.preflightSwapBitcoinFee(
+                            bitcoinAmountSats: btc, signedFeeCapSats: reserve
+                        )
+                    } catch {
+                        throw SwapBitcoinFeePreflightUnavailable()
+                    }
+                    guard quote.signedCapSufficient else {
+                        throw SwapBitcoinFeeCapTooLow(quote: quote, signedCapSats: reserve)
+                    }
+                    let approval = try wallet.prepareBtcForHnsOffer(
                         btcAmountSats: btc,
                         hnsAmountDollarydoos: hns,
                         bitcoinFeeReserveSats: reserve,
                         listingLifetimeSeconds: hours * 3_600
                     )
+                    return (approval, quote)
                 }
                 DispatchQueue.main.async { [weak self] in
                     guard let self, self.wallet === wallet else { return }
                     self.isOperating = false
                     switch outcome {
-                    case .success(let approval):
-                        self.presentBtcForHnsOfferApproval(approval, wallet: wallet)
+                    case .success(let prepared):
+                        self.presentBtcForHnsOfferApproval(
+                            prepared.0, feeQuote: prepared.1, wallet: wallet
+                        )
                     case .failure(let error):
                         self.swapActionStatusLabel.text = WalletCopy.text("wallet_swap_prepare_failed")
                         self.showError(error)
@@ -2195,6 +2234,7 @@ final class WalletViewController: UIViewController {
 
     private func presentBtcForHnsOfferApproval(
         _ approval: NativeBtcForHnsOfferApproval,
+        feeQuote: NativeBitcoinFundingFeePreflight,
         wallet: RustNativeWallet
     ) {
         swapActionStatusLabel.text = WalletCopy.text("wallet_swap_approval_title")
@@ -2213,6 +2253,11 @@ final class WalletViewController: UIViewController {
             Int(approval.bitcoinFeeReserveSats),
             Int(approval.totalBitcoinCommitmentSats),
             expiry
+        ) + "\n\n" + WalletCopy.format(
+            "wallet_ux_swap_fee_package_review",
+            String(feeQuote.transactionCount),
+            String(feeQuote.requiredFeeSats),
+            String(feeQuote.feeRateSatVb)
         )
         let alert = UIAlertController(
             title: WalletCopy.text("wallet_swap_approval_title"), message: message, preferredStyle: .alert
@@ -2570,12 +2615,17 @@ final class WalletViewController: UIViewController {
         presentWalletForm(
             title: WalletCopy.text("wallet_swap_acceptance_review"),
             message: directOfferAcceptanceLabel(offer),
-            fields: [],
+            fields: reserveIsBitcoin ? [WalletSheetFormField(
+                label: WalletCopy.text("wallet_ux_swap_package_fee_cap_hint"),
+                placeholder: WalletCopy.text("wallet_ux_swap_package_fee_cap_hint"),
+                keyboardType: .numberPad,
+                initialValue: String(defaultBitcoinSwapFeeReserveSats)
+            )] : [],
             primaryTitle: WalletCopy.text("wallet_swap_acceptance_review")
-        ) { [weak self] _ in
+        ) { [weak self] fields in
             guard let self else { return }
             let reserve = reserveIsBitcoin
-                ? defaultBitcoinSwapFeeReserveSats
+                ? (UInt64(fields.first ?? "") ?? 0)
                 : minimumHnsFeeReserveDollarydoos
             let minimumReserve = reserveIsBitcoin
                 ? minimumBitcoinFeeReserveSats
@@ -2606,7 +2656,21 @@ final class WalletViewController: UIViewController {
         refreshButtonStates()
         DispatchQueue.global(qos: .userInitiated).async { [wallet] in
             let outcome = Result {
-                try wallet.prepareDirectOfferAcceptance(
+                if offer.receivedAsset == "btc" {
+                    let quote: NativeBitcoinFundingFeePreflight
+                    do {
+                        quote = try wallet.preflightSwapBitcoinFee(
+                            bitcoinAmountSats: offer.btcAmountSats,
+                            signedFeeCapSats: feeReserve
+                        )
+                    } catch {
+                        throw SwapBitcoinFeePreflightUnavailable()
+                    }
+                    guard quote.signedCapSufficient else {
+                        throw SwapBitcoinFeeCapTooLow(quote: quote, signedCapSats: feeReserve)
+                    }
+                }
+                return try wallet.prepareDirectOfferAcceptance(
                     offerId: offer.offerId, receivedFeeReserve: feeReserve
                 )
             }
@@ -8697,17 +8761,22 @@ final class WalletViewController: UIViewController {
     }
 
     private func showError(_ error: Error) {
-        if let walletError = error as? WalletProviderError {
+        if error is SwapBitcoinFeeCapTooLow || error is SwapBitcoinFeePreflightUnavailable {
+            showErrorMessage(
+                error.localizedDescription,
+                title: WalletCopy.text("wallet_ux_swap_fee_preflight_title")
+            )
+        } else if let walletError = error as? WalletProviderError {
             showErrorMessage(walletError.message)
         } else {
             showErrorMessage(error.localizedDescription)
         }
     }
 
-    private func showErrorMessage(_ message: String) {
+    private func showErrorMessage(_ message: String, title: String = "Wallet unavailable") {
         guard walletCanPresentChild else { return }
         let alert = UIAlertController(
-            title: "Wallet unavailable",
+            title: title,
             message: message,
             preferredStyle: .alert
         )

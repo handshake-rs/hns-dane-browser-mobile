@@ -1329,6 +1329,11 @@
     <string name="wallet_ux_swap_settlement_queued" translatable="false">Swap %1$s transaction saved for broadcast recovery. Transaction ID: %2$s. Track this ID in Bitcoin activity while peer submission and the chain scan finish.</string>
     <string name="wallet_ux_swap_settlement_submitted" translatable="false">Swap %1$s transaction submitted. Transaction ID: %2$s. Track this ID in Bitcoin activity and wait for a verified chain scan.</string>
     <string name="wallet_ux_swap_settlement_not_ready" translatable="false">This action is unavailable in the current verified session state. Check this execution and Bitcoin activity; an earlier submission may still be waiting for a scan.</string>
+    <string name="wallet_ux_swap_fee_cap_short" translatable="false">At the current %3$s sat/vB rate, the full %4$s-transaction Bitcoin funding package needs about %1$s sats. The proposed signed cap is %2$s sats. Use a larger cap and, if needed, a larger Bitcoin offer amount before reviewing again.</string>
+    <string name="wallet_ux_swap_fee_preflight_unavailable" translatable="false">The complete Bitcoin funding package could not be quoted. Synchronize Bitcoin and make sure confirmed, spendable BTC covers the lock plus the entered fee cap, then review again.</string>
+    <string name="wallet_ux_swap_fee_package_review" translatable="false">Full Bitcoin funding package: %1$s transactions, about %2$s sats at %3$s sat/vB under the proposed cap. Funding will be checked again against the exact signed terms.</string>
+    <string name="wallet_ux_swap_package_fee_cap_hint" translatable="false">Maximum Bitcoin funding package fee (sats)</string>
+    <string name="wallet_ux_swap_fee_preflight_title" translatable="false">Bitcoin funding fee cap</string>
     <string name="wallet_ux_actions" translatable="false">Actions</string>
     <string name="wallet_ux_done" translatable="false">Done</string>
     <string name="wallet_ux_sync_progress" translatable="false">Syncing Bitcoin · %1$d%%</string>

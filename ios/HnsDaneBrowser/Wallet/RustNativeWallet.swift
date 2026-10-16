@@ -432,6 +432,36 @@ struct NativeBtcForHnsOfferApproval {
     let connectedPeerRequiredForAnnouncement: Bool
 }
 
+struct NativeBitcoinFundingFeePreflight: Decodable, Equatable, Sendable {
+    let requiredFeeSats: UInt64
+    let feeRateSatVb: UInt64
+    let transactionCount: UInt32
+    let signedCapSufficient: Bool
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case requiredFeeSats, feeRateSatVb, transactionCount, signedCapSufficient
+    }
+
+    init(from decoder: Decoder) throws {
+        let fields = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        requiredFeeSats = try fields.decode(UInt64.self, forKey: .requiredFeeSats)
+        feeRateSatVb = try fields.decode(UInt64.self, forKey: .feeRateSatVb)
+        transactionCount = try fields.decode(UInt32.self, forKey: .transactionCount)
+        signedCapSufficient = try fields.decode(Bool.self, forKey: .signedCapSufficient)
+        guard requiredFeeSats > 0, feeRateSatVb > 0, (2...25).contains(transactionCount) else {
+            throw NativeWalletBridgeError.invalidOutput("invalid Bitcoin funding fee preflight")
+        }
+    }
+
+    static func decode(bundle: [UInt8]) throws -> Self {
+        var payload = try NativeHnsValueBundle.payload(
+            bundle, magic: Array("HNBW".utf8), maximumJSONBytes: 16 * 1_024
+        )
+        defer { payload.resetBytes(in: payload.startIndex..<payload.endIndex) }
+        return try JSONDecoder().decode(Self.self, from: payload)
+    }
+}
+
 struct NativeBtcForHnsOfferSummary: Decodable, Equatable, Sendable {
     let offerId: String
     let sessionId: String
@@ -3758,6 +3788,21 @@ final class RustNativeWallet: @unchecked Sendable {
             }
             try NativeWalletBridge.check(result, operation: "swap settlement rejection")
         }
+    }
+
+    func preflightSwapBitcoinFee(
+        bitcoinAmountSats: UInt64,
+        signedFeeCapSats: UInt64
+    ) throws -> NativeBitcoinFundingFeePreflight {
+        var output = HnsBrowserBuffer()
+        let result = hns_browser_wallet_preflight_swap_bitcoin_fee(
+            try liveHandle(), bitcoinAmountSats, signedFeeCapSats, &output
+        )
+        defer { NativeWalletBridge.free(output) }
+        try NativeWalletBridge.check(result, operation: "Bitcoin swap funding fee preflight")
+        var bundle = try NativeWalletBridge.bytes(copying: output)
+        defer { WalletSecretBytes.wipe(&bundle) }
+        return try NativeBitcoinFundingFeePreflight.decode(bundle: bundle)
     }
 
     func prepareBtcForHnsOffer(

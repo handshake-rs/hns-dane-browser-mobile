@@ -67,6 +67,7 @@ import com.denuoweb.hnsdane.wallet.NativeBitcoinSendPreparationFailure
 import com.denuoweb.hnsdane.wallet.NativeBitcoinActivity
 import com.denuoweb.hnsdane.wallet.NativeBitcoinActivityPage
 import com.denuoweb.hnsdane.wallet.NativeBitcoinHtlcFundingApproval
+import com.denuoweb.hnsdane.wallet.NativeBitcoinFundingFeePreflight
 import com.denuoweb.hnsdane.wallet.NativeBitcoinSyncProgress
 import com.denuoweb.hnsdane.wallet.NativeBtcForHnsOfferApproval
 import com.denuoweb.hnsdane.wallet.NativeDirectOfferSummary
@@ -5652,6 +5653,11 @@ class WalletActivity : ComponentActivity() {
                         DEFAULT_BITCOIN_SWAP_FEE_RESERVE_SATS).toString(),
                 ),
                 WalletActionInput(R.string.wallet_swap_hns_amount_hint),
+                WalletActionInput(
+                    R.string.wallet_ux_swap_package_fee_cap_hint,
+                    numeric = true,
+                    initial = DEFAULT_BITCOIN_SWAP_FEE_RESERVE_SATS.toString(),
+                ),
                 WalletActionInput(R.string.wallet_swap_lifetime_hours_hint, initial = "48", numeric = true),
             ),
         ) { values ->
@@ -5659,11 +5665,12 @@ class WalletActivity : ComponentActivity() {
                 ?.takeIf { it >= NativeWalletBridge.MINIMUM_BITCOIN_HTLC_SATS }
             val hns = parsePositiveHnsToBaseUnits(values[1])?.toLongOrNull()
                 ?.takeIf { it >= NativeWalletBridge.MINIMUM_HNS_SWAP_DOLLARYDOOS }
-            val reserve = DEFAULT_BITCOIN_SWAP_FEE_RESERVE_SATS
-            val lifetime = values[2].toLongOrNull()
+            val reserve = values[2].toLongOrNull()
+                ?.takeIf { it >= NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS }
+            val lifetime = values[3].toLongOrNull()
                 ?.takeIf { it in 48L..168L }
                 ?.let { runCatching { Math.multiplyExact(it, 3_600L) }.getOrNull() }
-            if (btc == null || hns == null || btc < reserve ||
+            if (btc == null || hns == null || reserve == null || btc < reserve ||
                 btc - reserve < NativeWalletBridge.BITCOIN_HTLC_RECEIVER_DUST_SATS ||
                 lifetime == null
             ) {
@@ -5840,11 +5847,15 @@ class WalletActivity : ComponentActivity() {
         val bitcoin = offer.receivedAsset == "btc"
         showWalletActionForm(
             R.string.wallet_swap_acceptance_offer,
-            emptyList(),
+            if (bitcoin) listOf(WalletActionInput(
+                R.string.wallet_ux_swap_package_fee_cap_hint,
+                numeric = true,
+                initial = DEFAULT_BITCOIN_SWAP_FEE_RESERVE_SATS.toString(),
+            )) else emptyList(),
             summary = directOfferAcceptanceLabel(offer),
             primaryLabel = R.string.wallet_swap_acceptance_review,
-        ) { _ ->
-            val reserve = if (bitcoin) DEFAULT_BITCOIN_SWAP_FEE_RESERVE_SATS
+        ) { values ->
+            val reserve = if (bitcoin) values.singleOrNull()?.toLongOrNull() ?: 0L
                 else DEFAULT_HNS_SWAP_FEE_RESERVE_BASE_UNITS.toLong()
             val leavesSpendableOutput = offer.receivedAmount >= reserve &&
                 if (bitcoin) {
@@ -6820,15 +6831,36 @@ class WalletActivity : ComponentActivity() {
                 if (!beginOperation(lease, getString(R.string.wallet_swap_acceptance_preparing), resetReads = false)) return@requireWalletAuthentication
                 val epoch = lifecycleEpoch
                 thread(name = "direct-offer-acceptance-prepare") {
-                    val preparation = NativeWalletBridge.prepareDirectOfferAcceptance(
-                        handle, offer.offerId, feeReserve,
-                    )
+                    val bitcoinFeeQuote = if (offer.receivedAsset == "btc") {
+                        NativeWalletBridge.preflightSwapBitcoinFee(
+                            handle, offer.btcAmountSats, feeReserve,
+                        )
+                    } else null
+                    val feeReady = offer.receivedAsset != "btc" ||
+                        bitcoinFeeQuote?.signedCapSufficient == true
+                    val preparation = if (feeReady) {
+                        NativeWalletBridge.prepareDirectOfferAcceptance(
+                            handle, offer.offerId, feeReserve,
+                        )
+                    } else null
                     runOnUiThread {
                         if (!operationIsCurrent(epoch, lease) || walletHandle != handle) {
                             (preparation as? NativeDirectOfferAcceptancePreparation.Approval)?.value?.let {
                                 NativeWalletBridge.rejectDirectOfferAcceptance(handle, it.actionToken)
                                 it.close()
                             }
+                            releaseStorageLeaseAfterOperation(lease)
+                        } else if (!feeReady) {
+                            busy = false
+                            val message = swapBitcoinFeePreflightMessage(bitcoinFeeQuote, feeReserve)
+                            swapActionStatusView.text = message
+                            statusView.text = message
+                            renderWalletDashboard()
+                            walletAlertDialogBuilder()
+                                .setTitle(R.string.wallet_swap_acceptance_offer)
+                                .setMessage(message)
+                                .setPositiveButton(android.R.string.ok, null)
+                                .show()
                             releaseStorageLeaseAfterOperation(lease)
                         } else if (preparation is NativeDirectOfferAcceptancePreparation.InsufficientFunds) {
                             busy = false
@@ -7037,13 +7069,18 @@ class WalletActivity : ComponentActivity() {
         swapActionStatusView.text = getString(R.string.wallet_swap_preparing)
         val epoch = lifecycleEpoch
         thread(name = "bitcoin-hns-offer-prepare") {
-            val approval = NativeWalletBridge.prepareBtcForHnsOffer(
-                handle,
-                btcAmountSats,
-                hnsAmountDollarydoos,
-                bitcoinFeeReserveSats,
-                listingLifetimeSeconds,
+            val feeQuote = NativeWalletBridge.preflightSwapBitcoinFee(
+                handle, btcAmountSats, bitcoinFeeReserveSats,
             )
+            val approval = if (feeQuote?.signedCapSufficient == true) {
+                NativeWalletBridge.prepareBtcForHnsOffer(
+                    handle,
+                    btcAmountSats,
+                    hnsAmountDollarydoos,
+                    bitcoinFeeReserveSats,
+                    listingLifetimeSeconds,
+                )
+            } else null
             val exact = approval?.takeIf {
                 it.btcAmountSats == btcAmountSats &&
                     it.hnsAmountDollarydoos == hnsAmountDollarydoos &&
@@ -7061,6 +7098,18 @@ class WalletActivity : ComponentActivity() {
                         it.close()
                     }
                     releaseStorageLeaseAfterOperation(lease)
+                } else if (feeQuote?.signedCapSufficient != true) {
+                    busy = false
+                    refreshControllerState(resetReads = false)
+                    val message = swapBitcoinFeePreflightMessage(feeQuote, bitcoinFeeReserveSats)
+                    statusView.text = message
+                    swapActionStatusView.text = message
+                    walletAlertDialogBuilder()
+                        .setTitle(R.string.wallet_swap_sell_btc)
+                        .setMessage(message)
+                        .setPositiveButton(android.R.string.ok, null)
+                        .show()
+                    releaseStorageLeaseAfterOperation(lease)
                 } else if (exact == null) {
                     busy = false
                     refreshControllerState(resetReads = false)
@@ -7068,14 +7117,25 @@ class WalletActivity : ComponentActivity() {
                     statusView.text = swapActionStatusView.text
                     releaseStorageLeaseAfterOperation(lease)
                 } else {
-                    showBtcForHnsOfferApproval(exact, lease, epoch)
+                    showBtcForHnsOfferApproval(exact, feeQuote, lease, epoch)
                 }
             }
         }
     }
 
+    private fun swapBitcoinFeePreflightMessage(
+        quote: NativeBitcoinFundingFeePreflight?, cap: Long,
+    ): String = if (quote == null) {
+        getString(R.string.wallet_ux_swap_fee_preflight_unavailable)
+    } else getString(
+        R.string.wallet_ux_swap_fee_cap_short,
+        quote.requiredFeeSats.toString(), cap.toString(),
+        quote.feeRateSatVb.toString(), quote.transactionCount.toString(),
+    )
+
     private fun showBtcForHnsOfferApproval(
         approval: NativeBtcForHnsOfferApproval,
+        feeQuote: NativeBitcoinFundingFeePreflight,
         lease: WalletStorageOwnershipGate.Lease,
         epoch: Long,
     ) {
@@ -7121,6 +7181,11 @@ class WalletActivity : ComponentActivity() {
                 approval.bitcoinFeeReserveSats,
                 approval.totalBitcoinCommitmentSats,
                 expiry,
+            ) + "\n\n" + getString(
+                R.string.wallet_ux_swap_fee_package_review,
+                feeQuote.transactionCount.toString(),
+                feeQuote.requiredFeeSats.toString(),
+                feeQuote.feeRateSatVb.toString(),
             ))
             .setNegativeButton(R.string.action_reject) { _, _ -> reject() }
             .setPositiveButton(R.string.wallet_swap_publish) { _, _ ->
