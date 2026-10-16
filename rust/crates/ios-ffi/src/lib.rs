@@ -1546,6 +1546,38 @@ impl NativeWalletController {
         Ok(summary)
     }
 
+    fn choose_direct_offer_candidate(
+        &mut self,
+        offer_id: &str,
+        responder_identity: &str,
+    ) -> Result<(), MobileWalletError> {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            shakescape_peer,
+            shakescape_replication_peers,
+            ..
+        } = self
+        else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        if !promote_direct_shakescape_primary(shakescape_peer, shakescape_replication_peers) {
+            return Err(MobileWalletError::ControllerFailed);
+        }
+        let now_unix = HnsReadSystemClock.now_unix()?;
+        shakescape_sessions.choose_direct_offer_candidate(
+            offer_id,
+            responder_identity,
+            shakescape_peer
+                .as_mut()
+                .ok_or(MobileWalletError::ControllerFailed)?,
+            now_unix,
+        )?;
+        for peer in shakescape_replication_peers {
+            let _ = shakescape_sessions.announce_direct_offer_inventory(peer, now_unix);
+        }
+        Ok(())
+    }
+
     fn reject_direct_offer_acceptance(
         &mut self,
         action_token: &str,
@@ -1654,11 +1686,19 @@ impl NativeWalletController {
     fn approve_hns_for_btc_funding(
         &mut self,
         action_token: &str,
+        session_id: SessionId,
         reauthorization: hns_wallet_mobile::MobileShakescapeHnsFundingPermit,
     ) -> Result<hns_wallet_mobile::MobileShakescapeHnsFundingReceipt, MobileWalletError> {
-        let Self::DirectHnsValue { controller, .. } = self else {
+        let Self::DirectHnsValue {
+            controller,
+            shakescape_sessions,
+            ..
+        } = self
+        else {
             return Err(MobileWalletError::ControllerFailed);
         };
+        shakescape_sessions
+            .retain_automatic_settlement_approval(session_id, HnsReadSystemClock.now_unix()?)?;
         controller.approve_shakescape_hns_funding(action_token, reauthorization)
     }
 
@@ -6089,6 +6129,27 @@ pub unsafe extern "C" fn hns_browser_wallet_approve_direct_offer_acceptance(
 }
 
 /// # Safety
+/// Both slices must remain readable for their declared lengths.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hns_browser_wallet_choose_direct_offer_candidate(
+    wallet: HnsBrowserWalletHandle,
+    offer_id: HnsBrowserSlice,
+    responder_identity: HnsBrowserSlice,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        let offer_id = unsafe { wallet_visible_ascii(offer_id, 64) }?;
+        let responder_identity = unsafe { wallet_visible_ascii(responder_identity, 66) }?;
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        entry
+            .controller
+            .choose_direct_offer_candidate(&offer_id, &responder_identity)
+            .map_err(|_| wallet_runtime_failure("direct offer candidate selection failed"))
+    })
+}
+
+/// # Safety
 /// `action_token` must remain readable for its declared length.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn hns_browser_wallet_reject_direct_offer_acceptance(
@@ -7359,6 +7420,26 @@ pub unsafe extern "C" fn hns_browser_wallet_approve_btc_for_hns_funding(
                     )
                 })?
         };
+        {
+            let entry = wallet_entry(wallet)?;
+            let entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+            ensure_wallet_active(&entry)?;
+            let NativeWalletController::DirectHnsValue {
+                shakescape_sessions,
+                ..
+            } = &entry.controller
+            else {
+                return Err(wallet_runtime_failure("direct swap session is unavailable"));
+            };
+            let now_unix = HnsReadSystemClock.now_unix().map_err(|_| {
+                wallet_runtime_failure("automatic settlement consent could not read the clock")
+            })?;
+            shakescape_sessions
+                .retain_automatic_settlement_approval(session_id, now_unix)
+                .map_err(|_| {
+                    wallet_runtime_failure("automatic settlement consent could not be saved")
+                })?;
+        }
         let mut slot = control.controller.try_lock().map_err(|error| match error {
             TryLockError::WouldBlock => direct_hns_not_ready("direct Bitcoin wallet is busy"),
             TryLockError::Poisoned(_) => FfiFailure::internal(),
@@ -7534,7 +7615,7 @@ pub unsafe extern "C" fn hns_browser_wallet_approve_hns_for_btc_funding(
                 Ok(reauthorization) => Some(
                     entry
                         .controller
-                        .approve_hns_for_btc_funding(&token, reauthorization)
+                        .approve_hns_for_btc_funding(&token, session_id, reauthorization)
                         .map_err(|_| {
                             wallet_runtime_failure("HNS-for-BTC funding approval failed")
                         })?,
@@ -7613,7 +7694,7 @@ pub unsafe extern "C" fn hns_browser_wallet_approve_hns_for_btc_funding(
             })?;
         let receipt = entry
             .controller
-            .approve_hns_for_btc_funding(&token, reauthorization)
+            .approve_hns_for_btc_funding(&token, session_id, reauthorization)
             .map_err(|_| wallet_runtime_failure("HNS-for-BTC funding approval failed"))?;
         let followup = entry.controller.follow_up_funding_approval(
             receipt.session_id.as_str(),
@@ -9454,6 +9535,7 @@ mod tests {
             "executions": [],
             "pendingAcceptances": [],
             "pendingOfferResponses": [],
+            "pendingOfferCandidates": [],
             "bitcoinBroadcastRecovery": null,
         })) {
             Ok(bundle) => bundle,

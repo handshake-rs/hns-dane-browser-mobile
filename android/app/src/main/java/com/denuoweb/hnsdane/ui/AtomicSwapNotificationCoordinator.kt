@@ -84,6 +84,18 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
         stageText: (com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionSummary) -> String,
     ): Boolean {
         val records = LinkedHashMap<String, SwapNotificationRecord>()
+        status.pendingOfferCandidates.forEach { candidate ->
+            records[candidate.sessionId] = SwapNotificationRecord(
+                sessionId = candidate.sessionId,
+                fingerprint = "candidate_available",
+                title = applicationContext.getString(R.string.wallet_ux_swap_candidate_title),
+                text = applicationContext.getString(
+                    R.string.wallet_ux_swap_candidate_notification,
+                    candidate.offerId.take(12),
+                ),
+                historicalTerminal = false,
+            )
+        }
         status.pendingOfferResponses.forEach { offer ->
             records[offer.sessionId] = SwapNotificationRecord(
                 sessionId = offer.sessionId,

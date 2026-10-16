@@ -414,6 +414,13 @@ internal object NativeWalletBridge {
         finally { bundle.fill(0) }
     }
 
+    fun chooseDirectOfferCandidate(
+        handle: Long,
+        candidate: NativeDirectOfferCandidateSummary,
+    ): Boolean = isValidHandle(handle) && isAvailable && runCatching {
+        nativeChooseDirectOfferCandidate(handle, candidate.offerId, candidate.responderIdentity)
+    }.getOrDefault(false)
+
     fun rejectDirectOfferAcceptance(handle: Long, actionToken: NativeHnsValueActionToken): Boolean =
         actionToken.consume { tokenAscii ->
             isValidHandle(handle) && isAvailable &&
@@ -1415,6 +1422,13 @@ internal object NativeWalletBridge {
         handle: Long,
         actionTokenAscii: ByteArray,
     ): ByteArray?
+
+    @JvmStatic
+    private external fun nativeChooseDirectOfferCandidate(
+        handle: Long,
+        offerId: String,
+        responderIdentity: String,
+    ): Boolean
 
     @JvmStatic
     private external fun nativeRejectDirectOfferAcceptance(

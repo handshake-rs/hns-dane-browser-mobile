@@ -73,6 +73,7 @@ import com.denuoweb.hnsdane.wallet.NativeBtcForHnsOfferApproval
 import com.denuoweb.hnsdane.wallet.NativeDirectOfferSummary
 import com.denuoweb.hnsdane.wallet.NativeDirectOfferAcceptanceApproval
 import com.denuoweb.hnsdane.wallet.NativeDirectOfferAcceptancePreparation
+import com.denuoweb.hnsdane.wallet.NativeDirectOfferCandidateSummary
 import com.denuoweb.hnsdane.wallet.NativeHnsForBtcOfferApproval
 import com.denuoweb.hnsdane.wallet.NativeShakedexNameOffer
 import com.denuoweb.hnsdane.wallet.NativeShakedexQueryResult
@@ -4778,6 +4779,7 @@ class WalletActivity : ComponentActivity() {
             dismissedSwapExecutionIds(),
         ).count { it.state !in terminal }
         val offerResponse = status.pendingOfferResponses.maxByOrNull { it.createdAtUnix }
+        val candidateCount = status.pendingOfferCandidates.size
         val pending = status.pendingAcceptances.maxByOrNull { it.createdAtUnix }
         if (openCount == 0 && offerResponse == null && pending == null) {
             activeSwapHnsRefreshAttemptedHeight = null
@@ -4793,25 +4795,21 @@ class WalletActivity : ComponentActivity() {
             .filter { it.state == "completed" }
             .maxByOrNull { it.lastVerifiedAtUnix }
         activeShakescapeDashboardSummary = when {
-            latestCompleted != null -> buildString {
-                append(getString(
+            visibleOpenCount > 0 -> getString(R.string.wallet_swap_overview_open, visibleOpenCount)
+            candidateCount > 0 -> getString(R.string.wallet_ux_swap_candidate_count, candidateCount)
+            latestCompleted != null -> getString(
                     R.string.wallet_dashboard_swap_latest_completed,
                     formatSwapAmount(latestCompleted.offeredAsset, latestCompleted.offeredAmount),
                     formatSwapAmount(latestCompleted.receivedAsset, latestCompleted.receivedAmount),
                     latestCompleted.sessionId.take(12),
-                ))
-                if (visibleOpenCount > 0) {
-                    append('\n')
-                    append(getString(R.string.wallet_swap_overview_open, visibleOpenCount))
-                }
-            }
-            visibleOpenCount > 0 -> getString(R.string.wallet_swap_overview_open, visibleOpenCount)
+                )
             offerResponse != null -> getString(R.string.wallet_dashboard_swap_negotiating)
             pending != null -> getString(R.string.wallet_dashboard_swap_negotiating)
             else -> null
         }
         shakedexExecutionStatusView.text = when {
             visibleOpenCount > 0 -> getString(R.string.wallet_swap_overview_open, visibleOpenCount)
+            candidateCount > 0 -> getString(R.string.wallet_ux_swap_candidate_count, candidateCount)
             offerResponse != null -> getString(
                 R.string.wallet_swap_notification_offer_accepted_detail,
                 offerResponse.sessionId.take(12),
@@ -5925,7 +5923,7 @@ class WalletActivity : ComponentActivity() {
                         .show()
                 } else if (
                     status.executions.isEmpty() && status.pendingAcceptances.isEmpty() &&
-                        status.pendingOfferResponses.isEmpty()
+                        status.pendingOfferResponses.isEmpty() && status.pendingOfferCandidates.isEmpty()
                 ) {
                     val message = getString(R.string.wallet_swap_no_executions_waiting) +
                         "\n\n" + bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery)
@@ -5995,8 +5993,21 @@ class WalletActivity : ComponentActivity() {
                     it.sessionId.take(12),
                 ))
             }
+            if (!showDismissed && page.index == 0 && status.pendingOfferCandidates.isNotEmpty()) {
+                add(getString(R.string.wallet_ux_swap_candidate_title) to
+                    getString(R.string.wallet_ux_swap_candidate_count,
+                        status.pendingOfferCandidates.size))
+            }
         }
         val executionActions = buildList {
+            if (!showDismissed && page.index == 0) status.pendingOfferCandidates.forEach { candidate ->
+                add(WalletModalAction(
+                    getString(R.string.wallet_ux_swap_candidate_action,
+                        candidate.responderIdentity.take(12), candidate.offerId.take(12)),
+                    action = { confirmChooseDirectOfferCandidate(handle, candidate) },
+                    primary = true,
+                ))
+            }
             if (!showDismissed && page.index == 0) status.pendingAcceptances.forEach { acceptance ->
                 add(WalletModalAction(
                     getString(
@@ -6079,6 +6090,42 @@ class WalletActivity : ComponentActivity() {
                 WalletModalActionSection(getString(R.string.wallet_swap_executions_pages), navigation),
             ),
         )
+    }
+
+    private fun confirmChooseDirectOfferCandidate(
+        handle: Long,
+        candidate: NativeDirectOfferCandidateSummary,
+    ) {
+        walletAlertDialogBuilder()
+            .setTitle(R.string.wallet_ux_swap_candidate_title)
+            .setMessage(getString(
+                R.string.wallet_ux_swap_candidate_message,
+                candidate.responderIdentity.take(12),
+                formatSwapAmount(candidate.receivedAsset, candidate.receivedAmount),
+                formatSwapAmount(candidate.offeredAsset, candidate.offeredAmount),
+                candidate.offerId.take(12),
+            ))
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.wallet_ux_swap_candidate_choose) { _, _ ->
+                thread(name = "denuo-choose-swap-responder") {
+                    val selected = NativeWalletBridge.chooseDirectOfferCandidate(handle, candidate)
+                    if (selected) NativeWalletBridge.reconcileShakescapeExecutions(handle)
+                    runOnUiThread {
+                        if (walletHandle != handle || !foreground ||
+                            !walletHnsJourney.isConfirmedUnlocked()
+                        ) return@runOnUiThread
+                        if (selected) showShakescapeExecutions() else {
+                            walletAlertDialogBuilder()
+                                .setTitle(R.string.wallet_ux_swap_candidate_title)
+                                .setMessage(R.string.wallet_ux_swap_candidate_failed)
+                                .setPositiveButton(android.R.string.ok, null)
+                                .show()
+                        }
+                    }
+                }
+            }
+            .show()
+            .markFinalSubmission()
     }
 
     private fun dismissedSwapExecutionIds(): Set<String> {

@@ -321,7 +321,7 @@ class NativeBitcoinSyncProgressTest {
     fun parses_a_bounded_durable_swap_execution_projection() {
         val sessionId = "66".repeat(32)
         val status = NativeBitcoinWalletBundle.shakescapeExecutions(bundle(
-            """{"executions":[{"sessionId":"$sessionId","revision":7,"state":"first_funded","firstChain":"bitcoin","secondChain":"handshake","offeredAsset":"btc","offeredAmount":10000,"receivedAsset":"hns","receivedAmount":2000000,"localRole":"maker","fundingDeadlineUnix":1000,"firstFundingCutoffUnix":900,"firstRefundAtUnix":2000,"secondRefundAtUnix":1500,"localFundingState":"confirmed","firstFundingConfirmed":true,"secondFundingConfirmed":false,"firstRedemptionConfirmed":false,"secondRedemptionConfirmed":false,"refundConfirmed":false,"lastVerifiedAtUnix":1200,"failureReason":null}],"pendingAcceptances":[],"pendingOfferResponses":[],"bitcoinBroadcastRecovery":{"totalApproved":3,"unobservedPrepared":1,"unobservedSubmissionStarted":1,"unobservedSubmitted":0,"observed":1,"highestAttemptCount":2,"lastChangedAtUnix":1250}}""",
+            """{"executions":[{"sessionId":"$sessionId","revision":7,"state":"first_funded","firstChain":"bitcoin","secondChain":"handshake","offeredAsset":"btc","offeredAmount":10000,"receivedAsset":"hns","receivedAmount":2000000,"localRole":"maker","fundingDeadlineUnix":1000,"firstFundingCutoffUnix":900,"firstRefundAtUnix":2000,"secondRefundAtUnix":1500,"localFundingState":"confirmed","firstFundingConfirmed":true,"secondFundingConfirmed":false,"firstRedemptionConfirmed":false,"secondRedemptionConfirmed":false,"refundConfirmed":false,"lastVerifiedAtUnix":1200,"failureReason":null}],"pendingAcceptances":[],"pendingOfferResponses":[],"pendingOfferCandidates":[],"bitcoinBroadcastRecovery":{"totalApproved":3,"unobservedPrepared":1,"unobservedSubmissionStarted":1,"unobservedSubmitted":0,"observed":1,"highestAttemptCount":2,"lastChangedAtUnix":1250}}""",
         ))
         requireNotNull(status)
         assertEquals(1, status.executions.size)
@@ -335,29 +335,37 @@ class NativeBitcoinSyncProgressTest {
 
         val localOfferResponse = """{"offerId":"${"12".repeat(32)}","sessionId":"$sessionId","offerSetterSellsHns":true,"offeredAsset":"hns","offeredAmount":2000000,"receivedAsset":"btc","receivedAmount":10000,"btcAmountSats":10000,"hnsAmountDollarydoos":2000000,"offeredFeeReserve":50000,"local":true,"createdAtUnix":1000,"expiresAtUnix":2000}"""
         val responseStatus = NativeBitcoinWalletBundle.shakescapeExecutions(bundle(
-            """{"executions":[],"pendingAcceptances":[],"pendingOfferResponses":[$localOfferResponse],"bitcoinBroadcastRecovery":null}""",
+            """{"executions":[],"pendingAcceptances":[],"pendingOfferResponses":[$localOfferResponse],"pendingOfferCandidates":[],"bitcoinBroadcastRecovery":null}""",
         ))
         requireNotNull(responseStatus)
         assertEquals(sessionId, responseStatus.pendingOfferResponses.single().sessionId)
         assertEquals(true, responseStatus.pendingOfferResponses.single().local)
+        val candidate = """{"offerId":"${"12".repeat(32)}","sessionId":"$sessionId","responderIdentity":"02${"ab".repeat(32)}","offeredAsset":"hns","offeredAmount":2000000,"receivedAsset":"btc","receivedAmount":10000,"proposalExpiresAtUnix":1900}"""
+        val candidateStatus = NativeBitcoinWalletBundle.shakescapeExecutions(bundle(
+            """{"executions":[],"pendingAcceptances":[],"pendingOfferResponses":[],"pendingOfferCandidates":[$candidate],"bitcoinBroadcastRecovery":null}""",
+        ))
+        assertEquals("02${"ab".repeat(32)}", candidateStatus?.pendingOfferCandidates?.single()?.responderIdentity)
         assertNull(NativeBitcoinWalletBundle.shakescapeExecutions(bundle(
-            """{"executions":[],"pendingAcceptances":[],"pendingOfferResponses":[${localOfferResponse.replace("\"local\":true", "\"local\":false")}],"bitcoinBroadcastRecovery":null}""",
+            """{"executions":[],"pendingAcceptances":[],"pendingOfferResponses":[],"pendingOfferCandidates":[${candidate.replace("\"responderIdentity\":\"02", "\"responderIdentity\":\"04")}],"bitcoinBroadcastRecovery":null}""",
+        )))
+        assertNull(NativeBitcoinWalletBundle.shakescapeExecutions(bundle(
+            """{"executions":[],"pendingAcceptances":[],"pendingOfferResponses":[${localOfferResponse.replace("\"local\":true", "\"local\":false")}],"pendingOfferCandidates":[],"bitcoinBroadcastRecovery":null}""",
         )))
 
         assertNull(NativeBitcoinWalletBundle.shakescapeExecutions(bundle(
-            """{"executions":[{"sessionId":"$sessionId","revision":7,"state":"peer_says_done","firstChain":"bitcoin","secondChain":"handshake","offeredAsset":"btc","offeredAmount":10000,"receivedAsset":"hns","receivedAmount":2000000,"localRole":"taker","fundingDeadlineUnix":1000,"firstFundingCutoffUnix":900,"firstRefundAtUnix":2000,"secondRefundAtUnix":1500,"localFundingState":null,"firstFundingConfirmed":true,"secondFundingConfirmed":false,"firstRedemptionConfirmed":false,"secondRedemptionConfirmed":false,"refundConfirmed":false,"lastVerifiedAtUnix":1200,"failureReason":null}],"pendingAcceptances":[],"pendingOfferResponses":[],"bitcoinBroadcastRecovery":null}""",
+            """{"executions":[{"sessionId":"$sessionId","revision":7,"state":"peer_says_done","firstChain":"bitcoin","secondChain":"handshake","offeredAsset":"btc","offeredAmount":10000,"receivedAsset":"hns","receivedAmount":2000000,"localRole":"taker","fundingDeadlineUnix":1000,"firstFundingCutoffUnix":900,"firstRefundAtUnix":2000,"secondRefundAtUnix":1500,"localFundingState":null,"firstFundingConfirmed":true,"secondFundingConfirmed":false,"firstRedemptionConfirmed":false,"secondRedemptionConfirmed":false,"refundConfirmed":false,"lastVerifiedAtUnix":1200,"failureReason":null}],"pendingAcceptances":[],"pendingOfferResponses":[],"pendingOfferCandidates":[],"bitcoinBroadcastRecovery":null}""",
         )))
         assertNull(NativeBitcoinWalletBundle.shakescapeExecutions(bundle(
-            """{"executions":[{"sessionId":"$sessionId","revision":7,"state":"first_funded","firstChain":"bitcoin","secondChain":"handshake","offeredAsset":"btc","offeredAmount":10000,"receivedAsset":"hns","receivedAmount":2000000,"localRole":"observer","fundingDeadlineUnix":1000,"firstFundingCutoffUnix":900,"firstRefundAtUnix":2000,"secondRefundAtUnix":1500,"localFundingState":null,"firstFundingConfirmed":true,"secondFundingConfirmed":false,"firstRedemptionConfirmed":false,"secondRedemptionConfirmed":false,"refundConfirmed":false,"lastVerifiedAtUnix":1200,"failureReason":null}],"pendingAcceptances":[],"pendingOfferResponses":[],"bitcoinBroadcastRecovery":null}""",
+            """{"executions":[{"sessionId":"$sessionId","revision":7,"state":"first_funded","firstChain":"bitcoin","secondChain":"handshake","offeredAsset":"btc","offeredAmount":10000,"receivedAsset":"hns","receivedAmount":2000000,"localRole":"observer","fundingDeadlineUnix":1000,"firstFundingCutoffUnix":900,"firstRefundAtUnix":2000,"secondRefundAtUnix":1500,"localFundingState":null,"firstFundingConfirmed":true,"secondFundingConfirmed":false,"firstRedemptionConfirmed":false,"secondRedemptionConfirmed":false,"refundConfirmed":false,"lastVerifiedAtUnix":1200,"failureReason":null}],"pendingAcceptances":[],"pendingOfferResponses":[],"pendingOfferCandidates":[],"bitcoinBroadcastRecovery":null}""",
         )))
         assertNull(NativeBitcoinWalletBundle.shakescapeExecutions(bundle(
-            """{"executions":[{"sessionId":"$sessionId","revision":7,"state":"first_funded","firstChain":"bitcoin","secondChain":"handshake","offeredAsset":"btc","offeredAmount":10000,"receivedAsset":"hns","receivedAmount":2000000,"localRole":"maker","fundingDeadlineUnix":1000,"firstFundingCutoffUnix":1000,"firstRefundAtUnix":2000,"secondRefundAtUnix":1500,"localFundingState":"confirmed","firstFundingConfirmed":true,"secondFundingConfirmed":false,"firstRedemptionConfirmed":false,"secondRedemptionConfirmed":false,"refundConfirmed":false,"lastVerifiedAtUnix":1200,"failureReason":null}],"pendingAcceptances":[],"pendingOfferResponses":[],"bitcoinBroadcastRecovery":null}""",
+            """{"executions":[{"sessionId":"$sessionId","revision":7,"state":"first_funded","firstChain":"bitcoin","secondChain":"handshake","offeredAsset":"btc","offeredAmount":10000,"receivedAsset":"hns","receivedAmount":2000000,"localRole":"maker","fundingDeadlineUnix":1000,"firstFundingCutoffUnix":1000,"firstRefundAtUnix":2000,"secondRefundAtUnix":1500,"localFundingState":"confirmed","firstFundingConfirmed":true,"secondFundingConfirmed":false,"firstRedemptionConfirmed":false,"secondRedemptionConfirmed":false,"refundConfirmed":false,"lastVerifiedAtUnix":1200,"failureReason":null}],"pendingAcceptances":[],"pendingOfferResponses":[],"pendingOfferCandidates":[],"bitcoinBroadcastRecovery":null}""",
         )))
         assertNull(NativeBitcoinWalletBundle.shakescapeExecutions(bundle(
-            """{"executions":[],"pendingAcceptances":[],"pendingOfferResponses":[],"bitcoinBroadcastRecovery":{"totalApproved":2,"unobservedPrepared":1,"unobservedSubmissionStarted":0,"unobservedSubmitted":0,"observed":0,"highestAttemptCount":0,"lastChangedAtUnix":1250}}""",
+            """{"executions":[],"pendingAcceptances":[],"pendingOfferResponses":[],"pendingOfferCandidates":[],"bitcoinBroadcastRecovery":{"totalApproved":2,"unobservedPrepared":1,"unobservedSubmissionStarted":0,"unobservedSubmitted":0,"observed":0,"highestAttemptCount":0,"lastChangedAtUnix":1250}}""",
         )))
         assertNull(NativeBitcoinWalletBundle.shakescapeExecutions(bundle(
-            """{"executions":[],"pendingAcceptances":[],"pendingOfferResponses":[],"bitcoinBroadcastRecovery":null,"peer":"untrusted"}""",
+            """{"executions":[],"pendingAcceptances":[],"pendingOfferResponses":[],"pendingOfferCandidates":[],"bitcoinBroadcastRecovery":null,"peer":"untrusted"}""",
         )))
     }
 
@@ -366,7 +374,7 @@ class NativeBitcoinSyncProgressTest {
         val sessionId = "77".repeat(32)
         val recovered = """{"sessionId":"$sessionId","revision":1,"state":"refund_eligible","firstChain":"bitcoin","secondChain":"handshake","offeredAsset":"btc","offeredAmount":1330,"receivedAsset":"hns","receivedAmount":500546,"localRole":"maker","fundingDeadlineUnix":0,"firstFundingCutoffUnix":0,"firstRefundAtUnix":2000,"secondRefundAtUnix":1500,"localFundingState":"submitted","firstFundingConfirmed":false,"secondFundingConfirmed":false,"firstRedemptionConfirmed":false,"secondRedemptionConfirmed":false,"refundConfirmed":false,"lastVerifiedAtUnix":0,"failureReason":"Recovered swap awaiting settlement"}"""
         val status = NativeBitcoinWalletBundle.shakescapeExecutions(bundle(
-            """{"executions":[$recovered],"pendingAcceptances":[],"pendingOfferResponses":[],"bitcoinBroadcastRecovery":null}""",
+            """{"executions":[$recovered],"pendingAcceptances":[],"pendingOfferResponses":[],"pendingOfferCandidates":[],"bitcoinBroadcastRecovery":null}""",
         ))
         requireNotNull(status)
         assertEquals(0L, status.executions.single().fundingDeadlineUnix)
@@ -374,11 +382,11 @@ class NativeBitcoinSyncProgressTest {
         val redeeming = recovered.replace("\"state\":\"refund_eligible\"", "\"state\":\"first_redeemed\"")
             .replace("\"lastVerifiedAtUnix\":0", "\"lastVerifiedAtUnix\":1900")
         val redeemingStatus = NativeBitcoinWalletBundle.shakescapeExecutions(bundle(
-            """{"executions":[$redeeming],"pendingAcceptances":[],"pendingOfferResponses":[],"bitcoinBroadcastRecovery":null}""",
+            """{"executions":[$redeeming],"pendingAcceptances":[],"pendingOfferResponses":[],"pendingOfferCandidates":[],"bitcoinBroadcastRecovery":null}""",
         ))
         assertEquals("first_redeemed", redeemingStatus?.executions?.single()?.state)
         assertNull(NativeBitcoinWalletBundle.shakescapeExecutions(bundle(
-            """{"executions":[${recovered.replace("\"firstFundingCutoffUnix\":0", "\"firstFundingCutoffUnix\":1")}],"pendingAcceptances":[],"pendingOfferResponses":[],"bitcoinBroadcastRecovery":null}""",
+            """{"executions":[${recovered.replace("\"firstFundingCutoffUnix\":0", "\"firstFundingCutoffUnix\":1")}],"pendingAcceptances":[],"pendingOfferResponses":[],"pendingOfferCandidates":[],"bitcoinBroadcastRecovery":null}""",
         )))
     }
 

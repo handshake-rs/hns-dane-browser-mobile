@@ -882,6 +882,13 @@
     <string name="wallet_swap_notification_updated">Atomic swap updated</string>
     <string name="wallet_swap_notification_offer_accepted">Your offer was accepted</string>
     <string name="wallet_swap_notification_offer_accepted_detail">Another wallet started the swap · waiting for signed terms · Session %1$s…</string>
+    <string name="wallet_ux_swap_candidate_title" translatable="false">Choose a swap responder</string>
+    <string name="wallet_ux_swap_candidate_count" translatable="false">%1$d signed responses are waiting for your choice.</string>
+    <string name="wallet_ux_swap_candidate_notification" translatable="false">Review signed responses for offer %1$s…</string>
+    <string name="wallet_ux_swap_candidate_action" translatable="false">Review %1$s… · offer %2$s…</string>
+    <string name="wallet_ux_swap_candidate_message" translatable="false">Responder %1$s… offers %2$s for your %3$s on offer %4$s…. Choosing signs the swap terms and keeps your offered amount reserved through the funding window. No transaction is broadcast by this choice. Other responses to this offer will not start a swap.</string>
+    <string name="wallet_ux_swap_candidate_choose" translatable="false">Choose and countersign</string>
+    <string name="wallet_ux_swap_candidate_failed" translatable="false">Could not choose this responder. Refresh the offer and try again.</string>
     <string name="wallet_hns_received_notification_title">HNS received</string>
     <string name="wallet_hns_received_notification_detail">%1$s HNS confirmed</string>
     <string name="wallet_swap_notification_completed">Atomic swap completed</string>

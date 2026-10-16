@@ -4438,7 +4438,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertEqual(hnsReceipt.attemptCount, nil)
 
         let recoveryJSON = """
-        {"executions":[],"pendingAcceptances":[],"pendingOfferResponses":[],"bitcoinBroadcastRecovery":{"totalApproved":3,"unobservedPrepared":1,"unobservedSubmissionStarted":1,"unobservedSubmitted":0,"observed":1,"highestAttemptCount":2,"lastChangedAtUnix":2400}}
+        {"executions":[],"pendingAcceptances":[],"pendingOfferResponses":[],"pendingOfferCandidates":[],"bitcoinBroadcastRecovery":{"totalApproved":3,"unobservedPrepared":1,"unobservedSubmissionStarted":1,"unobservedSubmitted":0,"observed":1,"highestAttemptCount":2,"lastChangedAtUnix":2400}}
         """
         let status = try JSONDecoder().decode(
             NativeShakescapeExecutionStatus.self, from: Data(recoveryJSON.utf8)
@@ -4447,7 +4447,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertEqual(status.bitcoinBroadcastRecovery?.unobservedSubmissionStarted, 1)
 
         let offerResponseJSON = """
-        {"executions":[],"pendingAcceptances":[],"pendingOfferResponses":[{"offerId":"\(directOffer)","sessionId":"\(session)","offerSetterSellsHns":true,"offeredAsset":"hns","offeredAmount":2000000,"receivedAsset":"btc","receivedAmount":10000,"btcAmountSats":10000,"hnsAmountDollarydoos":2000000,"offeredFeeReserve":50000,"local":true,"createdAtUnix":1000,"expiresAtUnix":5000}],"bitcoinBroadcastRecovery":null}
+        {"executions":[],"pendingAcceptances":[],"pendingOfferResponses":[{"offerId":"\(directOffer)","sessionId":"\(session)","offerSetterSellsHns":true,"offeredAsset":"hns","offeredAmount":2000000,"receivedAsset":"btc","receivedAmount":10000,"btcAmountSats":10000,"hnsAmountDollarydoos":2000000,"offeredFeeReserve":50000,"local":true,"createdAtUnix":1000,"expiresAtUnix":5000}],"pendingOfferCandidates":[],"bitcoinBroadcastRecovery":null}
         """
         let offerResponseStatus = try JSONDecoder().decode(
             NativeShakescapeExecutionStatus.self,
@@ -4456,8 +4456,24 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertEqual(offerResponseStatus.pendingOfferResponses.count, 1)
         XCTAssertEqual(offerResponseStatus.pendingOfferResponses.first?.sessionId, session)
 
+        let responder = "02" + String(repeating: "ab", count: 32)
+        let candidateJSON = """
+        {"executions":[],"pendingAcceptances":[],"pendingOfferResponses":[],"pendingOfferCandidates":[{"offerId":"\(directOffer)","sessionId":"\(session)","responderIdentity":"\(responder)","offeredAsset":"hns","offeredAmount":2000000,"receivedAsset":"btc","receivedAmount":10000,"proposalExpiresAtUnix":4900}],"bitcoinBroadcastRecovery":null}
+        """
+        let candidateStatus = try JSONDecoder().decode(
+            NativeShakescapeExecutionStatus.self, from: Data(candidateJSON.utf8)
+        )
+        XCTAssertEqual(candidateStatus.pendingOfferCandidates.first?.responderIdentity, responder)
+        XCTAssertThrowsError(try JSONDecoder().decode(
+            NativeShakescapeExecutionStatus.self,
+            from: Data(candidateJSON.replacingOccurrences(
+                of: "\"responderIdentity\":\"02",
+                with: "\"responderIdentity\":\"04"
+            ).utf8)
+        ))
+
         let executionJSON = """
-        {"executions":[{"sessionId":"\(session)","revision":7,"state":"first_funded","firstChain":"bitcoin","secondChain":"handshake","offeredAsset":"btc","offeredAmount":10000,"receivedAsset":"hns","receivedAmount":2000000,"localRole":"maker","fundingDeadlineUnix":1000,"firstFundingCutoffUnix":900,"firstRefundAtUnix":2000,"secondRefundAtUnix":1500,"localFundingState":"confirmed","firstFundingConfirmed":true,"secondFundingConfirmed":false,"firstRedemptionConfirmed":false,"secondRedemptionConfirmed":false,"refundConfirmed":false,"lastVerifiedAtUnix":1200,"failureReason":null}],"pendingAcceptances":[],"pendingOfferResponses":[],"bitcoinBroadcastRecovery":null}
+        {"executions":[{"sessionId":"\(session)","revision":7,"state":"first_funded","firstChain":"bitcoin","secondChain":"handshake","offeredAsset":"btc","offeredAmount":10000,"receivedAsset":"hns","receivedAmount":2000000,"localRole":"maker","fundingDeadlineUnix":1000,"firstFundingCutoffUnix":900,"firstRefundAtUnix":2000,"secondRefundAtUnix":1500,"localFundingState":"confirmed","firstFundingConfirmed":true,"secondFundingConfirmed":false,"firstRedemptionConfirmed":false,"secondRedemptionConfirmed":false,"refundConfirmed":false,"lastVerifiedAtUnix":1200,"failureReason":null}],"pendingAcceptances":[],"pendingOfferResponses":[],"pendingOfferCandidates":[],"bitcoinBroadcastRecovery":null}
         """
         let executionStatus = try JSONDecoder().decode(
             NativeShakescapeExecutionStatus.self, from: Data(executionJSON.utf8)
@@ -4483,13 +4499,13 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertThrowsError(try JSONDecoder().decode(
             NativeShakescapeExecutionStatus.self,
             from: Data("""
-            {"executions":[],"pendingAcceptances":[],"pendingOfferResponses":[],"bitcoinBroadcastRecovery":{"totalApproved":2,"unobservedPrepared":1,"unobservedSubmissionStarted":0,"unobservedSubmitted":0,"observed":0,"highestAttemptCount":0,"lastChangedAtUnix":2400}}
+            {"executions":[],"pendingAcceptances":[],"pendingOfferResponses":[],"pendingOfferCandidates":[],"bitcoinBroadcastRecovery":{"totalApproved":2,"unobservedPrepared":1,"unobservedSubmissionStarted":0,"unobservedSubmitted":0,"observed":0,"highestAttemptCount":0,"lastChangedAtUnix":2400}}
             """.utf8)
         ))
         XCTAssertThrowsError(try JSONDecoder().decode(
             NativeShakescapeExecutionStatus.self,
             from: Data("""
-            {"executions":[],"pendingAcceptances":[],"pendingOfferResponses":[],"bitcoinBroadcastRecovery":null,"peer":"untrusted"}
+            {"executions":[],"pendingAcceptances":[],"pendingOfferResponses":[],"pendingOfferCandidates":[],"bitcoinBroadcastRecovery":null,"peer":"untrusted"}
             """.utf8)
         ))
 

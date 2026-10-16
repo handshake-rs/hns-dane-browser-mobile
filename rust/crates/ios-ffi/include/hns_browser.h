@@ -585,6 +585,10 @@ HnsBrowserResult hns_browser_wallet_approve_direct_offer_acceptance(
     HnsBrowserWalletHandle wallet,
     HnsBrowserSlice action_token,
     HnsBrowserBuffer *out_summary_bundle);
+HnsBrowserResult hns_browser_wallet_choose_direct_offer_candidate(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice offer_id,
+    HnsBrowserSlice responder_identity);
 HnsBrowserResult hns_browser_wallet_reject_direct_offer_acceptance(
     HnsBrowserWalletHandle wallet,
     HnsBrowserSlice action_token);

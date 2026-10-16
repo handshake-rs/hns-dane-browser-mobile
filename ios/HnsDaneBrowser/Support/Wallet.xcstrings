@@ -69336,6 +69336,83 @@
         }
       }
     },
+    "wallet_ux_swap_candidate_action": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review %1$@… · offer %2$@…"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_candidate_choose": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose and countersign"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_candidate_count": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d signed responses are waiting for your choice."
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_candidate_failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not choose this responder. Refresh the offer and try again."
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_candidate_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Responder %1$@… offers %2$@ for your %3$@ on offer %4$@…. Choosing signs the swap terms and keeps your offered amount reserved through the funding window. No transaction is broadcast by this choice. Other responses to this offer will not start a swap."
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_candidate_notification": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review signed responses for offer %1$@…"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_candidate_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a swap responder"
+          }
+        }
+      }
+    },
     "wallet_ux_swap_custom_fee_cap": {
       "extractionState": "manual",
       "localizations": {

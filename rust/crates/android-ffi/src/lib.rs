@@ -1437,6 +1437,37 @@ impl AndroidWalletController {
         bundle
     }
 
+    fn choose_direct_offer_candidate(&mut self, offer_id: &str, responder: &str) -> bool {
+        let Self::DirectValue {
+            shakescape_sessions,
+            shakescape_peer,
+            shakescape_replication_peers,
+            ..
+        } = self
+        else {
+            return false;
+        };
+        if !promote_direct_shakescape_primary(shakescape_peer, shakescape_replication_peers) {
+            return false;
+        }
+        let Some(peer) = shakescape_peer.as_mut() else {
+            return false;
+        };
+        let Ok(now_unix) = HnsReadSystemClock.now_unix() else {
+            return false;
+        };
+        if let Err(error) =
+            shakescape_sessions.choose_direct_offer_candidate(offer_id, responder, peer, now_unix)
+        {
+            android_log_error(&format!("direct-offer candidate selection failed: {error}"));
+            return false;
+        }
+        for peer in shakescape_replication_peers {
+            let _ = shakescape_sessions.announce_direct_offer_inventory(peer, now_unix);
+        }
+        true
+    }
+
     fn reject_direct_offer_acceptance(&mut self, action_token: &str) -> bool {
         let Self::DirectValue {
             shakescape_sessions,
@@ -1887,6 +1918,7 @@ impl AndroidWalletController {
     fn approve_hns_for_btc_funding(
         &mut self,
         action_token: &str,
+        session_id: SessionId,
         reauthorization: hns_wallet_mobile::MobileShakescapeHnsFundingPermit,
     ) -> Option<Vec<u8>> {
         let Self::DirectValue {
@@ -1899,6 +1931,15 @@ impl AndroidWalletController {
         else {
             return None;
         };
+        let now_unix = HnsReadSystemClock.now_unix().ok()?;
+        if let Err(error) =
+            shakescape_sessions.retain_automatic_settlement_approval(session_id, now_unix)
+        {
+            android_log_error(&format!(
+                "HNS funding consent could not be saved before broadcast: {error}"
+            ));
+            return None;
+        }
         let receipt = controller
             .approve_shakescape_hns_funding(action_token, reauthorization)
             .ok()?;
@@ -7576,6 +7617,35 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeChooseDirectOfferCandidate(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    offer_id: JString<'_>,
+    responder_identity: JString<'_>,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| {
+        let Ok(offer_id) = env.get_string(&offer_id) else {
+            return false;
+        };
+        let Ok(responder_identity) = env.get_string(&responder_identity) else {
+            return false;
+        };
+        let offer_id: String = offer_id.into();
+        let responder_identity: String = responder_identity.into();
+        let Some(record) = wallet_from_handle(handle) else {
+            return false;
+        };
+        let Some(mut controller) = record.controller_if_active() else {
+            return false;
+        };
+        controller.choose_direct_offer_candidate(&offer_id, &responder_identity)
+    }))
+    .unwrap_or(false)
+    .into()
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeRejectDirectOfferAcceptance(
     mut env: JNIEnv<'_>,
     _class: JClass<'_>,
@@ -8276,6 +8346,25 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
                     None
                 })?
         };
+        {
+            let controller = record.controller_if_active()?;
+            let AndroidWalletController::DirectValue {
+                shakescape_sessions,
+                ..
+            } = &*controller
+            else {
+                return None;
+            };
+            let now_unix = HnsReadSystemClock.now_unix().ok()?;
+            if let Err(error) =
+                shakescape_sessions.retain_automatic_settlement_approval(session_id, now_unix)
+            {
+                android_log_error(&format!(
+                    "Bitcoin funding consent could not be saved before broadcast: {error}"
+                ));
+                return None;
+            }
+        }
         let mut bitcoin = record.bitcoin_if_active()?;
         let receipt = match bitcoin
             .as_mut()?
@@ -8454,8 +8543,11 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         };
         if let Some(reauthorization) = first_chain_reauthorization {
             let mut controller = record.controller_if_active()?;
-            let mut bundle =
-                controller.approve_hns_for_btc_funding(token.0.as_str(), reauthorization)?;
+            let mut bundle = controller.approve_hns_for_btc_funding(
+                token.0.as_str(),
+                session_id,
+                reauthorization,
+            )?;
             let array = env.byte_array_from_slice(bundle.as_slice()).ok();
             bundle.fill(0);
             return array.map(JByteArray::into_raw);
@@ -8491,8 +8583,11 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
                 );
                 None
             })?;
-        let mut bundle =
-            controller.approve_hns_for_btc_funding(token.0.as_str(), reauthorization)?;
+        let mut bundle = controller.approve_hns_for_btc_funding(
+            token.0.as_str(),
+            session_id,
+            reauthorization,
+        )?;
         let array = env.byte_array_from_slice(bundle.as_slice()).ok();
         bundle.fill(0);
         array.map(JByteArray::into_raw)

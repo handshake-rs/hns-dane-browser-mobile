@@ -128,6 +128,21 @@ private final class AtomicSwapNotificationCoordinator {
         stageText: (NativeShakescapeExecutionSummary) -> String
     ) {
         var records: [String: Record] = [:]
+        for candidate in status.pendingOfferCandidates {
+            records[candidate.sessionId] = Record(
+                sessionId: candidate.sessionId,
+                fingerprint: "candidate-available",
+                title: WalletCopy.text("wallet_ux_swap_candidate_title"),
+                body: WalletCopy.format(
+                    "wallet_ux_swap_candidate_notification",
+                    String(candidate.offerId.prefix(12))
+                ),
+                historicalTerminal: false,
+                actionRequired: false,
+                initialTitle: nil,
+                initialBody: nil
+            )
+        }
         for offer in status.pendingOfferResponses {
             records[offer.sessionId] = Record(
                 sessionId: offer.sessionId,
@@ -2829,7 +2844,7 @@ final class WalletViewController: UIViewController {
                 switch outcome {
                 case .success(let status) where
                     status.executions.isEmpty && status.pendingAcceptances.isEmpty &&
-                    status.pendingOfferResponses.isEmpty:
+                    status.pendingOfferResponses.isEmpty && status.pendingOfferCandidates.isEmpty:
                     let message = WalletCopy.text("wallet_swap_no_executions_waiting")
                         + "\n\n"
                         + self.bitcoinBroadcastRecoveryText(
@@ -2862,6 +2877,7 @@ final class WalletViewController: UIViewController {
                         !terminal.contains($0.state)
                     }
                     if status.pendingOfferResponses.isEmpty,
+                       status.pendingOfferCandidates.isEmpty,
                        status.pendingAcceptances.isEmpty, liveExecutions.count == 1,
                        let execution = liveExecutions.first,
                        !swapExecutionHasUnverifiedMakerFunding(execution, now: now) {
@@ -2885,7 +2901,29 @@ final class WalletViewController: UIViewController {
                             )
                         ))
                     }
+                    if !status.pendingOfferCandidates.isEmpty {
+                        rows.append(WalletMenuRow(
+                            title: WalletCopy.text("wallet_ux_swap_candidate_title"),
+                            detail: WalletCopy.format(
+                                "wallet_ux_swap_candidate_count",
+                                status.pendingOfferCandidates.count
+                            )
+                        ))
+                    }
                     var actions: [WalletMenuAction] = []
+                    for candidate in status.pendingOfferCandidates {
+                        actions.append(WalletMenuAction(
+                            title: WalletCopy.format(
+                                "wallet_ux_swap_candidate_action",
+                                String(candidate.responderIdentity.prefix(12)),
+                                String(candidate.offerId.prefix(12))
+                            ),
+                            primary: true
+                        ) { [weak self, weak wallet] in
+                            guard let self, let wallet, self.wallet === wallet else { return }
+                            self.confirmChooseDirectOfferCandidate(candidate, wallet: wallet)
+                        })
+                    }
                     for acceptance in status.pendingAcceptances {
                         let offered = self.swapAmount(
                             acceptance.offeredAmount,
@@ -3023,6 +3061,56 @@ final class WalletViewController: UIViewController {
                         self.showError(error)
                     }
                     self.refreshButtonStates()
+                }
+            }
+        })
+        walletPresentationHost.present(alert, animated: true)
+    }
+
+    private func confirmChooseDirectOfferCandidate(
+        _ candidate: NativeDirectOfferCandidateSummary,
+        wallet: RustNativeWallet
+    ) {
+        let alert = UIAlertController(
+            title: WalletCopy.text("wallet_ux_swap_candidate_title"),
+            message: WalletCopy.format(
+                "wallet_ux_swap_candidate_message",
+                String(candidate.responderIdentity.prefix(12)),
+                swapAmount(candidate.receivedAmount, asset: candidate.receivedAsset),
+                swapAmount(candidate.offeredAmount, asset: candidate.offeredAsset),
+                String(candidate.offerId.prefix(12))
+            ),
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_action_cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(
+            title: WalletCopy.text("wallet_ux_swap_candidate_choose"),
+            style: .destructive
+        ) { [weak self, weak wallet] _ in
+            guard let self, let wallet, self.wallet === wallet else { return }
+            self.isOperating = true
+            self.refreshButtonStates()
+            DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+                let outcome = Result {
+                    try wallet.chooseDirectOfferCandidate(candidate)
+                    // The countersigned choice is durable before this refresh.
+                    // A temporary reconciliation error must not present a
+                    // committed choice as a failed action.
+                    _ = try? wallet.reconcileShakescapeExecutions()
+                }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.wallet === wallet else { return }
+                    self.isOperating = false
+                    self.refreshButtonStates()
+                    switch outcome {
+                    case .success:
+                        self.showShakescapeExecutions()
+                    case .failure(let error):
+                        self.swapActionStatusLabel.text = WalletCopy.text(
+                            "wallet_ux_swap_candidate_failed"
+                        )
+                        self.showError(error)
+                    }
                 }
             }
         })
@@ -4381,6 +4469,10 @@ final class WalletViewController: UIViewController {
                         : left < right
                 }).first {
                 lines.append("\(shakescapeExecutionProgress(execution).summary) · \(shakescapeExecutionStage(execution))")
+            } else if !status.pendingOfferCandidates.isEmpty {
+                lines.append(WalletCopy.format(
+                    "wallet_ux_swap_candidate_count", status.pendingOfferCandidates.count
+                ))
             } else if !status.pendingAcceptances.isEmpty || !status.pendingOfferResponses.isEmpty {
                 lines.append(WalletCopy.text("wallet_dashboard_swap_negotiating"))
             } else if let latest = status.executions.max(by: { $0.lastVerifiedAtUnix < $1.lastVerifiedAtUnix }) {
@@ -4438,6 +4530,7 @@ final class WalletViewController: UIViewController {
     private var hasActiveSwapOverview: Bool {
         guard let status = shakescapeExecutionStatusSnapshot else { return false }
         return !status.pendingAcceptances.isEmpty || !status.pendingOfferResponses.isEmpty ||
+            !status.pendingOfferCandidates.isEmpty ||
             status.executions.contains { !["completed", "refunded", "failed"].contains($0.state) }
     }
 

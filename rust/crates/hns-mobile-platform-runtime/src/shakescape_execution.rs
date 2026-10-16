@@ -445,10 +445,12 @@ pub fn publish_execution_snapshot<A: ExecutionAccess, T>(
             let executions = sessions.durable_executions()?;
             let pending_acceptances = sessions.pending_direct_offer_acceptances(now)?;
             let pending_offer_responses = sessions.pending_local_offer_responses(now)?;
+            let pending_offer_candidates = sessions.pending_direct_offer_candidates(now)?;
             let projection = serde_json::json!({
                 "executions": executions,
                 "pendingAcceptances": pending_acceptances,
                 "pendingOfferResponses": pending_offer_responses,
+                "pendingOfferCandidates": pending_offer_candidates,
                 "bitcoinBroadcastRecovery": bitcoin_broadcast_recovery,
             });
             Ok::<_, MobileWalletError>(publish(projection))
