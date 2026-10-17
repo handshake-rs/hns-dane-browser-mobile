@@ -10,6 +10,14 @@ internal fun swapExecutionCanDismiss(
     nowUnix: Long = System.currentTimeMillis() / 1_000L,
 ): Boolean {
     if (execution.state == "refunded" && execution.refundConfirmed) return true
+    if (execution.state == "completed" && (
+        (execution.firstRedemptionConfirmed && execution.secondRedemptionConfirmed) ||
+            // Recovered sessions carry verified settlements on both chains,
+            // but their synthetic summary has no funding/redemption flags.
+            (execution.fundingDeadlineUnix == 0L &&
+                execution.localFundingState == "submitted")
+        )
+    ) return true
     if (execution.fundingDeadlineUnix == 0L ||
         execution.localFundingState != null ||
         execution.firstFundingConfirmed || execution.secondFundingConfirmed ||

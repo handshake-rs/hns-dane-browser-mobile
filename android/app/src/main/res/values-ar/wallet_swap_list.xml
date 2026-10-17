@@ -15,9 +15,9 @@
     <string name="wallet_swap_executions_show_visible">إظهار الجلسات الظاهرة</string>
     <string name="wallet_swap_executions_hide">إخفاء الجلسة %1$s…</string>
     <string name="wallet_swap_executions_restore">إظهار الجلسة %1$s… مجدداً</string>
-    <string name="wallet_swap_executions_hide_all">إخفاء الجلسات المؤهلة: %1$d</string>
+    <string name="wallet_swap_executions_hide_all">إخفاء جميع الجلسات المؤهلة</string>
     <string name="wallet_swap_executions_hide_title">إخفاء من هذه القائمة؟</string>
-    <string name="wallet_swap_executions_hide_message">هل تريد إخفاء %1$d جلسات غير ممولة أو مستردة بالكامل؟ هذا لا يلغي الشروط الموقعة، ولا يحرر العملات المحجوزة، ولا يحذف سجلات المحفظة. تواصل المحفظة مراقبتها وتعرضها مجدداً إذا رصدت تمويلاً أو استرداداً.</string>
+    <string name="wallet_swap_executions_hide_message">هل تريد إخفاء الجلسات المحددة من هذه القائمة؟ هذا لا يلغي الشروط الموقعة، ولا يحرر العملات المحجوزة، ولا يحذف سجلات المحفظة. تواصل المحفظة مراقبتها وتعرضها مجدداً إذا رصدت تمويلاً أو استرداداً.</string>
     <string name="wallet_swap_executions_hide_confirm">إخفاء من العرض</string>
     <string name="wallet_swap_executions_hidden">أُخفيت الجلسات المؤهلة من هذه القائمة. تواصل المحفظة مراقبتها.</string>
     <string name="wallet_swap_executions_hide_unavailable">تعذر إخفاء أي جلسة. ربما تغيرت حالتها المتحقق منها.</string>

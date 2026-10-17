@@ -822,9 +822,9 @@
     <string name="wallet_swap_executions_show_visible">Show visible sessions</string>
     <string name="wallet_swap_executions_hide">Hide session %1$s…</string>
     <string name="wallet_swap_executions_restore">Restore session %1$s…</string>
-    <string name="wallet_swap_executions_hide_all">Hide %1$d eligible sessions</string>
+    <string name="wallet_swap_executions_hide_all">Hide all eligible sessions</string>
     <string name="wallet_swap_executions_hide_title">Hide from this list?</string>
-    <string name="wallet_swap_executions_hide_message">Hide %1$d unfunded or fully refunded sessions from this view? This does not cancel signed terms, release reserved coins, or delete wallet records. The wallet keeps monitoring them and shows them again if funding or recovery is detected.</string>
+    <string name="wallet_swap_executions_hide_message">Hide the selected sessions from this view? This does not cancel signed terms, release reserved coins, or delete wallet records. The wallet keeps monitoring them and shows them again if funding or recovery is detected.</string>
     <string name="wallet_swap_executions_hide_confirm">Hide from view</string>
     <string name="wallet_swap_executions_hidden">Eligible sessions were hidden from this list. The wallet still monitors them.</string>
     <string name="wallet_swap_executions_hide_unavailable">No sessions could be hidden. Their verified state may have changed.</string>

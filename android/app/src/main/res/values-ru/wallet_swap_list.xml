@@ -15,9 +15,9 @@
     <string name="wallet_swap_executions_show_visible">Показать видимые сеансы</string>
     <string name="wallet_swap_executions_hide">Скрыть сеанс %1$s…</string>
     <string name="wallet_swap_executions_restore">Вернуть сеанс %1$s…</string>
-    <string name="wallet_swap_executions_hide_all">Скрыть подходящие сеансы: %1$d</string>
+    <string name="wallet_swap_executions_hide_all">Скрыть все подходящие сеансы</string>
     <string name="wallet_swap_executions_hide_title">Скрыть из списка?</string>
-    <string name="wallet_swap_executions_hide_message">Скрыть сеансы без финансирования или с полным возвратом: %1$d? Это не отменит подписанные условия, не освободит зарезервированные монеты и не удалит записи кошелька. Кошелёк продолжит их отслеживать и покажет снова, если обнаружит финансирование или восстановление.</string>
+    <string name="wallet_swap_executions_hide_message">Скрыть выбранные сеансы из этого списка? Это не отменит подписанные условия, не освободит зарезервированные монеты и не удалит записи кошелька. Кошелёк продолжит их отслеживать и покажет снова, если обнаружит финансирование или восстановление.</string>
     <string name="wallet_swap_executions_hide_confirm">Скрыть из вида</string>
     <string name="wallet_swap_executions_hidden">Подходящие сеансы скрыты из списка. Кошелёк продолжает их отслеживать.</string>
     <string name="wallet_swap_executions_hide_unavailable">Не удалось скрыть ни одного сеанса. Их проверенное состояние могло измениться.</string>

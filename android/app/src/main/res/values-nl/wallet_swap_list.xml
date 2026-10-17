@@ -15,9 +15,9 @@
     <string name="wallet_swap_executions_show_visible">Zichtbare sessies tonen</string>
     <string name="wallet_swap_executions_hide">Sessie %1$s… verbergen</string>
     <string name="wallet_swap_executions_restore">Sessie %1$s… weer tonen</string>
-    <string name="wallet_swap_executions_hide_all">%1$d geschikte sessies verbergen</string>
+    <string name="wallet_swap_executions_hide_all">Alle geschikte sessies verbergen</string>
     <string name="wallet_swap_executions_hide_title">Uit deze lijst verbergen?</string>
-    <string name="wallet_swap_executions_hide_message">%1$d niet gefinancierde of volledig terugbetaalde sessies verbergen? Dit annuleert geen ondertekende voorwaarden, geeft geen gereserveerde munten vrij en verwijdert geen walletgegevens. De wallet blijft ze bewaken en toont ze weer als financiering of herstel wordt gedetecteerd.</string>
+    <string name="wallet_swap_executions_hide_message">Geselecteerde sessies in deze weergave verbergen? Dit annuleert geen ondertekende voorwaarden, geeft geen gereserveerde munten vrij en verwijdert geen walletgegevens. De wallet blijft ze bewaken en toont ze weer als financiering of herstel wordt gedetecteerd.</string>
     <string name="wallet_swap_executions_hide_confirm">Uit beeld verbergen</string>
     <string name="wallet_swap_executions_hidden">Geschikte sessies zijn verborgen uit deze lijst. De wallet blijft ze bewaken.</string>
     <string name="wallet_swap_executions_hide_unavailable">Er konden geen sessies worden verborgen. Hun geverifieerde status is mogelijk veranderd.</string>

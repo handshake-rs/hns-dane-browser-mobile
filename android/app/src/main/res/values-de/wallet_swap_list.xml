@@ -15,9 +15,9 @@
     <string name="wallet_swap_executions_show_visible">Sichtbare Sitzungen anzeigen</string>
     <string name="wallet_swap_executions_hide">Sitzung %1$s… ausblenden</string>
     <string name="wallet_swap_executions_restore">Sitzung %1$s… wieder anzeigen</string>
-    <string name="wallet_swap_executions_hide_all">%1$d geeignete Sitzungen ausblenden</string>
+    <string name="wallet_swap_executions_hide_all">Alle geeigneten Sitzungen ausblenden</string>
     <string name="wallet_swap_executions_hide_title">Aus dieser Liste ausblenden?</string>
-    <string name="wallet_swap_executions_hide_message">%1$d nicht finanzierte oder vollständig erstattete Sitzungen ausblenden? Signierte Bedingungen werden dadurch nicht aufgehoben, reservierte Coins nicht freigegeben und Wallet-Einträge nicht gelöscht. Das Wallet überwacht sie weiter und zeigt sie bei Funding- oder Wiederherstellungsaktivität erneut an.</string>
+    <string name="wallet_swap_executions_hide_message">Ausgewählte Sitzungen aus dieser Ansicht ausblenden? Signierte Bedingungen werden dadurch nicht aufgehoben, reservierte Coins nicht freigegeben und Wallet-Einträge nicht gelöscht. Das Wallet überwacht sie weiter und zeigt sie bei Funding- oder Wiederherstellungsaktivität erneut an.</string>
     <string name="wallet_swap_executions_hide_confirm">Aus Ansicht ausblenden</string>
     <string name="wallet_swap_executions_hidden">Geeignete Sitzungen wurden ausgeblendet. Das Wallet überwacht sie weiterhin.</string>
     <string name="wallet_swap_executions_hide_unavailable">Keine Sitzung konnte ausgeblendet werden. Ihr verifizierter Zustand hat sich möglicherweise geändert.</string>

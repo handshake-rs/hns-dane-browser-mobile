@@ -15,9 +15,9 @@
     <string name="wallet_swap_executions_show_visible">Mostra sessioni visibili</string>
     <string name="wallet_swap_executions_hide">Nascondi sessione %1$s…</string>
     <string name="wallet_swap_executions_restore">Mostra di nuovo sessione %1$s…</string>
-    <string name="wallet_swap_executions_hide_all">Nascondi %1$d sessioni idonee</string>
+    <string name="wallet_swap_executions_hide_all">Nascondi tutte le sessioni idonee</string>
     <string name="wallet_swap_executions_hide_title">Nascondere da questo elenco?</string>
-    <string name="wallet_swap_executions_hide_message">Nascondere %1$d sessioni non finanziate o interamente rimborsate? Questo non annulla i termini firmati, non libera le monete riservate e non elimina i record del portafoglio. Il portafoglio continua a monitorarle e le mostra di nuovo se rileva finanziamento o recupero.</string>
+    <string name="wallet_swap_executions_hide_message">Nascondere le sessioni selezionate da questa vista? Questo non annulla i termini firmati, non libera le monete riservate e non elimina i record del portafoglio. Il portafoglio continua a monitorarle e le mostra di nuovo se rileva finanziamento o recupero.</string>
     <string name="wallet_swap_executions_hide_confirm">Nascondi dalla vista</string>
     <string name="wallet_swap_executions_hidden">Le sessioni idonee sono state nascoste da questo elenco. Il portafoglio continua a monitorarle.</string>
     <string name="wallet_swap_executions_hide_unavailable">Nessuna sessione può essere nascosta. Il suo stato verificato potrebbe essere cambiato.</string>

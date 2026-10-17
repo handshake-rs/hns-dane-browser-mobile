@@ -6057,7 +6057,7 @@ class WalletActivity : ComponentActivity() {
                     swapExecutionCanDismiss(it) && it.sessionId !in dismissed
                 }.map { it.sessionId }.toSet()
                 if (eligible.isNotEmpty()) add(WalletModalAction(
-                    getString(R.string.wallet_swap_executions_hide_all, eligible.size),
+                    getString(R.string.wallet_swap_executions_hide_all),
                     action = { confirmDismissSwapExecutions(handle, eligible) },
                 ))
             }
@@ -6157,7 +6157,7 @@ class WalletActivity : ComponentActivity() {
     private fun confirmDismissSwapExecutions(handle: Long, ids: Set<String>) {
         walletAlertDialogBuilder()
             .setTitle(R.string.wallet_swap_executions_hide_title)
-            .setMessage(getString(R.string.wallet_swap_executions_hide_message, ids.size))
+            .setMessage(getString(R.string.wallet_swap_executions_hide_message))
             .setNegativeButton(R.string.action_cancel, null)
             .setPositiveButton(R.string.wallet_swap_executions_hide_confirm) { _, _ ->
                 thread(name = "denuo-dismiss-executions") {

@@ -15,9 +15,9 @@
     <string name="wallet_swap_executions_show_visible">Görünür oturumları göster</string>
     <string name="wallet_swap_executions_hide">%1$s… oturumunu gizle</string>
     <string name="wallet_swap_executions_restore">%1$s… oturumunu yeniden göster</string>
-    <string name="wallet_swap_executions_hide_all">Uygun oturumları gizle: %1$d</string>
+    <string name="wallet_swap_executions_hide_all">Uygun oturumların tümünü gizle</string>
     <string name="wallet_swap_executions_hide_title">Bu listeden gizlensin mi?</string>
-    <string name="wallet_swap_executions_hide_message">Fonlanmamış veya tamamen iade edilmiş %1$d oturum gizlensin mi? Bu işlem imzalı koşulları iptal etmez, ayrılmış coinleri serbest bırakmaz veya cüzdan kayıtlarını silmez. Cüzdan bunları izlemeyi sürdürür ve fonlama ya da kurtarma algılanırsa yeniden gösterir.</string>
+    <string name="wallet_swap_executions_hide_message">Seçilen oturumlar bu görünümden gizlensin mi? Bu işlem imzalı koşulları iptal etmez, ayrılmış coinleri serbest bırakmaz veya cüzdan kayıtlarını silmez. Cüzdan bunları izlemeyi sürdürür ve fonlama ya da kurtarma algılanırsa yeniden gösterir.</string>
     <string name="wallet_swap_executions_hide_confirm">Görünümden gizle</string>
     <string name="wallet_swap_executions_hidden">Uygun oturumlar bu listeden gizlendi. Cüzdan bunları izlemeyi sürdürüyor.</string>
     <string name="wallet_swap_executions_hide_unavailable">Hiçbir oturum gizlenemedi. Doğrulanmış durumları değişmiş olabilir.</string>

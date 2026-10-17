@@ -42,6 +42,41 @@ class SwapExecutionListTest {
     }
 
     @Test
+    fun completedSwapHidesOnlyAfterBothRedemptionsAndReturnsIfRecoveryIsNeeded() {
+        val completed = execution("settled", state = "completed", firstFundingConfirmed = true)
+            .copy(firstRedemptionConfirmed = true, secondRedemptionConfirmed = true)
+        assertTrue(swapExecutionCanDismiss(completed))
+        assertTrue(visibleSwapExecutions(listOf(completed), setOf("settled")).isEmpty())
+
+        for (changed in listOf(
+            completed.copy(firstRedemptionConfirmed = false),
+            completed.copy(secondRedemptionConfirmed = false),
+            completed.copy(state = "first_redeemed"),
+            completed.copy(state = "refund_eligible"),
+        )) {
+            assertFalse(swapExecutionCanDismiss(changed))
+            assertEquals(listOf(changed), visibleSwapExecutions(listOf(changed), setOf("settled")))
+        }
+    }
+
+    @Test
+    fun recoveredSwapWithBothVerifiedSettlementsCanBeHidden() {
+        val recovered = execution("recovered", state = "completed", fundingDeadlineUnix = 0,
+            localFundingState = "submitted")
+        assertTrue(swapExecutionCanDismiss(recovered))
+        assertTrue(visibleSwapExecutions(listOf(recovered), setOf("recovered")).isEmpty())
+
+        for (changed in listOf(
+            recovered.copy(state = "secret_observed"),
+            recovered.copy(state = "refund_eligible"),
+            recovered.copy(localFundingState = null),
+        )) {
+            assertFalse(swapExecutionCanDismiss(changed))
+            assertEquals(listOf(changed), visibleSwapExecutions(listOf(changed), setOf("recovered")))
+        }
+    }
+
+    @Test
     fun pagesContainFourLatestExecutionsAndClampAfterListChanges() {
         val entries = (1L..10L).map { execution(it.toString(), lastVerifiedAtUnix = it) }
         val sorted = orderedSwapExecutions(entries)

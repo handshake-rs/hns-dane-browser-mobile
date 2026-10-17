@@ -15,9 +15,9 @@
     <string name="wallet_swap_executions_show_visible">दिख रहे सत्र दिखाएं</string>
     <string name="wallet_swap_executions_hide">सत्र %1$s… छिपाएं</string>
     <string name="wallet_swap_executions_restore">सत्र %1$s… फिर दिखाएं</string>
-    <string name="wallet_swap_executions_hide_all">पात्र सत्र छिपाएं: %1$d</string>
+    <string name="wallet_swap_executions_hide_all">सभी पात्र सत्र छिपाएं</string>
     <string name="wallet_swap_executions_hide_title">इस सूची से छिपाएं?</string>
-    <string name="wallet_swap_executions_hide_message">बिना फ़ंडिंग वाले या पूरी तरह रिफ़ंड किए गए %1$d सत्र छिपाएं? इससे हस्ताक्षरित शर्तें रद्द नहीं होंगी, आरक्षित कॉइन मुक्त नहीं होंगे और वॉलेट रिकॉर्ड नहीं मिटेंगे। वॉलेट निगरानी जारी रखेगा और फ़ंडिंग या पुनर्प्राप्ति दिखने पर इन्हें फिर दिखाएगा।</string>
+    <string name="wallet_swap_executions_hide_message">चुने गए सत्र इस सूची से छिपाएं? इससे हस्ताक्षरित शर्तें रद्द नहीं होंगी, आरक्षित कॉइन मुक्त नहीं होंगे और वॉलेट रिकॉर्ड नहीं मिटेंगे। वॉलेट निगरानी जारी रखेगा और फ़ंडिंग या पुनर्प्राप्ति दिखने पर इन्हें फिर दिखाएगा।</string>
     <string name="wallet_swap_executions_hide_confirm">दृश्य से छिपाएं</string>
     <string name="wallet_swap_executions_hidden">पात्र सत्र इस सूची से छिपा दिए गए। वॉलेट इनकी निगरानी जारी रखेगा।</string>
     <string name="wallet_swap_executions_hide_unavailable">कोई सत्र नहीं छिपाया जा सका। उनकी सत्यापित स्थिति बदल गई हो सकती है।</string>

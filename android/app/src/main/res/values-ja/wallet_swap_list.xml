@@ -15,9 +15,9 @@
     <string name="wallet_swap_executions_show_visible">表示中のセッションを表示</string>
     <string name="wallet_swap_executions_hide">セッション %1$s… を非表示</string>
     <string name="wallet_swap_executions_restore">セッション %1$s… を再表示</string>
-    <string name="wallet_swap_executions_hide_all">対象の %1$d 件を非表示</string>
+    <string name="wallet_swap_executions_hide_all">対象のセッションをすべて非表示</string>
     <string name="wallet_swap_executions_hide_title">この一覧から非表示にしますか？</string>
-    <string name="wallet_swap_executions_hide_message">未入金または全額返金済みの %1$d 件のセッションを非表示にしますか？署名済みの条件は取り消されず、予約済みのコインは解放されず、ウォレットの記録も削除されません。ウォレットは監視を続け、資金ロックや復旧の動きがあれば再表示します。</string>
+    <string name="wallet_swap_executions_hide_message">選択したセッションをこの一覧から非表示にしますか？署名済みの条件は取り消されず、予約済みのコインは解放されず、ウォレットの記録も削除されません。ウォレットは監視を続け、資金ロックや復旧の動きがあれば再表示します。</string>
     <string name="wallet_swap_executions_hide_confirm">一覧から非表示</string>
     <string name="wallet_swap_executions_hidden">対象のセッションを一覧から非表示にしました。ウォレットは引き続き監視します。</string>
     <string name="wallet_swap_executions_hide_unavailable">非表示にできるセッションはありません。検証済みの状態が変わった可能性があります。</string>

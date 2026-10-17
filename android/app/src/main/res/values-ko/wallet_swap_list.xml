@@ -15,9 +15,9 @@
     <string name="wallet_swap_executions_show_visible">표시 중인 세션 보기</string>
     <string name="wallet_swap_executions_hide">세션 %1$s… 숨기기</string>
     <string name="wallet_swap_executions_restore">세션 %1$s… 다시 표시</string>
-    <string name="wallet_swap_executions_hide_all">대상 세션 %1$d개 숨기기</string>
+    <string name="wallet_swap_executions_hide_all">대상 세션 모두 숨기기</string>
     <string name="wallet_swap_executions_hide_title">이 목록에서 숨길까요?</string>
-    <string name="wallet_swap_executions_hide_message">자금이 투입되지 않았거나 전액 환불된 세션 %1$d개를 숨길까요? 서명한 조건은 취소되지 않고, 예약된 코인도 해제되지 않으며, 지갑 기록도 삭제되지 않습니다. 지갑은 계속 감시하며 자금 잠금이나 복구 활동이 감지되면 다시 표시합니다.</string>
+    <string name="wallet_swap_executions_hide_message">선택한 세션을 이 목록에서 숨길까요? 서명한 조건은 취소되지 않고, 예약된 코인도 해제되지 않으며, 지갑 기록도 삭제되지 않습니다. 지갑은 계속 감시하며 자금 잠금이나 복구 활동이 감지되면 다시 표시합니다.</string>
     <string name="wallet_swap_executions_hide_confirm">목록에서 숨기기</string>
     <string name="wallet_swap_executions_hidden">대상 세션을 목록에서 숨겼습니다. 지갑은 계속 감시합니다.</string>
     <string name="wallet_swap_executions_hide_unavailable">숨길 수 있는 세션이 없습니다. 검증된 상태가 바뀌었을 수 있습니다.</string>

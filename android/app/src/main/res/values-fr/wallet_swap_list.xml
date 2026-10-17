@@ -15,9 +15,9 @@
     <string name="wallet_swap_executions_show_visible">Afficher les sessions visibles</string>
     <string name="wallet_swap_executions_hide">Masquer la session %1$s…</string>
     <string name="wallet_swap_executions_restore">Réafficher la session %1$s…</string>
-    <string name="wallet_swap_executions_hide_all">Masquer %1$d sessions admissibles</string>
+    <string name="wallet_swap_executions_hide_all">Masquer toutes les sessions admissibles</string>
     <string name="wallet_swap_executions_hide_title">Masquer dans cette liste ?</string>
-    <string name="wallet_swap_executions_hide_message">Masquer %1$d sessions non financées ou entièrement remboursées ? Cela n’annule pas les conditions signées, ne libère pas les fonds réservés et ne supprime pas les données du portefeuille. Le portefeuille continue de les surveiller et les réaffiche si un financement ou une récupération est détecté.</string>
+    <string name="wallet_swap_executions_hide_message">Masquer les sessions sélectionnées de cette vue ? Cela n’annule pas les conditions signées, ne libère pas les fonds réservés et ne supprime pas les données du portefeuille. Le portefeuille continue de les surveiller et les réaffiche si un financement ou une récupération est détecté.</string>
     <string name="wallet_swap_executions_hide_confirm">Masquer de la liste</string>
     <string name="wallet_swap_executions_hidden">Les sessions admissibles ont été masquées. Le portefeuille continue de les surveiller.</string>
     <string name="wallet_swap_executions_hide_unavailable">Aucune session n’a pu être masquée. Son état vérifié a peut-être changé.</string>
