@@ -16,43 +16,223 @@
     .lede { max-width: 75ch; color: #b7c5db; font-size: 1.08rem; }
     .legend { display: flex; flex-wrap: wrap; gap: .7rem; margin: 2rem 0 2.8rem; }
     .chip { display: inline-flex; align-items: center; gap: .45rem; padding: .38rem .8rem; border: 1px solid #344360; border-radius: 999px; background: #121d34; color: #dbe6fb; font-size: .9rem; }
-    .timeline { padding: 0 0 0 2rem; margin: 0; list-style: none; border-left: 2px solid #30456d; }
-    .step { position: relative; padding: 0 0 2.8rem 1.6rem; }
-    .step::before { content: ""; position: absolute; left: -2.57rem; top: .55rem; width: .9rem; height: .9rem; border: 3px solid #091226; border-radius: 50%; background: #62e8dc; box-shadow: 0 0 0 2px #62e8dc; }
-    .bubble { max-width: 74ch; padding: 1.1rem 1.35rem; border: 1px solid #2f4469; border-radius: 1.15rem 1.15rem 1.15rem .25rem; background: #121d34; box-shadow: 0 12px 35px #0004; }
-    .number { display: inline-block; margin-right: .6rem; color: #66e8e0; font-weight: 800; font-variant-numeric: tabular-nums; }
-    .bubble h2 { display: inline; margin: 0; font-size: 1.22rem; }
+    .timeline { position: relative; display: flex; flex-direction: column; gap: 1.5rem; margin: 0; padding: 0; list-style: none; }
+    .timeline::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; transform: translateX(-50%); background: #30456d; }
+    .event { position: relative; width: calc(50% - 1.5rem); }
+    .event.moto { align-self: flex-start; }
+    .event.pixel { align-self: flex-end; }
+    .event::before { content: ""; position: absolute; top: 1.35rem; width: .9rem; height: .9rem; border: 3px solid #091226; border-radius: 50%; background: #62e8dc; box-shadow: 0 0 0 2px #62e8dc; }
+    .event.moto::before { right: -1.95rem; }
+    .event.pixel::before { left: -1.95rem; }
+    .bubble { padding: 1.1rem 1.35rem; border: 1px solid #2f4469; border-radius: 1.15rem; background: #121d34; box-shadow: 0 12px 35px #0004; }
+    .heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: .5rem; }
+    .number { color: #66e8e0; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .device { padding: .15rem .55rem; border-radius: 999px; font-size: .82rem; font-weight: 800; }
+    .moto .device { color: #b9d5ff; background: #20385d; }
+    .pixel .device { color: #a1f5e9; background: #17443e; }
+    .bubble h2 { margin: 0; font-size: 1.22rem; }
     .bubble p { margin: .65rem 0 0; color: #c6d2e6; }
-    .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; margin-top: 1.1rem; }
-    figure { margin: 0; min-width: 0; }
-    figcaption { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .55rem .2rem; color: #dce9ff; font-weight: 750; }
-    figcaption small { color: #94a8c7; font-weight: 500; }
+    figure { margin: 1rem 0 0; }
     .screen { width: 50%; margin-inline: auto; display: block; border: 1px solid #354664; border-radius: 1.05rem; background: #050914; box-shadow: 0 10px 25px #0008; }
     .foot { max-width: 75ch; padding: 1.2rem 1.4rem; border-top: 1px solid #354664; color: #aabbd4; }
-    @media (max-width: 720px) { .shell { width: min(100% - 1.25rem, 45rem); padding-top: 1.5rem; } .timeline { padding-left: 1.15rem; } .step { padding-left: 1rem; } .step::before { left: -1.73rem; } .pair { grid-template-columns: 1fr; } }
+    @media (max-width: 720px) { .shell { width: min(100% - 1.25rem, 45rem); padding-top: 1.5rem; } .timeline::before { left: .5rem; transform: none; } .event { width: calc(100% - 2rem); margin-left: 2rem; } .event.moto, .event.pixel { align-self: auto; } .event.moto::before, .event.pixel::before { left: -1.95rem; right: auto; } }
   </style>
 </head>
 <body>
 <main class="shell">
   <p class="eyebrow">Moto sells HNS · Pixel pays Bitcoin</p>
   <h1>Swap HNS for Bitcoin on two phones</h1>
-  <p class="lede">Follow Moto on the left and Pixel on the right. Check the offer, amounts, and execution ID on both phones as you go.</p>
+  <p class="lede">Follow the swap in event order. Moto's actions appear on the left and Pixel's on the right. Check the same execution ID on both phones.</p>
   <div class="legend"><span class="chip">Moto G6 · HNS seller</span><span class="chip">Pixel 9 · Bitcoin buyer</span></div>
   <ol class="timeline">
-    <li class="step"><div class="bubble"><span class="number">01</span><h2>Open Shakescape</h2><p>Start Shakescape on both phones. Open the menu and choose Wallet.</p></div><div class="pair"><figure><figcaption>Moto <small>browser start</small></figcaption><a href="screenshots/run-2/000-moto-launch.png"><img class="screen" src="screenshots/run-2/000-moto-launch.png" alt="Moto browser start screen" loading="lazy"></a></figure><figure><figcaption>Pixel <small>browser start</small></figcaption><a href="screenshots/run-2/000-pixel-launch.png"><img class="screen" src="screenshots/run-2/000-pixel-launch.png" alt="Pixel browser start screen" loading="lazy"></a></figure></div></li>
-    <li class="step"><div class="bubble"><span class="number">02</span><h2>Unlock and sync both wallets</h2><p>Unlock Wallet on both phones. In Bitcoin, tap SYNC and wait for verified balances. Check that HNS is also synced before choosing swap terms.</p></div><div class="pair"><figure><figcaption>Moto <small>wallet opening</small></figcaption><a href="screenshots/run-2/002-moto-wallet-open.png"><img class="screen" src="screenshots/run-2/002-moto-wallet-open.png" alt="Moto wallet preparing to unlock" loading="lazy"></a></figure><figure><figcaption>Pixel <small>wallet locked</small></figcaption><a href="screenshots/run-2/002-pixel-wallet-open.png"><img class="screen" src="screenshots/run-2/002-pixel-wallet-open.png" alt="Pixel wallet showing Unlock action" loading="lazy"></a></figure></div></li>
-    <li class="step"><div class="bubble"><span class="number">03</span><h2>Find the offer through the relay</h2><p>Connect both phones to the same offer peer. Moto creates an offer for 0.500546 HNS in exchange for 4,330 sats. Pixel uses Browse offers and checks the offer ID and amounts.</p></div><div class="pair"><figure><figcaption>Moto <small>offer values</small></figcaption><a href="screenshots/run-2/021-moto-offer-values.png"><img class="screen" src="screenshots/run-2/021-moto-offer-values.png" alt="Moto HNS-for-BTC offer values" loading="lazy"></a></figure><figure><figcaption>Pixel <small>listing found</small></figcaption><a href="screenshots/run-2/028-pixel-browse-offers.png"><img class="screen" src="screenshots/run-2/028-pixel-browse-offers.png" alt="Pixel finds Moto offer through public peer" loading="lazy"></a></figure></div></li>
-    <li class="step"><div class="bubble"><span class="number">04</span><h2>Review and accept the offer</h2><p>Moto reviews and publishes the offer. Pixel checks the amounts and maximum Bitcoin funding fee, then accepts that offer. Funding still requires a separate approval.</p></div><div class="pair"><figure><figcaption>Moto <small>publish review</small></figcaption><a href="screenshots/run-2/024-moto-offer-review.png"><img class="screen" src="screenshots/run-2/024-moto-offer-review.png" alt="Moto final publish review" loading="lazy"></a></figure><figure><figcaption>Pixel <small>acceptance review</small></figcaption><a href="screenshots/run-2/031-pixel-offer-preflight.png"><img class="screen" src="screenshots/run-2/031-pixel-offer-preflight.png" alt="Pixel final acceptance review and Bitcoin fee cap" loading="lazy"></a></figure></div></li>
-    <li class="step"><div class="bubble"><span class="number">05</span><h2>Review Pixel's Bitcoin lock</h2><p>After Pixel accepts, Moto countersigns the chosen response. Wait for both HNS scans to finish, then open the matching execution on Pixel. Check the 4,330-sat lock, fee, and red final approval before broadcasting.</p></div><div class="pair"><figure><figcaption>Moto <small>matching session awaits BTC</small></figcaption><a href="screenshots/run-2/053-moto-new-session-await-btc.png"><img class="screen" src="screenshots/run-2/053-moto-new-session-await-btc.png" alt="Moto matching execution waiting for Bitcoin lock" loading="lazy"></a></figure><figure><figcaption>Pixel <small>final Bitcoin review</small></figcaption><a href="screenshots/run-2/049-pixel-btc-funding-review.png"><img class="screen" src="screenshots/run-2/049-pixel-btc-funding-review.png" alt="Pixel final Bitcoin funding approval with amount fee and session" loading="lazy"></a></figure></div></li>
-    <li class="step"><div class="bubble"><span class="number">06</span><h2>Broadcast the Bitcoin lock</h2><p>Pixel submits the Bitcoin funding transaction. Keep both Bitcoin wallets synced until they verify it in a block.</p></div><div class="pair"><figure><figcaption>Moto <small>waiting for BTC confirmation</small></figcaption><a href="screenshots/run-2/055-moto-btc-wait.png"><img class="screen" src="screenshots/run-2/055-moto-btc-wait.png" alt="Moto still waiting for the Bitcoin lock to confirm" loading="lazy"></a></figure><figure><figcaption>Pixel <small>funding submitted</small></figcaption><a href="screenshots/run-2/050-pixel-btc-funding-submitted.png"><img class="screen" src="screenshots/run-2/050-pixel-btc-funding-submitted.png" alt="Pixel confirms Bitcoin HTLC funding was submitted" loading="lazy"></a></figure></div></li>
-    <li class="step"><div class="bubble"><span class="number">07</span><h2>Verify the Bitcoin lock</h2><p>Both phones verify the same Bitcoin transaction. The execution reaches 2 of 5 steps, and Moto can prepare HNS funding.</p></div><div class="pair"><figure><figcaption>Moto <small>HNS funding ready</small></figcaption><a href="screenshots/run-2/066-moto-new-session-hns-ready-detail.png"><img class="screen" src="screenshots/run-2/066-moto-new-session-hns-ready-detail.png" alt="Moto matching swap at two of five after verifying Bitcoin lock" loading="lazy"></a></figure><figure><figcaption>Pixel <small>Bitcoin lock verified</small></figcaption><a href="screenshots/run-2/059-pixel-new-session-2of5.png"><img class="screen" src="screenshots/run-2/059-pixel-new-session-2of5.png" alt="Pixel matching swap at two of five after confirming Bitcoin lock" loading="lazy"></a></figure></div></li>
-    <li class="step"><div class="bubble"><span class="number">08</span><h2>Review Moto's HNS lock</h2><p>On Moto, open the matching execution and choose Prepare HNS funding. Check the 0.500546-HNS lock, fee, and red final approval.</p></div><div class="pair"><figure><figcaption>Moto <small>final HNS review</small></figcaption><a href="screenshots/run-2/068-moto-hns-funding-review.png"><img class="screen" src="screenshots/run-2/068-moto-hns-funding-review.png" alt="Moto final irreversible HNS funding review" loading="lazy"></a></figure><figure><figcaption>Pixel <small>awaiting HNS</small></figcaption><a href="screenshots/run-2/069-pixel-await-hns-funding.png"><img class="screen" src="screenshots/run-2/069-pixel-await-hns-funding.png" alt="Pixel waiting for Moto HNS funding" loading="lazy"></a></figure></div></li>
-    <li class="step"><div class="bubble"><span class="number">09</span><h2>Broadcast the HNS lock</h2><p>Moto submits the HNS funding transaction. Keep both HNS wallets synced while the lock waits for confirmation.</p></div><div class="pair"><figure><figcaption>Moto <small>HNS lock submitted</small></figcaption><a href="screenshots/run-2/069-moto-hns-funding-submitted.png"><img class="screen" src="screenshots/run-2/069-moto-hns-funding-submitted.png" alt="Moto HNS funding transaction submitted" loading="lazy"></a></figure><figure><figcaption>Pixel <small>waiting for HNS</small></figcaption><a href="screenshots/run-2/069-pixel-await-hns-funding.png"><img class="screen" src="screenshots/run-2/069-pixel-await-hns-funding.png" alt="Pixel awaiting required HNS lock confirmations" loading="lazy"></a></figure></div></li>
-    <li class="step"><div class="bubble"><span class="number">10</span><h2>Verify the second HNS block</h2><p>Wait for both phones to verify two HNS confirmations. The execution then reaches 3 of 5 and Pixel can redeem HNS.</p></div><div class="pair"><figure><figcaption>Moto <small>second block verified</small></figcaption><a href="screenshots/run-2/078-moto-second-hns-verified.png"><img class="screen" src="screenshots/run-2/078-moto-second-hns-verified.png" alt="Moto execution after verifying the second HNS confirmation" loading="lazy"></a></figure><figure><figcaption>Pixel <small>HNS redemption ready</small></figcaption><a href="screenshots/run-2/078-pixel-redeem-ready-detail.png"><img class="screen" src="screenshots/run-2/078-pixel-redeem-ready-detail.png" alt="Pixel matching execution at three of five with HNS redemption available" loading="lazy"></a></figure></div></li>
-    <li class="step"><div class="bubble"><span class="number">11</span><h2>Pixel receives HNS</h2><p>Pixel's wallet submits the HNS claim automatically. Confirm the credit in recent activity and check that the execution reaches 4 of 5 on both phones.</p></div><div class="pair"><figure><figcaption>Moto <small>Bitcoin claim ready</small></figcaption><a href="screenshots/run-2/086-moto-claim-detail.png"><img class="screen" src="screenshots/run-2/086-moto-claim-detail.png" alt="Moto matching execution with Bitcoin claim ready at four of five" loading="lazy"></a></figure><figure><figcaption>Pixel <small>HNS claim confirmed</small></figcaption><a href="screenshots/run-2/090-pixel-hns-recent-activity.png"><img class="screen" src="screenshots/run-2/090-pixel-hns-recent-activity.png" alt="Pixel recent activity showing the confirmed HNS claim transaction" loading="lazy"></a></figure></div></li>
-    <li class="step"><div class="bubble"><span class="number">12</span><h2>Follow Moto's Bitcoin claim</h2><p>Moto's wallet broadcasts the Bitcoin claim. Find it in Bitcoin activity and wait for confirmation; do not submit a second claim while it is pending.</p></div><div class="pair"><figure><figcaption>Moto <small>claim in recent activity</small></figcaption><a href="screenshots/run-2/087-moto-bitcoin-activity.png"><img class="screen" src="screenshots/run-2/087-moto-bitcoin-activity.png" alt="Moto Bitcoin recent activity showing pending claim transaction" loading="lazy"></a></figure><figure><figcaption>Pixel <small>waiting for BTC redemption</small></figcaption><a href="screenshots/run-2/086-pixel-claim-detail.png"><img class="screen" src="screenshots/run-2/086-pixel-claim-detail.png" alt="Pixel exact session waiting for Moto to redeem Bitcoin" loading="lazy"></a></figure></div></li>
-    <li class="step"><div class="bubble"><span class="number">13</span><h2>Sync the Bitcoin claim</h2><p>Run Bitcoin sync on both phones. Moto's confirmed activity shows a 4,052-sat credit from the claim.</p></div><div class="pair"><figure><figcaption>Moto <small>claim confirmed</small></figcaption><a href="screenshots/run-2/097-moto-confirmed-bitcoin-claim.png"><img class="screen" src="screenshots/run-2/097-moto-confirmed-bitcoin-claim.png" alt="Moto Bitcoin activity showing 4052 sat claim confirmed in block 971662" loading="lazy"></a></figure><figure><figcaption>Pixel <small>block 971662 scanned</small></figcaption><a href="screenshots/run-2/092-pixel-bitcoin-claim-sync.png"><img class="screen" src="screenshots/run-2/092-pixel-bitcoin-claim-sync.png" alt="Pixel wallet after verifying Bitcoin block 971662" loading="lazy"></a></figure></div></li>
-    <li class="step"><div class="bubble"><span class="number">14</span><h2>Confirm completion</h2><p>Open execution <code>af7211abb240…</code> on both phones. Both should show <strong>5 of 5 steps completed</strong> and <strong>State: completed</strong>.</p></div><div class="pair"><figure><figcaption>Moto <small>5 of 5 completed</small></figcaption><a href="screenshots/run-2/095-moto-complete-detail.png"><img class="screen" src="screenshots/run-2/095-moto-complete-detail.png" alt="Moto exact swap session completed at five of five" loading="lazy"></a></figure><figure><figcaption>Pixel <small>5 of 5 completed</small></figcaption><a href="screenshots/run-2/096-pixel-complete-detail.png"><img class="screen" src="screenshots/run-2/096-pixel-complete-detail.png" alt="Pixel exact swap session completed at five of five" loading="lazy"></a></figure></div></li>
+    <li class="event moto">
+      <div class="bubble">
+        <div class="heading"><span class="number">01</span><span class="device">Moto</span><h2>Open Shakescape</h2></div>
+        <p>Open the app and choose Wallet from the menu.</p>
+        <figure><a href="screenshots/run-2/000-moto-launch.png"><img class="screen" src="screenshots/run-2/000-moto-launch.png" alt="Moto browser start screen" loading="lazy"></a></figure>
+      </div>
+    </li>
+    <li class="event pixel">
+      <div class="bubble">
+        <div class="heading"><span class="number">02</span><span class="device">Pixel</span><h2>Open Shakescape</h2></div>
+        <p>Open the app and choose Wallet from the menu.</p>
+        <figure><a href="screenshots/run-2/000-pixel-launch.png"><img class="screen" src="screenshots/run-2/000-pixel-launch.png" alt="Pixel browser start screen" loading="lazy"></a></figure>
+      </div>
+    </li>
+    <li class="event moto">
+      <div class="bubble">
+        <div class="heading"><span class="number">03</span><span class="device">Moto</span><h2>Unlock and sync</h2></div>
+        <p>Unlock Wallet. In Bitcoin, tap SYNC and wait for a verified balance. Check that HNS is synced too.</p>
+        <figure><a href="screenshots/run-2/002-moto-wallet-open.png"><img class="screen" src="screenshots/run-2/002-moto-wallet-open.png" alt="Moto wallet opening" loading="lazy"></a></figure>
+      </div>
+    </li>
+    <li class="event pixel">
+      <div class="bubble">
+        <div class="heading"><span class="number">04</span><span class="device">Pixel</span><h2>Unlock and sync</h2></div>
+        <p>Unlock Wallet. In Bitcoin, tap SYNC and wait for a verified balance. Check that HNS is synced too.</p>
+        <figure><a href="screenshots/run-2/002-pixel-wallet-open.png"><img class="screen" src="screenshots/run-2/002-pixel-wallet-open.png" alt="Pixel wallet showing the Unlock action" loading="lazy"></a></figure>
+      </div>
+    </li>
+    <li class="event moto">
+      <div class="bubble">
+        <div class="heading"><span class="number">05</span><span class="device">Moto</span><h2>Set the offer terms</h2></div>
+        <p>Connect to an offer peer and enter 0.500546 HNS in exchange for 4,330 sats.</p>
+        <figure><a href="screenshots/run-2/021-moto-offer-values.png"><img class="screen" src="screenshots/run-2/021-moto-offer-values.png" alt="Moto HNS for Bitcoin offer values" loading="lazy"></a></figure>
+      </div>
+    </li>
+    <li class="event moto">
+      <div class="bubble">
+        <div class="heading"><span class="number">06</span><span class="device">Moto</span><h2>Publish the offer</h2></div>
+        <p>Review the amounts and publish. This shares the terms; it does not lock HNS yet.</p>
+        <figure><a href="screenshots/run-2/024-moto-offer-review.png"><img class="screen" src="screenshots/run-2/024-moto-offer-review.png" alt="Moto offer publication review" loading="lazy"></a></figure>
+      </div>
+    </li>
+    <li class="event pixel">
+      <div class="bubble">
+        <div class="heading"><span class="number">07</span><span class="device">Pixel</span><h2>Find Moto&#x27;s offer</h2></div>
+        <p>Connect to the same offer peer. Browse offers and match the offer ID and both amounts.</p>
+        <figure><a href="screenshots/run-2/028-pixel-browse-offers.png"><img class="screen" src="screenshots/run-2/028-pixel-browse-offers.png" alt="Pixel finds Moto offer" loading="lazy"></a></figure>
+      </div>
+    </li>
+    <li class="event pixel">
+      <div class="bubble">
+        <div class="heading"><span class="number">08</span><span class="device">Pixel</span><h2>Accept the offer</h2></div>
+        <p>Check the Bitcoin funding fee limit, then accept the exact offer.</p>
+        <figure><a href="screenshots/run-2/031-pixel-offer-preflight.png"><img class="screen" src="screenshots/run-2/031-pixel-offer-preflight.png" alt="Pixel offer acceptance review" loading="lazy"></a></figure>
+      </div>
+    </li>
+    <li class="event moto">
+      <div class="bubble">
+        <div class="heading"><span class="number">09</span><span class="device">Moto</span><h2>Choose the response</h2></div>
+        <p>On Moto, select Pixel's response to the offer and countersign it. Wait for both HNS wallets to finish verifying the swap before funding.</p>
+      </div>
+    </li>
+    <li class="event pixel">
+      <div class="bubble">
+        <div class="heading"><span class="number">10</span><span class="device">Pixel</span><h2>Review the Bitcoin lock</h2></div>
+        <p>Open execution af7211abb240… . Check the 4,330-sat lock and fee before approving the red Broadcast funding action.</p>
+        <figure><a href="screenshots/run-2/049-pixel-btc-funding-review.png"><img class="screen" src="screenshots/run-2/049-pixel-btc-funding-review.png" alt="Pixel final Bitcoin funding approval" loading="lazy"></a></figure>
+      </div>
+    </li>
+    <li class="event pixel">
+      <div class="bubble">
+        <div class="heading"><span class="number">11</span><span class="device">Pixel</span><h2>Broadcast the Bitcoin lock</h2></div>
+        <p>The Bitcoin funding transaction is submitted. Keep Bitcoin synced until it confirms.</p>
+        <figure><a href="screenshots/run-2/050-pixel-btc-funding-submitted.png"><img class="screen" src="screenshots/run-2/050-pixel-btc-funding-submitted.png" alt="Pixel Bitcoin funding submitted" loading="lazy"></a></figure>
+      </div>
+    </li>
+    <li class="event moto">
+      <div class="bubble">
+        <div class="heading"><span class="number">12</span><span class="device">Moto</span><h2>Wait for Bitcoin confirmation</h2></div>
+        <p>Open the same execution ID. Moto shows 1 of 5 while it waits to verify Pixel&#x27;s Bitcoin lock.</p>
+        <figure><a href="screenshots/run-2/053-moto-new-session-await-btc.png"><img class="screen" src="screenshots/run-2/053-moto-new-session-await-btc.png" alt="Moto execution waiting for the Bitcoin lock" loading="lazy"></a></figure>
+      </div>
+    </li>
+    <li class="event pixel">
+      <div class="bubble">
+        <div class="heading"><span class="number">13</span><span class="device">Pixel</span><h2>Verify the Bitcoin lock</h2></div>
+        <p>Pixel verifies its funding transaction and the execution reaches 2 of 5.</p>
+        <figure><a href="screenshots/run-2/059-pixel-new-session-2of5.png"><img class="screen" src="screenshots/run-2/059-pixel-new-session-2of5.png" alt="Pixel execution at two of five" loading="lazy"></a></figure>
+      </div>
+    </li>
+    <li class="event moto">
+      <div class="bubble">
+        <div class="heading"><span class="number">14</span><span class="device">Moto</span><h2>Verify the Bitcoin lock</h2></div>
+        <p>Moto verifies the same transaction and can now prepare HNS funding.</p>
+        <figure><a href="screenshots/run-2/066-moto-new-session-hns-ready-detail.png"><img class="screen" src="screenshots/run-2/066-moto-new-session-hns-ready-detail.png" alt="Moto HNS funding action ready" loading="lazy"></a></figure>
+      </div>
+    </li>
+    <li class="event moto">
+      <div class="bubble">
+        <div class="heading"><span class="number">15</span><span class="device">Moto</span><h2>Review the HNS lock</h2></div>
+        <p>Check the 0.500546-HNS lock and fee, then approve the red broadcast action.</p>
+        <figure><a href="screenshots/run-2/068-moto-hns-funding-review.png"><img class="screen" src="screenshots/run-2/068-moto-hns-funding-review.png" alt="Moto final HNS funding approval" loading="lazy"></a></figure>
+      </div>
+    </li>
+    <li class="event moto">
+      <div class="bubble">
+        <div class="heading"><span class="number">16</span><span class="device">Moto</span><h2>Broadcast the HNS lock</h2></div>
+        <p>Moto submits the HNS funding transaction. Keep HNS synced while it waits for confirmation.</p>
+        <figure><a href="screenshots/run-2/069-moto-hns-funding-submitted.png"><img class="screen" src="screenshots/run-2/069-moto-hns-funding-submitted.png" alt="Moto HNS funding submitted" loading="lazy"></a></figure>
+      </div>
+    </li>
+    <li class="event pixel">
+      <div class="bubble">
+        <div class="heading"><span class="number">17</span><span class="device">Pixel</span><h2>Wait for HNS confirmations</h2></div>
+        <p>Pixel waits for two Handshake confirmations before the HNS can be claimed.</p>
+        <figure><a href="screenshots/run-2/069-pixel-await-hns-funding.png"><img class="screen" src="screenshots/run-2/069-pixel-await-hns-funding.png" alt="Pixel waiting for the HNS lock" loading="lazy"></a></figure>
+      </div>
+    </li>
+    <li class="event moto">
+      <div class="bubble">
+        <div class="heading"><span class="number">18</span><span class="device">Moto</span><h2>Verify HNS funding</h2></div>
+        <p>Moto verifies both confirmations. Its execution reaches 3 of 5.</p>
+        <figure><a href="screenshots/run-2/078-moto-second-hns-verified.png"><img class="screen" src="screenshots/run-2/078-moto-second-hns-verified.png" alt="Moto verifies the second HNS confirmation" loading="lazy"></a></figure>
+      </div>
+    </li>
+    <li class="event pixel">
+      <div class="bubble">
+        <div class="heading"><span class="number">19</span><span class="device">Pixel</span><h2>Prepare to receive HNS</h2></div>
+        <p>Pixel verifies the same blocks. Its execution reaches 3 of 5 and HNS redemption becomes available.</p>
+        <figure><a href="screenshots/run-2/078-pixel-redeem-ready-detail.png"><img class="screen" src="screenshots/run-2/078-pixel-redeem-ready-detail.png" alt="Pixel HNS redemption ready" loading="lazy"></a></figure>
+      </div>
+    </li>
+    <li class="event pixel">
+      <div class="bubble">
+        <div class="heading"><span class="number">20</span><span class="device">Pixel</span><h2>Confirm the HNS claim</h2></div>
+        <p>Pixel&#x27;s wallet claims HNS automatically. Recent activity shows the confirmed 0.486846-HNS credit.</p>
+        <figure><a href="screenshots/run-2/090-pixel-hns-recent-activity.png"><img class="screen" src="screenshots/run-2/090-pixel-hns-recent-activity.png" alt="Pixel confirmed HNS claim in recent activity" loading="lazy"></a></figure>
+      </div>
+    </li>
+    <li class="event moto">
+      <div class="bubble">
+        <div class="heading"><span class="number">21</span><span class="device">Moto</span><h2>Observe the swap secret</h2></div>
+        <p>Moto sees Pixel&#x27;s HNS claim, verifies the revealed secret, and reaches 4 of 5. Its Bitcoin claim is ready.</p>
+        <figure><a href="screenshots/run-2/086-moto-claim-detail.png"><img class="screen" src="screenshots/run-2/086-moto-claim-detail.png" alt="Moto Bitcoin claim ready at four of five" loading="lazy"></a></figure>
+      </div>
+    </li>
+    <li class="event pixel">
+      <div class="bubble">
+        <div class="heading"><span class="number">22</span><span class="device">Pixel</span><h2>Wait for Bitcoin redemption</h2></div>
+        <p>Pixel shows 4 of 5 while it waits for Moto to claim the Bitcoin lock.</p>
+        <figure><a href="screenshots/run-2/086-pixel-claim-detail.png"><img class="screen" src="screenshots/run-2/086-pixel-claim-detail.png" alt="Pixel waiting for Moto Bitcoin claim" loading="lazy"></a></figure>
+      </div>
+    </li>
+    <li class="event moto">
+      <div class="bubble">
+        <div class="heading"><span class="number">23</span><span class="device">Moto</span><h2>Follow the Bitcoin claim</h2></div>
+        <p>Moto&#x27;s wallet broadcasts its Bitcoin claim. Find the pending transaction in Bitcoin activity and wait for confirmation.</p>
+        <figure><a href="screenshots/run-2/087-moto-bitcoin-activity.png"><img class="screen" src="screenshots/run-2/087-moto-bitcoin-activity.png" alt="Moto pending Bitcoin claim in recent activity" loading="lazy"></a></figure>
+      </div>
+    </li>
+    <li class="event pixel">
+      <div class="bubble">
+        <div class="heading"><span class="number">24</span><span class="device">Pixel</span><h2>Verify the Bitcoin claim</h2></div>
+        <p>Pixel syncs Bitcoin and verifies Moto&#x27;s claim transaction.</p>
+        <figure><a href="screenshots/run-2/092-pixel-bitcoin-claim-sync.png"><img class="screen" src="screenshots/run-2/092-pixel-bitcoin-claim-sync.png" alt="Pixel Bitcoin claim sync" loading="lazy"></a></figure>
+      </div>
+    </li>
+    <li class="event moto">
+      <div class="bubble">
+        <div class="heading"><span class="number">25</span><span class="device">Moto</span><h2>Confirm the Bitcoin credit</h2></div>
+        <p>Moto syncs Bitcoin and sees the confirmed 4,052-sat credit from the claim.</p>
+        <figure><a href="screenshots/run-2/097-moto-confirmed-bitcoin-claim.png"><img class="screen" src="screenshots/run-2/097-moto-confirmed-bitcoin-claim.png" alt="Moto confirmed Bitcoin claim credit" loading="lazy"></a></figure>
+      </div>
+    </li>
+    <li class="event moto">
+      <div class="bubble">
+        <div class="heading"><span class="number">26</span><span class="device">Moto</span><h2>Confirm completion</h2></div>
+        <p>Execution af7211abb240… shows 5 of 5 steps completed and State: completed.</p>
+        <figure><a href="screenshots/run-2/095-moto-complete-detail.png"><img class="screen" src="screenshots/run-2/095-moto-complete-detail.png" alt="Moto completed swap execution" loading="lazy"></a></figure>
+      </div>
+    </li>
+    <li class="event pixel">
+      <div class="bubble">
+        <div class="heading"><span class="number">27</span><span class="device">Pixel</span><h2>Confirm completion</h2></div>
+        <p>The same execution shows 5 of 5 steps completed and State: completed.</p>
+        <figure><a href="screenshots/run-2/096-pixel-complete-detail.png"><img class="screen" src="screenshots/run-2/096-pixel-complete-detail.png" alt="Pixel completed swap execution" loading="lazy"></a></figure>
+      </div>
+    </li>
   </ol>
   <p class="foot">The amounts and fees shown are examples from this swap. Check the live approval on each phone before broadcasting.</p>
 </main>
