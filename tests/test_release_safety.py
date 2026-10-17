@@ -186,13 +186,17 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
                 f'name = "{package}"\nversion = "0.2.6"\nsource = "registry+https://github.com/rust-lang/crates.io-index"',
                 lockfile,
             )
-        for package in (
-            "hns-browser-chain",
-            "hns-browser-p2p",
-            "hns-browser-resolver",
-            "hns-light-p2p",
+        for package, version in (
+            ("hns-browser-chain", "0.2.6"),
+            ("hns-browser-dane", "0.2.4"),
+            ("hns-browser-dnssec", "0.2.3"),
+            ("hns-browser-gateway", "0.2.4"),
+            ("hns-browser-p2p", "0.2.6"),
+            ("hns-browser-resolver", "0.2.7"),
+            ("hns-browser-transport", "0.2.4"),
+            ("hns-light-p2p", "0.2.6"),
         ):
-            self.assertEqual(locked_by_name[package]["version"], "0.2.6")
+            self.assertEqual(locked_by_name[package]["version"], version)
             self.assertEqual(
                 locked_by_name[package]["source"],
                 "registry+https://github.com/rust-lang/crates.io-index",
