@@ -10,6 +10,7 @@ source overrides and Git dependencies, and requires one copy of each package.
 | --- | --- |
 | `hns-rs` protocol packages | 0.5.0 |
 | Engine light-client and SQLite browser adapters | 0.2.6 |
+| Engine DNSSEC and DANE browser stack | `hns-browser-dnssec` 0.2.3, `hns-browser-dane` 0.2.4, `hns-browser-resolver` 0.2.7, `hns-browser-transport` 0.2.4, `hns-browser-gateway` 0.2.4 |
 | Other engine packages | Exact package versions in `rust/Cargo.toml` |
 | `hns-wallet-ffi`, `hns-wallet-types` | 0.4.1 |
 | `hns-wallet-bip157` | Published 0.4.2 |
@@ -18,6 +19,12 @@ source overrides and Git dependencies, and requires one copy of each package.
 | `hns-wallet-hns` | 0.4.5 |
 | `hns-wallet-market` | 0.5.1 |
 | `hns-wallet-mobile` | 0.6.2 |
+
+The DNSSEC and DANE security releases bind TLSA trust-anchor matches to signed
+certificate paths on both mobile and Chromium. The app pins the complete
+published browser stack so the resolver, policy, transport, and gateway use the
+same corrected dependency cohort. Its TLSA fuzzer uses the same DANE policy and
+DNSSEC releases.
 
 HNS 0.4.5 uses wallet source `64deb1db53dcd669919e88556d5a63569edc5d51`;
 Bitcoin 0.4.6 uses `05ba8632e66682b59d9ecd353535699f2ada5744`, and

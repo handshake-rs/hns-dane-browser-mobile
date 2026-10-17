@@ -1324,9 +1324,9 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-dane"
-version = "0.2.2"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62ad07b8758f1c7f0442c303179dd3e095bd58178a0fbf68f6db246e11f0c6ec"
+checksum = "f5aa61e9ffdb9788463f232be507a669abed399ccd6ef8b16e2228213d303a3e"
 dependencies = [
  "hns-browser-dnssec",
  "hns-browser-primitives",
@@ -1337,9 +1337,9 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-dnssec"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "147ec51710989e72dd7eda41d1459803fc3dfe84718a5b14026acb19f0e57221"
+checksum = "fab22061d53558674dbc759cbfbbd8777870486fa37f56caf01924e9c356a0b6"
 dependencies = [
  "hns-browser-primitives",
  "num-bigint",
@@ -1353,9 +1353,9 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-gateway"
-version = "0.2.3"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "daab85f1edf6570408d7dcf7a858b1dc344038affe9a0c9eb16c2cd85b28c23e"
+checksum = "1215f4d34dce1fa8bc3c9f6f4ed697b4f0500d4d0388bece4d6ba55272f70791"
 dependencies = [
  "hns-browser-dane",
  "hns-browser-primitives",
@@ -1431,9 +1431,9 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-resolver"
-version = "0.2.6"
+version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96f448ffe7c81b1af0f03bbd603e29f09898c94abbd67fce05e6d47b86d23b27"
+checksum = "a1fce11bc19d79885b866117ee9fab877674500e8d23afac9dcc31f5ab44b220"
 dependencies = [
  "hns-browser-dane",
  "hns-browser-dnssec",
@@ -1465,9 +1465,9 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-transport"
-version = "0.2.2"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "229e21bdfbb6463c15c291faecf099db19e716ec956a2d36ada2a388cca4223b"
+checksum = "6be7eb484ff31e91e09bd49391efff90c22dae13a71ad7af72938e4b053aeade"
 dependencies = [
  "bytes",
  "h2",
@@ -1478,11 +1478,13 @@ dependencies = [
  "http",
  "quinn",
  "rustls",
+ "rustls-webpki",
  "sha2",
  "thiserror 2.0.20",
  "tokio",
  "tokio-rustls",
  "webpki-roots",
+ "x509-parser",
 ]
 
 [[package]]

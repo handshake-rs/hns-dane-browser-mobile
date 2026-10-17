@@ -27,8 +27,8 @@ Generated input SHA-256:
   scripts/mit-0-license.txt = 0ffe1339d2b91556bf0c380453d8504e972f066adcfda678bd9ddd2986a57c58
   android/app/src/main/assets/fonts/Orbitron-VariableFont_wght.ttf = f42db2dd16e642258e35782916eceb1dcdbea06fb958d77ad71dc5963587e8fd
   android/app/src/main/assets/fonts/OFL-Orbitron.txt = dd6fdb6716fd179d1fe891759efb3f9200753fdf6abf513b55b712c4ae16e512
-  rust/Cargo.toml = 6e48400890e6159119d42c6de1997636554a332fd80d1e7dcab911725eaf56ea
-  rust/Cargo.lock = 9ea7b932da7cda8f07f1cffa6848e54e765c0244e43f1de51f01b83df9dd9d4e
+  rust/Cargo.toml = ef83f21fd5008cefba70df60819b618a95900f8ce04da37ccb646aa20457781b
+  rust/Cargo.lock = 76a9b316cce15f4dad5656a8227c8952c1c279218e38a52e70fb7e1c5417f891
   android/gradle/libs.versions.toml = 4d4192e18d9f57560df22378ce1c5ab6162e72fff3174dd87c360035438c8206
   android/app/gradle.lockfile = e95e57647b76cbd3bf797125325617f81ad4f803ebfa3c591bd89dd997837949
   android/gradle/verification-metadata.xml = a77c594e2faf67153a47ff03a44cd16286c9f5018b66fa2a1456166f5bab105b
@@ -203,17 +203,17 @@ RUST COMPONENTS (393)
   hkdf 0.12.4 | MIT OR Apache-2.0
   hmac 0.12.1 | MIT OR Apache-2.0
   hns-browser-chain 0.2.6 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
-  hns-browser-dane 0.2.2 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
-  hns-browser-dnssec 0.2.2 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
-  hns-browser-gateway 0.2.3 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-dane 0.2.4 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-dnssec 0.2.3 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-gateway 0.2.4 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-browser-loopback-proxy 0.2.4 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-browser-observability 0.3.0 | MIT OR Apache-2.0
   hns-browser-p2p 0.2.6 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-browser-primitives 0.2.2 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
-  hns-browser-resolver 0.2.6 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-resolver 0.2.7 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-browser-runtime 0.2.2 | MIT OR Apache-2.0
   hns-browser-sync 0.2.2 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
-  hns-browser-transport 0.2.2 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-transport 0.2.4 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-browser-urkel 0.2.2 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-cache 0.2.2 | MIT OR Apache-2.0
   hns-covenants 0.5.0 | MIT OR Apache-2.0
@@ -815,15 +815,15 @@ DEALINGS IN THE SOFTWARE.
 Notice SHA-256: 0895f3760ba77d5c6212ff44f5d3f6b78be786fdc6d8058e6e169073e6cb7ab6
 Applies to:
   - Rust crate hns-browser-chain 0.2.6
-  - Rust crate hns-browser-dane 0.2.2
-  - Rust crate hns-browser-dnssec 0.2.2
-  - Rust crate hns-browser-gateway 0.2.3
+  - Rust crate hns-browser-dane 0.2.4
+  - Rust crate hns-browser-dnssec 0.2.3
+  - Rust crate hns-browser-gateway 0.2.4
   - Rust crate hns-browser-loopback-proxy 0.2.4
   - Rust crate hns-browser-p2p 0.2.6
   - Rust crate hns-browser-primitives 0.2.2
-  - Rust crate hns-browser-resolver 0.2.6
+  - Rust crate hns-browser-resolver 0.2.7
   - Rust crate hns-browser-sync 0.2.2
-  - Rust crate hns-browser-transport 0.2.2
+  - Rust crate hns-browser-transport 0.2.4
   - Rust crate hns-browser-urkel 0.2.2
 Source file names:
   - LICENSE-POLYFORM-NONCOMMERCIAL

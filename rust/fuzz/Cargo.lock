@@ -272,9 +272,9 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-dane"
-version = "0.2.2"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62ad07b8758f1c7f0442c303179dd3e095bd58178a0fbf68f6db246e11f0c6ec"
+checksum = "f5aa61e9ffdb9788463f232be507a669abed399ccd6ef8b16e2228213d303a3e"
 dependencies = [
  "hns-browser-dnssec",
  "hns-browser-primitives",
@@ -285,9 +285,9 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-dnssec"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "147ec51710989e72dd7eda41d1459803fc3dfe84718a5b14026acb19f0e57221"
+checksum = "fab22061d53558674dbc759cbfbbd8777870486fa37f56caf01924e9c356a0b6"
 dependencies = [
  "hns-browser-primitives",
  "num-bigint",

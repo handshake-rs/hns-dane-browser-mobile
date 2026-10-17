@@ -22,9 +22,9 @@ hns-light-sync = "=0.2.6"
 hns-cache = "=0.2.2"
 hns-chain = { package = "hns-browser-chain", version = "=0.2.6" }
 hns-core = { package = "hns-browser-primitives", version = "=0.2.2" }
-hns-dane = { package = "hns-browser-dane", version = "=0.2.2" }
-hns-dnssec = { package = "hns-browser-dnssec", version = "=0.2.2" }
-hns-gateway = { package = "hns-browser-gateway", version = "=0.2.3", default-features = false, features = ["mobile"] }
+hns-dane = { package = "hns-browser-dane", version = "=0.2.4" }
+hns-dnssec = { package = "hns-browser-dnssec", version = "=0.2.3" }
+hns-gateway = { package = "hns-browser-gateway", version = "=0.2.4", default-features = false, features = ["mobile"] }
 hns-browser-observability = "=0.3.0"
 hns-browser-runtime = "=0.2.2"
 hns-icann-dane = "=0.2.2"
@@ -39,9 +39,9 @@ hns-mobile-platform-runtime = { path = "crates/hns-mobile-platform-runtime" }
 hns-namespace-resolution = "=0.2.3"
 hns-resolution-policy = "=0.3.0"
 hns-p2p = { package = "hns-browser-p2p", version = "=0.2.6" }
-hns-resolver = { package = "hns-browser-resolver", version = "=0.2.6" }
+hns-resolver = { package = "hns-browser-resolver", version = "=0.2.7" }
 hns-sync = { package = "hns-browser-sync", version = "=0.2.2" }
-hns-transport = { package = "hns-browser-transport", version = "=0.2.2", default-features = false, features = ["mobile"] }
+hns-transport = { package = "hns-browser-transport", version = "=0.2.4", default-features = false, features = ["mobile"] }
 hns-urkel = { package = "hns-browser-urkel", version = "=0.2.2" }
 httparse = "1.10"
 igd-next = { version = "0.17.1", features = ["aio_tokio"] }
