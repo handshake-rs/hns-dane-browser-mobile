@@ -57,6 +57,7 @@ import com.denuoweb.hnsdane.R
 import com.denuoweb.hnsdane.net.HeaderSnapshotInstaller
 import com.denuoweb.hnsdane.net.HnsSyncProgress
 import com.denuoweb.hnsdane.wallet.AndroidWalletKeyStore
+import com.denuoweb.hnsdane.wallet.isDisplayableRecoveryPhrase
 import com.denuoweb.hnsdane.wallet.DirectHnsSynchronizationJournalStart
 import com.denuoweb.hnsdane.wallet.NativeHnsSendApproval
 import com.denuoweb.hnsdane.wallet.NativeHnsValueApproval
@@ -3216,12 +3217,14 @@ class WalletActivity : ComponentActivity() {
         val network = walletNetworkCode(walletNetwork)
         val databaseKey = randomDatabaseKey()
         thread(name = "hns-wallet-restore") {
+            // NativeWalletBridge.restore consumes and wipes its input. Keep the
+            // caller's phrase intact until the protected copy is committed.
             val restored = NativeWalletBridge.restore(
                 path,
                 databaseKey.copyOf(),
                 network,
                 birthdayHeight,
-                phrase,
+                phrase.copyOf(),
             )
             runOnUiThread {
                 busy = false
@@ -3496,9 +3499,21 @@ class WalletActivity : ComponentActivity() {
             Toast.makeText(this, R.string.wallet_recovery_unavailable, Toast.LENGTH_LONG).show()
             return
         }
-        // Keep the custom panel in the dialog's first layout. The secret is
-        // loaded only after the view is attached, so dialog reparenting cannot
-        // clear it before its first draw.
+        if (!isDisplayableRecoveryPhrase(phrase)) {
+            phrase.fill('\u0000')
+            walletAlertDialogBuilder()
+                .setTitle(R.string.row_wallet_view_recovery)
+                .setMessage(R.string.wallet_recovery_saved_invalid)
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+            return
+        }
+        showRecoveryPhraseDialog(phrase)
+    }
+
+    private fun showRecoveryPhraseDialog(phrase: CharArray) {
+        // Keep the panel in the first layout, then transfer the owned phrase
+        // to the view only after Android has attached the dialog window.
         val view = RecoveryPhraseView(this, initiallyVisible = true)
         walletAlertDialogBuilder()
             .setTitle(R.string.row_wallet_view_recovery)

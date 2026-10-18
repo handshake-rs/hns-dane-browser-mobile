@@ -674,7 +674,8 @@
     <string name="wallet_recovery_quiz_invalid" translatable="false">The generated recovery phrase was not exactly 24 words. This wallet cannot be confirmed.</string>
     <string name="row_wallet_view_recovery" translatable="false">View recovery phrase</string>
     <string name="wallet_recovery_display_warning" translatable="false">Private recovery material. Make sure nobody can see your screen. Close this dialog as soon as you finish checking the phrase.</string>
-    <string name="wallet_recovery_unavailable" translatable="false">This wallet predates protected recovery storage, so its phrase is not available for redisplay. Restore it into a new wallet profile to enable this feature.</string>
+    <string name="wallet_recovery_unavailable" translatable="false">The recovery phrase is unavailable on this device. Use the offline copy you saved when creating or restoring this wallet.</string>
+    <string name="wallet_recovery_saved_invalid" translatable="false">The recovery phrase saved on this device is invalid and cannot be displayed. The wallet data has not been changed. Use your offline recovery phrase; do not delete this wallet to troubleshoot this screen.</string>
     <string name="wallet_auth_create_title">Protect the new wallet</string>
     <string name="wallet_auth_create_message">Confirm your device password, PIN, or pattern before creating wallet keys.</string>
     <string name="wallet_auth_restore_title">Protect the restored wallet</string>

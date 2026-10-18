@@ -47,7 +47,9 @@ internal class AndroidWalletKeyStore(context: Context, networkId: String) {
             ciphertext = cipher.doFinal(value)
             iv = cipher.iv
             if (recoveryPhrase != null) {
-                require(recoveryPhrase.isNotEmpty()) { "Recovery phrase must not be empty" }
+                require(isDisplayableRecoveryPhrase(recoveryPhrase)) {
+                    "Recovery phrase must contain 24 displayable words"
+                }
                 recoveryBytes = String(recoveryPhrase).toByteArray(Charsets.UTF_8)
                 val recoveryCipher = Cipher.getInstance(TRANSFORMATION)
                 recoveryCipher.init(Cipher.ENCRYPT_MODE, wrappingKey)
