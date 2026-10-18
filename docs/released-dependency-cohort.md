@@ -16,9 +16,9 @@ source overrides and Git dependencies, and requires one copy of each package.
 | `hns-wallet-bip157` | Published 0.4.2 |
 | `hns-wallet-bitcoin-kyoto` | 0.4.6 |
 | `hns-wallet-chain-api`, `hns-wallet-service` | 0.4.2 |
-| `hns-wallet-hns` | 0.4.5 |
+| `hns-wallet-hns` | 0.4.6 |
 | `hns-wallet-market` | 0.5.1 |
-| `hns-wallet-mobile` | 0.6.2 |
+| `hns-wallet-mobile` | 0.6.3 |
 
 The DNSSEC and DANE security releases bind TLSA trust-anchor matches to signed
 certificate paths on both mobile and Chromium. The app pins the complete
@@ -26,9 +26,11 @@ published browser stack so the resolver, policy, transport, and gateway use the
 same corrected dependency cohort. Its TLSA fuzzer uses the same DANE policy and
 DNSSEC releases.
 
-HNS 0.4.5 uses wallet source `64deb1db53dcd669919e88556d5a63569edc5d51`;
-Bitcoin 0.4.6 uses `05ba8632e66682b59d9ecd353535699f2ada5744`, and
-mobile-wallet 0.6.2 uses `74f603847886c39a5a3ef3e6785068112164437b`.
+HNS 0.4.6 and mobile-wallet 0.6.3 use wallet source
+`5f15dab9ae7a07fb497a35c72b27f4b256ce8c80`.
+Bitcoin 0.4.6 uses `05ba8632e66682b59d9ecd353535699f2ada5744`.
+The recovered-swap update locates counterparty-funded HNS locks in the
+authenticated wallet index before verifying current-chain settlement.
 The Bitcoin transport, Kyoto adapter, and mobile controller save verified
 headers, agreed filter headers, and raw filters in the encrypted wallet store.
 They resume partial network work after process death and rerun matching from
