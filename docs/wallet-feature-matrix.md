@@ -6,7 +6,7 @@ Website JavaScript has no access to any operation below.
 
 | Feature | Android controller | iOS controller | Native authority and automated evidence | Remaining qualification |
 | --- | --- | --- | --- | --- |
-| Create wallet and acknowledge one-time recovery | `WalletActivity` create/confirm flow | `WalletViewController` create/confirm flow | Bounded mobile controller; Android lifecycle/storage tests and Apple lifecycle tests cover incomplete-wallet cleanup and stale authority | Repeat on the final installed Android build and a physical iPhone |
+| Create wallet and confirm recovery backup | `WalletActivity` create/confirm flow | `WalletViewController` create/confirm flow | Bounded mobile controller; Android lifecycle/storage tests and Apple lifecycle tests cover incomplete-wallet cleanup and stale authority | Repeat on the final installed Android build and a physical iPhone |
 | Restore wallet | Protected restore field and native restore | Protected UIKit restore flow and native restore | Recovery input is consumed by the shared mobile controller; namespace and retirement tests cover ownership | Final Android and physical-iPhone recovery/catch-up exercise |
 | Open, unlock, status, lock, and destroy | Storage lease plus bounded JNI handle | Path lease plus bounded C-ABI handle | Handle revocation, queued-call rejection, retirement, and deletion tests | Physical-iPhone lifecycle matrix; final Android upgrade/reopen matrix |
 | Delete local wallet | Two-step exact-account confirmation and `DELETE` | Two-step exact-account confirmation and `DELETE` | Key removal precedes exact SQLite-artifact cleanup; ambiguous retirement fails closed | Final device exercises without touching unrelated app data |

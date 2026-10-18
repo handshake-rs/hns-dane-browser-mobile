@@ -10,6 +10,17 @@ class WalletRecoveryConfirmationTest {
     private val words = bip39Words.take(24)
 
     @Test
+    fun confirmationSamplesThreeDistinctPositionsFromFullPhrase() {
+        repeat(100) {
+            val positions = recoveryConfirmationPositions(words.size, SecureRandom())
+            assertEquals(RECOVERY_CONFIRMATION_COUNT, positions.size)
+            assertEquals(positions.sorted(), positions)
+            assertEquals(positions.size, positions.distinct().size)
+            assertTrue(positions.all(words.indices::contains))
+        }
+    }
+
+    @Test
     fun choicesContainExactlyOneCorrectWordAndFourDistinctOptions() {
         words.indices.forEach { index ->
             val choices = recoveryWordChoices(words, index, bip39Words, SecureRandom())

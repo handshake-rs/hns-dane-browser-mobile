@@ -38,11 +38,11 @@
     <string name="wallet_direct_shakescape_peer_none">Noch kein Angebots-Peer verbunden.</string>
     <string name="wallet_direct_shakescape_peer_connected">Verbunden mit %1$s.</string>
     <string name="wallet_shakedex_connection_help">Ein Peer ist die Wallet, die den Tausch anbietet. Verbinde dich, um ihre Angebote anzusehen. Die Verbindung nimmt kein Angebot an und überträgt kein Guthaben. Bei HNS → BTC beginnt die Bitcoin-Überwachung nach der Annahme.</string>
-    <string name="wallet_recovery_quiz_title">Alle 24 Wiederherstellungswörter bestätigen</string>
-    <string name="wallet_recovery_quiz_message">Tippe jedes Wort der Reihe nach an. Das Ergebnis erscheint nach allen 24 Auswahlen.</string>
+    <string name="wallet_recovery_quiz_title">3 Wiederherstellungswörter bestätigen</string>
+    <string name="wallet_recovery_quiz_message">Wähle aus deiner gesicherten Phrase die Wörter an 3 zufälligen Positionen aus.</string>
     <string name="wallet_recovery_quiz_word">Wort %1$d von %2$d</string>
     <string name="wallet_recovery_quiz_failed_title">Wiederherstellungswörter stimmen nicht überein</string>
-    <string name="wallet_recovery_quiz_failed_message">Mindestens eine Auswahl war falsch. Prüfe die Phrase und versuche alle 24 Wörter erneut.</string>
+    <string name="wallet_recovery_quiz_failed_message">Mindestens eine Auswahl war falsch. Prüfe deine Phrase und versuche es mit 3 neuen Positionen.</string>
     <string name="wallet_auth_create_title">Neue Wallet schützen</string>
     <string name="wallet_auth_create_message">Bestätige Gerätepasswort, PIN oder Muster, bevor die Wallet-Schlüssel erstellt werden.</string>
     <string name="wallet_auth_restore_title">Wiederhergestellte Wallet schützen</string>

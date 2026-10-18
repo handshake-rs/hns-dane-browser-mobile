@@ -6681,10 +6681,12 @@ final class WalletViewController: UIViewController {
             return
         }
         setRecoveryPhraseObscured(true)
+        let positions = walletRecoveryConfirmationPositions(wordCount: words.count)
         showRecoveryConfirmationQuestion(
             words: words,
             wordList: wordList,
-            index: 0,
+            positions: positions,
+            questionIndex: 0,
             hadIncorrectChoice: false
         )
     }
@@ -6702,10 +6704,11 @@ final class WalletViewController: UIViewController {
     private func showRecoveryConfirmationQuestion(
         words: [String],
         wordList: [String],
-        index: Int,
+        positions: [Int],
+        questionIndex: Int,
         hadIncorrectChoice: Bool
     ) {
-        guard index < words.count else {
+        guard questionIndex < positions.count else {
             if hadIncorrectChoice {
                 setRecoveryPhraseObscured(false)
                 let alert = UIAlertController(
@@ -6720,9 +6723,10 @@ final class WalletViewController: UIViewController {
             }
             return
         }
+        let position = positions[questionIndex]
         let alert = UIAlertController(
             title: WalletCopy.format("wallet_recovery_quiz_word",
-                index + 1,
+                position + 1,
                 words.count
             ),
             message: WalletCopy.text("wallet_recovery_quiz_message"),
@@ -6730,7 +6734,7 @@ final class WalletViewController: UIViewController {
         )
         for choice in walletRecoveryWordChoices(
             words: words,
-            correctIndex: index,
+            correctIndex: position,
             bip39Words: wordList
         ) {
             alert.addAction(UIAlertAction(title: choice, style: .default) { [weak self] _ in
@@ -6738,8 +6742,9 @@ final class WalletViewController: UIViewController {
                     self?.showRecoveryConfirmationQuestion(
                         words: words,
                         wordList: wordList,
-                        index: index + 1,
-                        hadIncorrectChoice: hadIncorrectChoice || choice != words[index]
+                        positions: positions,
+                        questionIndex: questionIndex + 1,
+                        hadIncorrectChoice: hadIncorrectChoice || choice != words[position]
                     )
                 }
             })
@@ -9670,6 +9675,16 @@ func walletRecoveryWordChoices(
     precondition(choices.count == 4)
     choices.shuffle()
     return choices
+}
+
+let walletRecoveryConfirmationCount = 3
+
+func walletRecoveryConfirmationPositions(wordCount: Int) -> [Int] {
+    precondition(wordCount >= walletRecoveryConfirmationCount)
+    var random = SystemRandomNumberGenerator()
+    var positions = Array(0..<wordCount)
+    positions.shuffle(using: &random)
+    return positions.prefix(walletRecoveryConfirmationCount).sorted()
 }
 
 struct WalletReadPresentation: Equatable, Sendable {

@@ -38,11 +38,11 @@
     <string name="wallet_direct_shakescape_peer_none">オファー相手はまだ接続されていません。</string>
     <string name="wallet_direct_shakescape_peer_connected">%1$sに接続しました。</string>
     <string name="wallet_shakedex_connection_help">相手とはスワップを提示するウォレットです。接続するとオファーを確認できます。接続だけではオファーの承認や資金移動は行われません。HNS → BTCでは、承認後にBitcoinの監視が始まります。</string>
-    <string name="wallet_recovery_quiz_title">24個すべてのリカバリー単語を確認</string>
-    <string name="wallet_recovery_quiz_message">各単語を順番にタップしてください。24個すべてを選ぶと結果が表示されます。</string>
+    <string name="wallet_recovery_quiz_title">リカバリー単語を3つ確認</string>
+    <string name="wallet_recovery_quiz_message">保存したフレーズのランダムに選ばれた3か所の単語を選んでください。</string>
     <string name="wallet_recovery_quiz_word">%2$d個中%1$d番目の単語</string>
     <string name="wallet_recovery_quiz_failed_title">リカバリー単語が一致しません</string>
-    <string name="wallet_recovery_quiz_failed_message">少なくとも1つの選択が間違っています。フレーズを確認し、24単語すべてをやり直してください。</string>
+    <string name="wallet_recovery_quiz_failed_message">少なくとも1つの選択が間違っています。フレーズを確認し、新しい3か所でもう一度試してください。</string>
     <string name="wallet_auth_create_title">新しいウォレットを保護</string>
     <string name="wallet_auth_create_message">ウォレット鍵を作成する前に、端末のパスワード、PIN、またはパターンを確認してください。</string>
     <string name="wallet_auth_restore_title">復元したウォレットを保護</string>

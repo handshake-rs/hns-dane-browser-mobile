@@ -38,11 +38,11 @@
     <string name="wallet_direct_shakescape_peer_none">Nessun peer di offerta ancora connesso.</string>
     <string name="wallet_direct_shakescape_peer_connected">Connesso a %1$s.</string>
     <string name="wallet_shakedex_connection_help">Un peer è il portafoglio che propone lo scambio. Connettiti per vedere le sue offerte. La connessione non accetta offerte e non sposta fondi. Per HNS → BTC, il monitoraggio Bitcoin inizia dopo l’accettazione.</string>
-    <string name="wallet_recovery_quiz_title">Conferma tutte le 24 parole di recupero</string>
-    <string name="wallet_recovery_quiz_message">Tocca ogni parola in ordine. Il risultato appare dopo tutte le 24 scelte.</string>
+    <string name="wallet_recovery_quiz_title">Conferma 3 parole di recupero</string>
+    <string name="wallet_recovery_quiz_message">Scegli le parole in 3 posizioni casuali della frase che hai salvato.</string>
     <string name="wallet_recovery_quiz_word">Parola %1$d di %2$d</string>
     <string name="wallet_recovery_quiz_failed_title">Le parole di recupero non corrispondono</string>
-    <string name="wallet_recovery_quiz_failed_message">Almeno una scelta è errata. Controlla la frase e riprova tutte le 24 parole.</string>
+    <string name="wallet_recovery_quiz_failed_message">Almeno una scelta è errata. Controlla la frase e riprova con 3 nuove posizioni.</string>
     <string name="wallet_auth_create_title">Proteggi il nuovo portafoglio</string>
     <string name="wallet_auth_create_message">Conferma password, PIN o sequenza del dispositivo prima di creare le chiavi del portafoglio.</string>
     <string name="wallet_auth_restore_title">Proteggi il portafoglio ripristinato</string>

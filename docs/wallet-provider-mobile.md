@@ -24,7 +24,7 @@ the Rust store validates or opens them. Wallet files and wrapping identities
 are scoped to the captured Handshake network. A process-local storage lease remains owned through
 asynchronous completion, so an older or concurrently launched Activity cannot
 delete another Activity's live database/key pair. Creation keeps the new
-database key only in process until the user confirms the one-time recovery
+database key only in process until the user confirms the setup recovery
 display; leaving the screen first wipes the key and phrase, destroys the
 controller, and removes the incomplete database. The recovery display draws a
 mutable `CharArray` without creating an app-level immutable phrase string or
@@ -59,7 +59,7 @@ the captured Handshake network. Wallet files use complete file protection and
 are excluded from backup. A process-local path lease prevents concurrent
 screens from opening or cleaning the same database; the controller closes
 before that lease is released. A newly created database and its in-memory key remain unconfirmed
-until the one-time phrase is acknowledged; backgrounding or protected-storage
+until the setup phrase is acknowledged; backgrounding or protected-storage
 loss before confirmation wipes the app-owned mutable buffers and deletes the
 incomplete wallet. Later lifecycle exits clear recovery input/display and lock
 the controller. Screen-capture state is checked before create or restore, and

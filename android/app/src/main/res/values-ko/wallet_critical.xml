@@ -38,11 +38,11 @@
     <string name="wallet_direct_shakescape_peer_none">아직 연결된 제안 피어가 없습니다.</string>
     <string name="wallet_direct_shakescape_peer_connected">%1$s에 연결됨.</string>
     <string name="wallet_shakedex_connection_help">피어는 스왑을 제안하는 지갑입니다. 연결하면 제안을 볼 수 있습니다. 연결만으로는 제안을 수락하거나 자금을 이동하지 않습니다. HNS → BTC에서는 수락 후 Bitcoin 모니터링이 시작됩니다.</string>
-    <string name="wallet_recovery_quiz_title">복구 단어 24개 모두 확인</string>
-    <string name="wallet_recovery_quiz_message">각 단어를 순서대로 누르세요. 24개를 모두 선택하면 결과가 표시됩니다.</string>
+    <string name="wallet_recovery_quiz_title">복구 단어 3개 확인</string>
+    <string name="wallet_recovery_quiz_message">저장한 문구에서 무작위로 선택된 3개 위치의 단어를 고르세요.</string>
     <string name="wallet_recovery_quiz_word">%2$d개 중 %1$d번째 단어</string>
     <string name="wallet_recovery_quiz_failed_title">복구 단어가 일치하지 않습니다</string>
-    <string name="wallet_recovery_quiz_failed_message">하나 이상의 선택이 잘못되었습니다. 문구를 확인하고 24개 단어를 모두 다시 시도하세요.</string>
+    <string name="wallet_recovery_quiz_failed_message">하나 이상의 선택이 잘못되었습니다. 문구를 확인하고 새로운 3개 위치에서 다시 시도하세요.</string>
     <string name="wallet_auth_create_title">새 지갑 보호</string>
     <string name="wallet_auth_create_message">지갑 키를 만들기 전에 기기 비밀번호, PIN 또는 패턴을 확인하세요.</string>
     <string name="wallet_auth_restore_title">복원된 지갑 보호</string>

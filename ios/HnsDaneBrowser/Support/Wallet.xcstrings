@@ -37604,127 +37604,127 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "اختيار واحد على الأقل غير صحيح. راجع العبارة وحاول إدخال الكلمات الأربع والعشرين مرة أخرى."
+            "value": "اختيار واحد على الأقل غير صحيح. راجع عبارتك وحاول مع 3 مواضع جديدة."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mindestens eine Auswahl war falsch. Prüfe die Phrase und versuche alle 24 Wörter erneut."
+            "value": "Mindestens eine Auswahl war falsch. Prüfe deine Phrase und versuche es mit 3 neuen Positionen."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "At least one choice was wrong. Review the phrase and try all 24 words again."
+            "value": "At least one choice was wrong. Review your phrase and try 3 new positions."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Al menos una selección fue incorrecta. Revisa la frase e inténtalo de nuevo con las 24 palabras."
+            "value": "Al menos una selección fue incorrecta. Revisa tu frase e inténtalo con 3 posiciones nuevas."
           }
         },
         "fa": {
           "stringUnit": {
             "state": "translated",
-            "value": "حداقل یک انتخاب نادرست بود. عبارت را بررسی کنید و هر ۲۴ کلمه را دوباره امتحان کنید."
+            "value": "حداقل یک انتخاب نادرست بود. عبارت خود را بررسی کنید و ۳ جایگاه جدید را امتحان کنید."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Au moins un choix est incorrect. Vérifiez la phrase et recommencez les 24 mots."
+            "value": "Au moins un choix est incorrect. Vérifiez votre phrase et réessayez avec 3 nouvelles positions."
           }
         },
         "he": {
           "stringUnit": {
             "state": "translated",
-            "value": "לפחות בחירה אחת שגויה. בדקו את הביטוי ונסו שוב את כל 24 המילים."
+            "value": "לפחות בחירה אחת שגויה. בדקו את הביטוי ונסו 3 מיקומים חדשים."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "कम से कम एक चयन गलत था। वाक्यांश जाँचें और सभी 24 शब्द फिर से आज़माएँ।"
+            "value": "कम से कम एक चयन गलत था। अपना वाक्यांश जाँचें और 3 नए स्थानों के साथ फिर प्रयास करें।"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sedikitnya satu pilihan salah. Periksa frasa dan coba lagi semua 24 kata."
+            "value": "Setidaknya satu pilihan salah. Periksa frasa Anda dan coba 3 posisi baru."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Almeno una scelta è errata. Controlla la frase e riprova tutte le 24 parole."
+            "value": "Almeno una scelta è errata. Controlla la frase e riprova con 3 nuove posizioni."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "少なくとも1つの選択が間違っています。フレーズを確認し、24単語すべてをやり直してください。"
+            "value": "少なくとも1つの選択が間違っています。フレーズを確認し、新しい3か所でもう一度試してください。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "하나 이상의 선택이 잘못되었습니다. 문구를 확인하고 24개 단어를 모두 다시 시도하세요."
+            "value": "하나 이상의 선택이 잘못되었습니다. 문구를 확인하고 새로운 3개 위치에서 다시 시도하세요."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Minstens één keuze was fout. Controleer de zin en probeer alle 24 woorden opnieuw."
+            "value": "Minstens één keuze was fout. Controleer je herstelzin en probeer 3 nieuwe posities."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Co najmniej jeden wybór był błędny. Sprawdź frazę i ponów wszystkie 24 słowa."
+            "value": "Co najmniej jeden wybór był błędny. Sprawdź frazę i spróbuj ponownie z 3 nowymi pozycjami."
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelo menos uma escolha está errada. Reveja a frase e tente novamente as 24 palavras."
+            "value": "Pelo menos uma escolha está errada. Reveja a frase e tente novamente com 3 novas posições."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Хотя бы один вариант неверен. Проверьте фразу и повторите все 24 слова."
+            "value": "Хотя бы один вариант неверен. Проверьте фразу и попробуйте 3 новые позиции."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "En az bir seçim yanlıştı. İfadeyi kontrol edip 24 kelimenin tümünü yeniden deneyin."
+            "value": "En az bir seçim yanlıştı. İfadenizi kontrol edin ve 3 yeni konumla tekrar deneyin."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Щонайменше один вибір неправильний. Перевірте фразу й повторіть усі 24 слова."
+            "value": "Щонайменше один вибір неправильний. Перевірте фразу й спробуйте 3 нові позиції."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Có ít nhất một lựa chọn sai. Kiểm tra cụm từ và thử lại đủ 24 từ."
+            "value": "Có ít nhất một lựa chọn sai. Kiểm tra cụm từ và thử lại với 3 vị trí mới."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "至少有一个选择错误。请检查短语并重新完成全部 24 个单词。"
+            "value": "至少有一个选择错误。请检查助记词，再尝试 3 个新位置。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "至少有一個選擇錯誤。請檢查短語並重新完成全部 24 個單字。"
+            "value": "至少有一個選擇錯誤。請檢查助記詞，再嘗試 3 個新位置。"
           }
         }
       }
@@ -37866,127 +37866,127 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "اضغط كل كلمة بالترتيب. تظهر النتيجة بعد الاختيارات الـ24 كلها."
+            "value": "اختر الكلمة في كل موضع من 3 مواضع عشوائية من عبارتك المحفوظة."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tippe jedes Wort der Reihe nach an. Das Ergebnis erscheint nach allen 24 Auswahlen."
+            "value": "Wähle aus deiner gesicherten Phrase die Wörter an 3 zufälligen Positionen aus."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tap each word in order. Results appear after all 24 choices."
+            "value": "Choose the word at each of 3 random positions from your saved phrase."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Toca cada palabra en orden. El resultado aparece tras las 24 selecciones."
+            "value": "Elige la palabra de cada una de las 3 posiciones aleatorias de la frase que guardaste."
           }
         },
         "fa": {
           "stringUnit": {
             "state": "translated",
-            "value": "هر کلمه را به‌ترتیب بزنید. نتیجه پس از هر ۲۴ انتخاب نمایش داده می‌شود."
+            "value": "کلمه هر یک از ۳ جایگاه تصادفی را از عبارت ذخیره‌شده خود انتخاب کنید."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Touchez chaque mot dans l’ordre. Le résultat apparaît après les 24 choix."
+            "value": "Choisissez les mots situés à 3 positions aléatoires dans la phrase que vous avez sauvegardée."
           }
         },
         "he": {
           "stringUnit": {
             "state": "translated",
-            "value": "הקישו על כל מילה לפי הסדר. התוצאה תוצג אחרי כל 24 הבחירות."
+            "value": "בחרו את המילה בכל אחד מ-3 מיקומים אקראיים בביטוי ששמרתם."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "हर शब्द को क्रम से टैप करें। सभी 24 चयन के बाद परिणाम दिखाई देगा।"
+            "value": "अपने सहेजे गए वाक्यांश में 3 यादृच्छिक स्थानों के शब्द चुनें।"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ketuk setiap kata secara berurutan. Hasil muncul setelah semua 24 pilihan."
+            "value": "Pilih kata pada masing-masing dari 3 posisi acak dalam frasa yang Anda simpan."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tocca ogni parola in ordine. Il risultato appare dopo tutte le 24 scelte."
+            "value": "Scegli le parole in 3 posizioni casuali della frase che hai salvato."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "各単語を順番にタップしてください。24個すべてを選ぶと結果が表示されます。"
+            "value": "保存したフレーズのランダムに選ばれた3か所の単語を選んでください。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "각 단어를 순서대로 누르세요. 24개를 모두 선택하면 결과가 표시됩니다."
+            "value": "저장한 문구에서 무작위로 선택된 3개 위치의 단어를 고르세요."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tik elk woord in volgorde aan. Het resultaat verschijnt na alle 24 keuzes."
+            "value": "Kies de woorden op 3 willekeurige posities in je opgeslagen herstelzin."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dotknij każdego słowa po kolei. Wynik pojawi się po wszystkich 24 wyborach."
+            "value": "Wybierz słowa z 3 losowych pozycji w zapisanej frazie."
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Toque em cada palavra por ordem. O resultado aparece após as 24 escolhas."
+            "value": "Escolha as palavras em 3 posições aleatórias da frase que guardou."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Нажимайте каждое слово по порядку. Результат появится после всех 24 вариантов."
+            "value": "Выберите слова в 3 случайных позициях сохранённой фразы."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Her kelimeye sırayla dokunun. Sonuç 24 seçimin tamamından sonra görünür."
+            "value": "Kaydettiğiniz ifadedeki rastgele 3 konumun kelimelerini seçin."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Торкайтеся кожного слова по черзі. Результат з’явиться після всіх 24 виборів."
+            "value": "Виберіть слова в 3 випадкових позиціях збереженої фрази."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chạm vào từng từ theo thứ tự. Kết quả xuất hiện sau đủ 24 lựa chọn."
+            "value": "Chọn các từ tại 3 vị trí ngẫu nhiên trong cụm từ bạn đã lưu."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "按顺序点选每个单词。完成全部 24 次选择后显示结果。"
+            "value": "从已保存的助记词中，选择 3 个随机位置对应的单词。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "依序點選每個單字。完成全部 24 次選擇後顯示結果。"
+            "value": "從已儲存的助記詞中，選取 3 個隨機位置對應的單字。"
           }
         }
       }
@@ -37997,127 +37997,127 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "تأكيد كلمات الاسترداد الأربع والعشرين كلها"
+            "value": "تأكيد 3 كلمات استرداد"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Alle 24 Wiederherstellungswörter bestätigen"
+            "value": "3 Wiederherstellungswörter bestätigen"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Confirm all 24 recovery words"
+            "value": "Confirm 3 recovery words"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Confirmar las 24 palabras de recuperación"
+            "value": "Confirmar 3 palabras de recuperación"
           }
         },
         "fa": {
           "stringUnit": {
             "state": "translated",
-            "value": "تأیید هر ۲۴ کلمه بازیابی"
+            "value": "تأیید ۳ کلمه بازیابی"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Confirmer les 24 mots de récupération"
+            "value": "Confirmer 3 mots de récupération"
           }
         },
         "he": {
           "stringUnit": {
             "state": "translated",
-            "value": "אישור כל 24 מילות השחזור"
+            "value": "אישור 3 מילות שחזור"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "सभी 24 रिकवरी शब्दों की पुष्टि करें"
+            "value": "3 रिकवरी शब्दों की पुष्टि करें"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Konfirmasi semua 24 kata pemulihan"
+            "value": "Konfirmasi 3 kata pemulihan"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Conferma tutte le 24 parole di recupero"
+            "value": "Conferma 3 parole di recupero"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "24個すべてのリカバリー単語を確認"
+            "value": "リカバリー単語を3つ確認"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "복구 단어 24개 모두 확인"
+            "value": "복구 단어 3개 확인"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Alle 24 herstelwoorden bevestigen"
+            "value": "3 herstelwoorden bevestigen"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Potwierdź wszystkie 24 słowa odzyskiwania"
+            "value": "Potwierdź 3 słowa odzyskiwania"
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Confirmar as 24 palavras de recuperação"
+            "value": "Confirmar 3 palavras de recuperação"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Подтвердите все 24 слова восстановления"
+            "value": "Подтвердите 3 слова восстановления"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "24 kurtarma kelimesinin tümünü doğrula"
+            "value": "3 kurtarma kelimesini doğrula"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Підтвердьте всі 24 слова відновлення"
+            "value": "Підтвердьте 3 слова відновлення"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Xác nhận đủ 24 từ khôi phục"
+            "value": "Xác nhận 3 từ khôi phục"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "确认全部 24 个恢复单词"
+            "value": "确认 3 个恢复单词"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "確認全部 24 個復原單字"
+            "value": "確認 3 個復原單字"
           }
         }
       }

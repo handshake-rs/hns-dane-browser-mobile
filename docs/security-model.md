@@ -139,7 +139,7 @@ drawn directly by a non-selectable, non-autofill, non-accessibility custom view.
 Restore input is likewise hidden from autofill and accessibility services,
 preventing those processes from reading the phrase at the cost of making this
 restore flow unavailable to users who require accessibility assistance.
-The key is not persisted until the user confirms the one-time phrase; leaving
+The key is not persisted until the user confirms the setup phrase; leaving
 first wipes mutable key/phrase storage, revokes the controller, and removes the
 incomplete database. Native handles are bounded, monotonic, explicitly
 deactivated before destruction waits for in-flight state locks, and rechecked

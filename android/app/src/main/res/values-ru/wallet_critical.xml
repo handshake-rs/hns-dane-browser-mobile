@@ -38,11 +38,11 @@
     <string name="wallet_direct_shakescape_peer_none">Участник предложения ещё не подключён.</string>
     <string name="wallet_direct_shakescape_peer_connected">Подключено к %1$s.</string>
     <string name="wallet_shakedex_connection_help">Участник — это кошелёк, предлагающий обмен. Подключитесь, чтобы увидеть его предложения. Подключение не принимает предложение и не перемещает средства. Для HNS → BTC мониторинг Bitcoin начинается после принятия.</string>
-    <string name="wallet_recovery_quiz_title">Подтвердите все 24 слова восстановления</string>
-    <string name="wallet_recovery_quiz_message">Нажимайте каждое слово по порядку. Результат появится после всех 24 вариантов.</string>
+    <string name="wallet_recovery_quiz_title">Подтвердите 3 слова восстановления</string>
+    <string name="wallet_recovery_quiz_message">Выберите слова в 3 случайных позициях сохранённой фразы.</string>
     <string name="wallet_recovery_quiz_word">Слово %1$d из %2$d</string>
     <string name="wallet_recovery_quiz_failed_title">Слова восстановления не совпадают</string>
-    <string name="wallet_recovery_quiz_failed_message">Хотя бы один вариант неверен. Проверьте фразу и повторите все 24 слова.</string>
+    <string name="wallet_recovery_quiz_failed_message">Хотя бы один вариант неверен. Проверьте фразу и попробуйте 3 новые позиции.</string>
     <string name="wallet_auth_create_title">Защитить новый кошелёк</string>
     <string name="wallet_auth_create_message">Подтвердите пароль, PIN-код или графический ключ устройства перед созданием ключей кошелька.</string>
     <string name="wallet_auth_restore_title">Защитить восстановленный кошелёк</string>

@@ -38,11 +38,11 @@
     <string name="wallet_direct_shakescape_peer_none">هنوز همتای پیشنهادی متصل نیست.</string>
     <string name="wallet_direct_shakescape_peer_connected">به %1$s متصل شد.</string>
     <string name="wallet_shakedex_connection_help">همتا کیف پولی است که مبادله را پیشنهاد می‌دهد. برای دیدن پیشنهادهایش متصل شوید. اتصال، پیشنهادی را نمی‌پذیرد و وجهی جابه‌جا نمی‌کند. برای HNS → BTC، پایش Bitcoin پس از پذیرش آغاز می‌شود.</string>
-    <string name="wallet_recovery_quiz_title">تأیید هر ۲۴ کلمه بازیابی</string>
-    <string name="wallet_recovery_quiz_message">هر کلمه را به‌ترتیب بزنید. نتیجه پس از هر ۲۴ انتخاب نمایش داده می‌شود.</string>
+    <string name="wallet_recovery_quiz_title">تأیید ۳ کلمه بازیابی</string>
+    <string name="wallet_recovery_quiz_message">کلمه هر یک از ۳ جایگاه تصادفی را از عبارت ذخیره‌شده خود انتخاب کنید.</string>
     <string name="wallet_recovery_quiz_word">کلمه %1$d از %2$d</string>
     <string name="wallet_recovery_quiz_failed_title">کلمات بازیابی مطابقت ندارند</string>
-    <string name="wallet_recovery_quiz_failed_message">حداقل یک انتخاب نادرست بود. عبارت را بررسی کنید و هر ۲۴ کلمه را دوباره امتحان کنید.</string>
+    <string name="wallet_recovery_quiz_failed_message">حداقل یک انتخاب نادرست بود. عبارت خود را بررسی کنید و ۳ جایگاه جدید را امتحان کنید.</string>
     <string name="wallet_auth_create_title">محافظت از کیف پول جدید</string>
     <string name="wallet_auth_create_message">پیش از ایجاد کلیدهای کیف پول، گذرواژه، PIN یا الگوی دستگاه را تأیید کنید.</string>
     <string name="wallet_auth_restore_title">محافظت از کیف پول بازیابی‌شده</string>

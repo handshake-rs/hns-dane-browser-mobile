@@ -38,11 +38,11 @@
     <string name="wallet_direct_shakescape_peer_none">Nie połączono jeszcze partnera oferty.</string>
     <string name="wallet_direct_shakescape_peer_connected">Połączono z %1$s.</string>
     <string name="wallet_shakedex_connection_help">Partner to portfel oferujący wymianę. Połącz się, aby zobaczyć jego oferty. Samo połączenie nie przyjmuje oferty ani nie przenosi środków. Dla HNS → BTC monitorowanie Bitcoin rozpoczyna się po przyjęciu.</string>
-    <string name="wallet_recovery_quiz_title">Potwierdź wszystkie 24 słowa odzyskiwania</string>
-    <string name="wallet_recovery_quiz_message">Dotknij każdego słowa po kolei. Wynik pojawi się po wszystkich 24 wyborach.</string>
+    <string name="wallet_recovery_quiz_title">Potwierdź 3 słowa odzyskiwania</string>
+    <string name="wallet_recovery_quiz_message">Wybierz słowa z 3 losowych pozycji w zapisanej frazie.</string>
     <string name="wallet_recovery_quiz_word">Słowo %1$d z %2$d</string>
     <string name="wallet_recovery_quiz_failed_title">Słowa odzyskiwania nie są zgodne</string>
-    <string name="wallet_recovery_quiz_failed_message">Co najmniej jeden wybór był błędny. Sprawdź frazę i ponów wszystkie 24 słowa.</string>
+    <string name="wallet_recovery_quiz_failed_message">Co najmniej jeden wybór był błędny. Sprawdź frazę i spróbuj ponownie z 3 nowymi pozycjami.</string>
     <string name="wallet_auth_create_title">Zabezpiecz nowy portfel</string>
     <string name="wallet_auth_create_message">Potwierdź hasło, PIN lub wzór urządzenia przed utworzeniem kluczy portfela.</string>
     <string name="wallet_auth_restore_title">Zabezpiecz przywrócony portfel</string>

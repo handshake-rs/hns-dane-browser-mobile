@@ -38,11 +38,11 @@
     <string name="wallet_direct_shakescape_peer_none">Aún no hay un par de oferta conectado.</string>
     <string name="wallet_direct_shakescape_peer_connected">Conectado a %1$s.</string>
     <string name="wallet_shakedex_connection_help">Un par es la cartera que ofrece el intercambio. Conéctate para ver sus ofertas. Conectarse no acepta una oferta ni mueve fondos. Para HNS → BTC, la supervisión de Bitcoin comienza después de aceptar.</string>
-    <string name="wallet_recovery_quiz_title">Confirmar las 24 palabras de recuperación</string>
-    <string name="wallet_recovery_quiz_message">Toca cada palabra en orden. El resultado aparece tras las 24 selecciones.</string>
+    <string name="wallet_recovery_quiz_title">Confirmar 3 palabras de recuperación</string>
+    <string name="wallet_recovery_quiz_message">Elige la palabra de cada una de las 3 posiciones aleatorias de la frase que guardaste.</string>
     <string name="wallet_recovery_quiz_word">Palabra %1$d de %2$d</string>
     <string name="wallet_recovery_quiz_failed_title">Las palabras de recuperación no coinciden</string>
-    <string name="wallet_recovery_quiz_failed_message">Al menos una selección fue incorrecta. Revisa la frase e inténtalo de nuevo con las 24 palabras.</string>
+    <string name="wallet_recovery_quiz_failed_message">Al menos una selección fue incorrecta. Revisa tu frase e inténtalo con 3 posiciones nuevas.</string>
     <string name="wallet_auth_create_title">Proteger la cartera nueva</string>
     <string name="wallet_auth_create_message">Confirma la contraseña, el PIN o el patrón del dispositivo antes de crear las claves de la cartera.</string>
     <string name="wallet_auth_restore_title">Proteger la cartera restaurada</string>

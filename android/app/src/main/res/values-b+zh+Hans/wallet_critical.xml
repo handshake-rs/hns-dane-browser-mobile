@@ -38,11 +38,11 @@
     <string name="wallet_direct_shakescape_peer_none">尚未连接报价方。</string>
     <string name="wallet_direct_shakescape_peer_connected">已连接到 %1$s。</string>
     <string name="wallet_shakedex_connection_help">对等方是提供兑换报价的钱包。连接后即可查看其报价。连接本身不会接受报价或转移资金。HNS → BTC 的 Bitcoin 监控会在接受后开始。</string>
-    <string name="wallet_recovery_quiz_title">确认全部 24 个恢复单词</string>
-    <string name="wallet_recovery_quiz_message">按顺序点选每个单词。完成全部 24 次选择后显示结果。</string>
+    <string name="wallet_recovery_quiz_title">确认 3 个恢复单词</string>
+    <string name="wallet_recovery_quiz_message">从已保存的助记词中，选择 3 个随机位置对应的单词。</string>
     <string name="wallet_recovery_quiz_word">第 %1$d 个单词，共 %2$d 个</string>
     <string name="wallet_recovery_quiz_failed_title">恢复单词不匹配</string>
-    <string name="wallet_recovery_quiz_failed_message">至少有一个选择错误。请检查短语并重新完成全部 24 个单词。</string>
+    <string name="wallet_recovery_quiz_failed_message">至少有一个选择错误。请检查助记词，再尝试 3 个新位置。</string>
     <string name="wallet_auth_create_title">保护新钱包</string>
     <string name="wallet_auth_create_message">创建钱包密钥前，请确认设备密码、PIN 或图案。</string>
     <string name="wallet_auth_restore_title">保护恢复的钱包</string>

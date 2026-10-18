@@ -3405,7 +3405,8 @@ class WalletActivity : ComponentActivity() {
             Toast.makeText(this, R.string.wallet_recovery_quiz_invalid, Toast.LENGTH_LONG).show()
             return
         }
-        var index = 0
+        val positions = recoveryConfirmationPositions(words.size, SecureRandom())
+        var questionIndex = 0
         var incorrectChoice = false
         var confirmed = false
         val random = SecureRandom()
@@ -3435,14 +3436,15 @@ class WalletActivity : ComponentActivity() {
             .setNegativeButton(R.string.action_cancel, null)
             .create()
         fun renderQuestion() {
-            prompt.text = getString(R.string.wallet_recovery_quiz_word, index + 1, words.size)
-            val choices = recoveryWordChoices(words, index, wordList, random)
+            val position = positions[questionIndex]
+            prompt.text = getString(R.string.wallet_recovery_quiz_word, position + 1, words.size)
+            val choices = recoveryWordChoices(words, position, wordList, random)
             buttons.forEachIndexed { choiceIndex, button ->
                 button.text = choices[choiceIndex]
                 button.setOnClickListener {
-                    if (choices[choiceIndex] != words[index]) incorrectChoice = true
-                    index += 1
-                    if (index < words.size) {
+                    if (choices[choiceIndex] != words[position]) incorrectChoice = true
+                    questionIndex += 1
+                    if (questionIndex < positions.size) {
                         renderQuestion()
                     } else {
                         confirmed = !incorrectChoice
@@ -3463,7 +3465,7 @@ class WalletActivity : ComponentActivity() {
             }
         }
         dialog.setOnDismissListener {
-            if (!confirmed && index < words.size) {
+            if (!confirmed && questionIndex < positions.size) {
                 phrase.fill('\u0000')
                 onAborted()
             }
@@ -3486,7 +3488,10 @@ class WalletActivity : ComponentActivity() {
             Toast.makeText(this, R.string.wallet_recovery_unavailable, Toast.LENGTH_LONG).show()
             return
         }
-        val view = RecoveryPhraseView(this).apply { showSecret(phrase) }
+        // Keep the custom panel in the dialog's first layout. The secret is
+        // loaded only after the view is attached, so dialog reparenting cannot
+        // clear it before its first draw.
+        val view = RecoveryPhraseView(this, initiallyVisible = true)
         walletAlertDialogBuilder()
             .setTitle(R.string.row_wallet_view_recovery)
             .setMessage(R.string.wallet_recovery_display_warning)
@@ -3495,8 +3500,9 @@ class WalletActivity : ComponentActivity() {
             .create()
             .apply {
                 setOnDismissListener { view.clearSecret() }
-                show()
+                setOnShowListener { view.showSecret(phrase) }
                 window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                show()
             }
     }
 
@@ -11111,6 +11117,18 @@ internal fun recoveryWordChoices(
     return choices
 }
 
+internal const val RECOVERY_CONFIRMATION_COUNT = 3
+
+internal fun recoveryConfirmationPositions(
+    wordCount: Int,
+    random: SecureRandom,
+): List<Int> {
+    require(wordCount >= RECOVERY_CONFIRMATION_COUNT)
+    return (0 until wordCount).toMutableList().apply {
+        java.util.Collections.shuffle(this, random)
+    }.take(RECOVERY_CONFIRMATION_COUNT).sorted()
+}
+
 private const val BIP39_ENGLISH_ASSET = "bip39-english.txt"
 internal const val BIP39_ENGLISH_WORD_COUNT = 2_048
 
@@ -11320,7 +11338,10 @@ private enum class WalletDeletionOperationResult {
 }
 
 /** Draws recovery characters without converting them to an immutable String or enabling copy. */
-private class RecoveryPhraseView(context: Context) : View(context) {
+private class RecoveryPhraseView(
+    context: Context,
+    initiallyVisible: Boolean = false,
+) : View(context) {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = context.themeColors().primaryText
         typeface = Typeface.MONOSPACE
@@ -11330,7 +11351,7 @@ private class RecoveryPhraseView(context: Context) : View(context) {
     private val detachmentPolicy = OneShotSecretReparentRetention()
 
     init {
-        visibility = GONE
+        visibility = if (initiallyVisible) VISIBLE else GONE
         setPadding(context.uiDp(12), context.uiDp(12), context.uiDp(12), context.uiDp(12))
         setBackgroundColor(context.themeColors().surface)
         isLongClickable = false

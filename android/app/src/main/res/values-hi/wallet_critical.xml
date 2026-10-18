@@ -38,11 +38,11 @@
     <string name="wallet_direct_shakescape_peer_none">अभी कोई ऑफ़र पीयर जुड़ा नहीं है।</string>
     <string name="wallet_direct_shakescape_peer_connected">%1$s से जुड़ा।</string>
     <string name="wallet_shakedex_connection_help">पीयर वह वॉलेट है जो स्वैप ऑफ़र करता है। उसके ऑफ़र देखने के लिए जुड़ें। जुड़ने से कोई ऑफ़र स्वीकार नहीं होता और धन नहीं भेजा जाता। HNS → BTC के लिए Bitcoin निगरानी स्वीकार करने के बाद शुरू होती है।</string>
-    <string name="wallet_recovery_quiz_title">सभी 24 रिकवरी शब्दों की पुष्टि करें</string>
-    <string name="wallet_recovery_quiz_message">हर शब्द को क्रम से टैप करें। सभी 24 चयन के बाद परिणाम दिखाई देगा।</string>
+    <string name="wallet_recovery_quiz_title">3 रिकवरी शब्दों की पुष्टि करें</string>
+    <string name="wallet_recovery_quiz_message">अपने सहेजे गए वाक्यांश में 3 यादृच्छिक स्थानों के शब्द चुनें।</string>
     <string name="wallet_recovery_quiz_word">शब्द %1$d / %2$d</string>
     <string name="wallet_recovery_quiz_failed_title">रिकवरी शब्द मेल नहीं खाते</string>
-    <string name="wallet_recovery_quiz_failed_message">कम से कम एक चयन गलत था। वाक्यांश जाँचें और सभी 24 शब्द फिर से आज़माएँ।</string>
+    <string name="wallet_recovery_quiz_failed_message">कम से कम एक चयन गलत था। अपना वाक्यांश जाँचें और 3 नए स्थानों के साथ फिर प्रयास करें।</string>
     <string name="wallet_auth_create_title">नए वॉलेट को सुरक्षित करें</string>
     <string name="wallet_auth_create_message">वॉलेट कुंजियाँ बनाने से पहले डिवाइस पासवर्ड, PIN या पैटर्न की पुष्टि करें।</string>
     <string name="wallet_auth_restore_title">पुनर्स्थापित वॉलेट को सुरक्षित करें</string>

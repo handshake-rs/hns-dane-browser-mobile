@@ -38,11 +38,11 @@
     <string name="wallet_direct_shakescape_peer_none">Учасника пропозиції ще не підключено.</string>
     <string name="wallet_direct_shakescape_peer_connected">Підключено до %1$s.</string>
     <string name="wallet_shakedex_connection_help">Учасник — це гаманець, який пропонує обмін. Підключіться, щоб побачити його пропозиції. Підключення не приймає пропозицію й не переміщує кошти. Для HNS → BTC моніторинг Bitcoin починається після прийняття.</string>
-    <string name="wallet_recovery_quiz_title">Підтвердьте всі 24 слова відновлення</string>
-    <string name="wallet_recovery_quiz_message">Торкайтеся кожного слова по черзі. Результат з’явиться після всіх 24 виборів.</string>
+    <string name="wallet_recovery_quiz_title">Підтвердьте 3 слова відновлення</string>
+    <string name="wallet_recovery_quiz_message">Виберіть слова в 3 випадкових позиціях збереженої фрази.</string>
     <string name="wallet_recovery_quiz_word">Слово %1$d з %2$d</string>
     <string name="wallet_recovery_quiz_failed_title">Слова відновлення не збігаються</string>
-    <string name="wallet_recovery_quiz_failed_message">Щонайменше один вибір неправильний. Перевірте фразу й повторіть усі 24 слова.</string>
+    <string name="wallet_recovery_quiz_failed_message">Щонайменше один вибір неправильний. Перевірте фразу й спробуйте 3 нові позиції.</string>
     <string name="wallet_auth_create_title">Захистити новий гаманець</string>
     <string name="wallet_auth_create_message">Підтвердьте пароль, PIN-код або графічний ключ пристрою перед створенням ключів гаманця.</string>
     <string name="wallet_auth_restore_title">Захистити відновлений гаманець</string>

@@ -75,7 +75,7 @@ Presenting an unrelated certificate, another host's certificate, or a stopped ge
 
 ### Native wallet
 
-- Create and restore within the selected network scope. Confirm one-time recovery
+- Create and restore within the selected network scope. Confirm setup recovery
   display, protected input, incomplete-wallet cleanup, and native unlock/lock.
 - Open an existing wallet and confirm its saved scan resumes without replaying
   completed coverage. Verify actual missing coverage triggers the bounded

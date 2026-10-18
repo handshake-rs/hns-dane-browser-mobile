@@ -38,11 +38,11 @@
     <string name="wallet_direct_shakescape_peer_none">Chưa kết nối bên chào giá nào.</string>
     <string name="wallet_direct_shakescape_peer_connected">Đã kết nối với %1$s.</string>
     <string name="wallet_shakedex_connection_help">Bên ngang hàng là ví đưa ra giao dịch hoán đổi. Kết nối để xem các chào giá. Việc kết nối không chấp nhận chào giá hoặc chuyển tiền. Với HNS → BTC, việc theo dõi Bitcoin bắt đầu sau khi chấp nhận.</string>
-    <string name="wallet_recovery_quiz_title">Xác nhận đủ 24 từ khôi phục</string>
-    <string name="wallet_recovery_quiz_message">Chạm vào từng từ theo thứ tự. Kết quả xuất hiện sau đủ 24 lựa chọn.</string>
+    <string name="wallet_recovery_quiz_title">Xác nhận 3 từ khôi phục</string>
+    <string name="wallet_recovery_quiz_message">Chọn các từ tại 3 vị trí ngẫu nhiên trong cụm từ bạn đã lưu.</string>
     <string name="wallet_recovery_quiz_word">Từ %1$d trên %2$d</string>
     <string name="wallet_recovery_quiz_failed_title">Các từ khôi phục không khớp</string>
-    <string name="wallet_recovery_quiz_failed_message">Có ít nhất một lựa chọn sai. Kiểm tra cụm từ và thử lại đủ 24 từ.</string>
+    <string name="wallet_recovery_quiz_failed_message">Có ít nhất một lựa chọn sai. Kiểm tra cụm từ và thử lại với 3 vị trí mới.</string>
     <string name="wallet_auth_create_title">Bảo vệ ví mới</string>
     <string name="wallet_auth_create_message">Xác nhận mật khẩu, PIN hoặc hình mở khóa của thiết bị trước khi tạo khóa ví.</string>
     <string name="wallet_auth_restore_title">Bảo vệ ví đã khôi phục</string>

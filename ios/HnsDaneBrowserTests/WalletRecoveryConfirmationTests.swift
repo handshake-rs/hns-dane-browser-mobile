@@ -2,6 +2,16 @@ import XCTest
 @testable import HnsDaneBrowser
 
 final class WalletRecoveryConfirmationTests: XCTestCase {
+    func testConfirmationSamplesThreeDistinctPositionsFromFullPhrase() {
+        for _ in 0..<100 {
+            let positions = walletRecoveryConfirmationPositions(wordCount: 24)
+            XCTAssertEqual(positions.count, walletRecoveryConfirmationCount)
+            XCTAssertEqual(positions, positions.sorted())
+            XCTAssertEqual(Set(positions).count, positions.count)
+            XCTAssertTrue(positions.allSatisfy { (0..<24).contains($0) })
+        }
+    }
+
     func testChoicesContainCorrectWordAndFourDistinctOptions() {
         let wordList = (1...2_048).map { "word\($0)" }
         let words = Array(wordList.prefix(24))

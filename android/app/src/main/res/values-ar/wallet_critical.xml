@@ -38,11 +38,11 @@
     <string name="wallet_direct_shakescape_peer_none">لا يوجد نظير عرض متصل بعد.</string>
     <string name="wallet_direct_shakescape_peer_connected">متصل بـ %1$s.</string>
     <string name="wallet_shakedex_connection_help">النظير هو المحفظة التي تقدم المبادلة. اتصل لعرض عروضها. الاتصال لا يقبل عرضًا ولا ينقل أموالًا. عند التحويل من HNS إلى BTC، تبدأ مراقبة Bitcoin بعد القبول.</string>
-    <string name="wallet_recovery_quiz_title">تأكيد كلمات الاسترداد الأربع والعشرين كلها</string>
-    <string name="wallet_recovery_quiz_message">اضغط كل كلمة بالترتيب. تظهر النتيجة بعد الاختيارات الـ24 كلها.</string>
+    <string name="wallet_recovery_quiz_title">تأكيد 3 كلمات استرداد</string>
+    <string name="wallet_recovery_quiz_message">اختر الكلمة في كل موضع من 3 مواضع عشوائية من عبارتك المحفوظة.</string>
     <string name="wallet_recovery_quiz_word">الكلمة %1$d من %2$d</string>
     <string name="wallet_recovery_quiz_failed_title">كلمات الاسترداد غير متطابقة</string>
-    <string name="wallet_recovery_quiz_failed_message">اختيار واحد على الأقل غير صحيح. راجع العبارة وحاول إدخال الكلمات الأربع والعشرين مرة أخرى.</string>
+    <string name="wallet_recovery_quiz_failed_message">اختيار واحد على الأقل غير صحيح. راجع عبارتك وحاول مع 3 مواضع جديدة.</string>
     <string name="wallet_auth_create_title">حماية المحفظة الجديدة</string>
     <string name="wallet_auth_create_message">أكّد كلمة مرور الجهاز أو رمز PIN أو النمط قبل إنشاء مفاتيح المحفظة.</string>
     <string name="wallet_auth_restore_title">حماية المحفظة المستعادة</string>

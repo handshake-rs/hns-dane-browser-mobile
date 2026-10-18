@@ -38,11 +38,11 @@
     <string name="wallet_direct_shakescape_peer_none">Henüz bir teklif eşi bağlı değil.</string>
     <string name="wallet_direct_shakescape_peer_connected">%1$s bağlantısı kuruldu.</string>
     <string name="wallet_shakedex_connection_help">Eş, takası sunan cüzdandır. Tekliflerini görmek için bağlanın. Bağlanmak bir teklifi kabul etmez veya para taşımaz. HNS → BTC için Bitcoin izleme kabulden sonra başlar.</string>
-    <string name="wallet_recovery_quiz_title">24 kurtarma kelimesinin tümünü doğrula</string>
-    <string name="wallet_recovery_quiz_message">Her kelimeye sırayla dokunun. Sonuç 24 seçimin tamamından sonra görünür.</string>
+    <string name="wallet_recovery_quiz_title">3 kurtarma kelimesini doğrula</string>
+    <string name="wallet_recovery_quiz_message">Kaydettiğiniz ifadedeki rastgele 3 konumun kelimelerini seçin.</string>
     <string name="wallet_recovery_quiz_word">%2$d kelimeden %1$d.</string>
     <string name="wallet_recovery_quiz_failed_title">Kurtarma kelimeleri eşleşmedi</string>
-    <string name="wallet_recovery_quiz_failed_message">En az bir seçim yanlıştı. İfadeyi kontrol edip 24 kelimenin tümünü yeniden deneyin.</string>
+    <string name="wallet_recovery_quiz_failed_message">En az bir seçim yanlıştı. İfadenizi kontrol edin ve 3 yeni konumla tekrar deneyin.</string>
     <string name="wallet_auth_create_title">Yeni cüzdanı koru</string>
     <string name="wallet_auth_create_message">Cüzdan anahtarlarını oluşturmadan önce cihaz parolasını, PIN’i veya deseni doğrulayın.</string>
     <string name="wallet_auth_restore_title">Geri yüklenen cüzdanı koru</string>
