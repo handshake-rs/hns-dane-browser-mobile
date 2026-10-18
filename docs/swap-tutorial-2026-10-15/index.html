@@ -16,6 +16,19 @@
     .lede { max-width: 78ch; color: #b7c5db; font-size: 1.08rem; }
     .legend { display: flex; flex-wrap: wrap; gap: .7rem; margin: 2rem 0 2.8rem; }
     .chip { display: inline-flex; align-items: center; padding: .38rem .8rem; border: 1px solid #344360; border-radius: 999px; background: #121d34; color: #dbe6fb; font-size: .9rem; }
+    .accounting { margin: 0 0 3rem; }
+    .accounting h2 { margin: 0 0 .35rem; font-size: clamp(1.5rem, 3vw, 2rem); }
+    .accounting > p { margin: 0 0 1.2rem; color: #b7c5db; }
+    .accounting-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+    .accounting-card { min-width: 0; padding: 1.1rem 1.3rem; border: 1px solid #344360; border-radius: 1.15rem; background: #121d34; }
+    .accounting-card h3 { margin: 0 0 .7rem; font-size: 1.15rem; }
+    .accounting-card table { width: 100%; border-collapse: collapse; font-size: .94rem; }
+    .accounting-card th, .accounting-card td { padding: .37rem 0; border-bottom: 1px solid #2c3c58; }
+    .accounting-card th { text-align: left; font-weight: 500; }
+    .accounting-card td { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .accounting-card .group th { padding-top: .8rem; color: #66e8e0; font-weight: 800; }
+    .accounting-card .result th, .accounting-card .result td { color: #fff; font-weight: 800; }
+    .accounting-card .note { margin: .8rem 0 0; color: #b7c5db; font-size: .85rem; }
     .timeline { position: relative; display: flex; flex-direction: column; gap: 1.5rem; margin: 0; padding: 0; list-style: none; }
     .timeline::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; transform: translateX(-50%); background: #30456d; }
     .moment { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 3rem minmax(0, 1fr); align-items: start; }
@@ -36,6 +49,7 @@
     .foot { max-width: 78ch; padding: 1.2rem 1.4rem; border-top: 1px solid #354664; color: #aabbd4; }
     @media (max-width: 720px) {
       .shell { width: min(100% - 1.25rem, 45rem); padding-top: 1.5rem; }
+      .accounting-grid { grid-template-columns: 1fr; }
       .timeline::before { left: .55rem; transform: none; }
       .moment { display: flex; flex-direction: column; gap: 1rem; padding-left: 2rem; }
       .moment::before { left: .55rem; transform: translateX(-50%); }
@@ -49,6 +63,54 @@
   <h1>Swap HNS for Bitcoin on two phones</h1>
   <p class="lede">This is one complete swap through an offer peer relay on October 17, 2026. Moto stays on the left and Pixel on the right; cards with the same number are checks made during the same phase. The timestamps are capture times in Central Daylight Time. The Moto screen clock was two hours behind.</p>
   <div class="legend"><span class="chip">Moto G6 · HNS seller</span><span class="chip">Pixel 9 · Bitcoin buyer</span><span class="chip">Offer 130b0b016a52…</span><span class="chip">Session e87ae8214375…</span></div>
+  <section class="accounting" aria-labelledby="accounting-title">
+    <h2 id="accounting-title">What moved between the wallets</h2>
+    <p>These are the before and after balances from this swap. Each chain charged a funding fee and a claim fee.</p>
+    <div class="accounting-grid">
+      <div class="accounting-card">
+        <h3>Bitcoin · Pixel pays, Moto receives</h3>
+        <table>
+          <thead><tr><th scope="col">Balance and movement</th><th scope="col">sats</th></tr></thead>
+          <tbody>
+            <tr class="group"><th colspan="2" scope="rowgroup">Pixel</th></tr>
+            <tr><th scope="row">Starting balance</th><td>99,222</td></tr>
+            <tr><th scope="row">Swap lock</th><td>−4,330</td></tr>
+            <tr><th scope="row">Funding network fee</th><td>−1,560</td></tr>
+            <tr class="result"><th scope="row">Ending balance</th><td>93,332</td></tr>
+          </tbody>
+          <tbody>
+            <tr class="group"><th colspan="2" scope="rowgroup">Moto</th></tr>
+            <tr><th scope="row">Starting balance</th><td>11,374</td></tr>
+            <tr><th scope="row">Claim from Pixel’s lock</th><td>+4,330</td></tr>
+            <tr><th scope="row">Claim network fee</th><td>−278</td></tr>
+            <tr class="result"><th scope="row">Ending balance</th><td>15,426</td></tr>
+          </tbody>
+        </table>
+        <p class="note">Pixel spent 5,890 sats; Moto gained 4,052 sats. The 1,838-sat difference is network fees.</p>
+      </div>
+      <div class="accounting-card">
+        <h3>Handshake · Moto pays, Pixel receives</h3>
+        <table>
+          <thead><tr><th scope="col">Balance and movement</th><th scope="col">HNS</th></tr></thead>
+          <tbody>
+            <tr class="group"><th colspan="2" scope="rowgroup">Moto</th></tr>
+            <tr><th scope="row">Starting balance</th><td>3.018562</td></tr>
+            <tr><th scope="row">Swap lock</th><td>−0.500546</td></tr>
+            <tr><th scope="row">Funding network fee</th><td>−0.114900</td></tr>
+            <tr class="result"><th scope="row">Ending balance</th><td>2.403116</td></tr>
+          </tbody>
+          <tbody>
+            <tr class="group"><th colspan="2" scope="rowgroup">Pixel</th></tr>
+            <tr><th scope="row">Starting balance</th><td>11.311438</td></tr>
+            <tr><th scope="row">Claim from Moto’s lock</th><td>+0.500546</td></tr>
+            <tr><th scope="row">Claim network fee</th><td>−0.013700</td></tr>
+            <tr class="result"><th scope="row">Ending balance</th><td>11.798284</td></tr>
+          </tbody>
+        </table>
+        <p class="note">Moto spent 0.615446 HNS; Pixel gained 0.486846 HNS. The 0.128600-HNS difference is network fees.</p>
+      </div>
+    </div>
+  </section>
   <ol class="timeline">
 <li class="moment">
 <article class="event moto">
