@@ -17,7 +17,7 @@
     <string name="wallet_swap_executions_restore">Przywróć sesję %1$s…</string>
     <string name="wallet_swap_executions_hide_all">Ukryj wszystkie kwalifikujące się sesje</string>
     <string name="wallet_swap_executions_hide_title">Ukryć na tej liście?</string>
-    <string name="wallet_swap_executions_hide_message">Ukryć wybrane sesje w tym widoku? Nie anuluje to podpisanych warunków, nie zwalnia zarezerwowanych monet ani nie usuwa zapisów portfela. Portfel nadal je monitoruje i pokaże ponownie, gdy wykryje finansowanie lub odzyskiwanie.</string>
+    <string name="wallet_swap_executions_hide_message">Ukryć wybrane sesje na tej liście? Nie anuluje to podpisanych warunków, nie zwalnia zarezerwowanych monet ani nie usuwa zapisów portfela. Portfel nadal je monitoruje i pokaże ponownie, gdy wykryje finansowanie lub odzyskiwanie.</string>
     <string name="wallet_swap_executions_hide_confirm">Ukryj w widoku</string>
     <string name="wallet_swap_executions_hidden">Kwalifikujące się sesje ukryto na tej liście. Portfel nadal je monitoruje.</string>
     <string name="wallet_swap_executions_hide_unavailable">Nie udało się ukryć żadnej sesji. Jej zweryfikowany stan mógł się zmienić.</string>

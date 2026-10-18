@@ -4294,6 +4294,105 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertThrowsError(try NativeDirectShakescapeBundle.connect(status))
     }
 
+    private func swapExecutionFixture(
+        id: Character, state: String, deadline: Int, verifiedAt: Int,
+        fundingState: String? = nil, firstRedeemed: Bool = false,
+        secondRedeemed: Bool = false, refundConfirmed: Bool = false
+    ) throws -> NativeShakescapeExecutionSummary {
+        let recovered = deadline == 0
+        let fields: [String: Any] = [
+            "sessionId": String(repeating: String(id), count: 64),
+            "revision": 1,
+            "state": state,
+            "firstChain": "bitcoin",
+            "secondChain": "handshake",
+            "offeredAsset": "btc",
+            "offeredAmount": 4_330,
+            "receivedAsset": "hns",
+            "receivedAmount": 500_546,
+            "localRole": "maker",
+            "fundingDeadlineUnix": deadline,
+            "firstFundingCutoffUnix": recovered ? 0 : deadline - 10,
+            "firstRefundAtUnix": 1_000,
+            "secondRefundAtUnix": 900,
+            "localFundingState": fundingState as Any,
+            "firstFundingConfirmed": false,
+            "secondFundingConfirmed": false,
+            "firstRedemptionConfirmed": firstRedeemed,
+            "secondRedemptionConfirmed": secondRedeemed,
+            "refundConfirmed": refundConfirmed,
+            "lastVerifiedAtUnix": verifiedAt,
+            "failureReason": NSNull(),
+        ]
+        var serializable = fields
+        if let fundingState {
+            serializable["localFundingState"] = fundingState
+        } else {
+            serializable["localFundingState"] = NSNull()
+        }
+        return try JSONDecoder().decode(
+            NativeShakescapeExecutionSummary.self,
+            from: JSONSerialization.data(withJSONObject: serializable)
+        )
+    }
+
+    func testRecoveredSwapCanBeListedAndHiddenOnlyAfterVerifiedSettlement() throws {
+        let recovered = try swapExecutionFixture(
+            id: "a", state: "completed", deadline: 0, verifiedAt: 0,
+            fundingState: "submitted"
+        )
+        XCTAssertTrue(WalletSwapExecutionList.canHide(recovered, now: 2_000))
+        let funded = try swapExecutionFixture(
+            id: "b", state: "both_funded", deadline: 300, verifiedAt: 200,
+            fundingState: "confirmed"
+        )
+        XCTAssertFalse(WalletSwapExecutionList.canHide(funded, now: 2_000))
+        let visible = WalletSwapExecutionList.visible(
+            [recovered, funded], hiddenIDs: [recovered.sessionId, funded.sessionId], now: 2_000
+        )
+        XCTAssertEqual(visible.map(\.sessionId), [funded.sessionId])
+    }
+
+    func testSwapExecutionPagesStayNewestFirstAfterOldSessionRescan() throws {
+        let older = try swapExecutionFixture(
+            id: "a", state: "terms_frozen", deadline: 100, verifiedAt: 800
+        )
+        let newer = try swapExecutionFixture(
+            id: "b", state: "terms_frozen", deadline: 500, verifiedAt: 501
+        )
+        let middle = try ["c", "d", "e"].enumerated().map { offset, id in
+            try swapExecutionFixture(
+                id: Character(id), state: "terms_frozen",
+                deadline: 400 - offset * 100, verifiedAt: 401 - offset * 100
+            )
+        }
+        let sorted = WalletSwapExecutionList.ordered([older, newer] + middle)
+        XCTAssertEqual(sorted.first?.sessionId, newer.sessionId)
+        let first = WalletSwapExecutionList.page(sorted, requestedIndex: 0)
+        let second = WalletSwapExecutionList.page(sorted, requestedIndex: 99)
+        XCTAssertEqual(first.entries.count, 4)
+        XCTAssertEqual(first.total, 5)
+        XCTAssertEqual(first.count, 2)
+        XCTAssertEqual(second.index, 1)
+        XCTAssertEqual(second.entries.map(\.sessionId), [older.sessionId])
+    }
+
+    func testHiddenSwapSessionsAreScopedToNetworkAndRestorable() {
+        let id = String(repeating: "f", count: 64)
+        _ = WalletSwapExecutionPresentationStore.change(
+            [id], hidden: true, networkID: "main", defaults: defaults
+        )
+        XCTAssertEqual(WalletSwapExecutionPresentationStore.hiddenIDs(
+            networkID: "main", defaults: defaults), [id])
+        XCTAssertTrue(WalletSwapExecutionPresentationStore.hiddenIDs(
+            networkID: "testnet", defaults: defaults).isEmpty)
+        _ = WalletSwapExecutionPresentationStore.change(
+            [id], hidden: false, networkID: "main", defaults: defaults
+        )
+        XCTAssertTrue(WalletSwapExecutionPresentationStore.hiddenIDs(
+            networkID: "main", defaults: defaults).isEmpty)
+    }
+
     func testNativeSwapSettlementBundlesAreExactFeeBoundAndChainTyped() throws {
         let token = String(repeating: "a", count: 64)
         let session = String(repeating: "1", count: 64)

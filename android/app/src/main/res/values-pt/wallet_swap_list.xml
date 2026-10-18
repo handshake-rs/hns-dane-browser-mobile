@@ -17,7 +17,7 @@
     <string name="wallet_swap_executions_restore">Voltar a mostrar sessão %1$s…</string>
     <string name="wallet_swap_executions_hide_all">Ocultar todas as sessões elegíveis</string>
     <string name="wallet_swap_executions_hide_title">Ocultar desta lista?</string>
-    <string name="wallet_swap_executions_hide_message">Ocultar as sessões selecionadas desta vista? Isto não cancela termos assinados, não liberta moedas reservadas nem apaga registos da carteira. A carteira continua a monitorizá-las e volta a mostrá-las se detetar financiamento ou recuperação.</string>
+    <string name="wallet_swap_executions_hide_message">Ocultar as sessões selecionadas desta lista? Isto não cancela termos assinados, não liberta moedas reservadas nem apaga registos da carteira. A carteira continua a monitorizá-las e volta a mostrá-las se detetar financiamento ou recuperação.</string>
     <string name="wallet_swap_executions_hide_confirm">Ocultar da vista</string>
     <string name="wallet_swap_executions_hidden">As sessões elegíveis foram ocultadas desta lista. A carteira continua a monitorizá-las.</string>
     <string name="wallet_swap_executions_hide_unavailable">Não foi possível ocultar nenhuma sessão. O seu estado verificado pode ter mudado.</string>

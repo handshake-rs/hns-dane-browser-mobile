@@ -17,7 +17,7 @@
     <string name="wallet_swap_executions_restore">Повернути сеанс %1$s…</string>
     <string name="wallet_swap_executions_hide_all">Приховати всі придатні сеанси</string>
     <string name="wallet_swap_executions_hide_title">Приховати з цього списку?</string>
-    <string name="wallet_swap_executions_hide_message">Приховати вибрані сеанси із цього списку? Це не скасує підписані умови, не звільнить зарезервовані монети й не видалить записи гаманця. Гаманець і далі їх відстежуватиме та покаже знову, якщо виявить фінансування або відновлення.</string>
+    <string name="wallet_swap_executions_hide_message">Приховати вибрані сеанси з цього списку? Це не скасує підписані умови, не звільнить зарезервовані монети й не видалить записи гаманця. Гаманець і далі їх відстежуватиме та покаже знову, якщо виявить фінансування або відновлення.</string>
     <string name="wallet_swap_executions_hide_confirm">Приховати з перегляду</string>
     <string name="wallet_swap_executions_hidden">Придатні сеанси приховано з цього списку. Гаманець і далі їх відстежує.</string>
     <string name="wallet_swap_executions_hide_unavailable">Не вдалося приховати жоден сеанс. Їхній перевірений стан міг змінитися.</string>

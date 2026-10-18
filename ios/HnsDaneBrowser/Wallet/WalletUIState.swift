@@ -174,6 +174,31 @@ enum WalletPendingOutgoingRecoveryStore {
     }
 }
 
+/// Only random session identifiers are stored here. Swap records and chain
+/// watches remain in the encrypted native wallet.
+enum WalletSwapExecutionPresentationStore {
+    private static let prefix = "wallet.swapExecutionHidden.v1"
+
+    private static func key(networkID: String) -> String { "\(prefix).\(networkID)" }
+
+    static func hiddenIDs(
+        networkID: String, defaults: UserDefaults = .standard
+    ) -> Set<String> {
+        Set(defaults.stringArray(forKey: key(networkID: networkID)) ?? [])
+    }
+
+    @discardableResult
+    static func change(
+        _ ids: Set<String>, hidden: Bool, networkID: String,
+        defaults: UserDefaults = .standard
+    ) -> Bool {
+        var current = hiddenIDs(networkID: networkID, defaults: defaults)
+        if hidden { current.formUnion(ids) } else { current.subtract(ids) }
+        defaults.set(current.sorted(), forKey: key(networkID: networkID))
+        return defaults.synchronize()
+    }
+}
+
 let walletOperationInProgressMessage =
     "The wallet is still completing synchronization or another operation. " +
     "It may continue in the background. Wait for it to finish, then try again."

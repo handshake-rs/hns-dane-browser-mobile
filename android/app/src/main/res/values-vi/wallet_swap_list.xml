@@ -17,7 +17,7 @@
     <string name="wallet_swap_executions_restore">Hiện lại phiên %1$s…</string>
     <string name="wallet_swap_executions_hide_all">Ẩn tất cả phiên đủ điều kiện</string>
     <string name="wallet_swap_executions_hide_title">Ẩn khỏi danh sách này?</string>
-    <string name="wallet_swap_executions_hide_message">Ẩn các phiên đã chọn khỏi danh sách này? Việc này không hủy các điều khoản đã ký, không giải phóng số coin đã dành riêng và không xóa bản ghi ví. Ví vẫn theo dõi và sẽ hiện lại khi phát hiện hoạt động cấp vốn hoặc khôi phục.</string>
+    <string name="wallet_swap_executions_hide_message">Ẩn các phiên đã chọn khỏi danh sách này? Việc này không hủy các điều khoản đã ký, giải phóng số coin đã dành riêng hoặc xóa bản ghi ví. Ví vẫn theo dõi và sẽ hiện lại khi phát hiện hoạt động cấp vốn hoặc khôi phục.</string>
     <string name="wallet_swap_executions_hide_confirm">Ẩn khỏi chế độ xem</string>
     <string name="wallet_swap_executions_hidden">Các phiên đủ điều kiện đã được ẩn khỏi danh sách này. Ví vẫn tiếp tục theo dõi.</string>
     <string name="wallet_swap_executions_hide_unavailable">Không thể ẩn phiên nào. Trạng thái đã xác minh của chúng có thể đã thay đổi.</string>

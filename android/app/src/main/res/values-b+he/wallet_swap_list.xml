@@ -17,7 +17,7 @@
     <string name="wallet_swap_executions_restore">הצגה מחדש של הפעלה %1$s…</string>
     <string name="wallet_swap_executions_hide_all">הסתרת כל ההפעלות המתאימות</string>
     <string name="wallet_swap_executions_hide_title">להסתיר מהרשימה הזאת?</string>
-    <string name="wallet_swap_executions_hide_message">להסתיר את ההפעלות שנבחרו מהתצוגה הזו? הפעולה לא מבטלת תנאים חתומים, לא משחררת מטבעות שמורים ולא מוחקת רשומות מהארנק. הארנק ימשיך לעקוב אחריהן ויציג אותן שוב אם יזהה הפקדה או שחזור.</string>
+    <string name="wallet_swap_executions_hide_message">להסתיר את ההפעלות שנבחרו מהרשימה? הפעולה לא מבטלת תנאים חתומים, לא משחררת מטבעות שמורים ולא מוחקת רשומות מהארנק. הארנק ימשיך לעקוב אחריהן ויציג אותן שוב אם יזהה מימון או שחזור.</string>
     <string name="wallet_swap_executions_hide_confirm">הסתרה מהתצוגה</string>
     <string name="wallet_swap_executions_hidden">הפעלות מתאימות הוסתרו מהרשימה הזאת. הארנק ממשיך לעקוב אחריהן.</string>
     <string name="wallet_swap_executions_hide_unavailable">לא ניתן היה להסתיר אף הפעלה. ייתכן שמצבן המאומת השתנה.</string>

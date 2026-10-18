@@ -757,8 +757,10 @@ struct NativeShakescapeExecutionSummary: Decodable, Equatable, Sendable {
             "second_redeemed", "completed", "refund_eligible", "refund_broadcast",
             "refunded", "failed",
         ]
+        let recoveredPublication = fundingDeadlineUnix == 0 && firstFundingCutoffUnix == 0
         let validLocalFundingState = localFundingState.map {
-            ["broadcast", "seen", "confirmed", "reorged"].contains($0)
+            ["broadcast", "seen", "confirmed", "reorged"].contains($0) ||
+                (recoveredPublication && $0 == "submitted")
         } ?? true
         guard NativeBitcoinHtlcFundingReceipt.validHash(sessionId), revision > 0,
               validStates.contains(state), ["bitcoin", "handshake"].contains(firstChain),
@@ -766,10 +768,12 @@ struct NativeShakescapeExecutionSummary: Decodable, Equatable, Sendable {
               ["btc", "hns"].contains(offeredAsset), ["btc", "hns"].contains(receivedAsset),
               offeredAsset != receivedAsset, ["maker", "taker"].contains(localRole),
               offeredAmount > 0, receivedAmount > 0, validLocalFundingState,
-              firstFundingCutoffUnix > 0,
-              firstFundingCutoffUnix < fundingDeadlineUnix,
+              (!recoveredPublication || (revision == 1 && localFundingState == "submitted")),
+              (recoveredPublication ||
+                  (firstFundingCutoffUnix > 0 && firstFundingCutoffUnix < fundingDeadlineUnix)),
               fundingDeadlineUnix < secondRefundAtUnix,
-              firstRefundAtUnix > secondRefundAtUnix, lastVerifiedAtUnix > 0,
+              firstRefundAtUnix > secondRefundAtUnix,
+              (recoveredPublication || lastVerifiedAtUnix > 0),
               failureReason.map { !$0.isEmpty && $0.count <= 256 } ?? true else {
             throw NativeWalletBridgeError.invalidOutput("invalid durable Shakescape execution")
         }

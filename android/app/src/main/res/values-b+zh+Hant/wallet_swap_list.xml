@@ -17,7 +17,7 @@
     <string name="wallet_swap_executions_restore">重新顯示工作階段 %1$s…</string>
     <string name="wallet_swap_executions_hide_all">隱藏所有符合條件的工作階段</string>
     <string name="wallet_swap_executions_hide_title">從此清單隱藏？</string>
-    <string name="wallet_swap_executions_hide_message">要從此檢視隱藏所選工作階段嗎？這不會取消已簽署的條款、釋放保留的幣，也不會刪除錢包紀錄。錢包會繼續監控；偵測到入金或復原活動時會再次顯示。</string>
+    <string name="wallet_swap_executions_hide_message">從此清單隱藏所選工作階段？這不會取消已簽署的條款、釋放保留的幣或刪除錢包紀錄。錢包會繼續監控，並在偵測到入金或復原活動時再次顯示。</string>
     <string name="wallet_swap_executions_hide_confirm">從檢視中隱藏</string>
     <string name="wallet_swap_executions_hidden">符合條件的工作階段已從此清單隱藏。錢包仍會監控它們。</string>
     <string name="wallet_swap_executions_hide_unavailable">無法隱藏任何工作階段。其已驗證狀態可能已改變。</string>

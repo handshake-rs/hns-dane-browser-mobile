@@ -92,6 +92,69 @@ private func swapFundingActionRequired(
     }
 }
 
+/// Presentation-only execution controls. Hidden sessions stay in the native
+/// journal and return to the visible list if funding or recovery appears.
+enum WalletSwapExecutionList {
+    static let pageSize = 4
+
+    struct Page {
+        let entries: [NativeShakescapeExecutionSummary]
+        let index: Int
+        let count: Int
+        let total: Int
+    }
+
+    static func canHide(_ execution: NativeShakescapeExecutionSummary, now: UInt64) -> Bool {
+        if execution.state == "refunded" && execution.refundConfirmed { return true }
+        if execution.state == "completed" && (
+            (execution.firstRedemptionConfirmed && execution.secondRedemptionConfirmed) ||
+            (execution.fundingDeadlineUnix == 0 && execution.localFundingState == "submitted")
+        ) { return true }
+        if execution.fundingDeadlineUnix == 0 || execution.localFundingState != nil ||
+            execution.firstFundingConfirmed || execution.secondFundingConfirmed ||
+            execution.firstRedemptionConfirmed || execution.secondRedemptionConfirmed ||
+            swapExecutionHasUnverifiedMakerFunding(execution, now: now) {
+            return false
+        }
+        return ["terms_frozen", "refunds_prepared", "first_funding_pending", "failed"]
+            .contains(execution.state) && !execution.refundConfirmed
+    }
+
+    static func ordered(
+        _ executions: [NativeShakescapeExecutionSummary]
+    ) -> [NativeShakescapeExecutionSummary] {
+        executions.sorted {
+            if $0.fundingDeadlineUnix != $1.fundingDeadlineUnix {
+                return $0.fundingDeadlineUnix > $1.fundingDeadlineUnix
+            }
+            if $0.lastVerifiedAtUnix != $1.lastVerifiedAtUnix {
+                return $0.lastVerifiedAtUnix > $1.lastVerifiedAtUnix
+            }
+            return $0.sessionId > $1.sessionId
+        }
+    }
+
+    static func visible(
+        _ executions: [NativeShakescapeExecutionSummary],
+        hiddenIDs: Set<String>, now: UInt64
+    ) -> [NativeShakescapeExecutionSummary] {
+        ordered(executions).filter {
+            !hiddenIDs.contains($0.sessionId) || !canHide($0, now: now)
+        }
+    }
+
+    static func page(
+        _ executions: [NativeShakescapeExecutionSummary], requestedIndex: Int
+    ) -> Page {
+        let count = max(1, (executions.count + pageSize - 1) / pageSize)
+        let index = min(max(0, requestedIndex), count - 1)
+        return Page(
+            entries: Array(executions.dropFirst(index * pageSize).prefix(pageSize)),
+            index: index, count: count, total: executions.count
+        )
+    }
+}
+
 /// Presents authenticated journal and confirmed-receive transitions without
 /// persisting wallet contents. UserDefaults contains random session IDs,
 /// presentation deadlines, and one-way account/transaction fingerprints;
@@ -2865,119 +2928,251 @@ final class WalletViewController: UIViewController {
                     self.swapActionStatusLabel.text = self.bitcoinBroadcastRecoveryText(
                         status.bitcoinBroadcastRecovery
                     )
-                    let terminal: Set<String> = ["completed", "refunded", "failed"]
-                    let now = UInt64(Date().timeIntervalSince1970)
-                    let orderedExecutions = status.executions.sorted {
-                        let leftRank = self.swapExecutionPriority($0, now: now)
-                        let rightRank = self.swapExecutionPriority($1, now: now)
-                        if leftRank != rightRank { return leftRank < rightRank }
-                        return $0.lastVerifiedAtUnix > $1.lastVerifiedAtUnix
-                    }
-                    let liveExecutions = orderedExecutions.filter {
-                        !terminal.contains($0.state)
-                    }
-                    if status.pendingOfferResponses.isEmpty,
-                       status.pendingOfferCandidates.isEmpty,
-                       status.pendingAcceptances.isEmpty, liveExecutions.count == 1,
-                       let execution = liveExecutions.first,
-                       !swapExecutionHasUnverifiedMakerFunding(execution, now: now) {
-                        self.showShakescapeExecution(execution, wallet: wallet)
-                        return
-                    }
-                    var rows: [WalletMenuRow] = []
-                    if let recovery = status.bitcoinBroadcastRecovery,
-                       recovery.totalApproved > 0 {
-                        rows.append(WalletMenuRow(
-                            title: WalletCopy.text("wallet_swap_executions"),
-                            detail: self.bitcoinBroadcastRecoveryText(recovery)
-                        ))
-                    }
-                    for offer in status.pendingOfferResponses {
-                        rows.append(WalletMenuRow(
-                            title: WalletCopy.text("wallet_swap_notification_offer_accepted"),
-                            detail: WalletCopy.format(
-                                "wallet_swap_notification_offer_accepted_detail",
-                                String(offer.sessionId.prefix(12))
-                            )
-                        ))
-                    }
-                    if !status.pendingOfferCandidates.isEmpty {
-                        rows.append(WalletMenuRow(
-                            title: WalletCopy.text("wallet_ux_swap_candidate_title"),
-                            detail: WalletCopy.format(
-                                "wallet_ux_swap_candidate_count",
-                                status.pendingOfferCandidates.count
-                            )
-                        ))
-                    }
-                    var actions: [WalletMenuAction] = []
-                    for candidate in status.pendingOfferCandidates {
-                        actions.append(WalletMenuAction(
-                            title: WalletCopy.format(
-                                "wallet_ux_swap_candidate_action",
-                                String(candidate.responderIdentity.prefix(12)),
-                                String(candidate.offerId.prefix(12))
-                            ),
-                            primary: true
-                        ) { [weak self, weak wallet] in
-                            guard let self, let wallet, self.wallet === wallet else { return }
-                            self.confirmChooseDirectOfferCandidate(candidate, wallet: wallet)
-                        })
-                    }
-                    for acceptance in status.pendingAcceptances {
-                        let offered = self.swapAmount(
-                            acceptance.offeredAmount,
-                            asset: acceptance.offeredAsset
-                        )
-                        let received = self.swapAmount(
-                            acceptance.receivedAmount,
-                            asset: acceptance.receivedAsset
-                        )
-                        actions.append(WalletMenuAction(
-                            title: WalletCopy.format(
-                                "wallet_swap_pending_acceptance",
-                                offered,
-                                received,
-                                self.swapAmount(
-                                    acceptance.receivedFeeReserve,
-                                    asset: acceptance.receivedAsset
-                                ),
-                                String(acceptance.sessionId.prefix(12))
-                            )
-                        ) { [weak self, weak wallet] in
-                            guard let self, let wallet, self.wallet === wallet else { return }
-                            self.confirmAbandonPendingAcceptance(acceptance, wallet: wallet)
-                        })
-                    }
-                    for execution in orderedExecutions {
-                        let state = swapExecutionHasUnverifiedMakerFunding(execution, now: now)
-                            ? WalletCopy.format(
-                                "wallet_swap_stage_funding_recovery_pending",
-                                self.swapChainLabel(execution.firstChain)
-                            )
-                            : self.shakescapeExecutionStage(execution, includeBitcoinSync: false)
-                        actions.append(WalletMenuAction(
-                            title: "\(self.shakescapeExecutionProgress(execution).summary) · " +
-                                "\(self.swapAmount(execution.offeredAmount, asset: execution.offeredAsset)) → " +
-                                "\(self.swapAmount(execution.receivedAmount, asset: execution.receivedAsset))\n" +
-                                "\(state) · \(execution.sessionId.prefix(12))…",
-                            primary: self.swapExecutionNeedsAttention(execution, now: now)
-                        ) { [weak self, weak wallet] in
-                            guard let self, let wallet, self.wallet === wallet else { return }
-                            self.showShakescapeExecution(execution, wallet: wallet)
-                        })
-                    }
-                    self.presentWalletMenu(
-                        title: WalletCopy.text("wallet_swap_executions"),
-                        rows: rows,
-                        actions: actions
-                    )
+                    self.showShakescapeExecutionPage(status, wallet: wallet,
+                                                    requestedIndex: 0, showHidden: false)
                 case .failure(let error):
                     self.swapActionStatusLabel.text = WalletCopy.text("wallet_swap_execution_list_failed")
                     self.showError(error)
                 }
             }
         }
+    }
+
+    private func showShakescapeExecutionPage(
+        _ status: NativeShakescapeExecutionStatus, wallet: RustNativeWallet,
+        requestedIndex: Int, showHidden: Bool
+    ) {
+        guard self.wallet === wallet, walletIsUnlocked else { return }
+        let now = UInt64(Date().timeIntervalSince1970)
+        let hiddenIDs = WalletSwapExecutionPresentationStore.hiddenIDs(networkID: network.rawValue)
+        let ordered = WalletSwapExecutionList.ordered(status.executions)
+        let entries = showHidden
+            ? ordered.filter { hiddenIDs.contains($0.sessionId) &&
+                WalletSwapExecutionList.canHide($0, now: now) }
+            : WalletSwapExecutionList.visible(status.executions, hiddenIDs: hiddenIDs, now: now)
+        let page = WalletSwapExecutionList.page(entries, requestedIndex: requestedIndex)
+        let first = page.total == 0 ? 0 : page.index * WalletSwapExecutionList.pageSize + 1
+        let last = page.index * WalletSwapExecutionList.pageSize + page.entries.count
+        var rows = [WalletMenuRow(
+            title: WalletCopy.text("wallet_swap_executions_page_title"),
+            detail: WalletCopy.format("wallet_swap_executions_page_detail",
+                                      first, last, page.total, page.index + 1, page.count)
+        )]
+        if entries.isEmpty {
+            rows.append(WalletMenuRow(
+                title: WalletCopy.text("wallet_swap_executions"),
+                detail: WalletCopy.text(showHidden
+                    ? "wallet_swap_executions_no_hidden" : "wallet_swap_executions_no_visible")
+            ))
+        }
+        if showHidden {
+            rows.append(WalletMenuRow(
+                title: WalletCopy.text("wallet_swap_executions_hidden_title"),
+                detail: WalletCopy.text("wallet_swap_executions_hidden_explanation")
+            ))
+        } else {
+            if let recovery = status.bitcoinBroadcastRecovery, recovery.totalApproved > 0 {
+                rows.append(WalletMenuRow(
+                    title: WalletCopy.text("wallet_swap_executions"),
+                    detail: bitcoinBroadcastRecoveryText(recovery)
+                ))
+            }
+            if page.index == 0 {
+                for offer in status.pendingOfferResponses {
+                    rows.append(WalletMenuRow(
+                        title: WalletCopy.text("wallet_swap_notification_offer_accepted"),
+                        detail: WalletCopy.format("wallet_swap_notification_offer_accepted_detail",
+                                                  String(offer.sessionId.prefix(12)))
+                    ))
+                }
+                if !status.pendingOfferCandidates.isEmpty {
+                    rows.append(WalletMenuRow(
+                        title: WalletCopy.text("wallet_ux_swap_candidate_title"),
+                        detail: WalletCopy.format("wallet_ux_swap_candidate_count",
+                                                  status.pendingOfferCandidates.count)
+                    ))
+                }
+            }
+        }
+
+        var actions: [WalletMenuAction] = []
+        let actionSection = WalletCopy.text("wallet_ux_actions")
+        let manageSection = WalletCopy.text("wallet_swap_executions_manage")
+        let pagesSection = WalletCopy.text("wallet_swap_executions_pages")
+        if !showHidden && page.index == 0 {
+            for candidate in status.pendingOfferCandidates {
+                actions.append(WalletMenuAction(
+                    title: WalletCopy.format("wallet_ux_swap_candidate_action",
+                                             String(candidate.responderIdentity.prefix(12)),
+                                             String(candidate.offerId.prefix(12))),
+                    section: actionSection, primary: true
+                ) { [weak self, weak wallet] in
+                    guard let self, let wallet, self.wallet === wallet else { return }
+                    self.confirmChooseDirectOfferCandidate(candidate, wallet: wallet)
+                })
+            }
+            for acceptance in status.pendingAcceptances {
+                actions.append(WalletMenuAction(
+                    title: WalletCopy.format("wallet_swap_pending_acceptance",
+                        swapAmount(acceptance.offeredAmount, asset: acceptance.offeredAsset),
+                        swapAmount(acceptance.receivedAmount, asset: acceptance.receivedAsset),
+                        swapAmount(acceptance.receivedFeeReserve, asset: acceptance.receivedAsset),
+                        String(acceptance.sessionId.prefix(12))),
+                    section: actionSection
+                ) { [weak self, weak wallet] in
+                    guard let self, let wallet, self.wallet === wallet else { return }
+                    self.confirmAbandonPendingAcceptance(acceptance, wallet: wallet)
+                })
+            }
+        }
+        for execution in page.entries {
+            let stage = swapExecutionHasUnverifiedMakerFunding(execution, now: now)
+                ? WalletCopy.format("wallet_swap_stage_funding_recovery_pending",
+                                    swapChainLabel(execution.firstChain))
+                : shakescapeExecutionStage(execution, includeBitcoinSync: false)
+            actions.append(WalletMenuAction(
+                title: "\(shakescapeExecutionProgress(execution).summary) · " +
+                    "\(swapAmount(execution.offeredAmount, asset: execution.offeredAsset)) → " +
+                    "\(swapAmount(execution.receivedAmount, asset: execution.receivedAsset))\n" +
+                    "\(stage) · \(execution.sessionId.prefix(12))…",
+                section: actionSection,
+                primary: !showHidden && swapExecutionNeedsAttention(execution, now: now)
+            ) { [weak self, weak wallet] in
+                guard let self, let wallet, self.wallet === wallet else { return }
+                self.showShakescapeExecution(execution, wallet: wallet)
+            })
+        }
+
+        if showHidden {
+            for execution in page.entries {
+                actions.append(WalletMenuAction(
+                    title: WalletCopy.format("wallet_swap_executions_restore",
+                                             String(execution.sessionId.prefix(12))),
+                    section: manageSection
+                ) { [weak self, weak wallet] in
+                    guard let self, let wallet, self.wallet === wallet else { return }
+                    _ = WalletSwapExecutionPresentationStore.change(
+                        [execution.sessionId], hidden: false, networkID: self.network.rawValue)
+                    self.showShakescapeExecutionPage(status, wallet: wallet,
+                                                    requestedIndex: 0, showHidden: false)
+                })
+            }
+        } else {
+            for execution in page.entries where WalletSwapExecutionList.canHide(execution, now: now) {
+                actions.append(WalletMenuAction(
+                    title: WalletCopy.format("wallet_swap_executions_hide",
+                                             String(execution.sessionId.prefix(12))),
+                    section: manageSection
+                ) { [weak self, weak wallet] in
+                    guard let self, let wallet, self.wallet === wallet else { return }
+                    self.confirmHideSwapExecutions([execution.sessionId], wallet: wallet)
+                })
+            }
+            let eligible = Set(ordered.filter {
+                !hiddenIDs.contains($0.sessionId) && WalletSwapExecutionList.canHide($0, now: now)
+            }.map(\.sessionId))
+            if !eligible.isEmpty {
+                actions.append(WalletMenuAction(
+                    title: WalletCopy.text("wallet_swap_executions_hide_all"),
+                    section: manageSection
+                ) { [weak self, weak wallet] in
+                    guard let self, let wallet, self.wallet === wallet else { return }
+                    self.confirmHideSwapExecutions(eligible, wallet: wallet)
+                })
+            }
+        }
+        if page.index > 0 {
+            actions.append(WalletMenuAction(
+                title: WalletCopy.text("wallet_swap_executions_previous"),
+                section: pagesSection
+            ) { [weak self, weak wallet] in
+                guard let self, let wallet, self.wallet === wallet else { return }
+                self.showShakescapeExecutionPage(status, wallet: wallet,
+                                                requestedIndex: page.index - 1, showHidden: showHidden)
+            })
+        }
+        if page.index + 1 < page.count {
+            actions.append(WalletMenuAction(
+                title: WalletCopy.text("wallet_swap_executions_next"),
+                section: pagesSection
+            ) { [weak self, weak wallet] in
+                guard let self, let wallet, self.wallet === wallet else { return }
+                self.showShakescapeExecutionPage(status, wallet: wallet,
+                                                requestedIndex: page.index + 1, showHidden: showHidden)
+            })
+        }
+        if showHidden {
+            actions.append(WalletMenuAction(
+                title: WalletCopy.text("wallet_swap_executions_show_visible"),
+                section: pagesSection
+            ) { [weak self, weak wallet] in
+                guard let self, let wallet, self.wallet === wallet else { return }
+                self.showShakescapeExecutionPage(status, wallet: wallet,
+                                                requestedIndex: 0, showHidden: false)
+            })
+        } else if ordered.contains(where: {
+            hiddenIDs.contains($0.sessionId) && WalletSwapExecutionList.canHide($0, now: now)
+        }) {
+            actions.append(WalletMenuAction(
+                title: WalletCopy.text("wallet_swap_executions_show_hidden"),
+                section: pagesSection
+            ) { [weak self, weak wallet] in
+                guard let self, let wallet, self.wallet === wallet else { return }
+                self.showShakescapeExecutionPage(status, wallet: wallet,
+                                                requestedIndex: 0, showHidden: true)
+            })
+        }
+        presentWalletMenu(title: WalletCopy.text("wallet_swap_executions"),
+                          rows: rows, actions: actions)
+    }
+
+    private func showShakescapeExecutionPageLater(
+        _ status: NativeShakescapeExecutionStatus, wallet: RustNativeWallet
+    ) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self, weak wallet] in
+            guard let self, let wallet, self.wallet === wallet, self.walletIsUnlocked,
+                  self.viewIfLoaded?.window != nil else { return }
+            self.showShakescapeExecutionPage(status, wallet: wallet,
+                                            requestedIndex: 0, showHidden: false)
+        }
+    }
+
+    private func confirmHideSwapExecutions(_ ids: Set<String>, wallet: RustNativeWallet) {
+        let alert = UIAlertController(
+            title: WalletCopy.text("wallet_swap_executions_hide_title"),
+            message: WalletCopy.text("wallet_swap_executions_hide_message"),
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_action_cancel"), style: .cancel))
+        alert.addAction(UIAlertAction(
+            title: WalletCopy.text("wallet_swap_executions_hide_confirm"), style: .default
+        ) { [weak self, weak wallet] _ in
+            guard let self, let wallet, self.wallet === wallet else { return }
+            DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+                _ = try? wallet.reconcileShakescapeExecutions()
+                let current = try? wallet.shakescapeExecutions()
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.wallet === wallet, self.walletIsUnlocked,
+                          self.viewIfLoaded?.window != nil else { return }
+                    guard let current else {
+                        self.swapActionStatusLabel.text = WalletCopy.text(
+                            "wallet_swap_executions_hide_unavailable")
+                        return
+                    }
+                    let now = UInt64(Date().timeIntervalSince1970)
+                    let eligible = Set(current.executions.filter {
+                        ids.contains($0.sessionId) && WalletSwapExecutionList.canHide($0, now: now)
+                    }.map(\.sessionId))
+                    let saved = !eligible.isEmpty && WalletSwapExecutionPresentationStore.change(
+                        eligible, hidden: true, networkID: self.network.rawValue)
+                    self.shakescapeExecutionStatusSnapshot = current
+                    self.swapActionStatusLabel.text = WalletCopy.text(saved
+                        ? "wallet_swap_executions_hidden" : "wallet_swap_executions_hide_unavailable")
+                    self.showShakescapeExecutionPageLater(current, wallet: wallet)
+                }
+            }
+        })
+        walletPresentationHost.present(alert, animated: true)
     }
 
     private func swapAmount(_ amount: UInt64, asset: String) -> String {
@@ -2998,15 +3193,6 @@ final class WalletViewController: UIViewController {
             (execution.state == "both_funded" && execution.localRole == "maker") ||
             (["first_redeemed", "secret_observed"].contains(execution.state) &&
                 execution.localRole == "taker")
-    }
-
-    private func swapExecutionPriority(
-        _ execution: NativeShakescapeExecutionSummary,
-        now: UInt64
-    ) -> Int {
-        if swapExecutionNeedsAttention(execution, now: now) { return 0 }
-        if swapExecutionHasUnverifiedMakerFunding(execution, now: now) { return 1 }
-        return ["completed", "refunded", "failed"].contains(execution.state) ? 3 : 2
     }
 
     private func automaticSwapMinimumReceive(
@@ -4460,23 +4646,27 @@ final class WalletViewController: UIViewController {
         if let status = shakescapeExecutionStatusSnapshot {
             let terminal: Set<String> = ["completed", "refunded", "failed"]
             let now = UInt64(Date().timeIntervalSince1970)
-            if let execution = status.executions.filter({ !terminal.contains($0.state) })
-                .sorted(by: {
-                    let left = swapExecutionPriority($0, now: now)
-                    let right = swapExecutionPriority($1, now: now)
-                    return left == right
-                        ? $0.lastVerifiedAtUnix > $1.lastVerifiedAtUnix
-                        : left < right
-                }).first {
-                lines.append("\(shakescapeExecutionProgress(execution).summary) · \(shakescapeExecutionStage(execution))")
+            let visibleOpen = WalletSwapExecutionList.visible(
+                status.executions,
+                hiddenIDs: WalletSwapExecutionPresentationStore.hiddenIDs(networkID: network.rawValue),
+                now: now
+            ).filter { !terminal.contains($0.state) }
+            if !visibleOpen.isEmpty {
+                lines.append(WalletCopy.format("wallet_swap_overview_open", visibleOpen.count))
             } else if !status.pendingOfferCandidates.isEmpty {
                 lines.append(WalletCopy.format(
                     "wallet_ux_swap_candidate_count", status.pendingOfferCandidates.count
                 ))
             } else if !status.pendingAcceptances.isEmpty || !status.pendingOfferResponses.isEmpty {
                 lines.append(WalletCopy.text("wallet_dashboard_swap_negotiating"))
-            } else if let latest = status.executions.max(by: { $0.lastVerifiedAtUnix < $1.lastVerifiedAtUnix }) {
-                lines.append("\(shakescapeExecutionProgress(latest).summary) · \(shakescapeExecutionStage(latest))")
+            } else if let latest = status.executions.filter({ $0.state == "completed" })
+                .max(by: { $0.lastVerifiedAtUnix < $1.lastVerifiedAtUnix }) {
+                lines.append(WalletCopy.format(
+                    "wallet_dashboard_swap_latest_completed",
+                    swapAmount(latest.offeredAmount, asset: latest.offeredAsset),
+                    swapAmount(latest.receivedAmount, asset: latest.receivedAsset),
+                    String(latest.sessionId.prefix(12))
+                ))
             }
         }
         if lines.isEmpty {

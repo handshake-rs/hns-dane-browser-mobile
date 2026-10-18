@@ -107,12 +107,12 @@ class CiChangedTargetsTests(unittest.TestCase):
                     ios=True,
                 )
 
-    def test_android_swap_list_localization_skips_apple(self) -> None:
+    def test_swap_list_localization_builds_both_application_shells(self) -> None:
         self.assert_targets(
             ("localization/wallet-swap-list.json",),
             rust=False,
             android=True,
-            ios=False,
+            ios=True,
         )
 
     def test_ios_only_change_skips_android(self) -> None:

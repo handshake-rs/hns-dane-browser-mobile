@@ -17,7 +17,7 @@
     <string name="wallet_swap_executions_restore">重新显示会话 %1$s…</string>
     <string name="wallet_swap_executions_hide_all">隐藏所有符合条件的会话</string>
     <string name="wallet_swap_executions_hide_title">从此列表隐藏？</string>
-    <string name="wallet_swap_executions_hide_message">要从此视图隐藏所选会话吗？这不会取消已签署的条款、释放预留的币，也不会删除钱包记录。钱包会继续监控；检测到注资或恢复活动时会再次显示。</string>
+    <string name="wallet_swap_executions_hide_message">从此列表隐藏所选会话？这不会取消已签署的条款、释放预留的币或删除钱包记录。钱包会继续监控，并在检测到注资或恢复活动时再次显示。</string>
     <string name="wallet_swap_executions_hide_confirm">从视图中隐藏</string>
     <string name="wallet_swap_executions_hidden">符合条件的会话已从此列表隐藏。钱包仍会监控它们。</string>
     <string name="wallet_swap_executions_hide_unavailable">无法隐藏任何会话。其已验证状态可能已改变。</string>

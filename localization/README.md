@@ -8,12 +8,12 @@ supported locale:
 - `wallet-critical.json`: 65 onboarding and first-transaction strings.
 - `wallet-operations.json`: 493 synchronization, send, swap, deletion,
   activity, and name-market strings.
-- `wallet-swap-list.json`: 23 Android swap execution list, hide, pagination,
-  and dashboard summary strings.
+- `wallet-swap-list.json`: 23 swap execution list, hide, pagination, and
+  dashboard summary strings.
 
 The first two files project 558 canonical keys to 20 additional locale groups
-on Android and iOS. The swap-list file adds 23 Android strings in the same
-locale groups.
+on Android and iOS. The swap-list file adds 23 strings to both platforms in
+the same locale groups.
 
 Run the generator after changing canonical English, the selected key list, or
 any translation:
@@ -25,7 +25,8 @@ python3 scripts/generate_swap_list_localizations.py
 
 The first generator writes Android's `values-*/wallet_critical.xml` and
 `values-*/wallet_operations.xml` files and the Apple `Wallet.xcstrings`
-catalog. The second writes Android's `values-*/wallet_swap_list.xml` files.
+catalog, including the swap-list strings. The second writes Android's
+`values-*/wallet_swap_list.xml` files.
 CI runs both generators with `--check`, then checks every Android locale for
 complete key coverage and matching format tokens and line breaks. It also
 rejects Apple wallet call sites that reference unknown catalog keys. Generated

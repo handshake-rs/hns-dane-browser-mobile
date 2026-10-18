@@ -17,7 +17,7 @@
     <string name="wallet_swap_executions_restore">نمایش دوبارهٔ جلسهٔ %1$s…</string>
     <string name="wallet_swap_executions_hide_all">پنهان کردن همهٔ جلسه‌های واجد شرایط</string>
     <string name="wallet_swap_executions_hide_title">از این فهرست پنهان شود؟</string>
-    <string name="wallet_swap_executions_hide_message">آیا جلسه‌های انتخاب‌شده از این فهرست پنهان شوند؟ این کار شرایط امضاشده را لغو نمی‌کند، سکه‌های رزروشده را آزاد نمی‌کند و سوابق کیف پول را حذف نمی‌کند. کیف پول همچنان آن‌ها را پایش می‌کند و در صورت شناسایی تأمین وجه یا بازیابی دوباره نشان می‌دهد.</string>
+    <string name="wallet_swap_executions_hide_message">جلسه‌های انتخاب‌شده از این فهرست پنهان شوند؟ این کار شرایط امضاشده را لغو نمی‌کند، سکه‌های رزروشده را آزاد نمی‌کند و سوابق کیف پول را حذف نمی‌کند. کیف پول همچنان آن‌ها را پایش می‌کند و در صورت شناسایی تأمین وجه یا بازیابی دوباره نشان می‌دهد.</string>
     <string name="wallet_swap_executions_hide_confirm">پنهان کردن از نما</string>
     <string name="wallet_swap_executions_hidden">جلسه‌های واجد شرایط از این فهرست پنهان شدند. کیف پول همچنان آن‌ها را پایش می‌کند.</string>
     <string name="wallet_swap_executions_hide_unavailable">هیچ جلسه‌ای پنهان نشد. ممکن است وضعیت تأییدشدهٔ آن‌ها تغییر کرده باشد.</string>

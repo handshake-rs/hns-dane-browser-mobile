@@ -16,6 +16,7 @@ SOURCES = {
     "critical": ROOT / "localization" / "wallet-critical.json",
     "operations": ROOT / "localization" / "wallet-operations.json",
 }
+SWAP_LIST_SOURCE = ROOT / "localization" / "wallet-swap-list.json"
 ANDROID_RES = ROOT / "android" / "app" / "src" / "main" / "res"
 ANDROID_BASE = ANDROID_RES / "values" / "strings.xml"
 APPLE_CATALOG = (
@@ -210,6 +211,17 @@ def outputs() -> dict[Path, str]:
             generated[
                 ANDROID_RES / f"values-{locale}" / f"wallet_{cohort}.xml"
             ] = android_xml(keys, translations[locale])
+    # The swap-list cohort has its own Android generator. Include its reviewed
+    # translations in the Apple catalog without rewriting the Android files.
+    swap_keys, swap_translations = load_source(SWAP_LIST_SOURCE)
+    overlap = sorted(set(all_keys) & set(swap_keys))
+    if overlap:
+        raise ValueError(f"{SWAP_LIST_SOURCE.name}: duplicate keys across cohorts: {overlap}")
+    swap_english = validate_source(swap_keys, swap_translations)
+    all_keys.extend(swap_keys)
+    all_english.update(swap_english)
+    for locale in ANDROID_TO_APPLE_LOCALE:
+        all_translations[locale].update(swap_translations[locale])
     # New UX copy shares canonical keys on both platforms while translation
     # review is pending. Existing controlled cohorts remain complete.
     for key, element in android_base_strings().items():

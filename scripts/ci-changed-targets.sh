@@ -41,6 +41,7 @@ classify_path() {
 
     localization/wallet-swap-list.json)
       android=true
+      ios=true
       ;;
 
     localization/*)
