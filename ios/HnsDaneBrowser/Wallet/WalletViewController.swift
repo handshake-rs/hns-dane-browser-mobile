@@ -1302,7 +1302,7 @@ final class WalletViewController: UIViewController {
         dashboardStack.addArrangedSubview(dashboardTile(
             title: "Wallet",
             summary: "Open and unlock",
-            enabled: !isOperating,
+            enabled: !isOperating || (try? keychain.hasRecoveryPhrase()) == true,
             action: { [weak self] in self?.showWalletManagement() }
         ))
     }
@@ -6409,8 +6409,7 @@ final class WalletViewController: UIViewController {
                 self?.openOrUnlockWallet()
             })
         }
-        if walletIsUnlocked,
-           (try? keychain.hasRecoveryPhrase()) == true {
+        if (try? keychain.hasRecoveryPhrase()) == true {
             actions.append(WalletMenuAction(title: "View recovery phrase") { [weak self] in
                 self?.showStoredRecoveryPhrase()
             })

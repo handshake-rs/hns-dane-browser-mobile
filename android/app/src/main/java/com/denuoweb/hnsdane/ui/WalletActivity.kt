@@ -1297,11 +1297,11 @@ class WalletActivity : ComponentActivity() {
             }
         }
         dashboardContent.addView(settingsGroup {
-            // During HNS synchronization this opens only the cached status
-            // and cancellation action in showWalletDetails(). Keep that path
-            // reachable without enabling native wallet mutations.
+            // Recovery display uses protected storage and device authentication,
+            // so it remains available while native wallet actions are busy.
             val settingsAvailable = actionsAvailable ||
-                WalletHnsLiveSyncPresentationCache.canRequestCancellation(walletNetwork.id)
+                WalletHnsLiveSyncPresentationCache.canRequestCancellation(walletNetwork.id) ||
+                runCatching { keyStore.hasRecoveryPhrase() }.getOrDefault(false)
             addSettingsRow(navRow(
                 title = getString(R.string.wallet_ux_wallet_settings),
                 summary = getString(R.string.wallet_ux_wallet_settings_summary),
@@ -1612,31 +1612,39 @@ class WalletActivity : ComponentActivity() {
         }
 
     private fun showWalletDetails() {
+        val recoveryAvailable = runCatching { keyStore.hasRecoveryPhrase() }.getOrDefault(false)
         if (WalletHnsLiveSyncPresentationCache.canRequestCancellation(walletNetwork.id)) {
+            val actions = mutableListOf(
+                getString(R.string.action_stop_wallet_sync) to ::requestHnsSyncCancellation,
+            )
+            if (recoveryAvailable) {
+                actions += getString(R.string.row_wallet_view_recovery) to ::requestRecoveryPhraseDisplay
+            }
             walletDetailDialog(
                 title = getString(R.string.wallet_dashboard_wallet),
                 rows = listOf(
                     getString(R.string.row_wallet_status) to statusView.text.toString(),
                     getString(R.string.row_wallet_account) to accountView.text.toString(),
                 ),
-                actions = listOf(
-                    getString(R.string.action_stop_wallet_sync) to
-                        ::requestHnsSyncCancellation,
-                ),
+                actions = actions,
             )
             return
         }
-        val locked = NativeWalletBridge.status(walletHandle)?.locked
+        val locked = if (busy || hasActiveWalletHnsSynchronization()) {
+            null
+        } else {
+            NativeWalletBridge.status(walletHandle)?.locked
+        }
         val actions = mutableListOf<Pair<String, () -> Unit>>().apply {
             when (locked) {
                 false -> add(getString(R.string.row_wallet_lock) to ::lockWallet)
                 true -> add(getString(R.string.row_wallet_unlock) to ::unlockWallet)
                 null -> Unit
             }
+            if (recoveryAvailable) {
+                add(getString(R.string.row_wallet_view_recovery) to ::requestRecoveryPhraseDisplay)
+            }
             if (locked == false) {
-                if (runCatching { keyStore.hasRecoveryPhrase() }.getOrDefault(false)) {
-                    add(getString(R.string.row_wallet_view_recovery) to ::requestRecoveryPhraseDisplay)
-                }
                 add(getString(R.string.row_wallet_delete) to ::requestWalletDeletion)
             }
         }
