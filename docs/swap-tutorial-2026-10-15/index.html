@@ -18,6 +18,14 @@
     .chip { display: inline-flex; align-items: center; padding: .38rem .8rem; border: 1px solid #344360; border-radius: 999px; background: #121d34; color: #dbe6fb; font-size: .9rem; }
     .chip.moto { border-color: #3d6193; background: #20385d; }
     .chip.pixel { border-color: #2d796e; background: #17443e; }
+    .timing { margin: 0 0 2rem; padding: 1.2rem 1.35rem; border: 1px solid #344360; border-radius: 1.15rem; background: #121d34; }
+    .timing h2 { margin: 0 0 .4rem; font-size: clamp(1.5rem, 3vw, 2rem); }
+    .timing p { max-width: 85ch; margin: .5rem 0; color: #c6d2e6; }
+    .timing strong { color: #fff; }
+    .timing details { margin-top: .8rem; }
+    .timing summary { width: fit-content; color: #66e8e0; cursor: pointer; font-weight: 700; }
+    .timing ul { max-width: 85ch; margin: .8rem 0; padding-left: 1.4rem; color: #c6d2e6; }
+    .timing li + li { margin-top: .45rem; }
     .accounting { margin: 0 0 3rem; }
     .accounting h2 { margin: 0 0 .35rem; font-size: clamp(1.5rem, 3vw, 2rem); }
     .accounting > p { margin: 0 0 1.2rem; color: #b7c5db; }
@@ -43,6 +51,8 @@
     .timeline::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; transform: translateX(-50%); background: #30456d; }
     .moment { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 3rem minmax(0, 1fr); align-items: start; }
     .moment::before { content: ""; position: absolute; top: 1.4rem; left: 50%; width: .9rem; height: .9rem; transform: translateX(-50%); border: 3px solid #091226; border-radius: 50%; background: #62e8dc; box-shadow: 0 0 0 2px #62e8dc; z-index: 1; }
+    .pause { position: relative; z-index: 1; display: flex; justify-content: center; }
+    .pause span { padding: .22rem .7rem; border: 1px solid #405779; border-radius: 999px; background: #17243b; color: #c6d2e6; font-size: .8rem; font-variant-numeric: tabular-nums; }
     .event.moto { grid-column: 1; }
     .event.pixel { grid-column: 3; }
     .bubble { padding: 1.1rem 1.35rem; border: 1px solid #2f4469; border-radius: 1.15rem; background: #121d34; box-shadow: 0 12px 35px #0004; }
@@ -70,6 +80,7 @@
       .timeline::before { left: .55rem; transform: none; }
       .moment { display: flex; flex-direction: column; gap: 1rem; padding-left: 2rem; }
       .moment::before { left: .55rem; transform: translateX(-50%); }
+      .pause { justify-content: flex-start; padding-left: 2rem; }
       .event { width: 100%; }
       .bubble { padding: .9rem; }
       .screen { width: 100%; }
@@ -80,8 +91,22 @@
 <main class="shell">
   <p class="eyebrow">A recorded two-phone atomic swap</p>
   <h1>HNS for Bitcoin swap: technical demonstration</h1>
-  <p class="lede">This records one completed swap through an offer peer relay on October 17, 2026. Open each phase to follow the actions in capture order, and expand any screenshot for the original screen. Moto appears on the left and Pixel on the right on wider screens. Timestamps are capture times in Central Daylight Time; the Moto screen clock was two hours behind.</p>
+  <p class="lede">This records one completed swap through an offer peer relay on October 17, 2026. Open each phase to follow the actions in capture order, and expand any screenshot for the original screen. Moto appears on the left and Pixel on the right on wider screens. Timestamps are capture times in Central Daylight Time.</p>
   <div class="legend"><span class="chip moto">Seller (Moto G6) → Sends HNS</span><span class="chip pixel">Buyer (Pixel 9) → Sends Bitcoin</span><span class="chip">Offer 130b0b016a52…</span><span class="chip">Session e87ae8214375…</span></div>
+  <section class="timing" aria-labelledby="timing-title">
+    <h2 id="timing-title">How long this swap took</h2>
+    <p><strong>1 hour 25 minutes 16 seconds</strong> elapsed from the first wallet check at 8:51:26 PM to both phones showing 5 of 5 at 10:16:42 PM. Both participants were online and responding promptly. This is one observed run, not an average or a guaranteed minimum; block confirmations and wallet scans account for much of the time.</p>
+    <p>Timeline labels show elapsed time between captures when the next action switches phones and the gap exceeds one minute.</p>
+    <details>
+      <summary>Remote peers: funding and refund deadlines</summary>
+      <ul>
+        <li>This offer was listed for 48 hours. A new acceptance requires a full 24-hour funding window before the listing expires, so this listing could accept a peer for roughly its first 24 hours.</li>
+        <li>After acceptance, the signed session allows 24 hours for funding. The first Bitcoin lock must begin with at least three hours left in that window. The phones require one Bitcoin confirmation before HNS funding, then two HNS confirmations before its claim.</li>
+        <li>If a funded swap cannot complete, the HNS lock becomes refundable around 48 hours after session creation and the Bitcoin lock around 72 hours after it. Handshake timelock rounding can shift the exact times; each execution shows its signed deadlines.</li>
+      </ul>
+      <p>These are funding and recovery limits, not a predicted completion time. An absent peer or delayed chain confirmation can lead to a refund instead of a completed swap.</p>
+    </details>
+  </section>
   <section class="accounting" aria-labelledby="accounting-title">
     <h2 id="accounting-title">What moved between the wallets</h2>
     <p>These are the before and after balances from this swap. Each chain charged a funding fee and a claim fee. The 4,330-sat Bitcoin lock pairs a 4,000-sat signed fee cap with the 330-sat minimum receiver output. That cap was a limit, not the fee paid: Pixel’s funding fee was 1,560 sats. A live fee quote can require a higher cap and lock for another swap.</p>
@@ -361,6 +386,7 @@
       </div>
     </article>
 </li>
+<li class="pause" role="note"><span>2 min 07 sec elapsed</span></li>
 <li class="moment">
 <article class="event moto">
       <div class="bubble">
@@ -406,6 +432,7 @@
     <summary><span class="phase-number">3</span><h2 class="phase-title">Fund the atomic swap</h2></summary>
     <p class="phase-intro">Both phones confirm the session, then lock Bitcoin and HNS in that order and wait for the required blocks.</p>
     <ol class="timeline">
+<li class="pause" role="note"><span>2 min 21 sec elapsed</span></li>
 <li class="moment">
 <article class="event pixel">
       <div class="bubble">
@@ -458,6 +485,7 @@
       </div>
     </article>
 </li>
+<li class="pause" role="note"><span>3 min 49 sec elapsed</span></li>
 <li class="moment">
 <article class="event moto">
       <div class="bubble">
@@ -497,6 +525,7 @@
       </div>
     </article>
 </li>
+<li class="pause" role="note"><span>4 min 09 sec elapsed</span></li>
 <li class="moment">
 <article class="event moto">
       <div class="bubble">
@@ -562,6 +591,7 @@
       </div>
     </article>
 </li>
+<li class="pause" role="note"><span>15 min 44 sec elapsed</span></li>
 <li class="moment">
 <article class="event moto">
       <div class="bubble">
@@ -717,6 +747,7 @@
     <summary><span class="phase-number">5</span><h2 class="phase-title">Verify completion</h2></summary>
     <p class="phase-intro">Both phones scan the final Bitcoin block and verify the received balance and completed session.</p>
     <ol class="timeline">
+<li class="pause" role="note"><span>16 min 15 sec elapsed</span></li>
 <li class="moment">
 <article class="event pixel">
       <div class="bubble">
@@ -730,6 +761,7 @@
       </div>
     </article>
 </li>
+<li class="pause" role="note"><span>1 min 47 sec elapsed</span></li>
 <li class="moment">
 <article class="event moto">
       <div class="bubble">
