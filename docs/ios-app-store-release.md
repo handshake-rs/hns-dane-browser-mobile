@@ -180,8 +180,8 @@ gh workflow run ios-app-store-submit.yml \
   -f expected_upload_run_id="$upload_run_id" \
   -f mode=submit \
   -f review_contact_source_version="$review_contact_source_version" \
-  -f confirm_metadata=APPLY_METADATA_1.0.20_82 \
-  -f confirm_submit=SUBMIT_FOR_REVIEW_1.0.20_82 \
+  -f confirm_metadata=APPLY_METADATA_1.0.20_83 \
+  -f confirm_submit=SUBMIT_FOR_REVIEW_1.0.20_83 \
   -f confirm_account_readiness=true
 ```
 
@@ -197,7 +197,7 @@ gh workflow run ios-app-store-submit.yml \
   -f expected_upload_run_id="$upload_run_id" \
   -f mode=auto-release \
   -f review_contact_source_version="$review_contact_source_version" \
-  -f confirm_auto_release=SET_AUTO_RELEASE_1.0.20_82 \
+  -f confirm_auto_release=SET_AUTO_RELEASE_1.0.20_83 \
   -f confirm_account_readiness=true
 ```
 
@@ -205,7 +205,7 @@ The `1.0.20` submission preserves the existing App Store screenshot sets by
 default. If replacing screenshots, capture the shipping Release runtime from
 the exact artifact commit, review the resulting iPhone and iPad images, and pass the
 successful screenshot run ID with
-`-f confirm_screenshot_replacement=REPLACE_SCREENSHOTS_1.0.20_82` in the
+`-f confirm_screenshot_replacement=REPLACE_SCREENSHOTS_1.0.20_83` in the
 metadata step. The guarded client replaces and verifies both device-family
 sets before submission. The new set shows a successfully rendered,
 DANE-verified HNS page, Settings, Handshake settings, and Wallet onboarding.

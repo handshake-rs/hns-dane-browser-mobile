@@ -6,6 +6,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -1265,17 +1266,28 @@ class SubmissionSafetyTests(unittest.TestCase):
 class WorkflowSafetyTests(unittest.TestCase):
     def test_protected_workflow_requires_exact_main_upload_evidence_and_confirmations(self):
         workflow = WORKFLOW.read_text(encoding="utf-8")
+        project = (ROOT / "ios" / "project.yml").read_text(encoding="utf-8")
+        version_match = re.search(r"^\s*MARKETING_VERSION:\s*(\S+)\s*$", project, re.MULTILINE)
+        build_match = re.search(r"^\s*CURRENT_PROJECT_VERSION:\s*(\d+)\s*$", project, re.MULTILINE)
+        self.assertIsNotNone(version_match)
+        self.assertIsNotNone(build_match)
+        version = version_match.group(1)
+        build = build_match.group(1)
         self.assertIn("github.ref == 'refs/heads/main'", workflow)
         self.assertIn("DISPATCH_COMMIT: ${{ github.sha }}", workflow)
         self.assertIn('[[ "$DISPATCH_COMMIT" == "$EXPECTED_COMMIT" ]]', workflow)
         self.assertIn("git ls-remote --exit-code origin refs/heads/main", workflow)
         self.assertIn("group: global-ios-app-store-upload-lease", workflow)
-        self.assertIn("APPLY_METADATA_1.0.20_82", workflow)
-        self.assertIn("REPLACE_SCREENSHOTS_1.0.20_82", workflow)
-        self.assertIn("SUBMIT_FOR_REVIEW_1.0.20_82", workflow)
-        self.assertIn("CANCEL_SUBMISSION_1.0.20_82", workflow)
-        self.assertIn("--cancel-version 1.0.20", workflow)
-        self.assertIn("--cancel-build 83", workflow)
+        for prefix in (
+            "APPLY_METADATA",
+            "REPLACE_SCREENSHOTS",
+            "SUBMIT_FOR_REVIEW",
+            "CANCEL_SUBMISSION",
+            "SET_AUTO_RELEASE",
+        ):
+            self.assertIn(f"{prefix}_{version}_{build}", workflow)
+        self.assertIn(f"--cancel-version {version}", workflow)
+        self.assertIn(f"--cancel-build {build}", workflow)
         self.assertIn('[[ "$ACCOUNT_READY" == true ]]', workflow)
         self.assertIn('.path == ".github/workflows/ios-app-store-upload.yml"', workflow)
         self.assertIn("expected_artifact_commit:", workflow)
