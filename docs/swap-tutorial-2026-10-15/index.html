@@ -31,13 +31,19 @@
     .accounting > p { margin: 0 0 1.2rem; color: #b7c5db; }
     .accounting-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
     .accounting-card { min-width: 0; padding: 1.1rem 1.3rem; border: 1px solid #344360; border-radius: 1.15rem; background: #121d34; }
-    .accounting-card h3 { margin: 0 0 .7rem; font-size: 1.15rem; }
-    .accounting-card table { width: 100%; border-collapse: collapse; font-size: .94rem; }
-    .accounting-card th, .accounting-card td { padding: .37rem 0; border-bottom: 1px solid #2c3c58; }
-    .accounting-card th { text-align: left; font-weight: 500; }
-    .accounting-card td { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-    .accounting-card .group th { padding-top: .8rem; color: #66e8e0; font-weight: 800; }
-    .accounting-card .result th, .accounting-card .result td { color: #fff; font-weight: 800; }
+    .accounting-card h3 { margin: 0 0 .7rem; font-size: 1.25rem; }
+    .wallet-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; }
+    .wallet-card { min-width: 0; padding: .85rem 1rem; border: 1px solid #344360; border-radius: .9rem; background: #0d172a; }
+    .wallet-card.moto { border-color: #3d6193; }
+    .wallet-card.pixel { border-color: #2d796e; }
+    .wallet-card h4 { margin: 0 0 .55rem; font-size: 1rem; }
+    .wallet-card.moto h4 { color: #b9d5ff; }
+    .wallet-card.pixel h4 { color: #a1f5e9; }
+    .wallet-card table { width: 100%; border-collapse: collapse; font-size: .94rem; }
+    .wallet-card th, .wallet-card td { padding: .37rem 0; border-bottom: 1px solid #2c3c58; }
+    .wallet-card th { text-align: left; font-weight: 500; }
+    .wallet-card td { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .wallet-card .result th, .wallet-card .result td { color: #fff; font-weight: 800; }
     .accounting-card .note { margin: .8rem 0 0; color: #b7c5db; font-size: .85rem; }
     .phase { margin: 1rem 0; border: 1px solid #344360; border-radius: 1.15rem; background: #0d172a; }
     .phase > summary { display: flex; align-items: center; gap: .8rem; padding: 1rem 1.25rem; cursor: pointer; list-style: none; font-size: 1.1rem; font-weight: 800; }
@@ -71,9 +77,12 @@
     figure { margin: .5rem 0 0; }
     .screen { width: 50%; max-width: 360px; height: auto; margin-inline: auto; display: block; border: 1px solid #354664; border-radius: 1.05rem; background: #050914; box-shadow: 0 10px 25px #0008; }
     .foot { max-width: 78ch; padding: 1.2rem 1.4rem; border-top: 1px solid #354664; color: #aabbd4; }
+    @media (max-width: 1280px) {
+      .accounting-grid { grid-template-columns: 1fr; }
+    }
     @media (max-width: 720px) {
       .shell { width: min(100% - 1.25rem, 45rem); padding-top: 1.5rem; }
-      .accounting-grid { grid-template-columns: 1fr; }
+      .wallet-grid { grid-template-columns: 1fr; }
       .phase > summary { padding: .85rem; font-size: 1rem; }
       .phase-intro { margin-inline: .85rem; }
       .timeline { margin-inline: .7rem; }
@@ -112,45 +121,63 @@
     <p>Before and after balances for this swap, including funding and claim fees on each chain. The 4,330-sat Bitcoin lock paired a 4,000-sat signed fee cap with the 330-sat minimum receiver output. Pixel paid 1,560 sats to fund it. Another swap may require a higher cap and lock at the live fee rate.</p>
     <div class="accounting-grid">
       <div class="accounting-card">
-        <h3>Bitcoin · Pixel pays, Moto receives</h3>
-        <table>
-          <thead><tr><th scope="col">Balance and movement</th><th scope="col">sats</th></tr></thead>
-          <tbody>
-            <tr class="group"><th colspan="2" scope="rowgroup">Pixel</th></tr>
-            <tr><th scope="row">Starting balance</th><td>99,222</td></tr>
-            <tr><th scope="row">Swap lock</th><td>−4,330</td></tr>
-            <tr><th scope="row">Funding network fee</th><td>−1,560</td></tr>
-            <tr class="result"><th scope="row">Ending balance</th><td>93,332</td></tr>
-          </tbody>
-          <tbody>
-            <tr class="group"><th colspan="2" scope="rowgroup">Moto</th></tr>
-            <tr><th scope="row">Starting balance</th><td>11,374</td></tr>
-            <tr><th scope="row">Claim from Pixel’s lock</th><td>+4,330</td></tr>
-            <tr><th scope="row">Claim network fee</th><td>−278</td></tr>
-            <tr class="result"><th scope="row">Ending balance</th><td>15,426</td></tr>
-          </tbody>
-        </table>
+        <h3>Bitcoin</h3>
+        <div class="wallet-grid">
+          <div class="wallet-card pixel">
+            <h4>Pixel 9 · pays Bitcoin</h4>
+            <table>
+              <thead><tr><th scope="col">Balance and movement</th><th scope="col">sats</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">Starting balance</th><td>99,222</td></tr>
+                <tr><th scope="row">Swap lock</th><td>−4,330</td></tr>
+                <tr><th scope="row">Funding network fee</th><td>−1,560</td></tr>
+                <tr class="result"><th scope="row">Ending balance</th><td>93,332</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="wallet-card moto">
+            <h4>Moto G6 · receives Bitcoin</h4>
+            <table>
+              <thead><tr><th scope="col">Balance and movement</th><th scope="col">sats</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">Starting balance</th><td>11,374</td></tr>
+                <tr><th scope="row">Claim from Pixel’s lock</th><td>+4,330</td></tr>
+                <tr><th scope="row">Claim network fee</th><td>−278</td></tr>
+                <tr class="result"><th scope="row">Ending balance</th><td>15,426</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
         <p class="note">Pixel spent 5,890 sats; Moto gained 4,052 sats. The 1,838-sat difference is network fees.</p>
       </div>
       <div class="accounting-card">
-        <h3>Handshake · Moto pays, Pixel receives</h3>
-        <table>
-          <thead><tr><th scope="col">Balance and movement</th><th scope="col">HNS</th></tr></thead>
-          <tbody>
-            <tr class="group"><th colspan="2" scope="rowgroup">Moto</th></tr>
-            <tr><th scope="row">Starting balance</th><td>3.018562</td></tr>
-            <tr><th scope="row">Swap lock</th><td>−0.500546</td></tr>
-            <tr><th scope="row">Funding network fee</th><td>−0.114900</td></tr>
-            <tr class="result"><th scope="row">Ending balance</th><td>2.403116</td></tr>
-          </tbody>
-          <tbody>
-            <tr class="group"><th colspan="2" scope="rowgroup">Pixel</th></tr>
-            <tr><th scope="row">Starting balance</th><td>11.311438</td></tr>
-            <tr><th scope="row">Claim from Moto’s lock</th><td>+0.500546</td></tr>
-            <tr><th scope="row">Claim network fee</th><td>−0.013700</td></tr>
-            <tr class="result"><th scope="row">Ending balance</th><td>11.798284</td></tr>
-          </tbody>
-        </table>
+        <h3>Handshake</h3>
+        <div class="wallet-grid">
+          <div class="wallet-card moto">
+            <h4>Moto G6 · pays HNS</h4>
+            <table>
+              <thead><tr><th scope="col">Balance and movement</th><th scope="col">HNS</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">Starting balance</th><td>3.018562</td></tr>
+                <tr><th scope="row">Swap lock</th><td>−0.500546</td></tr>
+                <tr><th scope="row">Funding network fee</th><td>−0.114900</td></tr>
+                <tr class="result"><th scope="row">Ending balance</th><td>2.403116</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="wallet-card pixel">
+            <h4>Pixel 9 · receives HNS</h4>
+            <table>
+              <thead><tr><th scope="col">Balance and movement</th><th scope="col">HNS</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">Starting balance</th><td>11.311438</td></tr>
+                <tr><th scope="row">Claim from Moto’s lock</th><td>+0.500546</td></tr>
+                <tr><th scope="row">Claim network fee</th><td>−0.013700</td></tr>
+                <tr class="result"><th scope="row">Ending balance</th><td>11.798284</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
         <p class="note">Moto spent 0.615446 HNS; Pixel gained 0.486846 HNS. The 0.128600-HNS difference is network fees.</p>
       </div>
     </div>
