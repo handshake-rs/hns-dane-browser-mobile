@@ -287,7 +287,7 @@
     <string name="wallet_swap_sell_hns">Jual HNS seharga BTC</string>
     <string name="wallet_swap_my_offers">Penawaran swap BTC/HNS saya yang aktif</string>
     <string name="wallet_swap_hns_offered_hint">HNS terkunci (minimal 0,100546 termasuk cadangan biaya)</string>
-    <string name="wallet_swap_btc_requested_hint">BTC terkunci (sats, minimum 1330 termasuk biaya cadangan)</string>
+    <string name="wallet_swap_btc_requested_hint">BTC terkunci (sats, minimum 4330 termasuk biaya cadangan)</string>
     <string name="wallet_swap_hns_fee_reserve_hint">Cadangan biaya HNS</string>
     <string name="wallet_swap_hns_prepare_failed">Daftar HNS-untuk-BTC belum disiapkan. HNS yang disinkronkan harus mencakup listing aktif dan jumlah terkunci lengkap ini, termasuk cadangan biayanya.</string>
     <string name="wallet_swap_hns_approval_title">Publikasikan penawaran HNS-untuk-BTC?</string>
@@ -296,7 +296,7 @@
     <string name="wallet_swap_loading_my_offers">Memuat penawaran pertukaran lokal yang diautentikasi…</string>
     <string name="wallet_swap_available_failed">Penawaran tidak dapat diverifikasi.</string>
     <string name="wallet_swap_acceptance_offer">Terima tawaran</string>
-    <string name="wallet_swap_acceptance_btc_fee_reserve_hint">Cadangan biaya Bitcoin (sats, minimal 1000)</string>
+    <string name="wallet_swap_acceptance_btc_fee_reserve_hint">Cadangan biaya Bitcoin (sats, minimal 4000)</string>
     <string name="wallet_swap_acceptance_hns_fee_reserve_hint">Cadangan biaya HNS</string>
     <string name="wallet_swap_acceptance_preparing">Mempersiapkan tinjauan penawaran…</string>
     <string name="wallet_swap_acceptance_prepare_failed">Penerimaan tawaran tidak dapat disiapkan. Periksa rekan yang terhubung, saldo tersinkronisasi, dan cadangan biaya.</string>
@@ -307,9 +307,9 @@
     <string name="wallet_swap_acceptance_failed">Penerimaan yang ditandatangani tidak dikirim. Rekan tersebut mungkin telah terputus atau penawarannya mungkin telah kedaluwarsa.</string>
     <string name="wallet_swap_acceptance_sent">Swap %1$s… dimulai. Batas pendanaan: %2$s (tersisa %3$s). Menunggu dompet lain menandatangani.</string>
     <string name="wallet_swap_cancel_direct_message">Penarikan %1$s?\n\nID Penawaran: %2$s. Pembatalan melepaskan reservasi lokal tetapi tidak dapat membatalkan sesi yang sudah diterima.</string>
-    <string name="wallet_swap_btc_amount_hint">BTC terkunci (sats, minimum 1330 termasuk biaya cadangan)</string>
+    <string name="wallet_swap_btc_amount_hint">BTC terkunci (sats, minimum 4330 termasuk biaya cadangan)</string>
     <string name="wallet_swap_hns_amount_hint">HNS terkunci (minimal 0,100546 termasuk cadangan biaya)</string>
-    <string name="wallet_swap_fee_reserve_hint">Cadangan biaya Bitcoin (sats, minimal 1000)</string>
+    <string name="wallet_swap_fee_reserve_hint">Cadangan biaya Bitcoin (sats, minimal 4000)</string>
     <string name="wallet_swap_lifetime_hours_hint">Daftar seumur hidup (jam, 48–168)</string>
     <string name="wallet_swap_preparing">Mempersiapkan daftar BTC-untuk-HNS yang tepat…</string>
     <string name="wallet_swap_prepare_failed">Daftarnya belum disiapkan. BTC yang dikonfirmasi harus mencakup listing aktif dan jumlah terkunci lengkap ini, termasuk cadangan biayanya.</string>

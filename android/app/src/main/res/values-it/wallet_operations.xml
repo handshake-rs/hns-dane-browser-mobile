@@ -287,7 +287,7 @@
     <string name="wallet_swap_sell_hns">Vendi HNS per BTC</string>
     <string name="wallet_swap_my_offers">Le mie offerte di scambio BTC/HNS attive</string>
     <string name="wallet_swap_hns_offered_hint">HNS bloccato (minimo 0,100546 compresa la riserva tariffaria)</string>
-    <string name="wallet_swap_btc_requested_hint">BTC bloccato (sats, minimo 1330 inclusa riserva di commissione)</string>
+    <string name="wallet_swap_btc_requested_hint">BTC bloccato (sats, minimo 4330 inclusa riserva di commissione)</string>
     <string name="wallet_swap_hns_fee_reserve_hint">HNS riserva tariffaria</string>
     <string name="wallet_swap_hns_prepare_failed">L\'elenco HNS-for-BTC non è stato preparato. HNS sincronizzato deve coprire le inserzioni attive e l\'intero importo bloccato, che include la riserva di commissione.</string>
     <string name="wallet_swap_hns_approval_title">Pubblicare un\'offerta HNS-per-BTC?</string>
@@ -296,7 +296,7 @@
     <string name="wallet_swap_loading_my_offers">Caricamento offerte di scambio locale autenticate…</string>
     <string name="wallet_swap_available_failed">Impossibile verificare le offerte.</string>
     <string name="wallet_swap_acceptance_offer">Accetta l\'offerta</string>
-    <string name="wallet_swap_acceptance_btc_fee_reserve_hint">Bitcoin riserva tariffa (sats, minimo 1000)</string>
+    <string name="wallet_swap_acceptance_btc_fee_reserve_hint">Bitcoin riserva tariffa (sats, minimo 4000)</string>
     <string name="wallet_swap_acceptance_hns_fee_reserve_hint">HNS riserva tariffaria</string>
     <string name="wallet_swap_acceptance_preparing">Preparazione della revisione dell\'offerta…</string>
     <string name="wallet_swap_acceptance_prepare_failed">Non è stato possibile preparare l\'accettazione dell\'offerta. Controlla il peer connesso, il saldo sincronizzato e la riserva tariffaria.</string>
@@ -307,9 +307,9 @@
     <string name="wallet_swap_acceptance_failed">L\'accettazione firmata non è stata inviata. Il peer potrebbe essersi disconnesso o l\'offerta potrebbe essere scaduta.</string>
     <string name="wallet_swap_acceptance_sent">Scambio %1$s… avviato. Scadenza finanziamento: %2$s (%3$s rimanenti). In attesa della firma dell’altro portafoglio.</string>
     <string name="wallet_swap_cancel_direct_message">Ritirare %1$s?\n\nOID offerta: %2$s. La cancellazione rilascia la prenotazione locale ma non può cancellare una sessione già accettata.</string>
-    <string name="wallet_swap_btc_amount_hint">BTC bloccato (sats, minimo 1330 inclusa riserva di commissione)</string>
+    <string name="wallet_swap_btc_amount_hint">BTC bloccato (sats, minimo 4330 inclusa riserva di commissione)</string>
     <string name="wallet_swap_hns_amount_hint">HNS bloccato (minimo 0,100546 compresa la riserva tariffaria)</string>
-    <string name="wallet_swap_fee_reserve_hint">Bitcoin riserva tariffa (sats, minimo 1000)</string>
+    <string name="wallet_swap_fee_reserve_hint">Bitcoin riserva tariffa (sats, minimo 4000)</string>
     <string name="wallet_swap_lifetime_hours_hint">Durata dell\'elenco (ore, 48–168)</string>
     <string name="wallet_swap_preparing">Preparazione dell\'elenco esatto BTC-for-HNS…</string>
     <string name="wallet_swap_prepare_failed">L\'elenco non è stato preparato. BTC confermato deve coprire le inserzioni attive e l\'intero importo bloccato, che include la riserva di commissione.</string>

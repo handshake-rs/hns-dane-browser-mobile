@@ -5675,11 +5675,11 @@ class WalletActivity : ComponentActivity() {
             ),
         ) { values ->
             val btc = values[0].toLongOrNull()
-                ?.takeIf { it >= NativeWalletBridge.MINIMUM_BITCOIN_HTLC_SATS }
+                ?.takeIf { it >= MINIMUM_NEW_BITCOIN_SWAP_HTLC_SATS }
             val hns = parsePositiveHnsToBaseUnits(values[1])?.toLongOrNull()
                 ?.takeIf { it >= NativeWalletBridge.MINIMUM_HNS_SWAP_DOLLARYDOOS }
             val reserve = values[2].toLongOrNull()
-                ?.takeIf { it >= NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS }
+                ?.takeIf { it >= MINIMUM_NEW_BITCOIN_SWAP_FEE_RESERVE_SATS }
             val lifetime = values[3].toLongOrNull()
                 ?.takeIf { it in 48L..168L }
                 ?.let { runCatching { Math.multiplyExact(it, 3_600L) }.getOrNull() }
@@ -5715,7 +5715,7 @@ class WalletActivity : ComponentActivity() {
             val hns = parsePositiveHnsToBaseUnits(values[0])?.toLongOrNull()
                 ?.takeIf { it >= NativeWalletBridge.MINIMUM_HNS_SWAP_DOLLARYDOOS }
             val btc = values[1].toLongOrNull()
-                ?.takeIf { it >= NativeWalletBridge.MINIMUM_BITCOIN_HTLC_SATS }
+                ?.takeIf { it >= MINIMUM_NEW_BITCOIN_SWAP_HTLC_SATS }
             val reserve = DEFAULT_HNS_SWAP_FEE_RESERVE_BASE_UNITS.toLong()
             val lifetime = values[2].toLongOrNull()
                 ?.takeIf { it in 48L..168L }
@@ -5879,7 +5879,7 @@ class WalletActivity : ComponentActivity() {
                         NativeWalletBridge.HNS_SWAP_RECEIVER_DUST_DOLLARYDOOS
                 }
             if (reserve <= 0L || !leavesSpendableOutput ||
-                bitcoin && reserve < NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS ||
+                bitcoin && reserve < MINIMUM_NEW_BITCOIN_SWAP_FEE_RESERVE_SATS ||
                 !bitcoin && reserve < NativeWalletBridge.MINIMUM_HNS_FEE_RESERVE_DOLLARYDOOS
             ) {
                 swapActionStatusView.text = getString(R.string.wallet_swap_acceptance_prepare_failed)
@@ -10952,6 +10952,11 @@ class WalletActivity : ComponentActivity() {
         // Their aggregate fee at the 2 sat/vB floor exceeds the protocol's
         // 1,000 sat admission minimum, so new swap terms need a usable cap.
         const val DEFAULT_BITCOIN_SWAP_FEE_RESERVE_SATS = 4_000L
+        const val MINIMUM_NEW_BITCOIN_SWAP_FEE_RESERVE_SATS =
+            DEFAULT_BITCOIN_SWAP_FEE_RESERVE_SATS
+        const val MINIMUM_NEW_BITCOIN_SWAP_HTLC_SATS =
+            NativeWalletBridge.BITCOIN_HTLC_RECEIVER_DUST_SATS +
+                MINIMUM_NEW_BITCOIN_SWAP_FEE_RESERVE_SATS
         const val DEFAULT_HNS_SWAP_FEE_RESERVE_BASE_UNITS = "500000"
         const val MAX_VALUE_ACTION_INPUT_CHARACTERS = 512
         const val MAX_RESOURCE_EDITOR_CHARACTERS = 4 * 1024

@@ -287,7 +287,7 @@
     <string name="wallet_swap_sell_hns">Verkaufe HNS für BTC</string>
     <string name="wallet_swap_my_offers">Meine aktiven BTC/HNS Tauschangebote</string>
     <string name="wallet_swap_hns_offered_hint">HNS gesperrt (mindestens 0,100546 inklusive Gebührenreserve)</string>
-    <string name="wallet_swap_btc_requested_hint">BTC gesperrt (sats, mindestens 1330 inklusive Gebührenreserve)</string>
+    <string name="wallet_swap_btc_requested_hint">BTC gesperrt (sats, mindestens 4330 inklusive Gebührenreserve)</string>
     <string name="wallet_swap_hns_fee_reserve_hint">HNS Gebührenreserve</string>
     <string name="wallet_swap_hns_prepare_failed">Die Auflistung HNS-for-BTC wurde nicht erstellt. Der synchronisierte HNS muss die aktiven Einträge und diesen gesamten gesperrten Betrag einschließlich der Gebührenreserve abdecken.</string>
     <string name="wallet_swap_hns_approval_title">HNS-für-BTC-Angebot veröffentlichen?</string>
@@ -296,7 +296,7 @@
     <string name="wallet_swap_loading_my_offers">Es werden authentifizierte lokale Tauschangebote geladen…</string>
     <string name="wallet_swap_available_failed">Angebote konnten nicht überprüft werden.</string>
     <string name="wallet_swap_acceptance_offer">Angebot annehmen</string>
-    <string name="wallet_swap_acceptance_btc_fee_reserve_hint">Bitcoin Gebührenreserve (sats, mindestens 1000)</string>
+    <string name="wallet_swap_acceptance_btc_fee_reserve_hint">Bitcoin Gebührenreserve (sats, mindestens 4000)</string>
     <string name="wallet_swap_acceptance_hns_fee_reserve_hint">HNS Gebührenreserve</string>
     <string name="wallet_swap_acceptance_preparing">Angebotsprüfung wird vorbereitet…</string>
     <string name="wallet_swap_acceptance_prepare_failed">Die Angebotsannahme konnte nicht vorbereitet werden. Überprüfen Sie den verbundenen Peer, den synchronisierten Kontostand und die Gebührenreserve.</string>
@@ -307,9 +307,9 @@
     <string name="wallet_swap_acceptance_failed">Die unterschriebene Annahmeerklärung wurde nicht verschickt. Der Peer hat möglicherweise die Verbindung getrennt oder das Angebot ist abgelaufen.</string>
     <string name="wallet_swap_acceptance_sent">Swap %1$s… gestartet. Finanzierungsfrist: %2$s (%3$s verbleibend). Warten auf die Signatur der anderen Wallet.</string>
     <string name="wallet_swap_cancel_direct_message">Abheben %1$s?\n\nAngebots-ID: %2$s. Durch die Stornierung wird die lokale Reservierung freigegeben, eine bereits akzeptierte Sitzung kann jedoch nicht storniert werden.</string>
-    <string name="wallet_swap_btc_amount_hint">BTC gesperrt (sats, mindestens 1330 inklusive Gebührenreserve)</string>
+    <string name="wallet_swap_btc_amount_hint">BTC gesperrt (sats, mindestens 4330 inklusive Gebührenreserve)</string>
     <string name="wallet_swap_hns_amount_hint">HNS gesperrt (mindestens 0,100546 inklusive Gebührenreserve)</string>
-    <string name="wallet_swap_fee_reserve_hint">Bitcoin Gebührenreserve (sats, mindestens 1000)</string>
+    <string name="wallet_swap_fee_reserve_hint">Bitcoin Gebührenreserve (sats, mindestens 4000)</string>
     <string name="wallet_swap_lifetime_hours_hint">Lebensdauer des Eintrags (Stunden, 48–168)</string>
     <string name="wallet_swap_preparing">Vorbereitung der genauen BTC-für-HNS-Auflistung…</string>
     <string name="wallet_swap_prepare_failed">Die Auflistung wurde nicht erstellt. Der bestätigte BTC muss aktive Einträge und diesen gesamten gesperrten Betrag einschließlich der Gebührenreserve abdecken.</string>

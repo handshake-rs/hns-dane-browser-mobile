@@ -287,7 +287,7 @@
     <string name="wallet_swap_sell_hns">BTC के लिए HNS बेचें</string>
     <string name="wallet_swap_my_offers">मेरा सक्रिय BTC/HNS स्वैप ऑफर</string>
     <string name="wallet_swap_hns_offered_hint">HNS लॉक किया गया (शुल्क आरक्षित सहित न्यूनतम 0.500546)</string>
-    <string name="wallet_swap_btc_requested_hint">BTC लॉक किया गया (sats, शुल्क आरक्षित सहित न्यूनतम 1330)</string>
+    <string name="wallet_swap_btc_requested_hint">BTC लॉक किया गया (sats, शुल्क आरक्षित सहित न्यूनतम 4330)</string>
     <string name="wallet_swap_hns_fee_reserve_hint">HNS शुल्क आरक्षित</string>
     <string name="wallet_swap_hns_prepare_failed">HNS-for-BTC सूची तैयार नहीं की गई थी। सिंक्रोनाइज़्ड HNS में सक्रिय लिस्टिंग और यह पूरी लॉक की गई राशि शामिल होनी चाहिए, जिसमें इसका शुल्क आरक्षित भी शामिल है।</string>
     <string name="wallet_swap_hns_approval_title">HNS-for-BTC ऑफर प्रकाशित करें?</string>
@@ -296,7 +296,7 @@
     <string name="wallet_swap_loading_my_offers">प्रमाणित स्थानीय स्वैप ऑफ़र लोड हो रहे हैं...</string>
     <string name="wallet_swap_available_failed">ऑफ़र सत्यापित नहीं किए जा सके.</string>
     <string name="wallet_swap_acceptance_offer">प्रस्ताव स्वीकार करें</string>
-    <string name="wallet_swap_acceptance_btc_fee_reserve_hint">Bitcoin शुल्क आरक्षित (sats, न्यूनतम 1000)</string>
+    <string name="wallet_swap_acceptance_btc_fee_reserve_hint">Bitcoin शुल्क आरक्षित (sats, न्यूनतम 4000)</string>
     <string name="wallet_swap_acceptance_hns_fee_reserve_hint">HNS शुल्क आरक्षित</string>
     <string name="wallet_swap_acceptance_preparing">ऑफ़र समीक्षा तैयार की जा रही है…</string>
     <string name="wallet_swap_acceptance_prepare_failed">प्रस्ताव स्वीकृति तैयार नहीं हो सकी। कनेक्टेड पीयर, सिंक्रोनाइज्ड बैलेंस और शुल्क रिजर्व की जांच करें।</string>
@@ -307,9 +307,9 @@
     <string name="wallet_swap_acceptance_failed">हस्ताक्षरित स्वीकृति नहीं भेजी गई. हो सकता है कि सहकर्मी ने डिस्कनेक्ट कर दिया हो या ऑफ़र समाप्त हो गया हो।</string>
     <string name="wallet_swap_acceptance_sent">स्वैप %1$s… शुरू हुआ। फ़ंडिंग की समय-सीमा: %2$s (%3$s शेष)। दूसरे वॉलेट के हस्ताक्षर की प्रतीक्षा है।</string>
     <string name="wallet_swap_cancel_direct_message">%1$s वापस लें?\n\nऑफर आईडी: %2$s। रद्द करने से स्थानीय आरक्षण जारी हो जाता है लेकिन पहले से स्वीकृत सत्र रद्द नहीं किया जा सकता।</string>
-    <string name="wallet_swap_btc_amount_hint">BTC लॉक किया गया (sats, शुल्क आरक्षित सहित न्यूनतम 1330)</string>
+    <string name="wallet_swap_btc_amount_hint">BTC लॉक किया गया (sats, शुल्क आरक्षित सहित न्यूनतम 4330)</string>
     <string name="wallet_swap_hns_amount_hint">HNS लॉक किया गया (शुल्क आरक्षित सहित न्यूनतम 0.500546)</string>
-    <string name="wallet_swap_fee_reserve_hint">Bitcoin शुल्क आरक्षित (sats, न्यूनतम 1000)</string>
+    <string name="wallet_swap_fee_reserve_hint">Bitcoin शुल्क आरक्षित (sats, न्यूनतम 4000)</string>
     <string name="wallet_swap_lifetime_hours_hint">लिस्टिंग जीवनकाल (घंटे, 48-168)</string>
     <string name="wallet_swap_preparing">सटीक BTC-for-HNS सूची तैयार की जा रही है…</string>
     <string name="wallet_swap_prepare_failed">सूची तैयार नहीं की गई थी। पुष्टि किए गए BTC में सक्रिय लिस्टिंग और यह पूर्ण लॉक की गई राशि शामिल होनी चाहिए, जिसमें इसका शुल्क आरक्षित भी शामिल है।</string>

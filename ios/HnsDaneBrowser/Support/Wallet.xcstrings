@@ -50311,127 +50311,127 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "احتياطي رسوم Bitcoin (sats، الحد الأدنى 1000)"
+            "value": "احتياطي رسوم Bitcoin (sats، الحد الأدنى 4000)"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bitcoin Gebührenreserve (sats, mindestens 1000)"
+            "value": "Bitcoin Gebührenreserve (sats, mindestens 4000)"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bitcoin fee reserve (sats, minimum 1000)"
+            "value": "Bitcoin fee reserve (sats, minimum 4000)"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reserva de tarifa Bitcoin (sats, mínimo 1000)"
+            "value": "Reserva de tarifa Bitcoin (sats, mínimo 4000)"
           }
         },
         "fa": {
           "stringUnit": {
             "state": "translated",
-            "value": "ذخیره هزینه Bitcoin (sats، حداقل 1000)"
+            "value": "ذخیره هزینه Bitcoin (sats، حداقل 4000)"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Réserve de frais Bitcoin (sats, minimum 1 000)"
+            "value": "Réserve de frais Bitcoin (sats, minimum 4 000)"
           }
         },
         "he": {
           "stringUnit": {
             "state": "translated",
-            "value": "עתודת עמלה Bitcoin (sats, מינימום 1000)"
+            "value": "עתודת עמלה Bitcoin (sats, מינימום 4000)"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bitcoin शुल्क आरक्षित (sats, न्यूनतम 1000)"
+            "value": "Bitcoin शुल्क आरक्षित (sats, न्यूनतम 4000)"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cadangan biaya Bitcoin (sats, minimal 1000)"
+            "value": "Cadangan biaya Bitcoin (sats, minimal 4000)"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bitcoin riserva tariffa (sats, minimo 1000)"
+            "value": "Bitcoin riserva tariffa (sats, minimo 4000)"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bitcoin 手数料引当金 (sats、最低 1000)"
+            "value": "Bitcoin 手数料引当金 (sats、最低 4000)"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bitcoin 수수료 적립금 (sats, 최소 1000)"
+            "value": "Bitcoin 수수료 적립금 (sats, 최소 4000)"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bitcoin vergoedingsreserve (sats, minimaal 1000)"
+            "value": "Bitcoin vergoedingsreserve (sats, minimaal 4000)"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bitcoin rezerwa na opłaty (sats, minimum 1000)"
+            "value": "Bitcoin rezerwa na opłaty (sats, minimum 4000)"
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reserva de taxa Bitcoin (sats, mínimo 1.000)"
+            "value": "Reserva de taxa Bitcoin (sats, mínimo 4.000)"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Резерв комиссии Bitcoin (sats, минимум 1000)"
+            "value": "Резерв комиссии Bitcoin (sats, минимум 4000)"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bitcoin ücret rezervi (sats, minimum 1000)"
+            "value": "Bitcoin ücret rezervi (sats, minimum 4000)"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Резерв комісії Bitcoin (sats, мінімум 1000)"
+            "value": "Резерв комісії Bitcoin (sats, мінімум 4000)"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dự trữ phí Bitcoin (sats, tối thiểu 1000)"
+            "value": "Dự trữ phí Bitcoin (sats, tối thiểu 4000)"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bitcoin 手续费储备金（sats，最低1000）"
+            "value": "Bitcoin 手续费储备金（sats，最低4000）"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bitcoin 手續費儲備金（sats，最低1000）"
+            "value": "Bitcoin 手續費儲備金（sats，最低4000）"
           }
         }
       }
@@ -53062,127 +53062,127 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC مقفل (sats، الحد الأدنى 1330 بما في ذلك احتياطي الرسوم)"
+            "value": "BTC مقفل (sats، الحد الأدنى 4330 بما في ذلك احتياطي الرسوم)"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC gesperrt (sats, mindestens 1330 inklusive Gebührenreserve)"
+            "value": "BTC gesperrt (sats, mindestens 4330 inklusive Gebührenreserve)"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC locked (sats, minimum 1330 including fee reserve)"
+            "value": "BTC locked (sats, minimum 4330 including fee reserve)"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC bloqueado (sats, mínimo 1330 incluyendo reserva de tarifa)"
+            "value": "BTC bloqueado (sats, mínimo 4330 incluyendo reserva de tarifa)"
           }
         },
         "fa": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC قفل شده (sats، حداقل 1330 شامل ذخیره هزینه)"
+            "value": "BTC قفل شده (sats، حداقل 4330 شامل ذخیره هزینه)"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC verrouillé (sats, minimum 1330, réserve de frais incluse)"
+            "value": "BTC verrouillé (sats, minimum 4330, réserve de frais incluse)"
           }
         },
         "he": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC נעול (sats, מינימום 1330 כולל רזרבה לתשלום)"
+            "value": "BTC נעול (sats, מינימום 4330 כולל רזרבה לתשלום)"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC लॉक किया गया (sats, शुल्क आरक्षित सहित न्यूनतम 1330)"
+            "value": "BTC लॉक किया गया (sats, शुल्क आरक्षित सहित न्यूनतम 4330)"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC terkunci (sats, minimum 1330 termasuk biaya cadangan)"
+            "value": "BTC terkunci (sats, minimum 4330 termasuk biaya cadangan)"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC bloccato (sats, minimo 1330 inclusa riserva di commissione)"
+            "value": "BTC bloccato (sats, minimo 4330 inclusa riserva di commissione)"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC ロック済み (sats、手数料リザーブを含む最低 1330)"
+            "value": "BTC ロック済み (sats、手数料リザーブを含む最低 4330)"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC 잠김(sats, 수수료 예비 포함 최소 1330)"
+            "value": "BTC 잠김(sats, 수수료 예비 포함 최소 4330)"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC vergrendeld (sats, minimaal 1330 inclusief vergoedingsreserve)"
+            "value": "BTC vergrendeld (sats, minimaal 4330 inclusief vergoedingsreserve)"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC zablokowany (sats, minimum 1330 łącznie z rezerwą na opłaty)"
+            "value": "BTC zablokowany (sats, minimum 4330 łącznie z rezerwą na opłaty)"
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC bloqueado (sats, mínimo 1330 incluindo reserva de taxa)"
+            "value": "BTC bloqueado (sats, mínimo 4330 incluindo reserva de taxa)"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC заблокирован (sats, минимум 1330, включая резерв комиссии)"
+            "value": "BTC заблокирован (sats, минимум 4330, включая резерв комиссии)"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC kilitli (sats, ücret rezervi dahil minimum 1330)"
+            "value": "BTC kilitli (sats, ücret rezervi dahil minimum 4330)"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC заблоковано (sats, мінімум 1330, включаючи резерв комісії)"
+            "value": "BTC заблоковано (sats, мінімум 4330, включаючи резерв комісії)"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC bị khóa (sats, tối thiểu 1330 bao gồm phí dự trữ)"
+            "value": "BTC bị khóa (sats, tối thiểu 4330 bao gồm phí dự trữ)"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC 锁定（sats，最低 1330 含手续费）"
+            "value": "BTC 锁定（sats，最低 4330 含手续费）"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC 鎖定（sats，最低 1330 含手續費）"
+            "value": "BTC 鎖定（sats，最低 4330 含手續費）"
           }
         }
       }
@@ -53193,127 +53193,127 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC مقفل (sats، الحد الأدنى 1330 بما في ذلك احتياطي الرسوم)"
+            "value": "BTC مقفل (sats، الحد الأدنى 4330 بما في ذلك احتياطي الرسوم)"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC gesperrt (sats, mindestens 1330 inklusive Gebührenreserve)"
+            "value": "BTC gesperrt (sats, mindestens 4330 inklusive Gebührenreserve)"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC locked (sats, minimum 1330 including fee reserve)"
+            "value": "BTC locked (sats, minimum 4330 including fee reserve)"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC bloqueado (sats, mínimo 1330 incluyendo reserva de tarifa)"
+            "value": "BTC bloqueado (sats, mínimo 4330 incluyendo reserva de tarifa)"
           }
         },
         "fa": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC قفل شده (sats، حداقل 1330 شامل ذخیره هزینه)"
+            "value": "BTC قفل شده (sats، حداقل 4330 شامل ذخیره هزینه)"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC verrouillé (sats, minimum 1330, réserve de frais incluse)"
+            "value": "BTC verrouillé (sats, minimum 4330, réserve de frais incluse)"
           }
         },
         "he": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC נעול (sats, מינימום 1330 כולל רזרבה לתשלום)"
+            "value": "BTC נעול (sats, מינימום 4330 כולל רזרבה לתשלום)"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC लॉक किया गया (sats, शुल्क आरक्षित सहित न्यूनतम 1330)"
+            "value": "BTC लॉक किया गया (sats, शुल्क आरक्षित सहित न्यूनतम 4330)"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC terkunci (sats, minimum 1330 termasuk biaya cadangan)"
+            "value": "BTC terkunci (sats, minimum 4330 termasuk biaya cadangan)"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC bloccato (sats, minimo 1330 inclusa riserva di commissione)"
+            "value": "BTC bloccato (sats, minimo 4330 inclusa riserva di commissione)"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC ロック済み (sats、手数料リザーブを含む最低 1330)"
+            "value": "BTC ロック済み (sats、手数料リザーブを含む最低 4330)"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC 잠김(sats, 수수료 예비 포함 최소 1330)"
+            "value": "BTC 잠김(sats, 수수료 예비 포함 최소 4330)"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC vergrendeld (sats, minimaal 1330 inclusief vergoedingsreserve)"
+            "value": "BTC vergrendeld (sats, minimaal 4330 inclusief vergoedingsreserve)"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC zablokowany (sats, minimum 1330 łącznie z rezerwą na opłaty)"
+            "value": "BTC zablokowany (sats, minimum 4330 łącznie z rezerwą na opłaty)"
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC bloqueado (sats, mínimo 1330 incluindo reserva de taxa)"
+            "value": "BTC bloqueado (sats, mínimo 4330 incluindo reserva de taxa)"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC заблокирован (sats, минимум 1330, включая резерв комиссии)"
+            "value": "BTC заблокирован (sats, минимум 4330, включая резерв комиссии)"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC kilitli (sats, ücret rezervi dahil minimum 1330)"
+            "value": "BTC kilitli (sats, ücret rezervi dahil minimum 4330)"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC заблоковано (sats, мінімум 1330, включаючи резерв комісії)"
+            "value": "BTC заблоковано (sats, мінімум 4330, включаючи резерв комісії)"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC bị khóa (sats, tối thiểu 1330 bao gồm phí dự trữ)"
+            "value": "BTC bị khóa (sats, tối thiểu 4330 bao gồm phí dự trữ)"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC 锁定（sats，最低 1330 含手续费）"
+            "value": "BTC 锁定（sats，最低 4330 含手续费）"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "BTC 鎖定（sats，最低 1330 含手續費）"
+            "value": "BTC 鎖定（sats，最低 4330 含手續費）"
           }
         }
       }
@@ -57909,127 +57909,127 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "احتياطي رسوم Bitcoin (sats، الحد الأدنى 1000)"
+            "value": "احتياطي رسوم Bitcoin (sats، الحد الأدنى 4000)"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bitcoin Gebührenreserve (sats, mindestens 1000)"
+            "value": "Bitcoin Gebührenreserve (sats, mindestens 4000)"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bitcoin fee reserve (sats, minimum 1000)"
+            "value": "Bitcoin fee reserve (sats, minimum 4000)"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reserva de tarifa Bitcoin (sats, mínimo 1000)"
+            "value": "Reserva de tarifa Bitcoin (sats, mínimo 4000)"
           }
         },
         "fa": {
           "stringUnit": {
             "state": "translated",
-            "value": "ذخیره هزینه Bitcoin (sats، حداقل 1000)"
+            "value": "ذخیره هزینه Bitcoin (sats، حداقل 4000)"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Réserve de frais Bitcoin (sats, minimum 1 000)"
+            "value": "Réserve de frais Bitcoin (sats, minimum 4 000)"
           }
         },
         "he": {
           "stringUnit": {
             "state": "translated",
-            "value": "עתודת עמלה Bitcoin (sats, מינימום 1000)"
+            "value": "עתודת עמלה Bitcoin (sats, מינימום 4000)"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bitcoin शुल्क आरक्षित (sats, न्यूनतम 1000)"
+            "value": "Bitcoin शुल्क आरक्षित (sats, न्यूनतम 4000)"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cadangan biaya Bitcoin (sats, minimal 1000)"
+            "value": "Cadangan biaya Bitcoin (sats, minimal 4000)"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bitcoin riserva tariffa (sats, minimo 1000)"
+            "value": "Bitcoin riserva tariffa (sats, minimo 4000)"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bitcoin 手数料引当金 (sats、最低 1000)"
+            "value": "Bitcoin 手数料引当金 (sats、最低 4000)"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bitcoin 수수료 적립금 (sats, 최소 1000)"
+            "value": "Bitcoin 수수료 적립금 (sats, 최소 4000)"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bitcoin vergoedingsreserve (sats, minimaal 1000)"
+            "value": "Bitcoin vergoedingsreserve (sats, minimaal 4000)"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bitcoin rezerwa na opłaty (sats, minimum 1000)"
+            "value": "Bitcoin rezerwa na opłaty (sats, minimum 4000)"
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reserva de taxa Bitcoin (sats, mínimo 1.000)"
+            "value": "Reserva de taxa Bitcoin (sats, mínimo 4.000)"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Резерв комиссии Bitcoin (sats, минимум 1000)"
+            "value": "Резерв комиссии Bitcoin (sats, минимум 4000)"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bitcoin ücret rezervi (sats, minimum 1000)"
+            "value": "Bitcoin ücret rezervi (sats, minimum 4000)"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Резерв комісії Bitcoin (sats, мінімум 1000)"
+            "value": "Резерв комісії Bitcoin (sats, мінімум 4000)"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dự trữ phí Bitcoin (sats, tối thiểu 1000)"
+            "value": "Dự trữ phí Bitcoin (sats, tối thiểu 4000)"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bitcoin 手续费储备金（sats，最低1000）"
+            "value": "Bitcoin 手续费储备金（sats，最低4000）"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bitcoin 手續費儲備金（sats，最低1000）"
+            "value": "Bitcoin 手續費儲備金（sats，最低4000）"
           }
         }
       }
@@ -72498,7 +72498,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Maximum Bitcoin funding package fee (sats)"
+            "value": "Bitcoin funding fee cap (sats, minimum 4,000)"
           }
         }
       }

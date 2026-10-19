@@ -287,7 +287,7 @@
     <string name="wallet_swap_sell_hns">Vendre HNS pour BTC</string>
     <string name="wallet_swap_my_offers">Mes offres d\'échange BTC/HNS actives</string>
     <string name="wallet_swap_hns_offered_hint">HNS verrouillé (minimum 0,100546, réserve de frais comprise)</string>
-    <string name="wallet_swap_btc_requested_hint">BTC verrouillé (sats, minimum 1330, réserve de frais incluse)</string>
+    <string name="wallet_swap_btc_requested_hint">BTC verrouillé (sats, minimum 4330, réserve de frais incluse)</string>
     <string name="wallet_swap_hns_fee_reserve_hint">Réserve de frais HNS</string>
     <string name="wallet_swap_hns_prepare_failed">La liste HNS-for-BTC n’a pas été préparée. Le HNS synchronisé doit couvrir les annonces actives et ce montant bloqué complet, qui inclut sa réserve de frais.</string>
     <string name="wallet_swap_hns_approval_title">Publier l\'offre HNS-pour-BTC ?</string>
@@ -296,7 +296,7 @@
     <string name="wallet_swap_loading_my_offers">Chargement des offres d\'échange locales authentifiées…</string>
     <string name="wallet_swap_available_failed">Les offres n\'ont pas pu être vérifiées.</string>
     <string name="wallet_swap_acceptance_offer">Accepter l\'offre</string>
-    <string name="wallet_swap_acceptance_btc_fee_reserve_hint">Réserve de frais Bitcoin (sats, minimum 1 000)</string>
+    <string name="wallet_swap_acceptance_btc_fee_reserve_hint">Réserve de frais Bitcoin (sats, minimum 4 000)</string>
     <string name="wallet_swap_acceptance_hns_fee_reserve_hint">Réserve de frais HNS</string>
     <string name="wallet_swap_acceptance_preparing">Préparation de la revue des offres…</string>
     <string name="wallet_swap_acceptance_prepare_failed">L\'acceptation de l\'offre n\'a pas pu être préparée. Vérifiez le pair connecté, le solde synchronisé et la réserve de frais.</string>
@@ -307,9 +307,9 @@
     <string name="wallet_swap_acceptance_failed">L\'acceptation signée n\'a pas été envoyée. L\'homologue s\'est peut-être déconnecté ou l\'offre a peut-être expiré.</string>
     <string name="wallet_swap_acceptance_sent">Échange %1$s… lancé. Échéance de financement : %2$s (%3$s restantes). En attente de la signature de l’autre portefeuille.</string>
     <string name="wallet_swap_cancel_direct_message">Retirer %1$s?\n\nID de l\'offre : %2$s. L\'annulation libère la réservation locale mais ne peut pas annuler une séance déjà acceptée.</string>
-    <string name="wallet_swap_btc_amount_hint">BTC verrouillé (sats, minimum 1330, réserve de frais incluse)</string>
+    <string name="wallet_swap_btc_amount_hint">BTC verrouillé (sats, minimum 4330, réserve de frais incluse)</string>
     <string name="wallet_swap_hns_amount_hint">HNS verrouillé (minimum 0,100546, réserve de frais comprise)</string>
-    <string name="wallet_swap_fee_reserve_hint">Réserve de frais Bitcoin (sats, minimum 1 000)</string>
+    <string name="wallet_swap_fee_reserve_hint">Réserve de frais Bitcoin (sats, minimum 4 000)</string>
     <string name="wallet_swap_lifetime_hours_hint">Durée de vie de l\'annonce (heures, 48 à 168)</string>
     <string name="wallet_swap_preparing">Préparation de la liste exacte BTC-pour-HNS…</string>
     <string name="wallet_swap_prepare_failed">Le listing n\'a pas été préparé. Le BTC confirmé doit couvrir les annonces actives et ce montant bloqué complet, qui comprend sa réserve de frais.</string>

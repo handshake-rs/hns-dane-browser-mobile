@@ -287,7 +287,7 @@
     <string name="wallet_swap_sell_hns">Verkoop HNS voor BTC</string>
     <string name="wallet_swap_my_offers">Mijn actieve BTC/HNS ruilaanbiedingen</string>
     <string name="wallet_swap_hns_offered_hint">HNS vergrendeld (minimaal 0,100546 inclusief vergoedingsreserve)</string>
-    <string name="wallet_swap_btc_requested_hint">BTC vergrendeld (sats, minimaal 1330 inclusief vergoedingsreserve)</string>
+    <string name="wallet_swap_btc_requested_hint">BTC vergrendeld (sats, minimaal 4330 inclusief vergoedingsreserve)</string>
     <string name="wallet_swap_hns_fee_reserve_hint">HNS kostenreservering</string>
     <string name="wallet_swap_hns_prepare_failed">De vermelding HNS-voor-BTC is niet opgesteld. Gesynchroniseerde HNS moet actieve vermeldingen en dit volledige vergrendelde bedrag dekken, inclusief de kostenreservering.</string>
     <string name="wallet_swap_hns_approval_title">HNS-voor-BTC aanbieding publiceren?</string>
@@ -296,7 +296,7 @@
     <string name="wallet_swap_loading_my_offers">Geauthenticeerde lokale ruilaanbiedingen laden...</string>
     <string name="wallet_swap_available_failed">Aanbiedingen konden niet worden geverifieerd.</string>
     <string name="wallet_swap_acceptance_offer">Accepteer aanbod</string>
-    <string name="wallet_swap_acceptance_btc_fee_reserve_hint">Bitcoin vergoedingsreserve (sats, minimaal 1000)</string>
+    <string name="wallet_swap_acceptance_btc_fee_reserve_hint">Bitcoin vergoedingsreserve (sats, minimaal 4000)</string>
     <string name="wallet_swap_acceptance_hns_fee_reserve_hint">HNS kostenreservering</string>
     <string name="wallet_swap_acceptance_preparing">Beoordeling van aanbieding voorbereiden…</string>
     <string name="wallet_swap_acceptance_prepare_failed">De aanvaarding van het bod kon niet worden voorbereid. Controleer de verbonden peer, het gesynchroniseerde saldo en de kostenreservering.</string>
@@ -307,9 +307,9 @@
     <string name="wallet_swap_acceptance_failed">De ondertekende aanvaarding is niet verzonden. Mogelijk is de verbinding met de peer verbroken of is de aanbieding verlopen.</string>
     <string name="wallet_swap_acceptance_sent">Swap %1$s… gestart. Financieringsdeadline: %2$s (%3$s resterend). Wachten op de handtekening van de andere wallet.</string>
     <string name="wallet_swap_cancel_direct_message">%1$s intrekken?\n\nBiedings-ID: %2$s. Bij annulering wordt de lokale reservering vrijgegeven, maar een reeds geaccepteerde sessie kan niet worden geannuleerd.</string>
-    <string name="wallet_swap_btc_amount_hint">BTC vergrendeld (sats, minimaal 1330 inclusief vergoedingsreserve)</string>
+    <string name="wallet_swap_btc_amount_hint">BTC vergrendeld (sats, minimaal 4330 inclusief vergoedingsreserve)</string>
     <string name="wallet_swap_hns_amount_hint">HNS vergrendeld (minimaal 0,100546 inclusief vergoedingsreserve)</string>
-    <string name="wallet_swap_fee_reserve_hint">Bitcoin vergoedingsreserve (sats, minimaal 1000)</string>
+    <string name="wallet_swap_fee_reserve_hint">Bitcoin vergoedingsreserve (sats, minimaal 4000)</string>
     <string name="wallet_swap_lifetime_hours_hint">Levensduur vermelding (uren, 48-168)</string>
     <string name="wallet_swap_preparing">Exacte BTC-voor-HNS-lijst voorbereiden...</string>
     <string name="wallet_swap_prepare_failed">De lijst is niet opgesteld. Bevestigd dat BTC actieve vermeldingen en dit volledige vergrendelde bedrag moet dekken, inclusief de kostenreservering.</string>

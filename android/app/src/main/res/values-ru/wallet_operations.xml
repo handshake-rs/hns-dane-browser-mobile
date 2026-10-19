@@ -287,7 +287,7 @@
     <string name="wallet_swap_sell_hns">Продать HNS за BTC</string>
     <string name="wallet_swap_my_offers">Мои активные предложения обмена BTC/HNS</string>
     <string name="wallet_swap_hns_offered_hint">HNS заблокирован (минимум 0,100546, включая резерв комиссии)</string>
-    <string name="wallet_swap_btc_requested_hint">BTC заблокирован (sats, минимум 1330, включая резерв комиссии)</string>
+    <string name="wallet_swap_btc_requested_hint">BTC заблокирован (sats, минимум 4330, включая резерв комиссии)</string>
     <string name="wallet_swap_hns_fee_reserve_hint">HNS резерв комиссии</string>
     <string name="wallet_swap_hns_prepare_failed">Листинг HNS для BTC не был подготовлен. Синхронизированный HNS должен покрывать активные листинги и всю заблокированную сумму, включая резерв комиссии.</string>
     <string name="wallet_swap_hns_approval_title">Опубликовать предложение HNS-для-BTC?</string>
@@ -296,7 +296,7 @@
     <string name="wallet_swap_loading_my_offers">Загрузка проверенных местных предложений обмена…</string>
     <string name="wallet_swap_available_failed">Предложения не удалось проверить.</string>
     <string name="wallet_swap_acceptance_offer">Принять предложение</string>
-    <string name="wallet_swap_acceptance_btc_fee_reserve_hint">Резерв комиссии Bitcoin (sats, минимум 1000)</string>
+    <string name="wallet_swap_acceptance_btc_fee_reserve_hint">Резерв комиссии Bitcoin (sats, минимум 4000)</string>
     <string name="wallet_swap_acceptance_hns_fee_reserve_hint">HNS резерв комиссии</string>
     <string name="wallet_swap_acceptance_preparing">Подготовка обзора предложения…</string>
     <string name="wallet_swap_acceptance_prepare_failed">Акцепт оферты подготовить не удалось. Проверьте подключенного узла, синхронизированный баланс и резерв комиссии.</string>
@@ -307,9 +307,9 @@
     <string name="wallet_swap_acceptance_failed">Подписанный акцепт не был отправлен. Возможно, одноранговый узел отключился или срок действия предложения истек.</string>
     <string name="wallet_swap_acceptance_sent">Обмен %1$s… начат. Срок финансирования: %2$s (осталось %3$s). Ожидание подписи другого кошелька.</string>
     <string name="wallet_swap_cancel_direct_message">Вывести %1$s?\n\nИдентификатор предложения: %2$s. Отмена освобождает локальное резервирование, но не может отменить уже принятый сеанс.</string>
-    <string name="wallet_swap_btc_amount_hint">BTC заблокирован (sats, минимум 1330, включая резерв комиссии)</string>
+    <string name="wallet_swap_btc_amount_hint">BTC заблокирован (sats, минимум 4330, включая резерв комиссии)</string>
     <string name="wallet_swap_hns_amount_hint">HNS заблокирован (минимум 0,100546, включая резерв комиссии)</string>
-    <string name="wallet_swap_fee_reserve_hint">Резерв комиссии Bitcoin (sats, минимум 1000)</string>
+    <string name="wallet_swap_fee_reserve_hint">Резерв комиссии Bitcoin (sats, минимум 4000)</string>
     <string name="wallet_swap_lifetime_hours_hint">Срок действия листинга (часы, 48–168)</string>
     <string name="wallet_swap_preparing">Подготовка точного списка BTC для HNS…</string>
     <string name="wallet_swap_prepare_failed">Листинг не был подготовлен. Подтвержденный BTC должен покрывать активные листинги и всю заблокированную сумму, включая резерв комиссии.</string>

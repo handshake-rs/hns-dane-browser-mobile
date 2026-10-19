@@ -287,7 +287,7 @@
     <string name="wallet_swap_sell_hns">BTC karşılığında HNS\'yi sat</string>
     <string name="wallet_swap_my_offers">Aktif BTC/HNS takas tekliflerim</string>
     <string name="wallet_swap_hns_offered_hint">HNS kilitli (ücret rezervi dahil minimum 0,100546)</string>
-    <string name="wallet_swap_btc_requested_hint">BTC kilitli (sats, ücret rezervi dahil minimum 1330)</string>
+    <string name="wallet_swap_btc_requested_hint">BTC kilitli (sats, ücret rezervi dahil minimum 4330)</string>
     <string name="wallet_swap_hns_fee_reserve_hint">HNS ücret rezervi</string>
     <string name="wallet_swap_hns_prepare_failed">HNS-for-BTC listesi hazırlanmadı. Senkronize HNS, aktif listelemeleri ve ücret rezervi de dahil olmak üzere bu kilitli tutarın tamamını kapsamalıdır.</string>
     <string name="wallet_swap_hns_approval_title">HNS-for-BTC teklifi yayınlansın mı?</string>
@@ -296,7 +296,7 @@
     <string name="wallet_swap_loading_my_offers">Kimliği doğrulanmış yerel takas teklifleri yükleniyor…</string>
     <string name="wallet_swap_available_failed">Teklifler doğrulanamadı.</string>
     <string name="wallet_swap_acceptance_offer">Teklifi kabul et</string>
-    <string name="wallet_swap_acceptance_btc_fee_reserve_hint">Bitcoin ücret rezervi (sats, minimum 1000)</string>
+    <string name="wallet_swap_acceptance_btc_fee_reserve_hint">Bitcoin ücret rezervi (sats, minimum 4000)</string>
     <string name="wallet_swap_acceptance_hns_fee_reserve_hint">HNS ücret rezervi</string>
     <string name="wallet_swap_acceptance_preparing">Teklif incelemesi hazırlanıyor…</string>
     <string name="wallet_swap_acceptance_prepare_failed">Teklif kabulü hazırlanamadı. Bağlı eşleri, senkronize bakiyeyi ve ücret rezervini kontrol edin.</string>
@@ -307,9 +307,9 @@
     <string name="wallet_swap_acceptance_failed">İmzalı kabul gönderilmedi. Eşin bağlantısı kesilmiş olabilir veya teklifin süresi dolmuş olabilir.</string>
     <string name="wallet_swap_acceptance_sent">Takas %1$s… başladı. Fonlama son tarihi: %2$s (%3$s kaldı). Diğer cüzdanın imzası bekleniyor.</string>
     <string name="wallet_swap_cancel_direct_message">%1$s\'yi geri çekin?\n\nTeklif Kimliği: %2$s. İptal yerel rezervasyonu iptal eder ancak önceden kabul edilmiş bir oturumu iptal edemez.</string>
-    <string name="wallet_swap_btc_amount_hint">BTC kilitli (sats, ücret rezervi dahil minimum 1330)</string>
+    <string name="wallet_swap_btc_amount_hint">BTC kilitli (sats, ücret rezervi dahil minimum 4330)</string>
     <string name="wallet_swap_hns_amount_hint">HNS kilitli (ücret rezervi dahil minimum 0,100546)</string>
-    <string name="wallet_swap_fee_reserve_hint">Bitcoin ücret rezervi (sats, minimum 1000)</string>
+    <string name="wallet_swap_fee_reserve_hint">Bitcoin ücret rezervi (sats, minimum 4000)</string>
     <string name="wallet_swap_lifetime_hours_hint">Listeleme ömrü (saat, 48–168)</string>
     <string name="wallet_swap_preparing">Tam BTC-for-HNS listesi hazırlanıyor…</string>
     <string name="wallet_swap_prepare_failed">Liste hazırlanmadı. Onaylandı BTC, aktif listelemeleri ve ücret rezervi de dahil olmak üzere bu kilitli tutarın tamamını kapsamalıdır.</string>

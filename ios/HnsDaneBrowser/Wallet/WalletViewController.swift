@@ -14,10 +14,12 @@ private let bitcoinHtlcReceiverDustSats: UInt64 = 330
 private let minimumBitcoinFeeReserveSats: UInt64 = 1_000
 // Recovery funding publishes three data ancestors plus the HTLC lock.
 private let defaultBitcoinSwapFeeReserveSats: UInt64 = 4_000
+private let minimumNewBitcoinSwapFeeReserveSats = defaultBitcoinSwapFeeReserveSats
 private let hnsSwapReceiverDustDollarydoos: UInt64 = 546
 private let minimumHnsFeeReserveDollarydoos: UInt64 = 500_000
-private let minimumBitcoinHtlcSats = bitcoinHtlcReceiverDustSats + minimumBitcoinFeeReserveSats
 private let defaultBitcoinSwapHtlcSats = bitcoinHtlcReceiverDustSats + defaultBitcoinSwapFeeReserveSats
+private let minimumNewBitcoinSwapHtlcSats =
+    bitcoinHtlcReceiverDustSats + minimumNewBitcoinSwapFeeReserveSats
 private let minimumHnsSwapDollarydoos =
     hnsSwapReceiverDustDollarydoos + minimumHnsFeeReserveDollarydoos
 private let directShakescapeNetworkMaintenanceTicks = 30
@@ -2258,10 +2260,10 @@ final class WalletViewController: UIViewController {
         ) { [weak self, weak wallet] fields in
             guard let self, let wallet, self.wallet === wallet,
                   fields.count == 4,
-                  let btc = UInt64(fields[0]), btc >= minimumBitcoinHtlcSats,
+                  let btc = UInt64(fields[0]), btc >= minimumNewBitcoinSwapHtlcSats,
                   let hnsText = Self.positiveHnsBaseUnits(fields[1]),
                   let hns = UInt64(hnsText), hns >= minimumHnsSwapDollarydoos,
-                  let reserve = UInt64(fields[2]), reserve >= minimumBitcoinFeeReserveSats,
+                  let reserve = UInt64(fields[2]), reserve >= minimumNewBitcoinSwapFeeReserveSats,
                   btc >= reserve, btc - reserve >= bitcoinHtlcReceiverDustSats,
                   let hours = UInt64(fields[3]), (48...168).contains(hours),
                   hours <= UInt64.max / 3_600 else {
@@ -2420,7 +2422,7 @@ final class WalletViewController: UIViewController {
             guard let self, let wallet, self.wallet === wallet, fields.count == 3,
                   let hnsText = Self.positiveHnsBaseUnits(fields[0]),
                   let hns = UInt64(hnsText), hns >= minimumHnsSwapDollarydoos,
-                  let btc = UInt64(fields[1]), btc >= minimumBitcoinHtlcSats,
+                  let btc = UInt64(fields[1]), btc >= minimumNewBitcoinSwapHtlcSats,
                   hns >= reserve, hns - reserve >= hnsSwapReceiverDustDollarydoos,
                   let hours = UInt64(fields[2]), (48...168).contains(hours) else {
                 self?.showErrorMessage(WalletCopy.text("wallet_swap_hns_prepare_failed"))
@@ -2706,7 +2708,7 @@ final class WalletViewController: UIViewController {
                 ? (UInt64(fields.first ?? "") ?? 0)
                 : minimumHnsFeeReserveDollarydoos
             let minimumReserve = reserveIsBitcoin
-                ? minimumBitcoinFeeReserveSats
+                ? minimumNewBitcoinSwapFeeReserveSats
                 : minimumHnsFeeReserveDollarydoos
             let receiverDust = reserveIsBitcoin
                 ? bitcoinHtlcReceiverDustSats

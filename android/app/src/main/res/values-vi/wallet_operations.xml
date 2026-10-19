@@ -287,7 +287,7 @@
     <string name="wallet_swap_sell_hns">Bán HNS lấy BTC</string>
     <string name="wallet_swap_my_offers">Ưu đãi trao đổi BTC/HNS đang hoạt động của tôi</string>
     <string name="wallet_swap_hns_offered_hint">HNS bị khóa (tối thiểu 0,100546 bao gồm phí dự trữ)</string>
-    <string name="wallet_swap_btc_requested_hint">BTC bị khóa (sats, tối thiểu 1330 bao gồm phí dự trữ)</string>
+    <string name="wallet_swap_btc_requested_hint">BTC bị khóa (sats, tối thiểu 4330 bao gồm phí dự trữ)</string>
     <string name="wallet_swap_hns_fee_reserve_hint">Dự trữ phí HNS</string>
     <string name="wallet_swap_hns_prepare_failed">Danh sách HNS-for-BTC chưa được chuẩn bị. HNS được đồng bộ hóa phải bao gồm các danh sách đang hoạt động và toàn bộ số tiền bị khóa này, bao gồm cả dự trữ phí của nó.</string>
     <string name="wallet_swap_hns_approval_title">Xuất bản ưu đãi HNS-for-BTC?</string>
@@ -296,7 +296,7 @@
     <string name="wallet_swap_loading_my_offers">Đang tải các ưu đãi trao đổi cục bộ đã được xác thực…</string>
     <string name="wallet_swap_available_failed">Ưu đãi không thể được xác minh.</string>
     <string name="wallet_swap_acceptance_offer">Chấp nhận lời đề nghị</string>
-    <string name="wallet_swap_acceptance_btc_fee_reserve_hint">Dự trữ phí Bitcoin (sats, tối thiểu 1000)</string>
+    <string name="wallet_swap_acceptance_btc_fee_reserve_hint">Dự trữ phí Bitcoin (sats, tối thiểu 4000)</string>
     <string name="wallet_swap_acceptance_hns_fee_reserve_hint">Dự trữ phí HNS</string>
     <string name="wallet_swap_acceptance_preparing">Đang chuẩn bị xem xét đề nghị…</string>
     <string name="wallet_swap_acceptance_prepare_failed">Việc chấp nhận lời đề nghị không thể được chuẩn bị. Kiểm tra ngang hàng được kết nối, số dư được đồng bộ hóa và dự trữ phí.</string>
@@ -307,9 +307,9 @@
     <string name="wallet_swap_acceptance_failed">Sự chấp nhận đã ký không được gửi. Thiết bị ngang hàng có thể đã bị ngắt kết nối hoặc ưu đãi có thể đã hết hạn.</string>
     <string name="wallet_swap_acceptance_sent">Hoán đổi %1$s… đã bắt đầu. Hạn cấp vốn: %2$s (còn %3$s). Đang chờ ví kia ký.</string>
     <string name="wallet_swap_cancel_direct_message">Rút %1$s?\n\nID ưu đãi: %2$s. Việc hủy sẽ giải phóng phần đặt chỗ cục bộ nhưng không thể hủy phiên đã được chấp nhận.</string>
-    <string name="wallet_swap_btc_amount_hint">BTC bị khóa (sats, tối thiểu 1330 bao gồm phí dự trữ)</string>
+    <string name="wallet_swap_btc_amount_hint">BTC bị khóa (sats, tối thiểu 4330 bao gồm phí dự trữ)</string>
     <string name="wallet_swap_hns_amount_hint">HNS bị khóa (tối thiểu 0,100546 bao gồm phí dự trữ)</string>
-    <string name="wallet_swap_fee_reserve_hint">Dự trữ phí Bitcoin (sats, tối thiểu 1000)</string>
+    <string name="wallet_swap_fee_reserve_hint">Dự trữ phí Bitcoin (sats, tối thiểu 4000)</string>
     <string name="wallet_swap_lifetime_hours_hint">Thời gian tồn tại của danh sách (giờ, 48–168)</string>
     <string name="wallet_swap_preparing">Đang chuẩn bị danh sách BTC-for-HNS chính xác…</string>
     <string name="wallet_swap_prepare_failed">Danh sách đã không được chuẩn bị. BTC đã được xác nhận phải bao gồm các danh sách đang hoạt động và toàn bộ số tiền bị khóa này, bao gồm cả dự trữ phí của nó.</string>

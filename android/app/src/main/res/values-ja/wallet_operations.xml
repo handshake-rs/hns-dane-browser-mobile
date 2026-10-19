@@ -287,7 +287,7 @@
     <string name="wallet_swap_sell_hns">HNS を BTC として販売</string>
     <string name="wallet_swap_my_offers">私のアクティブな BTC/HNS スワップ オファー</string>
     <string name="wallet_swap_hns_offered_hint">HNS ロック済み (手数料準備金を含む最小 0.500546)</string>
-    <string name="wallet_swap_btc_requested_hint">BTC ロック済み (sats、手数料リザーブを含む最低 1330)</string>
+    <string name="wallet_swap_btc_requested_hint">BTC ロック済み (sats、手数料リザーブを含む最低 4330)</string>
     <string name="wallet_swap_hns_fee_reserve_hint">HNS 手数料引当金</string>
     <string name="wallet_swap_hns_prepare_failed">HNS の BTC リストは準備されていませんでした。同期された HNS は、アクティブなリストと、手数料準備金を含むこの完全なロック金額をカバーする必要があります。</string>
     <string name="wallet_swap_hns_approval_title">HNS の BTC オファーを公開しますか?</string>
@@ -296,7 +296,7 @@
     <string name="wallet_swap_loading_my_offers">認証されたローカル スワップ オファーをロードしています…</string>
     <string name="wallet_swap_available_failed">オファーを確認できませんでした。</string>
     <string name="wallet_swap_acceptance_offer">オファーを受け入れる</string>
-    <string name="wallet_swap_acceptance_btc_fee_reserve_hint">Bitcoin 手数料引当金 (sats、最低 1000)</string>
+    <string name="wallet_swap_acceptance_btc_fee_reserve_hint">Bitcoin 手数料引当金 (sats、最低 4000)</string>
     <string name="wallet_swap_acceptance_hns_fee_reserve_hint">HNS 手数料引当金</string>
     <string name="wallet_swap_acceptance_preparing">オファーのレビューを準備しています…</string>
     <string name="wallet_swap_acceptance_prepare_failed">オファー承諾を準備できませんでした。接続相手、同期残高、料金リザーブを確認します。</string>
@@ -307,9 +307,9 @@
     <string name="wallet_swap_acceptance_failed">署名された承諾書は送信されませんでした。ピアが切断されたか、オファーの有効期限が切れた可能性があります。</string>
     <string name="wallet_swap_acceptance_sent">スワップ %1$s… を開始しました。資金提供期限：%2$s（残り %3$s）。相手のウォレットの署名を待っています。</string>
     <string name="wallet_swap_cancel_direct_message">%1$s を引き出しますか?\n\nオファー ID: %2$s 。キャンセルするとローカル予約は解除されますが、すでに受け付けたセッションをキャンセルすることはできません。</string>
-    <string name="wallet_swap_btc_amount_hint">BTC ロック済み (sats、手数料リザーブを含む最低 1330)</string>
+    <string name="wallet_swap_btc_amount_hint">BTC ロック済み (sats、手数料リザーブを含む最低 4330)</string>
     <string name="wallet_swap_hns_amount_hint">HNS ロック済み (手数料準備金を含む最小 0.500546)</string>
-    <string name="wallet_swap_fee_reserve_hint">Bitcoin 手数料引当金 (sats、最低 1000)</string>
+    <string name="wallet_swap_fee_reserve_hint">Bitcoin 手数料引当金 (sats、最低 4000)</string>
     <string name="wallet_swap_lifetime_hours_hint">リストの有効期間 (時間、48 ～ 168)</string>
     <string name="wallet_swap_preparing">正確な BTC 対 HNS リストを準備しています…</string>
     <string name="wallet_swap_prepare_failed">リストは準備されていませんでした。確認済みの BTC は、アクティブなリストと、その手数料準備金を含むこの完全なロックされた金額をカバーする必要があります。</string>

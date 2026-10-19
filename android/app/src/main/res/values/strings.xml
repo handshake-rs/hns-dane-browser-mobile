@@ -759,7 +759,7 @@
     <string name="wallet_swap_available_offers">Browse offers</string>
     <string name="wallet_swap_my_offers">My active BTC/HNS swap offers</string>
     <string name="wallet_swap_hns_offered_hint">HNS locked (minimum 0.500546 including fee reserve)</string>
-    <string name="wallet_swap_btc_requested_hint">BTC locked (sats, minimum 1330 including fee reserve)</string>
+    <string name="wallet_swap_btc_requested_hint">BTC locked (sats, minimum 4330 including fee reserve)</string>
     <string name="wallet_swap_hns_fee_reserve_hint">HNS fee reserve</string>
     <string name="wallet_swap_hns_prepare_failed">The HNS-for-BTC listing was not prepared. Synchronized HNS must cover active listings and this complete locked amount, which includes its fee reserve.</string>
     <string name="wallet_swap_hns_approval_title">Publish HNS-for-BTC offer?</string>
@@ -773,7 +773,7 @@
     <string name="wallet_swap_offer_acceptance_label">You pay %1$s → You receive %2$s · %3$s…</string>
     <string name="wallet_swap_acceptance_offer">Accept offer</string>
     <string name="wallet_swap_acceptance_review">Review offer</string>
-    <string name="wallet_swap_acceptance_btc_fee_reserve_hint">Bitcoin fee reserve (sats, minimum 1000)</string>
+    <string name="wallet_swap_acceptance_btc_fee_reserve_hint">Bitcoin fee reserve (sats, minimum 4000)</string>
     <string name="wallet_swap_acceptance_hns_fee_reserve_hint">HNS fee reserve</string>
     <string name="wallet_swap_acceptance_preparing">Preparing offer review…</string>
     <string name="wallet_swap_acceptance_prepare_failed">The offer acceptance could not be prepared. Check the connected peer, synchronized balance, and fee reserve.</string>
@@ -789,9 +789,9 @@
     <string name="wallet_swap_cancel_direct_message">Withdraw %1$s?\n\nOffer ID: %2$s. Cancellation releases the local reservation but cannot cancel an already accepted session.</string>
     <string name="wallet_swap_direct_cancelled">Direct offer cancelled.</string>
     <string name="wallet_swap_direct_cancel_failed">The direct offer was not cancelled.</string>
-    <string name="wallet_swap_btc_amount_hint">BTC locked (sats, minimum 1330 including fee reserve)</string>
+    <string name="wallet_swap_btc_amount_hint">BTC locked (sats, minimum 4330 including fee reserve)</string>
     <string name="wallet_swap_hns_amount_hint">HNS locked (minimum 0.500546 including fee reserve)</string>
-    <string name="wallet_swap_fee_reserve_hint">Bitcoin fee reserve (sats, minimum 1000)</string>
+    <string name="wallet_swap_fee_reserve_hint">Bitcoin fee reserve (sats, minimum 4000)</string>
     <string name="wallet_swap_lifetime_hours_hint">Listing lifetime (hours, 48–168)</string>
     <string name="wallet_swap_preparing">Preparing exact BTC-for-HNS listing…</string>
     <string name="wallet_swap_prepare_failed">The listing was not prepared. Confirmed BTC must cover active listings and this complete locked amount, which includes its fee reserve.</string>
@@ -1361,7 +1361,7 @@
     <string name="wallet_ux_swap_fee_cap_short" translatable="false">At the current %3$s sat/vB rate, the full %4$s-transaction Bitcoin funding package needs about %1$s sats. The proposed signed cap is %2$s sats. Use a larger cap and, if needed, a larger Bitcoin offer amount before reviewing again.</string>
     <string name="wallet_ux_swap_fee_preflight_unavailable" translatable="false">The complete Bitcoin funding package could not be quoted. Synchronize Bitcoin and make sure confirmed, spendable BTC covers the lock plus the entered fee cap, then review again.</string>
     <string name="wallet_ux_swap_fee_package_review" translatable="false">Full Bitcoin funding package: %1$s transactions, about %2$s sats at %3$s sat/vB under the proposed cap. Funding will be checked again against the exact signed terms.</string>
-    <string name="wallet_ux_swap_package_fee_cap_hint" translatable="false">Maximum Bitcoin funding package fee (sats)</string>
+    <string name="wallet_ux_swap_package_fee_cap_hint" translatable="false">Bitcoin funding fee cap (sats, minimum 4,000)</string>
     <string name="wallet_ux_swap_fee_preflight_title" translatable="false">Bitcoin funding fee cap</string>
     <string name="wallet_ux_actions" translatable="false">Actions</string>
     <string name="wallet_ux_done" translatable="false">Done</string>

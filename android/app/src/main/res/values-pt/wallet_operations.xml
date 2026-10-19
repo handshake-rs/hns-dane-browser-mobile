@@ -287,7 +287,7 @@
     <string name="wallet_swap_sell_hns">Vender HNS por BTC</string>
     <string name="wallet_swap_my_offers">Minhas ofertas de troca ativas BTC/HNS</string>
     <string name="wallet_swap_hns_offered_hint">HNS bloqueado (mínimo 0,100546 incluindo reserva de taxa)</string>
-    <string name="wallet_swap_btc_requested_hint">BTC bloqueado (sats, mínimo 1330 incluindo reserva de taxa)</string>
+    <string name="wallet_swap_btc_requested_hint">BTC bloqueado (sats, mínimo 4330 incluindo reserva de taxa)</string>
     <string name="wallet_swap_hns_fee_reserve_hint">Reserva de taxa HNS</string>
     <string name="wallet_swap_hns_prepare_failed">A listagem HNS-for-BTC não foi preparada. O HNS sincronizado deve cobrir as listagens ativas e todo esse valor bloqueado, que inclui sua reserva de taxa.</string>
     <string name="wallet_swap_hns_approval_title">Publicar oferta HNS-for-BTC?</string>
@@ -296,7 +296,7 @@
     <string name="wallet_swap_loading_my_offers">Carregando ofertas de troca local autenticadas…</string>
     <string name="wallet_swap_available_failed">Não foi possível verificar as ofertas.</string>
     <string name="wallet_swap_acceptance_offer">Aceitar oferta</string>
-    <string name="wallet_swap_acceptance_btc_fee_reserve_hint">Reserva de taxa Bitcoin (sats, mínimo 1.000)</string>
+    <string name="wallet_swap_acceptance_btc_fee_reserve_hint">Reserva de taxa Bitcoin (sats, mínimo 4.000)</string>
     <string name="wallet_swap_acceptance_hns_fee_reserve_hint">Reserva de taxa HNS</string>
     <string name="wallet_swap_acceptance_preparing">Preparando revisão da oferta…</string>
     <string name="wallet_swap_acceptance_prepare_failed">A aceitação da oferta não pôde ser preparada. Verifique o peer conectado, o saldo sincronizado e a reserva de taxas.</string>
@@ -307,9 +307,9 @@
     <string name="wallet_swap_acceptance_failed">A aceitação assinada não foi enviada. O peer pode ter se desconectado ou a oferta pode ter expirado.</string>
     <string name="wallet_swap_acceptance_sent">Troca %1$s… iniciada. Prazo de financiamento: %2$s (%3$s restantes). Aguardando a assinatura da outra carteira.</string>
     <string name="wallet_swap_cancel_direct_message">Retirar %1$s?\n\nID da oferta: %2$s. O cancelamento libera a reserva local, mas não pode cancelar uma sessão já aceita.</string>
-    <string name="wallet_swap_btc_amount_hint">BTC bloqueado (sats, mínimo 1330 incluindo reserva de taxa)</string>
+    <string name="wallet_swap_btc_amount_hint">BTC bloqueado (sats, mínimo 4330 incluindo reserva de taxa)</string>
     <string name="wallet_swap_hns_amount_hint">HNS bloqueado (mínimo 0,100546 incluindo reserva de taxa)</string>
-    <string name="wallet_swap_fee_reserve_hint">Reserva de taxa Bitcoin (sats, mínimo 1.000)</string>
+    <string name="wallet_swap_fee_reserve_hint">Reserva de taxa Bitcoin (sats, mínimo 4.000)</string>
     <string name="wallet_swap_lifetime_hours_hint">Vida útil da listagem (horas, 48–168)</string>
     <string name="wallet_swap_preparing">Preparando a listagem exata de BTC-for-HNS…</string>
     <string name="wallet_swap_prepare_failed">A listagem não foi preparada. O BTC confirmado deve cobrir as listagens ativas e todo esse valor bloqueado, que inclui sua reserva de taxa.</string>

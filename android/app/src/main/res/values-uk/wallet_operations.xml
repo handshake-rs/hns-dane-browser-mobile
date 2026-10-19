@@ -287,7 +287,7 @@
     <string name="wallet_swap_sell_hns">Продам HNS за BTC</string>
     <string name="wallet_swap_my_offers">Мої активні пропозиції обміну BTC/HNS</string>
     <string name="wallet_swap_hns_offered_hint">HNS заблоковано (мінімум 0,100546, включаючи резерв комісії)</string>
-    <string name="wallet_swap_btc_requested_hint">BTC заблоковано (sats, мінімум 1330, включаючи резерв комісії)</string>
+    <string name="wallet_swap_btc_requested_hint">BTC заблоковано (sats, мінімум 4330, включаючи резерв комісії)</string>
     <string name="wallet_swap_hns_fee_reserve_hint">HNS Резерв комісії</string>
     <string name="wallet_swap_hns_prepare_failed">Перелік HNS-для-BTC не було підготовлено. Синхронізований HNS має покривати активні списки та цю повну заблоковану суму, яка включає резерв комісії.</string>
     <string name="wallet_swap_hns_approval_title">Опублікувати пропозицію HNS-for-BTC?</string>
@@ -296,7 +296,7 @@
     <string name="wallet_swap_loading_my_offers">Завантаження автентифікованих локальних пропозицій обміну…</string>
     <string name="wallet_swap_available_failed">Пропозиції не вдалося перевірити.</string>
     <string name="wallet_swap_acceptance_offer">Прийняти пропозицію</string>
-    <string name="wallet_swap_acceptance_btc_fee_reserve_hint">Резерв комісії Bitcoin (sats, мінімум 1000)</string>
+    <string name="wallet_swap_acceptance_btc_fee_reserve_hint">Резерв комісії Bitcoin (sats, мінімум 4000)</string>
     <string name="wallet_swap_acceptance_hns_fee_reserve_hint">HNS Резерв комісії</string>
     <string name="wallet_swap_acceptance_preparing">Підготовка розгляду пропозиції…</string>
     <string name="wallet_swap_acceptance_prepare_failed">Не вдалося підготувати акцепт пропозиції. Перевірте підключений вузол, синхронізований баланс і резерв комісії.</string>
@@ -307,9 +307,9 @@
     <string name="wallet_swap_acceptance_failed">Підписане прийняття не було надіслано. Можливо, вузол від’єднався або термін дії пропозиції закінчився.</string>
     <string name="wallet_swap_acceptance_sent">Обмін %1$s… розпочато. Кінцевий термін фінансування: %2$s (залишилося %3$s). Очікування підпису іншого гаманця.</string>
     <string name="wallet_swap_cancel_direct_message">Зняти %1$s?\n\nІдентифікатор пропозиції: %2$s. Скасування скасовує локальне бронювання, але не може скасувати вже прийнятий сеанс.</string>
-    <string name="wallet_swap_btc_amount_hint">BTC заблоковано (sats, мінімум 1330, включаючи резерв комісії)</string>
+    <string name="wallet_swap_btc_amount_hint">BTC заблоковано (sats, мінімум 4330, включаючи резерв комісії)</string>
     <string name="wallet_swap_hns_amount_hint">HNS заблоковано (мінімум 0,100546, включаючи резерв комісії)</string>
-    <string name="wallet_swap_fee_reserve_hint">Резерв комісії Bitcoin (sats, мінімум 1000)</string>
+    <string name="wallet_swap_fee_reserve_hint">Резерв комісії Bitcoin (sats, мінімум 4000)</string>
     <string name="wallet_swap_lifetime_hours_hint">Тривалість лістингу (годин, 48–168)</string>
     <string name="wallet_swap_preparing">Підготовка точного списку BTC-для-HNS…</string>
     <string name="wallet_swap_prepare_failed">Список не був підготовлений. Підтверджений BTC має покривати активні списки та цю повну заблоковану суму, яка включає резерв комісії.</string>
