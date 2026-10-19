@@ -1848,6 +1848,54 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertEqual(permissions.uint16Value & 0o777, 0o700)
     }
 
+    func testNativeWalletCreateAndRestoreUseApplicationSupportContainer() throws {
+        let fileManager = FileManager.default
+        let applicationSupport = try fileManager.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        let root = applicationSupport.appendingPathComponent(
+            "NativeWalletPathTest-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        defer { try? fileManager.removeItem(at: root) }
+
+        let createdDirectory = root.appendingPathComponent("created", isDirectory: true)
+        let restoredDirectory = root.appendingPathComponent("restored", isDirectory: true)
+        try secureWalletStorageDirectory(createdDirectory, fileManager: fileManager)
+        try secureWalletStorageDirectory(restoredDirectory, fileManager: fileManager)
+        let key = [UInt8](repeating: 0x42, count: 32)
+        let createdPath = createdDirectory.appendingPathComponent("wallet.sqlite3").path
+        let restoredPath = restoredDirectory.appendingPathComponent("wallet.sqlite3").path
+
+        let created = try key.withUnsafeBytes { databaseKey in
+            try RustNativeWallet.create(
+                databasePath: createdPath,
+                databaseKey: databaseKey,
+                network: .mainnet,
+                birthdayHeight: 351_974
+            )
+        }
+        let phrase = try created.takeRecoveryPhrase()
+        defer { phrase.clear() }
+        created.close()
+
+        let restored = try key.withUnsafeBytes { databaseKey in
+            try phrase.withUnsafeBytes { recoveryPhrase in
+                try RustNativeWallet.restore(
+                    databasePath: restoredPath,
+                    databaseKey: databaseKey,
+                    network: .mainnet,
+                    birthdayHeight: 351_974,
+                    recoveryPhrase: recoveryPhrase
+                )
+            }
+        }
+        restored.close()
+    }
+
     @MainActor
     func testWalletHnsPresentationRejectsLateProgressAndFencesReplacementOwnership() throws {
         let networkID = "cache-test-\(UUID().uuidString)"

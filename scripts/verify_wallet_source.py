@@ -23,7 +23,7 @@ WALLET_VERSIONS = {
     "hns-wallet-provider": "0.4.1",
     "hns-wallet-service": "0.4.2",
     "hns-wallet-shakedex": "0.4.1",
-    "hns-wallet-store": "0.4.1",
+    "hns-wallet-store": "0.4.2",
     "hns-wallet-types": "0.4.1",
 }
 LOCKFILES = (
