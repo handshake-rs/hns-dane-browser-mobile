@@ -1870,13 +1870,32 @@ final class BrowserRuntimeControlTests: XCTestCase {
         let createdPath = createdDirectory.appendingPathComponent("wallet.sqlite3").path
         let restoredPath = restoredDirectory.appendingPathComponent("wallet.sqlite3").path
 
-        let created = try key.withUnsafeBytes { databaseKey in
-            try RustNativeWallet.create(
-                databasePath: createdPath,
-                databaseKey: databaseKey,
-                network: .mainnet,
-                birthdayHeight: 351_974
-            )
+        let created: RustNativeWallet
+        do {
+            created = try key.withUnsafeBytes { databaseKey in
+                try RustNativeWallet.create(
+                    databasePath: createdPath,
+                    databaseKey: databaseKey,
+                    network: .mainnet,
+                    birthdayHeight: 351_974
+                )
+            }
+        } catch {
+            var ancestorDetails: [String] = []
+            var ancestor = createdDirectory.resolvingSymlinksInPath()
+            while true {
+                let attributes = try? fileManager.attributesOfItem(atPath: ancestor.path)
+                let owner = (attributes?[.ownerAccountID] as? NSNumber)
+                    .map { String($0.uint32Value) } ?? "unknown"
+                let mode = (attributes?[.posixPermissions] as? NSNumber)
+                    .map { String($0.uint16Value, radix: 8) } ?? "unknown"
+                ancestorDetails.append("\(ancestor.path) uid=\(owner) mode=\(mode)")
+                let parent = ancestor.deletingLastPathComponent()
+                if parent.path == ancestor.path { break }
+                ancestor = parent
+            }
+            XCTFail("Native wallet creation failed: \(error). Ancestors: \(ancestorDetails.joined(separator: "; "))")
+            return
         }
         let phrase = try created.takeRecoveryPhrase()
         defer { phrase.clear() }
