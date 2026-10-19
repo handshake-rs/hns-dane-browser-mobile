@@ -2,11 +2,13 @@
 
 This file describes the current application candidate.
 
-## 1.0.20 - 2026-10-15
+## 1.0.20 - 2026-10-19
 
-Android `1.0.20` / code `72` and iOS `1.0.19` / build `82` include the patched
-Rust TLS dependency. Android removes unused KTX artifacts, and its store
-screenshot captures now read the version from Release APK build metadata.
+Android `1.0.20` / code `72` and iOS `1.0.20` / build `83` include the patched
+Rust TLS dependency. The iOS build fixes wallet creation and restoration in an
+app container with system-managed parent directories. Android removes unused
+KTX artifacts, and its store screenshot captures now read the version from
+Release APK build metadata.
 
 ## 1.0.19 - 2026-10-12
 

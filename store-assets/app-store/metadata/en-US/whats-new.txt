@@ -1,1 +1,1 @@
-This update includes security and dependency maintenance while retaining verified Handshake browsing, ordinary HTTPS browsing, and the native wallet.
+Fixes an issue that prevented wallet creation and restoration on some iPhones. This update also includes security and dependency maintenance.

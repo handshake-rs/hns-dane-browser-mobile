@@ -8,8 +8,8 @@ wallet, and direct peer-to-peer ShakeDex name and HNS/BTC swap workflows.
 - [Google Play](https://play.google.com/store/apps/details?id=com.denuoweb.hnsdane)
 - [Apple App Store](https://apps.apple.com/us/app/hns-dane-browser/id6791914326)
 
-The configured Android source is `1.0.19` / code `71`; the iOS source is
-`1.0.18` / build `81`. iOS distribution follows Apple approval through the
+The configured Android source is `1.0.20` / code `72`; the iOS source is
+`1.0.20` / build `83`. iOS distribution follows Apple approval through the
 App Store. The repository’s embedded Rust workspace is private to the
 application and is not published as a crate.
 

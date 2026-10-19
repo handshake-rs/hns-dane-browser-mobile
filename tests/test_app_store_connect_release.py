@@ -240,15 +240,15 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             ROOT,
             "a" * 40,
             "a" * 40,
-            "1.0.19",
-            "82",
+            "1.0.20",
+            "83",
         )
         plan = release_client.local_plan(release)
         self.assertEqual(plan["mode"], "plan")
         self.assertEqual(plan["networkRequests"], 0)
         self.assertEqual(plan["mutations"], 0)
-        self.assertEqual(plan["version"], "1.0.19")
-        self.assertEqual(plan["build"], "82")
+        self.assertEqual(plan["version"], "1.0.20")
+        self.assertEqual(plan["build"], "83")
         serialized = json.dumps(plan)
         self.assertNotIn(release.metadata["reviewNotes"], serialized)
 
@@ -1270,12 +1270,12 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn('[[ "$DISPATCH_COMMIT" == "$EXPECTED_COMMIT" ]]', workflow)
         self.assertIn("git ls-remote --exit-code origin refs/heads/main", workflow)
         self.assertIn("group: global-ios-app-store-upload-lease", workflow)
-        self.assertIn("APPLY_METADATA_1.0.19_82", workflow)
-        self.assertIn("REPLACE_SCREENSHOTS_1.0.19_82", workflow)
-        self.assertIn("SUBMIT_FOR_REVIEW_1.0.19_82", workflow)
-        self.assertIn("CANCEL_SUBMISSION_1.0.19_82", workflow)
-        self.assertIn("--cancel-version 1.0.19", workflow)
-        self.assertIn("--cancel-build 82", workflow)
+        self.assertIn("APPLY_METADATA_1.0.20_82", workflow)
+        self.assertIn("REPLACE_SCREENSHOTS_1.0.20_82", workflow)
+        self.assertIn("SUBMIT_FOR_REVIEW_1.0.20_82", workflow)
+        self.assertIn("CANCEL_SUBMISSION_1.0.20_82", workflow)
+        self.assertIn("--cancel-version 1.0.20", workflow)
+        self.assertIn("--cancel-build 83", workflow)
         self.assertIn('[[ "$ACCOUNT_READY" == true ]]', workflow)
         self.assertIn('.path == ".github/workflows/ios-app-store-upload.yml"', workflow)
         self.assertIn("expected_artifact_commit:", workflow)
