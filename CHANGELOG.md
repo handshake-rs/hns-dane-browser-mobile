@@ -8,7 +8,9 @@ Android `1.0.20` / code `72` and iOS `1.0.20` / build `83` include the patched
 Rust TLS dependency. The iOS build fixes wallet creation and restoration in an
 app container with system-managed parent directories. Android removes unused
 KTX artifacts, and its store screenshot captures now read the version from
-Release APK build metadata.
+Release APK build metadata. The published Bitcoin transport 0.4.3 bounds
+cached filter replay to wallet consumption, reduces repeated progress recounts,
+and retires peers when their message channels close.
 
 ## 1.0.19 - 2026-10-12
 

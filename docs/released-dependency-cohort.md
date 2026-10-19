@@ -13,7 +13,7 @@ source overrides and Git dependencies, and requires one copy of each package.
 | Engine DNSSEC and DANE browser stack | `hns-browser-dnssec` 0.2.3, `hns-browser-dane` 0.2.4, `hns-browser-resolver` 0.2.7, `hns-browser-transport` 0.2.4, `hns-browser-gateway` 0.2.4 |
 | Other engine packages | Exact package versions in `rust/Cargo.toml` |
 | `hns-wallet-ffi`, `hns-wallet-types` | 0.4.1 |
-| `hns-wallet-bip157` | Published 0.4.2 |
+| `hns-wallet-bip157` | Published 0.4.3 |
 | `hns-wallet-bitcoin-kyoto` | 0.4.6 |
 | `hns-wallet-chain-api`, `hns-wallet-service` | 0.4.2 |
 | `hns-wallet-hns` | 0.4.6 |
@@ -34,7 +34,9 @@ authenticated wallet index before verifying current-chain settlement.
 The Bitcoin transport, Kyoto adapter, and mobile controller save verified
 headers, agreed filter headers, and raw filters in the encrypted wallet store.
 They resume partial network work after process death and rerun matching from
-the genuine birthday.
+the genuine birthday. Transport 0.4.3 bounds cached filter replay to wallet
+consumption, reduces repeated progress recounts, and retires peers when their
+message channels close.
 Cargo aliases such as `hns-core`, `hns-chain`, `hns-p2p`, and `hns-urkel`
 select the corresponding `hns-browser-*` packages.
 

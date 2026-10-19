@@ -1805,9 +1805,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-bip157"
-version = "0.4.2"
+version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4a8091e60ad90a986ca8a2848f9415693aa23072073c270d95fafaa3d083490"
+checksum = "63829a89e04acedc953a0388ade3b4941a6d1f1f0ed0794e72a871b1b68805e0"
 dependencies = [
  "bip324",
  "bitcoin",

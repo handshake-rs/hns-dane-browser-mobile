@@ -12,7 +12,7 @@ WALLET_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
 CHECKSUM_MANIFEST = Path("rust/wallet-crates.sha256")
 WALLET_VERSIONS = {
     "hns-wallet-bdk-kyoto": "0.4.1",
-    "hns-wallet-bip157": "0.4.2",
+    "hns-wallet-bip157": "0.4.3",
     "hns-wallet-bitcoin-kyoto": "0.4.6",
     "hns-wallet-chain-api": "0.4.2",
     "hns-wallet-ffi": "0.4.1",
