@@ -1,0 +1,84 @@
+name: iOS Gate Diagnostic Readback
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Failed iOS gate run ID
+        required: true
+        type: string
+      artifact_name:
+        description: Exact diagnostic artifact name
+        required: true
+        type: string
+
+permissions:
+  actions: read
+
+jobs:
+  inspect:
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - name: Download the exact diagnostic artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ inputs.run_id }}
+          ARTIFACT_NAME: ${{ inputs.artifact_name }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_RUN" =~ ^[0-9]+$ ]]
+          [[ "$ARTIFACT_NAME" =~ ^ios-gate-diagnostics-[0-9a-f]{40}-attempt-[0-9]+$ ]]
+          gh run download "$SOURCE_RUN" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name "$ARTIFACT_NAME" \
+            --dir "$RUNNER_TEMP/ios-gate-readback"
+
+      - name: Export the Xcode test result summary
+        run: |
+          set -euo pipefail
+          bundle="$RUNNER_TEMP/ios-gate-readback/HnsDaneBrowserTests.xcresult"
+          [[ -d "$bundle" ]]
+          xcrun xcresulttool get test-results summary --path "$bundle" \
+            > "$RUNNER_TEMP/ios-gate-summary.json"
+          xcrun xcresulttool get test-results tests --path "$bundle" \
+            > "$RUNNER_TEMP/ios-gate-tests.json"
+          xcrun xcresulttool get object --legacy --format json --path "$bundle" \
+            > "$RUNNER_TEMP/ios-gate-object.json"
+          python3 - "$RUNNER_TEMP" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          root = pathlib.Path(sys.argv[1])
+          for name in ("ios-gate-summary.json", "ios-gate-tests.json", "ios-gate-object.json"):
+              data = json.loads((root / name).read_text())
+              print(f"=== {name} ===")
+              if name == "ios-gate-summary.json":
+                  print(json.dumps(data, indent=2)[:16000])
+                  continue
+              matches = []
+              def visit(value):
+                  if isinstance(value, dict):
+                      rendered = json.dumps(value)
+                      if "testNativeWalletCreateAndRestoreUseApplicationSupportContainer" in rendered and len(rendered) < 10000:
+                          matches.append(value)
+                      else:
+                          for child in value.values():
+                              visit(child)
+                  elif isinstance(value, list):
+                      for child in value:
+                          visit(child)
+              visit(data)
+              for match in matches[:8]:
+                  print(json.dumps(match, indent=2)[:10000])
+          PY
+
+      - name: Retain exported test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ios-gate-diagnostic-readback-${{ inputs.run_id }}
+          path: ${{ runner.temp }}/ios-gate-*.json
+          if-no-files-found: warn
+          retention-days: 7
