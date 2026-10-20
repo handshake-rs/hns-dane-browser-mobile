@@ -1871,6 +1871,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         let restoredPath = restoredDirectory.appendingPathComponent("wallet.sqlite3").path
 
         let created: RustNativeWallet
+        NSLog("NativeWalletPathTest: creating wallet")
         do {
             created = try key.withUnsafeBytes { databaseKey in
                 try RustNativeWallet.create(
@@ -1881,9 +1882,12 @@ final class BrowserRuntimeControlTests: XCTestCase {
                 )
             }
         } catch {
+            NSLog("NativeWalletPathTest: collecting create failure diagnostics")
             var ancestorDetails: [String] = []
             var ancestor = createdDirectory.resolvingSymlinksInPath()
-            while true {
+            var visitedPaths = Set<String>()
+            for _ in 0..<64 {
+                guard visitedPaths.insert(ancestor.path).inserted else { break }
                 let attributes = try? fileManager.attributesOfItem(atPath: ancestor.path)
                 let owner = (attributes?[.ownerAccountID] as? NSNumber)
                     .map { String($0.uint32Value) } ?? "unknown"
@@ -1897,10 +1901,14 @@ final class BrowserRuntimeControlTests: XCTestCase {
             XCTFail("Native wallet creation failed: \(error). Ancestors: \(ancestorDetails.joined(separator: "; "))")
             return
         }
+        NSLog("NativeWalletPathTest: created wallet")
         let phrase = try created.takeRecoveryPhrase()
         defer { phrase.clear() }
+        NSLog("NativeWalletPathTest: obtained recovery phrase")
         created.close()
+        NSLog("NativeWalletPathTest: closed created wallet")
 
+        NSLog("NativeWalletPathTest: restoring wallet")
         let restored = try key.withUnsafeBytes { databaseKey in
             try phrase.withUnsafeBytes { recoveryPhrase in
                 try RustNativeWallet.restore(
@@ -1912,6 +1920,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
                 )
             }
         }
+        NSLog("NativeWalletPathTest: restored wallet")
         restored.close()
     }
 
