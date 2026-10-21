@@ -28,7 +28,7 @@ Generated input SHA-256:
   android/app/src/main/assets/fonts/Orbitron-VariableFont_wght.ttf = f42db2dd16e642258e35782916eceb1dcdbea06fb958d77ad71dc5963587e8fd
   android/app/src/main/assets/fonts/OFL-Orbitron.txt = dd6fdb6716fd179d1fe891759efb3f9200753fdf6abf513b55b712c4ae16e512
   rust/Cargo.toml = 8ed21d3d6b915aee867343eed2c0b4e9fd03d6d5426519525f672f8ddc782c84
-  rust/Cargo.lock = 4dcdd3324c5ff87f0e53247c6b01765f01b90dfee2c8191077b9fc6bd5c52457
+  rust/Cargo.lock = 6e932a26689f10fe52e0b63496d465495ea48cb2ef4a1d057539f1821d02b3f7
   android/gradle/libs.versions.toml = 4d4192e18d9f57560df22378ce1c5ab6162e72fff3174dd87c360035438c8206
   android/app/gradle.lockfile = e95e57647b76cbd3bf797125325617f81ad4f803ebfa3c591bd89dd997837949
   android/gradle/verification-metadata.xml = a77c594e2faf67153a47ff03a44cd16286c9f5018b66fa2a1456166f5bab105b
@@ -373,7 +373,7 @@ RUST COMPONENTS (393)
   rustix 1.1.5 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
   rustls 0.23.46 | Apache-2.0 OR ISC OR MIT
   rustls-pki-types 1.15.1 | MIT OR Apache-2.0
-  rustls-webpki 0.103.15 | ISC
+  rustls-webpki 0.103.16 | ISC
   rustversion 1.0.23 | MIT OR Apache-2.0
   ryu 1.0.23 | Apache-2.0 OR BSL-1.0
   same-file 1.0.6 | Unlicense/MIT
@@ -450,7 +450,7 @@ RUST COMPONENTS (393)
   version_check 0.9.5 | MIT/Apache-2.0
   walkdir 2.5.0 | Unlicense/MIT
   want 0.3.1 | MIT
-  webpki-roots 1.0.9 | CDLA-Permissive-2.0
+  webpki-roots 1.0.10 | CDLA-Permissive-2.0
   winnow 0.7.15 | MIT
   winnow 1.0.4 | MIT
   writeable 0.6.4 | Unicode-3.0
@@ -3003,7 +3003,7 @@ SOFTWARE.
 ================================================================================
 Notice SHA-256: 3ac27594ed56fd079c95a71f8beabc498c5b997ec31e91f4a18e59a5974adb2a
 Applies to:
-  - Rust crate rustls-webpki 0.103.15
+  - Rust crate rustls-webpki 0.103.16
 Source file names:
   - LICENSE
 --------------------------------------------------------------------------------
@@ -12594,7 +12594,7 @@ SOFTWARE.
 ================================================================================
 Notice SHA-256: d30183ec6610abca89d6095d5f1dc56ea50248a1001cbb4549fadc3a582f6f9a
 Applies to:
-  - Rust crate webpki-roots 1.0.9
+  - Rust crate webpki-roots 1.0.10
 Source file names:
   - LICENSE
 --------------------------------------------------------------------------------
