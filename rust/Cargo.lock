@@ -2039,9 +2039,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-store"
-version = "0.4.2"
+version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eca90628a95e484764d25c5ba95e98c51d7e0930ac95ef9bb5490c22cd9225fd"
+checksum = "20e3f5e261cf36420f4468c37144d75fdf1025588aae0cd32f8f7c31b3fd590b"
 dependencies = [
  "argon2",
  "chacha20poly1305",
