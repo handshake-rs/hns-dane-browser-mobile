@@ -4318,6 +4318,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         ).myOfferPage())
     }
 
+    @MainActor
     func testCanonicalShakescapeNameOfferURIIsVersionedAndNetworkBound() {
         let id = String(repeating: "ab", count: 32)
         let valid = "shakescape://name-offer/v1/\(id)?network=mainnet"
@@ -4326,6 +4327,9 @@ final class BrowserRuntimeControlTests: XCTestCase {
             listingID: String(repeating: "0", count: 64), network: .mainnet))
         XCTAssertEqual(ShakescapeNameOfferURI.parse(valid),
             ShakescapeNameOfferLink(listingID: id, network: .mainnet))
+        let mainnetWallet = WalletViewController(network: .mainnet)
+        XCTAssertFalse(mainnetWallet.receiveExternalNameOffer(
+            ShakescapeNameOfferLink(listingID: id, network: .testnet)))
         for invalid in [
             valid.replacingOccurrences(of: "/v1/", with: "/v2/"),
             valid.replacingOccurrences(of: id, with: id.uppercased()),

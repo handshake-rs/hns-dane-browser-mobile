@@ -252,10 +252,18 @@ final class BrowserViewController: UIViewController {
     private func presentPendingNameOfferIfPossible() {
         guard viewIfLoaded?.window != nil,
               let link = pendingNameOffer else { return }
+        guard link.network == process.currentNetwork else {
+            pendingNameOffer = nil
+            showError(BrowserCoreError.unsupportedAddress)
+            return
+        }
         if let navigation = presentedViewController as? UINavigationController,
            let wallet = navigation.viewControllers.compactMap({ $0 as? WalletViewController }).last {
             pendingNameOffer = nil
-            wallet.receiveExternalNameOffer(listingID: link.listingID)
+            guard wallet.receiveExternalNameOffer(link) else {
+                showError(BrowserCoreError.unsupportedAddress)
+                return
+            }
             return
         }
         guard presentedViewController == nil else { return }

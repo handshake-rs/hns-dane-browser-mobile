@@ -4125,9 +4125,12 @@ final class WalletViewController: UIViewController {
         }
     }
 
-    func receiveExternalNameOffer(listingID: String) {
-        pendingNameOfferListingID = listingID
+    @discardableResult
+    func receiveExternalNameOffer(_ link: ShakescapeNameOfferLink) -> Bool {
+        guard link.network == network else { return false }
+        pendingNameOfferListingID = link.listingID
         schedulePendingNameOfferPresentation()
+        return true
     }
 
     private func schedulePendingNameOfferPresentation() {
