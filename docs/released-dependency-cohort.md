@@ -12,13 +12,15 @@ source overrides and Git dependencies, and requires one copy of each package.
 | Engine light-client and SQLite browser adapters | 0.2.6 |
 | Engine DNSSEC and DANE browser stack | `hns-browser-dnssec` 0.2.3, `hns-browser-dane` 0.2.4, `hns-browser-resolver` 0.2.7, `hns-browser-transport` 0.2.4, `hns-browser-gateway` 0.2.4 |
 | Other engine packages | Exact package versions in `rust/Cargo.toml` |
-| `hns-wallet-ffi`, `hns-wallet-types` | 0.4.1 |
+| `hns-wallet-ffi` | 0.4.1 |
+| `hns-wallet-types`, `hns-wallet-provider`, `hns-wallet-shakedex` | 0.4.2 |
 | `hns-wallet-bip157` | Published 0.4.3 |
 | `hns-wallet-bitcoin-kyoto` | 0.4.6 |
-| `hns-wallet-chain-api`, `hns-wallet-service` | 0.4.2 |
+| `hns-wallet-chain-api` | 0.4.2 |
+| `hns-wallet-service` | 0.4.3 |
 | `hns-wallet-hns` | 0.4.6 |
 | `hns-wallet-market` | 0.5.1 |
-| `hns-wallet-mobile` | 0.6.3 |
+| `hns-wallet-mobile` | 0.6.4 |
 
 The DNSSEC and DANE security releases bind TLSA trust-anchor matches to signed
 certificate paths on both mobile and Chromium. The app pins the complete
@@ -26,7 +28,10 @@ published browser stack so the resolver, policy, transport, and gateway use the
 same corrected dependency cohort. Its TLSA fuzzer uses the same DANE policy and
 DNSSEC releases.
 
-HNS 0.4.6 and mobile-wallet 0.6.3 use wallet source
+The name-offer releases for types 0.4.2, provider 0.4.2, shakedex 0.4.2,
+service 0.4.3, and mobile 0.6.4 use wallet source
+`d40680ff9e1beae4d06322109bb2c8ae16ff5e2a`.
+HNS 0.4.6 and the preceding mobile-wallet 0.6.3 release use wallet source
 `5f15dab9ae7a07fb497a35c72b27f4b256ce8c80`.
 Bitcoin 0.4.6 uses `05ba8632e66682b59d9ecd353535699f2ada5744`.
 The recovered-swap update locates counterparty-funded HNS locks in the

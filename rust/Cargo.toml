@@ -29,11 +29,11 @@ hns-browser-observability = "=0.3.0"
 hns-browser-runtime = "=0.2.2"
 hns-icann-dane = "=0.2.2"
 hns-loopback-proxy = { package = "hns-browser-loopback-proxy", version = "=0.2.4", default-features = false, features = ["mobile"] }
-# Pin the published peer, market, and restart-safe Bitcoin wallet releases.
+# Pin the published peer, market, Bitcoin, and name-offer wallet releases.
 # Compatible transitive ranges select the reviewed transport and Kyoto patches.
 hns-wallet-ffi = "=0.4.1"
-hns-wallet-mobile = "=0.6.3"
-hns-wallet-types = "=0.4.1"
+hns-wallet-mobile = "=0.6.4"
+hns-wallet-types = "=0.4.2"
 hns-wallet-hns = "=0.4.6"
 hns-mobile-platform-runtime = { path = "crates/hns-mobile-platform-runtime" }
 hns-namespace-resolution = "=0.2.3"

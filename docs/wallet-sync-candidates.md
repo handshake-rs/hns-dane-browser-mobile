@@ -1,17 +1,20 @@
-# Published wallet synchronization and recovery patches
+# Published wallet patches
 
 The mobile application consumes these published patches:
 
 | Package | Version | Reason |
 | --- | --- | --- |
 | `hns-wallet-hns` | 0.4.6 | Concurrent initial peer races, idle socket maintenance, public transport sharing, reconnects, recovery-publication expiry, and recovered counterparty lock lookup |
-| `hns-wallet-bip157` | 0.4.2 | Durable Bitcoin filter caches |
+| `hns-wallet-bip157` | 0.4.3 | Durable Bitcoin filter caches |
 | `hns-wallet-bitcoin-kyoto` | 0.4.6 | Durable scan resume, funded swap-watch replay, and Bitcoin fee preflight bounded by verified funding authority |
-| `hns-wallet-chain-api`, `hns-wallet-service` | 0.4.2 | Public recovery terms and native recoverable funding |
+| `hns-wallet-chain-api` | 0.4.2 | Public recovery terms |
+| `hns-wallet-service` | 0.4.3 | Native recoverable funding and name-offer lifecycle |
 | `hns-wallet-market` | 0.5.1 | Seed-only contract discovery, reclaim and verified settlement for both assets, participants and offer directions |
-| `hns-wallet-mobile` | 0.6.3 | Coordinator-owned native controller, funding gates, recovered-swap reconciliation, and durable responder choice for the current HNS and Bitcoin wallet crates |
+| `hns-wallet-types`, `hns-wallet-provider`, `hns-wallet-shakedex` | 0.4.2 | Signed name offers, relay access, and HIP-0001 swap flow |
+| `hns-wallet-mobile` | 0.6.4 | Native name-offer browse, publish, accept, cancel, and recovery alongside the coin-swap controller |
 
-Other selected wallet packages remain at 0.4.1. The Android and iOS
+Other selected wallet package versions are listed in the
+[dependency guide](released-dependency-cohort.md). The Android and iOS
 controllers register the same weak public-header transport with the shared
 browser runtime. Requests reuse the wallet's negotiated peer sockets and
 serialize with that socket's wallet requests. The browser still verifies
@@ -56,7 +59,8 @@ handshake does not delay the others. A real-socket regression test requires
 both candidates to begin before either handshake is released.
 
 The mobile manifest and lockfile use registry sources for every selected wallet
-package. The unchanged API and consumer packages remain on 0.4.1. The source
+package. The remaining API and consumer package versions are listed in the
+dependency guide. The source
 verifier requires exact versions and the reviewed published archive checksums;
 local paths, Git dependencies, and source overrides are rejected. Third-party
 notices are generated from that delivery graph.
