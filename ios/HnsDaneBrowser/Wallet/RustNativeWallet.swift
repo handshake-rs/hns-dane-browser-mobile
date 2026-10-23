@@ -1940,6 +1940,8 @@ enum NativeHnsValueIntent: Sendable {
 
 enum NativeShakedexQuery: Sendable {
     case listOffers(cursor: String?, limit: UInt8)
+    case listMyOffers(cursor: String?, limit: UInt8)
+    case getOffer(listingID: String)
     case getSession(sessionID: String)
 
     func encodedBytes() throws -> [UInt8] {
@@ -1955,6 +1957,21 @@ enum NativeShakedexQuery: Sendable {
                 "cursor": cursor.map { $0 as Any } ?? NSNull(),
                 "limit": Int(limit),
             ]
+        case let .listMyOffers(cursor, limit):
+            guard (1...16).contains(limit),
+                  cursor.map(NativeHnsValueIntent.isObjectID) ?? true else {
+                throw NativeWalletBridgeError.invalidOutput("invalid Shakedex seller-list query")
+            }
+            object = [
+                "query": "listMyOffers",
+                "cursor": cursor.map { $0 as Any } ?? NSNull(),
+                "limit": Int(limit),
+            ]
+        case let .getOffer(listingID):
+            guard NativeHnsValueIntent.isObjectID(listingID) else {
+                throw NativeWalletBridgeError.invalidOutput("invalid Shakedex offer lookup")
+            }
+            object = ["query": "getOffer", "listingId": listingID]
         case let .getSession(sessionID):
             guard NativeHnsValueIntent.isObjectID(sessionID) else {
                 throw NativeWalletBridgeError.invalidOutput("invalid Shakedex session query")
@@ -1993,6 +2010,98 @@ struct NativeShakedexQueryResult: Sendable {
             throw NativeWalletBridgeError.invalidOutput("invalid Shakedex offer-page encoding")
         }
         return try JSONDecoder().decode(NativeShakedexOfferPage.self, from: data)
+    }
+
+    func myOfferPage() throws -> NativeShakedexMyOfferPage {
+        guard let data = displayJSON.data(using: .utf8) else {
+            throw NativeWalletBridgeError.invalidOutput("invalid Shakedex seller-page encoding")
+        }
+        return try JSONDecoder().decode(NativeShakedexMyOfferPage.self, from: data)
+    }
+
+    func offerDetail() throws -> NativeShakedexNameOffer {
+        guard let data = displayJSON.data(using: .utf8) else {
+            throw NativeWalletBridgeError.invalidOutput("invalid Shakedex offer encoding")
+        }
+        return try JSONDecoder().decode(NativeShakedexOfferDetail.self, from: data).offer
+    }
+}
+
+private struct NativeShakedexOfferDetail: Decodable {
+    let offer: NativeShakedexNameOffer
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case offer
+    }
+
+    init(from decoder: Decoder) throws {
+        let value = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        offer = try value.decode(NativeShakedexNameOffer.self, forKey: .offer)
+    }
+}
+
+struct NativeShakedexMyOffer: Decodable, Sendable {
+    let sessionID: String
+    let name: String
+    let priceBaseUnits: String
+    let stage: String
+    let publicationState: String?
+    let listingID: String?
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case revision, requestNonce, stage, name, lockAddress, listingLifetimeSeconds
+        case sessionID = "sessionId"
+        case priceBaseUnits = "price"
+        case listingID = "listingId"
+        case cancellationID = "cancellationId"
+        case publicationState
+    }
+
+    init(from decoder: Decoder) throws {
+        let value = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        _ = try value.decode(UInt64.self, forKey: .revision)
+        _ = try value.decode(UInt64.self, forKey: .listingLifetimeSeconds)
+        let nonce = try value.decode(String.self, forKey: .requestNonce)
+        let lockAddress = try value.decode(String.self, forKey: .lockAddress)
+        sessionID = try value.decode(String.self, forKey: .sessionID)
+        name = try value.decode(String.self, forKey: .name)
+        priceBaseUnits = try value.decode(String.self, forKey: .priceBaseUnits)
+        stage = try value.decode(String.self, forKey: .stage)
+        listingID = try value.decodeIfPresent(String.self, forKey: .listingID)
+        let cancellationID = try value.decodeIfPresent(String.self, forKey: .cancellationID)
+        publicationState = try value.decodeIfPresent(String.self, forKey: .publicationState)
+        guard NativeHnsValueIntent.isObjectID(sessionID),
+              listingID.map(NativeHnsValueIntent.isObjectID) ?? true,
+              cancellationID.map(NativeHnsValueIntent.isObjectID) ?? true,
+              (1...63).contains(name.utf8.count),
+              name.utf8.allSatisfy({ (0x21...0x7e).contains($0) }),
+              NativeHnsReadSnapshot.Amount.isCanonicalBaseUnits(priceBaseUnits),
+              priceBaseUnits != "0",
+              !nonce.isEmpty && nonce.allSatisfy(\.isNumber),
+              !lockAddress.isEmpty && lockAddress.utf8.count <= 512,
+              ["nameLockRequired", "publicationQueued", "cancellationQueued"].contains(stage),
+              publicationState.map({ ["pending", "handoffPrepared", "retryScheduled", "relayAccepted", "directAnnounced", "exhausted"].contains($0) }) ?? true else {
+            throw NativeWalletBridgeError.invalidOutput("invalid Shakedex seller offer")
+        }
+    }
+}
+
+struct NativeShakedexMyOfferPage: Decodable, Sendable {
+    let offers: [NativeShakedexMyOffer]
+    let nextCursor: String?
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case offers, nextCursor
+    }
+
+    init(from decoder: Decoder) throws {
+        let value = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        offers = try value.decode([NativeShakedexMyOffer].self, forKey: .offers)
+        nextCursor = try value.decodeIfPresent(String.self, forKey: .nextCursor)
+        guard offers.count <= 16,
+              nextCursor.map(NativeHnsValueIntent.isObjectID) ?? true else {
+            throw NativeWalletBridgeError.invalidOutput("invalid Shakedex seller page")
+        }
     }
 }
 

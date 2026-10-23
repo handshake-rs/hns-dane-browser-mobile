@@ -18,6 +18,14 @@
 		</dict>
 		<dict>
 			<key>CFBundleURLName</key>
+			<string>com.denuoweb.shakescape.name-offer</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>shakescape</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleURLName</key>
 			<string>com.denuoweb.hnsdane.browser</string>
 			<key>CFBundleURLSchemes</key>
 			<array>

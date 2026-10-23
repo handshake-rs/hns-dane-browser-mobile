@@ -4300,6 +4300,53 @@ final class BrowserRuntimeControlTests: XCTestCase {
         ).offerPage())
     }
 
+    func testShakedexSellerPageRejectsUnknownAccountAndStage() throws {
+        let session = String(repeating: "ab", count: 32)
+        let listing = String(repeating: "cd", count: 32)
+        let valid = """
+        {"offers":[{"revision":1,"sessionId":"\(session)","requestNonce":"1","stage":"publicationQueued","name":"24hour","price":"100000","lockAddress":"hs1qfixture","listingLifetimeSeconds":86400,"listingId":"\(listing)","cancellationId":null,"publicationState":"relayAccepted"}],"nextCursor":null}
+        """
+        let page = try NativeShakedexQueryResult(displayJSON: valid).myOfferPage()
+        XCTAssertEqual(page.offers.count, 1)
+        XCTAssertEqual(page.offers[0].sessionID, session)
+        XCTAssertEqual(page.offers[0].publicationState, "relayAccepted")
+        XCTAssertThrowsError(try NativeShakedexQueryResult(
+            displayJSON: valid.replacingOccurrences(of: "\"revision\":1", with: "\"account\":\"caller\",\"revision\":1")
+        ).myOfferPage())
+        XCTAssertThrowsError(try NativeShakedexQueryResult(
+            displayJSON: valid.replacingOccurrences(of: "publicationQueued", with: "settled")
+        ).myOfferPage())
+    }
+
+    func testCanonicalShakescapeNameOfferURIIsVersionedAndNetworkBound() {
+        let id = String(repeating: "ab", count: 32)
+        let valid = "shakescape://name-offer/v1/\(id)?network=mainnet"
+        XCTAssertEqual(ShakescapeNameOfferURI.parse(valid),
+            ShakescapeNameOfferLink(listingID: id, network: .mainnet))
+        for invalid in [
+            valid.replacingOccurrences(of: "/v1/", with: "/v2/"),
+            valid.replacingOccurrences(of: id, with: id.uppercased()),
+            valid + "&fee=0",
+            valid.replacingOccurrences(of: "mainnet", with: "testnet%20"),
+            valid.replacingOccurrences(of: id, with: String(repeating: "0", count: 64)),
+            valid.replacingOccurrences(of: "name-offer", with: "other"),
+        ] {
+            XCTAssertNil(ShakescapeNameOfferURI.parse(invalid))
+        }
+    }
+
+    func testExactNameOfferLookupRejectsEnvelopeShapeDrift() throws {
+        let id = String(repeating: "ab", count: 32)
+        let valid = """
+        {"offer":{"listingId":"\(id)","name":"24hour","price":"100000","marketplaceFee":"0","sellerPaymentAddress":"hs1qfixture","createdAtUnix":1789280076,"expiresAtUnix":1789884876}}
+        """
+        XCTAssertEqual(try NativeShakedexQueryResult(displayJSON: valid).offerDetail().listingID,
+            id)
+        XCTAssertThrowsError(try NativeShakedexQueryResult(
+            displayJSON: valid.replacingOccurrences(of: "{\"offer\":", with: "{\"untrusted\":true,\"offer\":")
+        ).offerDetail())
+    }
+
     func testNativeDirectShakescapeBundlesRejectTransportShapeDrift() throws {
         let endpoint = Array("198.51.100.7:12038".utf8)
         let discovered = Array("203.0.113.8:12038".utf8)

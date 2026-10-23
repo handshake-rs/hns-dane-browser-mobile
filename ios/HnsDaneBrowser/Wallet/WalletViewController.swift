@@ -854,6 +854,8 @@ final class WalletViewController: UIViewController {
     private var pendingSwapSettlementApproval: NativeSwapSettlementApproval?
     private var pendingSwapSettlementIsBitcoin = false
     private var pendingHandshakePayment: HandshakePaymentRequest?
+    private var pendingNameOfferListingID: String?
+    private var pendingNameOfferPresentationScheduled = false
     private var pendingPaymentPresentationScheduled = false
     private var scannedPaymentShouldResumeAfterUnlock = false
     private var browserSyncObservation: UUID?
@@ -900,11 +902,13 @@ final class WalletViewController: UIViewController {
     init(
         network: BrowserHandshakeNetwork,
         paymentRequest: HandshakePaymentRequest? = nil,
+        nameOfferListingID: String? = nil,
         browserProcess: BrowserProcess? = nil
     ) {
         self.network = network
         self.keychain = WalletKeychainStore(network: network)
         self.pendingHandshakePayment = paymentRequest
+        self.pendingNameOfferListingID = nameOfferListingID
         self.browserProcess = browserProcess
         super.init(nibName: nil, bundle: nil)
     }
@@ -917,7 +921,7 @@ final class WalletViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Wallet"
-        if pendingHandshakePayment != nil {
+        if pendingHandshakePayment != nil || pendingNameOfferListingID != nil {
             navigationItem.leftBarButtonItem = UIBarButtonItem(
                 barButtonSystemItem: .done,
                 target: self,
@@ -1222,6 +1226,7 @@ final class WalletViewController: UIViewController {
             renderLockedWalletDashboard()
         }
         if pendingHandshakePayment != nil { schedulePendingPaymentPresentation() }
+        if pendingNameOfferListingID != nil { schedulePendingNameOfferPresentation() }
     }
 
     private func walletStatusBody(_ labels: [UIView]) -> [UIView] {
@@ -1392,6 +1397,7 @@ final class WalletViewController: UIViewController {
             )]
         ))
         schedulePendingPaymentPresentation()
+        schedulePendingNameOfferPresentation()
     }
 
     private func dashboardCard(
@@ -4119,6 +4125,45 @@ final class WalletViewController: UIViewController {
         }
     }
 
+    func receiveExternalNameOffer(listingID: String) {
+        pendingNameOfferListingID = listingID
+        schedulePendingNameOfferPresentation()
+    }
+
+    private func schedulePendingNameOfferPresentation() {
+        guard pendingNameOfferListingID != nil,
+              !pendingNameOfferPresentationScheduled else { return }
+        pendingNameOfferPresentationScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.pendingNameOfferPresentationScheduled = false
+            let continuation = walletPendingPaymentContinuation(
+                hasPendingPayment: self.pendingNameOfferListingID != nil,
+                resumeAfterScanner: false,
+                foreground: self.walletAuthorityRequested && self.viewIfLoaded?.window != nil,
+                dialogVisible: self.presentedViewController != nil,
+                busy: self.isOperating,
+                hasController: self.wallet != nil,
+                controllerUnlocked: self.walletIsUnlocked,
+                hasHnsValue: self.directHnsValueAvailable,
+                hasCurrentSnapshot: self.recentTransactions != nil,
+                hasPendingOutgoing: self.pendingOutgoingSnapshotHeight != nil
+            )
+            switch continuation {
+            case .none, .wait:
+                break
+            case .unlock:
+                self.openOrUnlockWallet()
+            case .synchronize:
+                self.synchronizeWalletReadsFromUserAction()
+            case .present:
+                guard let listingID = self.pendingNameOfferListingID else { return }
+                self.pendingNameOfferListingID = nil
+                self.beginShakedexQuery(.getOffer(listingID: listingID))
+            }
+        }
+    }
+
     private static func configureSendField(
         _ field: UITextField,
         visibleLabel: String,
@@ -4798,10 +4843,16 @@ final class WalletViewController: UIViewController {
         let paired = directShakescapeStatusSnapshot?.peerEndpoint != nil
         presentWalletMenu(title: WalletCopy.text("wallet_ux_name_market"), rows: [], actions: [
             WalletMenuAction(title: WalletCopy.text("row_wallet_list_offers"), enabled: paired, primary: true) {
-                [weak self] in self?.beginShakedexQuery(.listOffers(cursor: nil, limit: 32))
+                [weak self] in self?.beginShakedexQuery(.listOffers(cursor: nil, limit: 5))
             },
             WalletMenuAction(title: WalletCopy.text("row_wallet_create_offer"), enabled: paired) {
                 [weak self] in self?.showCreateOfferForm()
+            },
+            WalletMenuAction(title: WalletCopy.text("wallet_ux_name_accept_id"), enabled: paired) {
+                [weak self] in self?.showAcceptNameOfferIDForm()
+            },
+            WalletMenuAction(title: WalletCopy.text("wallet_ux_name_my_offers"), section: WalletCopy.text("wallet_ux_manage_offers"), enabled: paired) {
+                [weak self] in self?.beginShakedexQuery(.listMyOffers(cursor: nil, limit: 5))
             },
             WalletMenuAction(title: WalletCopy.text("wallet_ux_offer_query"), section: WalletCopy.text("wallet_ux_manage_offers"), enabled: paired) {
                 [weak self] in self?.showListOffersForm()
@@ -5112,11 +5163,13 @@ final class WalletViewController: UIViewController {
         }
     }
 
-    private func showRecoverNameForm() {
+    private func showRecoverNameForm(selectedSessionID: String? = nil) {
         collectHnsValueForm(
             title: WalletCopy.text("row_wallet_recover_name"),
             fields: [
-                .init(label: WalletCopy.text("wallet_action_seller_session_hint"), placeholder: WalletCopy.text("wallet_action_seller_session_hint")),
+                .init(label: WalletCopy.text("wallet_action_seller_session_hint"),
+                    placeholder: WalletCopy.text("wallet_action_seller_session_hint"),
+                    initialValue: selectedSessionID ?? "", editable: selectedSessionID == nil),
                 .init(
                     label: WalletCopy.text("wallet_action_maximum_fee_hint"),
                     placeholder: defaultHnsMaximumFee,
@@ -5166,6 +5219,20 @@ final class WalletViewController: UIViewController {
                 maximumFeeBaseUnits: fee,
                 automaticFinalizeMaximumFeeBaseUnits: fee
             ))
+        }
+    }
+
+    private func showAcceptNameOfferIDForm() {
+        collectHnsValueForm(
+            title: WalletCopy.text("wallet_ux_name_accept_id"),
+            fields: [.init(label: WalletCopy.text("wallet_action_listing_hint"),
+                placeholder: WalletCopy.text("wallet_action_listing_hint"))]
+        ) { [weak self] values in
+            guard let self, let listingID = values.first else {
+                self?.showErrorMessage(WalletCopy.text("wallet_value_actions_invalid"))
+                return
+            }
+            self.beginShakedexQuery(.getOffer(listingID: listingID))
         }
     }
 
@@ -6185,7 +6252,10 @@ final class WalletViewController: UIViewController {
         isOperating = false
     }
 
-    private func beginShakedexQuery(_ query: NativeShakedexQuery) {
+    private func beginShakedexQuery(
+        _ query: NativeShakedexQuery,
+        history: [String?] = []
+    ) {
         guard shakedexActionMayStart,
               let lease = storageLease,
               let wallet else {
@@ -6227,13 +6297,35 @@ final class WalletViewController: UIViewController {
                         self.nameSaleProgress(result.displayJSON),
                         WalletCopy.format("wallet_shakedex_queries_result", result.displayJSON)
                     ].compactMap { $0 }.joined(separator: "\n\n")
-                    if case .listOffers = query {
+                    if case let .listOffers(cursor, _) = query {
                         do {
-                            self.showShakedexOfferPicker(try result.offerPage())
+                            self.showShakedexOfferPicker(try result.offerPage(), cursor: cursor,
+                                history: history)
                         } catch {
                             self.readStatusLabel.text = WalletCopy.text(
                                 "wallet_shakedex_offer_page_invalid"
                             )
+                            self.showError(error)
+                        }
+                    } else if case let .listMyOffers(cursor, _) = query {
+                        do {
+                            self.showMyNameOffers(try result.myOfferPage(), cursor: cursor,
+                                history: history)
+                        } catch {
+                            self.readStatusLabel.text = WalletCopy.text(
+                                "wallet_shakedex_offer_page_invalid"
+                            )
+                            self.showError(error)
+                        }
+                    } else if case let .getOffer(listingID) = query {
+                        do {
+                            let offer = try result.offerDetail()
+                            guard offer.listingID == listingID else {
+                                throw NativeWalletBridgeError.invalidOutput(
+                                    "Shakedex offer lookup returned a different listing")
+                            }
+                            self.showNameOfferReview(offer)
+                        } catch {
                             self.showError(error)
                         }
                     } else {
@@ -6253,7 +6345,11 @@ final class WalletViewController: UIViewController {
         }
     }
 
-    private func showShakedexOfferPicker(_ page: NativeShakedexOfferPage) {
+    private func showShakedexOfferPicker(
+        _ page: NativeShakedexOfferPage,
+        cursor: String?,
+        history: [String?]
+    ) {
         let detail = page.offers.isEmpty
             ? WalletCopy.format(
                 "wallet_shakedex_offer_page_empty", Int(page.boardRevision)
@@ -6282,12 +6378,24 @@ final class WalletViewController: UIViewController {
                 title: title,
                 section: WalletCopy.text("wallet_shakedex_available_name_offers")
             ) { [weak self] in
-                self?.showAcceptOfferForm(selectedOffer: offer)
+                self?.showNameOfferReview(offer)
             }
         }
-        if let cursor = page.nextCursor {
+        actions.append(WalletMenuAction(title: WalletCopy.text("wallet_ux_name_refresh"),
+            section: WalletCopy.text("wallet_shakedex_more_offers")) { [weak self] in
+            self?.beginShakedexQuery(.listOffers(cursor: nil, limit: 5))
+        })
+        if let previous = history.last {
+            actions.append(WalletMenuAction(title: WalletCopy.text("wallet_name_previous"),
+                section: WalletCopy.text("wallet_shakedex_more_offers")) { [weak self] in
+                self?.beginShakedexQuery(.listOffers(cursor: previous, limit: 5),
+                    history: Array(history.dropLast()))
+            })
+        }
+        if let next = page.nextCursor {
             actions.append(WalletMenuAction(title: WalletCopy.text("wallet_shakedex_next_offer_page"), section: WalletCopy.text("wallet_shakedex_more_offers")) { [weak self] in
-                self?.beginShakedexQuery(.listOffers(cursor: cursor, limit: 32))
+                self?.beginShakedexQuery(.listOffers(cursor: next, limit: 5),
+                    history: history + [cursor])
             })
         }
         presentWalletMenu(
@@ -6303,6 +6411,111 @@ final class WalletViewController: UIViewController {
             actions: actions,
             retainForChildActions: false
         )
+    }
+
+    private func showMyNameOffers(
+        _ page: NativeShakedexMyOfferPage,
+        cursor: String?,
+        history: [String?]
+    ) {
+        var actions = page.offers.map { offer in
+            WalletMenuAction(
+                title: WalletCopy.format("wallet_ux_name_my_offer_choice",
+                    offer.name,
+                    WalletReadPresenter.formatHnsBaseUnits(offer.priceBaseUnits),
+                    nameOfferStageLabel(offer.stage),
+                    nameOfferPublicationLabel(offer.publicationState)),
+                section: WalletCopy.text("wallet_ux_name_my_offers")
+            ) { [weak self] in self?.showMyNameOffer(offer) }
+        }
+        actions.append(WalletMenuAction(title: WalletCopy.text("wallet_ux_name_refresh"),
+            section: WalletCopy.text("wallet_shakedex_more_offers")) { [weak self] in
+            self?.beginShakedexQuery(.listMyOffers(cursor: nil, limit: 5))
+        })
+        if let previous = history.last {
+            actions.append(WalletMenuAction(title: WalletCopy.text("wallet_name_previous"),
+                section: WalletCopy.text("wallet_shakedex_more_offers")) { [weak self] in
+                self?.beginShakedexQuery(.listMyOffers(cursor: previous, limit: 5),
+                    history: Array(history.dropLast()))
+            })
+        }
+        if let next = page.nextCursor {
+            actions.append(WalletMenuAction(title: WalletCopy.text("wallet_shakedex_next_offer_page"),
+                section: WalletCopy.text("wallet_shakedex_more_offers")) { [weak self] in
+                self?.beginShakedexQuery(.listMyOffers(cursor: next, limit: 5),
+                    history: history + [cursor])
+            })
+        }
+        presentWalletMenu(title: WalletCopy.text("wallet_ux_name_my_offers"), rows: [
+            WalletMenuRow(title: WalletCopy.format("wallet_ux_name_my_offers_count", page.offers.count), detail: ""),
+        ], actions: actions, retainForChildActions: false)
+    }
+
+    private func showNameOfferReview(_ offer: NativeShakedexNameOffer) {
+        let expiry = DateFormatter.localizedString(
+            from: Date(timeIntervalSince1970: TimeInterval(offer.expiresAtUnix)),
+            dateStyle: .medium, timeStyle: .medium
+        )
+        presentWalletMenu(title: offer.name, rows: [
+            WalletMenuRow(title: WalletCopy.text("wallet_action_price_hint"),
+                detail: WalletReadPresenter.formatHnsBaseUnits(offer.priceBaseUnits) + " HNS"),
+            WalletMenuRow(title: WalletCopy.text("wallet_ux_name_marketplace_fee"),
+                detail: WalletReadPresenter.formatHnsBaseUnits(offer.marketplaceFeeBaseUnits) + " HNS"),
+            WalletMenuRow(title: WalletCopy.text("wallet_ux_name_seller_payment"),
+                detail: offer.sellerPaymentAddress),
+            WalletMenuRow(title: WalletCopy.text("wallet_ux_name_expiry"), detail: expiry),
+            WalletMenuRow(title: WalletCopy.text("wallet_action_listing_hint"), detail: offer.listingID),
+            WalletMenuRow(title: WalletCopy.text("wallet_ux_offer_details"),
+                detail: WalletCopy.text("wallet_ux_name_purchase_finality")),
+        ], actions: [
+            WalletMenuAction(title: WalletCopy.text("row_wallet_accept_offer"), primary: true) {
+                [weak self] in self?.showAcceptOfferForm(selectedOffer: offer)
+            },
+        ], retainForChildActions: true)
+    }
+
+    private func showMyNameOffer(_ offer: NativeShakedexMyOffer) {
+        var actions = [WalletMenuAction(title: WalletCopy.text("row_wallet_get_session")) {
+            [weak self] in self?.beginShakedexQuery(.getSession(sessionID: offer.sessionID))
+        }]
+        if offer.stage == "publicationQueued" {
+            actions.append(WalletMenuAction(title: WalletCopy.text("wallet_swap_cancel_offer"),
+                style: .destructive) { [weak self] in
+                self?.beginHnsValueAction(.cancelOffer(sellerSessionID: offer.sessionID))
+            })
+        }
+        actions.append(WalletMenuAction(title: WalletCopy.text("row_wallet_recover_name")) {
+            [weak self] in self?.showRecoverNameForm(selectedSessionID: offer.sessionID)
+        })
+        presentWalletMenu(title: offer.name, rows: [
+            WalletMenuRow(title: WalletCopy.text("wallet_action_price_hint"),
+                detail: WalletReadPresenter.formatHnsBaseUnits(offer.priceBaseUnits)),
+            WalletMenuRow(title: WalletCopy.text("wallet_ux_name_publication_status"),
+                detail: nameOfferPublicationLabel(offer.publicationState)),
+            WalletMenuRow(title: WalletCopy.text("wallet_ux_offer_details"),
+                detail: nameOfferStageLabel(offer.stage)),
+            WalletMenuRow(title: WalletCopy.text("wallet_action_seller_session_hint"), detail: offer.sessionID),
+        ], actions: actions, retainForChildActions: true)
+    }
+
+    private func nameOfferStageLabel(_ stage: String) -> String {
+        switch stage {
+        case "nameLockRequired": WalletCopy.text("wallet_ux_name_stage_lock")
+        case "publicationQueued": WalletCopy.text("wallet_ux_name_stage_publication")
+        case "cancellationQueued": WalletCopy.text("wallet_ux_name_stage_cancellation")
+        default: WalletCopy.text("wallet_ux_name_stage_unknown")
+        }
+    }
+
+    private func nameOfferPublicationLabel(_ state: String?) -> String {
+        switch state {
+        case nil: WalletCopy.text("wallet_ux_name_not_published")
+        case "pending", "handoffPrepared": WalletCopy.text("wallet_ux_name_publication_sending")
+        case "retryScheduled": WalletCopy.text("wallet_ux_name_publication_retry")
+        case "relayAccepted", "directAnnounced": WalletCopy.text("wallet_ux_name_publication_advertised")
+        case "exhausted": WalletCopy.text("wallet_ux_name_publication_attention")
+        default: WalletCopy.text("wallet_ux_name_stage_unknown")
+        }
     }
 
     private func showNativeHnsResult(title: String, json: String) {
@@ -10560,6 +10773,38 @@ enum HandshakePaymentURI {
             return false
         }
         return amount.contains(where: { $0 != "0" && $0 != "." })
+    }
+}
+
+struct ShakescapeNameOfferLink: Equatable, Sendable {
+    let listingID: String
+    let network: BrowserHandshakeNetwork
+}
+
+enum ShakescapeNameOfferURI {
+    static func parse(_ raw: String) -> ShakescapeNameOfferLink? {
+        guard raw.utf8.count <= 160,
+              let parts = URLComponents(string: raw),
+              parts.scheme == "shakescape",
+              parts.host == "name-offer",
+              parts.user == nil, parts.password == nil, parts.port == nil,
+              parts.fragment == nil,
+              parts.path.hasPrefix("/v1/"),
+              let items = parts.queryItems, items.count == 1,
+              items[0].name == "network",
+              let networkValue = items[0].value,
+              let network = BrowserHandshakeNetwork(rawValue: networkValue) else {
+            return nil
+        }
+        let listingID = String(parts.path.dropFirst(4))
+        guard listingID.utf8.count == 64,
+              listingID != String(repeating: "0", count: 64),
+              listingID.utf8.allSatisfy({ (0x30...0x39).contains($0) ||
+                  (0x61...0x66).contains($0) }),
+              raw == "shakescape://name-offer/v1/\(listingID)?network=\(network.rawValue)" else {
+            return nil
+        }
+        return ShakescapeNameOfferLink(listingID: listingID, network: network)
     }
 }
 

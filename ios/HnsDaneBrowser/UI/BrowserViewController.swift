@@ -46,6 +46,7 @@ final class BrowserViewController: UIViewController {
     private var canonicalAddress = ""
     private var pendingExternalAddress: String?
     private var pendingHandshakePayment: HandshakePaymentRequest?
+    private var pendingNameOffer: ShakescapeNameOfferLink?
     private var isForeground = false
     private var isPreparing = false
     private var isLoading = false
@@ -133,6 +134,7 @@ final class BrowserViewController: UIViewController {
             resumeForegroundSync()
         }
         presentPendingHandshakePaymentIfPossible()
+        presentPendingNameOfferIfPossible()
 #if DEBUG && targetEnvironment(simulator)
         presentScreenshotProofIfNeeded()
 #endif
@@ -211,6 +213,16 @@ final class BrowserViewController: UIViewController {
             presentPendingHandshakePaymentIfPossible()
             return
         }
+        if url.scheme?.lowercased() == "shakescape" {
+            guard let link = ShakescapeNameOfferURI.parse(url.absoluteString),
+                  link.network == process.currentNetwork else {
+                showError(BrowserCoreError.unsupportedAddress)
+                return
+            }
+            pendingNameOffer = link
+            presentPendingNameOfferIfPossible()
+            return
+        }
         guard url.isFileURL == false else {
             showError(BrowserCoreError.unsupportedAddress)
             return
@@ -230,6 +242,27 @@ final class BrowserViewController: UIViewController {
         let wallet = WalletViewController(
             network: process.currentNetwork,
             paymentRequest: request,
+            browserProcess: process
+        )
+        let navigation = UINavigationController(rootViewController: wallet)
+        navigation.modalPresentationStyle = .formSheet
+        present(navigation, animated: true)
+    }
+
+    private func presentPendingNameOfferIfPossible() {
+        guard viewIfLoaded?.window != nil,
+              let link = pendingNameOffer else { return }
+        if let navigation = presentedViewController as? UINavigationController,
+           let wallet = navigation.viewControllers.compactMap({ $0 as? WalletViewController }).last {
+            pendingNameOffer = nil
+            wallet.receiveExternalNameOffer(listingID: link.listingID)
+            return
+        }
+        guard presentedViewController == nil else { return }
+        pendingNameOffer = nil
+        let wallet = WalletViewController(
+            network: process.currentNetwork,
+            nameOfferListingID: link.listingID,
             browserProcess: process
         )
         let navigation = UINavigationController(rootViewController: wallet)

@@ -72162,6 +72162,28 @@
         }
       }
     },
+    "wallet_ux_name_accept_id": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accept by listing ID"
+          }
+        }
+      }
+    },
+    "wallet_ux_name_expiry": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expires"
+          }
+        }
+      }
+    },
     "wallet_ux_name_market": {
       "extractionState": "manual",
       "localizations": {
@@ -72169,6 +72191,204 @@
           "stringUnit": {
             "state": "translated",
             "value": "Name marketplace"
+          }
+        }
+      }
+    },
+    "wallet_ux_name_marketplace_fee": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marketplace fee"
+          }
+        }
+      }
+    },
+    "wallet_ux_name_my_offer_choice": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %2$@ HNS\n%3$@ · %4$@"
+          }
+        }
+      }
+    },
+    "wallet_ux_name_my_offers": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "My name offers"
+          }
+        }
+      }
+    },
+    "wallet_ux_name_my_offers_count": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d name offer(s) in this page."
+          }
+        }
+      }
+    },
+    "wallet_ux_name_not_published": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not published yet"
+          }
+        }
+      }
+    },
+    "wallet_ux_name_publication_advertised": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Advertised"
+          }
+        }
+      }
+    },
+    "wallet_ux_name_publication_attention": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Publication needs attention"
+          }
+        }
+      }
+    },
+    "wallet_ux_name_publication_retry": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retrying relay"
+          }
+        }
+      }
+    },
+    "wallet_ux_name_publication_sending": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sending to relay"
+          }
+        }
+      }
+    },
+    "wallet_ux_name_publication_status": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Publication"
+          }
+        }
+      }
+    },
+    "wallet_ux_name_purchase_finality": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The wallet rechecks the signed offer and current locked name before purchase. Name ownership requires a later on-chain finalization."
+          }
+        }
+      }
+    },
+    "wallet_ux_name_refresh": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh name offers"
+          }
+        }
+      }
+    },
+    "wallet_ux_name_seller_payment": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seller payment address"
+          }
+        }
+      }
+    },
+    "wallet_ux_name_stage_cancellation": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancellation submitted"
+          }
+        }
+      }
+    },
+    "wallet_ux_name_stage_lock": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for name lock"
+          }
+        }
+      }
+    },
+    "wallet_ux_name_stage_publication": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Listing prepared"
+          }
+        }
+      }
+    },
+    "wallet_ux_name_stage_unknown": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unknown status"
+          }
+        }
+      }
+    },
+    "wallet_ux_name_uri_invalid": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This ShakeScape name offer link is invalid or belongs to another network."
           }
         }
       }
@@ -72202,6 +72422,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Generate a new address"
+          }
+        }
+      }
+    },
+    "wallet_ux_offer_details": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Details"
           }
         }
       }
