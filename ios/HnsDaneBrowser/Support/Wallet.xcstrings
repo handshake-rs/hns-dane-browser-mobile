@@ -72173,6 +72173,28 @@
         }
       }
     },
+    "wallet_ux_name_copy_app_link": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy app link"
+          }
+        }
+      }
+    },
+    "wallet_ux_name_copy_listing_id": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy listing ID"
+          }
+        }
+      }
+    },
     "wallet_ux_name_expiry": {
       "extractionState": "manual",
       "localizations": {

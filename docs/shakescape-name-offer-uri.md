@@ -28,6 +28,10 @@ Liquidity Spot's name board uses this URI for **Open in ShakeScape** and
 **Copy app link**. **Copy listing ID** remains available for manual lookup in
 the app. Both platforms register the `shakescape` custom scheme; other apps
 may also claim a custom scheme, so no secret or authority belongs in the URI.
+In **My name offers**, the seller can copy the app link once the offer is
+advertised by the relay, or copy the listing ID for manual lookup. The apps
+format links through the same strict parser used for incoming links. A copied
+link is still only a pointer; its recipient must obtain current signed terms.
 
 The v1 path is immutable. A future incompatible payload or lookup scheme gets
 its own version, with recipients explicitly recognizing it before sites emit

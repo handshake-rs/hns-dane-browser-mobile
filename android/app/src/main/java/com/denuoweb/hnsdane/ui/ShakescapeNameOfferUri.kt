@@ -21,4 +21,9 @@ internal object ShakescapeNameOfferUri {
         } ?: return null
         return ShakescapeNameOfferLink(listingId, network)
     }
+
+    fun format(listingId: String, network: HandshakeNetwork): String? {
+        val uri = "shakescape://name-offer/v1/$listingId?network=${network.id}"
+        return uri.takeIf { parse(it) == ShakescapeNameOfferLink(listingId, network) }
+    }
 }

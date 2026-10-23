@@ -8818,6 +8818,34 @@ class WalletActivity : ComponentActivity() {
             ),
             actionSections = listOf(WalletModalActionSection(
                 getString(R.string.wallet_ux_manage_offers), buildList {
+                    offer.listingId?.let { listingId ->
+                        ShakescapeNameOfferUri.format(listingId, walletNetwork)?.let { appLink ->
+                            if (offer.stage == "publicationQueued" &&
+                                offer.publicationState in setOf("relayAccepted", "directAnnounced")
+                            ) add(WalletModalAction(
+                                getString(R.string.wallet_ux_name_copy_app_link), action = {
+                                    getSystemService(ClipboardManager::class.java).setPrimaryClip(
+                                        ClipData.newPlainText(
+                                            getString(R.string.wallet_ux_name_copy_app_link), appLink,
+                                        ),
+                                    )
+                                    Toast.makeText(this@WalletActivity, R.string.common_copied,
+                                        Toast.LENGTH_SHORT).show()
+                                },
+                            ))
+                            add(WalletModalAction(
+                                getString(R.string.wallet_ux_name_copy_listing_id), action = {
+                                    getSystemService(ClipboardManager::class.java).setPrimaryClip(
+                                        ClipData.newPlainText(
+                                            getString(R.string.wallet_ux_name_copy_listing_id), listingId,
+                                        ),
+                                    )
+                                    Toast.makeText(this@WalletActivity, R.string.common_copied,
+                                        Toast.LENGTH_SHORT).show()
+                                },
+                            ))
+                        }
+                    }
                     add(WalletModalAction(getString(R.string.row_wallet_get_session), action = {
                         queryWalletShakedex(NativeShakedexQuery.GetSession(offer.sessionId))
                     }))

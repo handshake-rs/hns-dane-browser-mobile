@@ -4321,6 +4321,9 @@ final class BrowserRuntimeControlTests: XCTestCase {
     func testCanonicalShakescapeNameOfferURIIsVersionedAndNetworkBound() {
         let id = String(repeating: "ab", count: 32)
         let valid = "shakescape://name-offer/v1/\(id)?network=mainnet"
+        XCTAssertEqual(ShakescapeNameOfferURI.format(listingID: id, network: .mainnet), valid)
+        XCTAssertNil(ShakescapeNameOfferURI.format(
+            listingID: String(repeating: "0", count: 64), network: .mainnet))
         XCTAssertEqual(ShakescapeNameOfferURI.parse(valid),
             ShakescapeNameOfferLink(listingID: id, network: .mainnet))
         for invalid in [

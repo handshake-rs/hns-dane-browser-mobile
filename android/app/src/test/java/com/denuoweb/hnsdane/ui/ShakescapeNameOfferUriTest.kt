@@ -23,4 +23,15 @@ class ShakescapeNameOfferUriTest {
             assertNull(invalid, ShakescapeNameOfferUri.parse(invalid))
         }
     }
+
+    @Test
+    fun formatsOnlyLinksAcceptedByTheParser() {
+        val id = "ab".repeat(32)
+        val link = ShakescapeNameOfferUri.format(id, HandshakeNetwork.Mainnet)
+        assertEquals("shakescape://name-offer/v1/$id?network=mainnet", link)
+        assertEquals(ShakescapeNameOfferLink(id, HandshakeNetwork.Mainnet),
+            ShakescapeNameOfferUri.parse(link!!))
+        assertNull(ShakescapeNameOfferUri.format("0".repeat(64), HandshakeNetwork.Mainnet))
+        assertNull(ShakescapeNameOfferUri.format("AB".repeat(32), HandshakeNetwork.Mainnet))
+    }
 }

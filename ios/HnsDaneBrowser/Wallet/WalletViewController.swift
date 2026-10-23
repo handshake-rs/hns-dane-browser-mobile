@@ -6478,6 +6478,19 @@ final class WalletViewController: UIViewController {
         var actions = [WalletMenuAction(title: WalletCopy.text("row_wallet_get_session")) {
             [weak self] in self?.beginShakedexQuery(.getSession(sessionID: offer.sessionID))
         }]
+        if let listingID = offer.listingID,
+           let appLink = ShakescapeNameOfferURI.format(listingID: listingID, network: network) {
+            if offer.stage == "publicationQueued" &&
+                (offer.publicationState == "relayAccepted" ||
+                 offer.publicationState == "directAnnounced") {
+                actions.append(WalletMenuAction(title: WalletCopy.text("wallet_ux_name_copy_app_link")) {
+                    UIPasteboard.general.string = appLink
+                })
+            }
+            actions.append(WalletMenuAction(title: WalletCopy.text("wallet_ux_name_copy_listing_id")) {
+                UIPasteboard.general.string = listingID
+            })
+        }
         if offer.stage == "publicationQueued" {
             actions.append(WalletMenuAction(title: WalletCopy.text("wallet_swap_cancel_offer"),
                 style: .destructive) { [weak self] in
@@ -10782,6 +10795,12 @@ struct ShakescapeNameOfferLink: Equatable, Sendable {
 }
 
 enum ShakescapeNameOfferURI {
+    static func format(listingID: String, network: BrowserHandshakeNetwork) -> String? {
+        let uri = "shakescape://name-offer/v1/\(listingID)?network=\(network.rawValue)"
+        return parse(uri) == ShakescapeNameOfferLink(listingID: listingID, network: network)
+            ? uri : nil
+    }
+
     static func parse(_ raw: String) -> ShakescapeNameOfferLink? {
         guard raw.utf8.count <= 160,
               let parts = URLComponents(string: raw),
