@@ -29,6 +29,19 @@ class LauncherActivity : Activity() {
             finish()
             return
         }
+        val nameOfferUri = intent
+            .takeIf { it.action == Intent.ACTION_VIEW }
+            ?.dataString
+            ?.takeIf { intent.data?.scheme == "shakescape" }
+        if (nameOfferUri != null) {
+            startActivity(
+                Intent(this, WalletActivity::class.java)
+                    .putExtra(EXTRA_SHAKESCAPE_NAME_OFFER_URI, nameOfferUri)
+                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            )
+            finish()
+            return
+        }
         val browserUrl = intent
             .takeIf { it.action == Intent.ACTION_VIEW }
             ?.dataString

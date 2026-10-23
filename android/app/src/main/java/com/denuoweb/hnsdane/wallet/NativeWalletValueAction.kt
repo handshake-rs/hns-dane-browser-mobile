@@ -141,6 +141,13 @@ internal sealed interface NativeShakedexQuery {
         val limit: Int = 32,
     ) : NativeShakedexQuery
 
+    data class ListMyOffers(
+        val cursor: String? = null,
+        val limit: Int = 16,
+    ) : NativeShakedexQuery
+
+    data class GetOffer(val listingId: String) : NativeShakedexQuery
+
     data class GetSession(val sessionId: String) : NativeShakedexQuery
 }
 
@@ -178,6 +185,61 @@ internal data class NativeHnsValueResult(val displayJson: String) {
 
 /** Bounded provider result produced only by a closed native Shakedex query. */
 internal data class NativeShakedexQueryResult(val displayJson: String) {
+    fun offerDetail(): NativeShakedexNameOffer? = runCatching {
+        val root = JSONObject(displayJson).apply { requireExactKeys("offer") }
+        val page = JSONObject()
+            .put("boardRevision", 0)
+            .put("offers", JSONArray().put(root.getJSONObject("offer")))
+            .put("nextCursor", JSONObject.NULL)
+        NativeShakedexQueryResult(page.toString()).offerPage()?.offers?.single()
+            ?: error("invalid offer detail")
+    }.getOrNull()
+
+    fun myOfferPage(): NativeShakedexMyOfferPage? = runCatching {
+        val value = JSONObject(displayJson).apply {
+            requireExactKeys("offers", "nextCursor")
+        }
+        val rows = value.getJSONArray("offers").also { require(it.length() <= 16) }
+        val offers = List(rows.length()) { index ->
+            val row = rows.getJSONObject(index).apply {
+                requireExactKeys(
+                    "revision", "sessionId", "requestNonce", "stage", "name", "price",
+                    "lockAddress", "listingLifetimeSeconds", "listingId", "cancellationId",
+                    "publicationState",
+                )
+            }
+            val stage = row.getString("stage").also {
+                require(it in setOf("nameLockRequired", "publicationQueued", "cancellationQueued"))
+            }
+            val publication = row.opt("publicationState")
+                .takeUnless { it == null || it === JSONObject.NULL }
+                ?.let { it as? String ?: error("invalid publication state") }
+                ?.also { require(it in setOf("pending", "handoffPrepared", "retryScheduled", "relayAccepted", "directAnnounced", "exhausted")) }
+            val listing = row.opt("listingId")
+                .takeUnless { it == null || it === JSONObject.NULL }
+                ?.let { (it as? String)?.requireObjectId() ?: error("invalid listing ID") }
+            row.opt("cancellationId")
+                .takeUnless { it == null || it === JSONObject.NULL }
+                ?.let { (it as? String)?.requireObjectId() ?: error("invalid cancellation ID") }
+            exactUnsignedLong(row.get("revision"))
+            exactUnsignedLong(row.get("listingLifetimeSeconds"))
+            row.getString("requestNonce").requireBaseUnits(nonzero = false)
+            row.getString("lockAddress").requirePublicText(MAX_RECIPIENT_CHARACTERS)
+            NativeShakedexMyOffer(
+                sessionId = row.getString("sessionId").requireObjectId(),
+                name = row.getString("name").requirePublicText(MAX_NAME_CHARACTERS),
+                priceBaseUnits = row.getString("price").requireBaseUnits(nonzero = true),
+                stage = stage,
+                publicationState = publication,
+                listingId = listing,
+            )
+        }
+        val nextCursor = value.opt("nextCursor")
+            .takeUnless { it == null || it === JSONObject.NULL }
+            ?.let { (it as? String)?.requireObjectId() ?: error("invalid cursor") }
+        NativeShakedexMyOfferPage(offers, nextCursor)
+    }.getOrNull()
+
     fun offerPage(): NativeShakedexOfferPage? = runCatching {
         val value = JSONObject(displayJson).apply {
             requireExactKeys("boardRevision", "offers", "nextCursor")
@@ -246,6 +308,20 @@ internal data class NativeShakedexOfferPage(
     val nextCursor: String?,
 )
 
+internal data class NativeShakedexMyOffer(
+    val sessionId: String,
+    val name: String,
+    val priceBaseUnits: String,
+    val stage: String,
+    val publicationState: String?,
+    val listingId: String?,
+)
+
+internal data class NativeShakedexMyOfferPage(
+    val offers: List<NativeShakedexMyOffer>,
+    val nextCursor: String?,
+)
+
 internal fun NativeHnsValueIntent.encodeJson(): ByteArray? = runCatching {
     val value = when (this) {
         is NativeHnsValueIntent.TransferName -> JSONObject()
@@ -308,6 +384,13 @@ internal fun NativeShakedexQuery.encodeJson(): ByteArray? = runCatching {
             .put("query", "listOffers")
             .put("cursor", cursor?.requireObjectId() ?: JSONObject.NULL)
             .put("limit", limit.also { require(it in 1..MAX_OFFER_PAGE_SIZE) })
+        is NativeShakedexQuery.ListMyOffers -> JSONObject()
+            .put("query", "listMyOffers")
+            .put("cursor", cursor?.requireObjectId() ?: JSONObject.NULL)
+            .put("limit", limit.also { require(it in 1..16) })
+        is NativeShakedexQuery.GetOffer -> JSONObject()
+            .put("query", "getOffer")
+            .put("listingId", listingId.requireObjectId())
         is NativeShakedexQuery.GetSession -> JSONObject()
             .put("query", "getSession")
             .put("sessionId", sessionId.requireObjectId())

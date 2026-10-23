@@ -50,6 +50,46 @@ class NativeShakedexOfferPageTest {
         assertTrue(NativeShakedexQueryResult("[]").offerPage() == null)
     }
 
+    @Test
+    fun sellerPageKeepsOnlyAccountScopedNativeProjectionSelectable() {
+        val offer = JSONObject()
+            .put("revision", 1)
+            .put("sessionId", "ab".repeat(32))
+            .put("requestNonce", "1")
+            .put("stage", "publicationQueued")
+            .put("name", "24hour")
+            .put("price", "100000")
+            .put("lockAddress", "hs1qfixture")
+            .put("listingLifetimeSeconds", 86400)
+            .put("listingId", "cd".repeat(32))
+            .put("cancellationId", JSONObject.NULL)
+            .put("publicationState", "relayAccepted")
+        val page = JSONObject().put("offers", JSONArray().put(offer))
+            .put("nextCursor", JSONObject.NULL)
+        val decoded = requireNotNull(NativeShakedexQueryResult(page.toString()).myOfferPage())
+        assertEquals("ab".repeat(32), decoded.offers.single().sessionId)
+        assertEquals("relayAccepted", decoded.offers.single().publicationState)
+
+        val extra = JSONObject(page.toString()).apply {
+            getJSONArray("offers").getJSONObject(0).put("account", "caller-controlled")
+        }
+        assertNull(NativeShakedexQueryResult(extra.toString()).myOfferPage())
+        val invalidStage = JSONObject(page.toString()).apply {
+            getJSONArray("offers").getJSONObject(0).put("stage", "settled")
+        }
+        assertNull(NativeShakedexQueryResult(invalidStage.toString()).myOfferPage())
+    }
+
+    @Test
+    fun exactOfferLookupReusesAuthenticatedRowValidation() {
+        val offer = validPage().getJSONArray("offers").getJSONObject(0)
+        val detail = JSONObject().put("offer", offer)
+        assertEquals("ab".repeat(32),
+            NativeShakedexQueryResult(detail.toString()).offerDetail()?.listingId)
+        detail.put("untrusted", true)
+        assertNull(NativeShakedexQueryResult(detail.toString()).offerDetail())
+    }
+
     private fun validPage(): JSONObject = JSONObject()
         .put("boardRevision", 7L)
         .put(

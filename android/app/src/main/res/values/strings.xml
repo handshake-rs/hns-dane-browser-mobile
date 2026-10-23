@@ -604,6 +604,27 @@
     <string name="wallet_shakedex_offer_choice">%1$s&#10;Price %2$s HNS · marketplace fee %3$s HNS&#10;Expires %4$s</string>
     <string name="wallet_shakedex_more_offers">More offers</string>
     <string name="wallet_shakedex_next_offer_page">Load next authenticated page</string>
+    <string name="wallet_ux_offer_details" translatable="false">Details</string>
+    <string name="wallet_ux_name_my_offers" translatable="false">My name offers</string>
+    <string name="wallet_ux_name_my_offers_count" translatable="false">%1$d name offer(s) in this page.</string>
+    <string name="wallet_ux_name_my_offer_choice" translatable="false">%1$s · %2$s HNS\n%3$s · %4$s</string>
+    <string name="wallet_ux_name_publication_status" translatable="false">Publication</string>
+    <string name="wallet_ux_name_not_published" translatable="false">Not published yet</string>
+    <string name="wallet_ux_name_refresh" translatable="false">Refresh name offers</string>
+    <string name="wallet_ux_name_marketplace_fee" translatable="false">Marketplace fee</string>
+    <string name="wallet_ux_name_seller_payment" translatable="false">Seller payment address</string>
+    <string name="wallet_ux_name_expiry" translatable="false">Expires</string>
+    <string name="wallet_ux_name_purchase_finality" translatable="false">The wallet rechecks the signed offer and current locked name before purchase. Name ownership requires a later on-chain finalization.</string>
+    <string name="wallet_ux_name_accept_id" translatable="false">Accept by listing ID</string>
+    <string name="wallet_ux_name_uri_invalid" translatable="false">This ShakeScape name offer link is invalid or belongs to another network.</string>
+    <string name="wallet_ux_name_stage_lock" translatable="false">Waiting for name lock</string>
+    <string name="wallet_ux_name_stage_publication" translatable="false">Listing prepared</string>
+    <string name="wallet_ux_name_stage_cancellation" translatable="false">Cancellation submitted</string>
+    <string name="wallet_ux_name_stage_unknown" translatable="false">Unknown status</string>
+    <string name="wallet_ux_name_publication_sending" translatable="false">Sending to relay</string>
+    <string name="wallet_ux_name_publication_retry" translatable="false">Retrying relay</string>
+    <string name="wallet_ux_name_publication_advertised" translatable="false">Advertised</string>
+    <string name="wallet_ux_name_publication_attention" translatable="false">Publication needs attention</string>
     <string name="wallet_direct_shakescape_endpoint_hint">IPv4:port or [IPv6]:port</string>
     <string name="wallet_direct_shakescape_recent_peers">Recent offer peers</string>
     <string name="wallet_direct_shakescape_discovered_peers">Discovered offer peers</string>

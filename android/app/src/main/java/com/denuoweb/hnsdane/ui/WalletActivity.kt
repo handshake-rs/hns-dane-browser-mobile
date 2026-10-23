@@ -77,6 +77,8 @@ import com.denuoweb.hnsdane.wallet.NativeDirectOfferAcceptancePreparation
 import com.denuoweb.hnsdane.wallet.NativeDirectOfferCandidateSummary
 import com.denuoweb.hnsdane.wallet.NativeHnsForBtcOfferApproval
 import com.denuoweb.hnsdane.wallet.NativeShakedexNameOffer
+import com.denuoweb.hnsdane.wallet.NativeShakedexMyOffer
+import com.denuoweb.hnsdane.wallet.NativeShakedexMyOfferPage
 import com.denuoweb.hnsdane.wallet.NativeShakedexQueryResult
 import com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionSummary
 import com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionStatus
@@ -202,6 +204,8 @@ internal fun walletPendingCreationMayContinue(
 
 internal const val EXTRA_HANDSHAKE_PAYMENT_URI =
     "com.denuoweb.hnsdane.extra.HANDSHAKE_PAYMENT_URI"
+internal const val EXTRA_SHAKESCAPE_NAME_OFFER_URI =
+    "com.denuoweb.hnsdane.extra.SHAKESCAPE_NAME_OFFER_URI"
 
 private const val SHOW_SHAKEDEX_WALLET_CARD = true
 
@@ -343,6 +347,8 @@ class WalletActivity : ComponentActivity() {
     private var recentActivityPageOffset: Int = 0
     private var bitcoinActivityPageOffset: Int = 0
     private var pendingHandshakePayment: HandshakePaymentRequest? = null
+    private var pendingNameOfferListingId: String? = null
+    private var pendingNameOfferPresentationScheduled = false
     private var pendingPaymentPresentationScheduled = false
     private var scannedPaymentShouldResumeAfterUnlock = false
     private var browserSyncObservation: Closeable? = null
@@ -484,6 +490,7 @@ class WalletActivity : ComponentActivity() {
         window.decorView.importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
         walletNetwork = HnsResolutionPreferences.handshakeNetwork(this)
         consumeHandshakePaymentIntent(intent)
+        consumeShakescapeNameOfferIntent(intent)
         val storageNamespace = walletStorageNamespace(walletNetwork.id)
         walletDatabaseFile = File(
             File(noBackupFilesDir, storageNamespace.directoryName),
@@ -583,13 +590,65 @@ class WalletActivity : ComponentActivity() {
             }
         }
         if (hasFocus) schedulePendingPaymentPresentation()
+        if (hasFocus) schedulePendingNameOfferPresentation()
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         consumeHandshakePaymentIntent(intent)
+        consumeShakescapeNameOfferIntent(intent)
         schedulePendingPaymentPresentation()
+        schedulePendingNameOfferPresentation()
+    }
+
+    private fun consumeShakescapeNameOfferIntent(intent: Intent) {
+        val raw = intent.getStringExtra(EXTRA_SHAKESCAPE_NAME_OFFER_URI) ?: return
+        intent.removeExtra(EXTRA_SHAKESCAPE_NAME_OFFER_URI)
+        val link = ShakescapeNameOfferUri.parse(raw)
+        if (link == null || link.network != walletNetwork) {
+            Toast.makeText(this, R.string.wallet_ux_name_uri_invalid, Toast.LENGTH_LONG).show()
+            return
+        }
+        pendingNameOfferListingId = link.listingId
+    }
+
+    private fun schedulePendingNameOfferPresentation() {
+        if (pendingNameOfferListingId == null || pendingNameOfferPresentationScheduled) return
+        pendingNameOfferPresentationScheduled = true
+        window.decorView.post {
+            pendingNameOfferPresentationScheduled = false
+            val handle = walletHandle
+            val dialogVisible = walletDeletionDialog?.isShowing == true ||
+                sendFormDialog?.isShowing == true || sendApprovalDialog?.isShowing == true ||
+                valueApprovalDialog?.isShowing == true
+            val controllerUnlocked = if (busy || handle == INVALID_HANDLE) false else
+                NativeWalletBridge.status(handle)?.locked == false
+            val controllerMayBeInspected = !busy && handle != INVALID_HANDLE
+            when (walletPendingPaymentContinuation(
+                hasPendingPayment = pendingNameOfferListingId != null,
+                resumeAfterScanner = false,
+                foreground = foreground,
+                windowHasFocus = window.decorView.hasWindowFocus(),
+                busy = busy || walletHnsSyncInProgress,
+                dialogVisible = dialogVisible,
+                hasController = handle != INVALID_HANDLE,
+                controllerUnlocked = controllerUnlocked,
+                hasHnsValue = controllerMayBeInspected && NativeWalletBridge.hasHnsValue(handle),
+                hasCurrentSnapshot = controllerMayBeInspected && hasCurrentWalletReadSnapshot(handle),
+                hasPendingOutgoing = pendingOutgoingSnapshotHeight != null,
+            )) {
+                WalletPendingPaymentContinuation.None,
+                WalletPendingPaymentContinuation.Wait -> Unit
+                WalletPendingPaymentContinuation.Unlock -> requestWalletUnlock()
+                WalletPendingPaymentContinuation.Synchronize -> synchronizeWalletReads()
+                WalletPendingPaymentContinuation.Present -> {
+                    val listingId = pendingNameOfferListingId ?: return@post
+                    pendingNameOfferListingId = null
+                    queryWalletShakedex(NativeShakedexQuery.GetOffer(listingId))
+                }
+            }
+        }
     }
 
     private fun consumeHandshakePaymentIntent(intent: Intent) {
@@ -954,6 +1013,7 @@ class WalletActivity : ComponentActivity() {
                 }
         }
         if (pendingHandshakePayment != null) schedulePendingPaymentPresentation()
+        if (pendingNameOfferListingId != null) schedulePendingNameOfferPresentation()
     }
 
     private fun renderNoWalletDashboard() {
@@ -1079,7 +1139,10 @@ class WalletActivity : ComponentActivity() {
                 summary = recentActivitySummary(),
             ) { showActivityDetails() }.disabledWhenWalletHandoff(!navigationAvailable))
         })
-        if (actionsAvailable) schedulePendingPaymentPresentation()
+        if (actionsAvailable) {
+            schedulePendingPaymentPresentation()
+            schedulePendingNameOfferPresentation()
+        }
     }
 
     private fun renderNamesPage(navigationAvailable: Boolean) {
@@ -2659,8 +2722,13 @@ class WalletActivity : ComponentActivity() {
                         queryWalletShakedex(NativeShakedexQuery.ListOffers(null, DEFAULT_OFFER_PAGE_SIZE))
                     }, primary = true),
                     WalletModalAction(getString(R.string.row_wallet_create_offer), paired, ::showCreateOfferForm),
+                    WalletModalAction(getString(R.string.wallet_ux_name_accept_id), paired,
+                        ::showAcceptNameOfferIdForm),
                 )),
                 WalletModalActionSection(getString(R.string.wallet_ux_manage_offers), listOf(
+                    WalletModalAction(getString(R.string.wallet_ux_name_my_offers), action = {
+                        queryWalletShakedex(NativeShakedexQuery.ListMyOffers(limit = 5))
+                    }),
                     WalletModalAction(getString(R.string.wallet_ux_offer_query), paired, ::showListOffersForm),
                     WalletModalAction(getString(R.string.wallet_swap_cancel_offer), action = ::showCancelOfferForm),
                     WalletModalAction(getString(R.string.row_wallet_recover_name), action = ::showRecoverNameForm),
@@ -7692,10 +7760,20 @@ class WalletActivity : ComponentActivity() {
         prepareWalletValueAction(NativeHnsValueIntent.AcceptOffer(values[0], fee, fee))
     }
 
-    private fun showRecoverNameForm() = showWalletActionForm(
+    private fun showAcceptNameOfferIdForm() = showWalletActionForm(
+        R.string.wallet_ux_name_accept_id,
+        listOf(WalletActionInput(R.string.wallet_action_listing_hint)),
+    ) { values ->
+        queryWalletShakedex(NativeShakedexQuery.GetOffer(values[0]))
+    }
+
+    private fun showRecoverNameForm() = showRecoverNameForm("")
+
+    private fun showRecoverNameForm(sessionId: String) = showWalletActionForm(
         R.string.row_wallet_recover_name,
         listOf(
-            WalletActionInput(R.string.wallet_action_seller_session_hint),
+            WalletActionInput(R.string.wallet_action_seller_session_hint,
+                initial = sessionId, readOnly = sessionId.isNotEmpty()),
             WalletActionInput(
                 R.string.wallet_action_maximum_fee_hint,
                 numeric = true,
@@ -8429,11 +8507,14 @@ class WalletActivity : ComponentActivity() {
         }
     }
 
-    private fun queryWalletShakedex(query: NativeShakedexQuery) {
+    private fun queryWalletShakedex(
+        query: NativeShakedexQuery,
+        history: List<String?> = emptyList(),
+    ) {
         val (lease, handle) = valueActionContext() ?: run {
             val message = getString(R.string.wallet_shakedex_queries_requires_sync)
             shakedexQueryStatusView.text = message
-            showShakedexQueryResult(query, result = null, message = message)
+            showShakedexQueryResult(query, result = null, message = message, history = history)
             return
         }
         if (!beginOperation(
@@ -8469,9 +8550,23 @@ class WalletActivity : ComponentActivity() {
                 } else {
                     null
                 }
+                val myOfferPage = if (query is NativeShakedexQuery.ListMyOffers) {
+                    result?.myOfferPage()
+                } else {
+                    null
+                }
+                val offerDetail = if (query is NativeShakedexQuery.GetOffer) {
+                    result?.offerDetail()?.takeIf { it.listingId == query.listingId }
+                } else {
+                    null
+                }
                 val message = if (result == null) {
                     getString(R.string.wallet_shakedex_queries_failed)
                 } else if (query is NativeShakedexQuery.ListOffers && offerPage == null) {
+                    getString(R.string.wallet_shakedex_offer_page_invalid)
+                } else if (query is NativeShakedexQuery.ListMyOffers && myOfferPage == null) {
+                    getString(R.string.wallet_shakedex_offer_page_invalid)
+                } else if (query is NativeShakedexQuery.GetOffer && offerDetail == null) {
                     getString(R.string.wallet_shakedex_offer_page_invalid)
                 } else if (offerPage != null) {
                     getString(
@@ -8491,7 +8586,7 @@ class WalletActivity : ComponentActivity() {
                     "Authenticated Shakedex ${shakedexQueryKind(query)} completed: " +
                         "success=${result != null}",
                 )
-                showShakedexQueryResult(query, result, message)
+                showShakedexQueryResult(query, result, message, history)
             }
         }
     }
@@ -8506,15 +8601,31 @@ class WalletActivity : ComponentActivity() {
         query: NativeShakedexQuery,
         result: NativeShakedexQueryResult?,
         message: String,
+        history: List<String?> = emptyList(),
     ) {
         if (query is NativeShakedexQuery.ListOffers) {
             result?.offerPage()?.let {
-                showShakedexOfferPicker(it.boardRevision, it.offers, it.nextCursor)
+                showShakedexOfferPicker(it.boardRevision, it.offers, it.nextCursor,
+                    query.cursor, history)
+                return
+            }
+        }
+        if (query is NativeShakedexQuery.ListMyOffers) {
+            result?.myOfferPage()?.let {
+                showMyNameOffers(it, query.cursor, history)
+                return
+            }
+        }
+        if (query is NativeShakedexQuery.GetOffer) {
+            result?.offerDetail()?.takeIf { it.listingId == query.listingId }?.let {
+                showNameOfferReview(it)
                 return
             }
         }
         val title = when (query) {
             is NativeShakedexQuery.ListOffers -> R.string.row_wallet_list_offers
+            is NativeShakedexQuery.ListMyOffers -> R.string.wallet_ux_name_my_offers
+            is NativeShakedexQuery.GetOffer -> R.string.wallet_ux_name_accept_id
             is NativeShakedexQuery.GetSession -> R.string.row_wallet_get_session
         }
         walletDetailDialog(
@@ -8553,6 +8664,8 @@ class WalletActivity : ComponentActivity() {
         boardRevision: Long,
         offers: List<NativeShakedexNameOffer>,
         nextCursor: String?,
+        cursor: String?,
+        history: List<String?>,
     ) {
         val summary = if (offers.isEmpty()) {
             getString(R.string.wallet_shakedex_offer_page_empty, boardRevision)
@@ -8573,7 +8686,7 @@ class WalletActivity : ComponentActivity() {
                     formatHnsBaseUnits(offer.marketplaceFeeBaseUnits),
                     expiry,
                 ),
-                action = { showAcceptOfferForm(offer) },
+                action = { showNameOfferReview(offer) },
             )
         }
         walletDetailDialog(
@@ -8586,25 +8699,161 @@ class WalletActivity : ComponentActivity() {
                         actions,
                     ))
                 }
-                if (nextCursor != null) {
-                    add(WalletModalActionSection(
-                        getString(R.string.wallet_shakedex_more_offers),
-                        listOf(WalletModalAction(
-                            getString(R.string.wallet_shakedex_next_offer_page),
-                            action = {
+                add(WalletModalActionSection(getString(R.string.wallet_shakedex_more_offers),
+                    buildList {
+                        add(WalletModalAction(getString(R.string.wallet_ux_name_refresh), action = {
+                            queryWalletShakedex(NativeShakedexQuery.ListOffers(null, DEFAULT_OFFER_PAGE_SIZE))
+                        }))
+                        if (history.isNotEmpty()) add(WalletModalAction(
+                            getString(R.string.wallet_name_previous), action = {
                                 queryWalletShakedex(
-                                    NativeShakedexQuery.ListOffers(nextCursor, DEFAULT_OFFER_PAGE_SIZE),
+                                    NativeShakedexQuery.ListOffers(history.last(), DEFAULT_OFFER_PAGE_SIZE),
+                                    history.dropLast(1),
                                 )
                             },
-                        )),
-                    ))
-                }
+                        ))
+                        nextCursor?.let { next -> add(WalletModalAction(
+                            getString(R.string.wallet_shakedex_next_offer_page), action = {
+                                queryWalletShakedex(
+                                    NativeShakedexQuery.ListOffers(next, DEFAULT_OFFER_PAGE_SIZE),
+                                    history + cursor,
+                                )
+                            },
+                        )) }
+                    },
+                ))
             },
         )
     }
 
+    private fun showMyNameOffers(
+        page: NativeShakedexMyOfferPage,
+        cursor: String?,
+        history: List<String?>,
+    ) {
+        val actions = page.offers.map { offer ->
+            WalletModalAction(
+                label = getString(
+                    R.string.wallet_ux_name_my_offer_choice,
+                    offer.name,
+                    formatHnsBaseUnits(offer.priceBaseUnits),
+                    nameOfferStageLabel(offer.stage),
+                    nameOfferPublicationLabel(offer.publicationState),
+                ),
+                action = { showMyNameOffer(offer) },
+            )
+        }
+        walletDetailDialog(
+            title = getString(R.string.wallet_ux_name_my_offers),
+            rows = listOf(
+                getString(R.string.wallet_modal_details) to getString(
+                    R.string.wallet_ux_name_my_offers_count, page.offers.size,
+                ),
+            ),
+            actionSections = buildList {
+                if (actions.isNotEmpty()) add(WalletModalActionSection(
+                    getString(R.string.wallet_ux_name_my_offers), actions,
+                ))
+                add(WalletModalActionSection(getString(R.string.wallet_shakedex_more_offers),
+                    buildList {
+                        add(WalletModalAction(getString(R.string.wallet_ux_name_refresh), action = {
+                            queryWalletShakedex(NativeShakedexQuery.ListMyOffers(limit = 5))
+                        }))
+                        if (history.isNotEmpty()) add(WalletModalAction(
+                            getString(R.string.wallet_name_previous), action = {
+                                queryWalletShakedex(
+                                    NativeShakedexQuery.ListMyOffers(history.last(), 5),
+                                    history.dropLast(1),
+                                )
+                            },
+                        ))
+                        page.nextCursor?.let { next -> add(WalletModalAction(
+                            getString(R.string.wallet_shakedex_next_offer_page), action = {
+                                queryWalletShakedex(NativeShakedexQuery.ListMyOffers(next, 5),
+                                    history + cursor)
+                            },
+                        )) }
+                    },
+                ))
+            },
+        )
+    }
+
+    private fun showNameOfferReview(offer: NativeShakedexNameOffer) {
+        val expiry = runCatching {
+            DateFormat.getDateTimeInstance().format(
+                Date(Math.multiplyExact(offer.expiresAtUnix, 1_000L)),
+            )
+        }.getOrElse { offer.expiresAtUnix.toString() }
+        walletDetailDialog(
+            title = offer.name,
+            rows = listOf(
+                getString(R.string.wallet_action_price_hint) to
+                    "${formatHnsBaseUnits(offer.priceBaseUnits)} HNS",
+                getString(R.string.wallet_ux_name_marketplace_fee) to
+                    "${formatHnsBaseUnits(offer.marketplaceFeeBaseUnits)} HNS",
+                getString(R.string.wallet_ux_name_seller_payment) to offer.sellerPaymentAddress,
+                getString(R.string.wallet_ux_name_expiry) to expiry,
+                getString(R.string.wallet_action_listing_hint) to offer.listingId,
+                getString(R.string.wallet_modal_details) to
+                    getString(R.string.wallet_ux_name_purchase_finality),
+            ),
+            actionSections = listOf(WalletModalActionSection(
+                getString(R.string.wallet_shakedex_available_name_offers),
+                listOf(WalletModalAction(getString(R.string.row_wallet_accept_offer),
+                    action = { showAcceptOfferForm(offer) }, primary = true)),
+            )),
+        )
+    }
+
+    private fun showMyNameOffer(offer: NativeShakedexMyOffer) {
+        walletDetailDialog(
+            title = offer.name,
+            rows = listOf(
+                getString(R.string.wallet_action_price_hint) to formatHnsBaseUnits(offer.priceBaseUnits),
+                getString(R.string.wallet_modal_details) to nameOfferStageLabel(offer.stage),
+                getString(R.string.wallet_ux_name_publication_status) to
+                    nameOfferPublicationLabel(offer.publicationState),
+                getString(R.string.wallet_action_seller_session_hint) to offer.sessionId,
+            ),
+            actionSections = listOf(WalletModalActionSection(
+                getString(R.string.wallet_ux_manage_offers), buildList {
+                    add(WalletModalAction(getString(R.string.row_wallet_get_session), action = {
+                        queryWalletShakedex(NativeShakedexQuery.GetSession(offer.sessionId))
+                    }))
+                    if (offer.stage == "publicationQueued") add(WalletModalAction(
+                        getString(R.string.wallet_swap_cancel_offer), action = {
+                            prepareWalletValueAction(NativeHnsValueIntent.CancelOffer(offer.sessionId))
+                        },
+                    ))
+                    add(WalletModalAction(getString(R.string.row_wallet_recover_name), action = {
+                        showRecoverNameForm(offer.sessionId)
+                    }))
+                },
+            )),
+        )
+    }
+
+    private fun nameOfferStageLabel(stage: String): String = when (stage) {
+        "nameLockRequired" -> getString(R.string.wallet_ux_name_stage_lock)
+        "publicationQueued" -> getString(R.string.wallet_ux_name_stage_publication)
+        "cancellationQueued" -> getString(R.string.wallet_ux_name_stage_cancellation)
+        else -> getString(R.string.wallet_ux_name_stage_unknown)
+    }
+
+    private fun nameOfferPublicationLabel(state: String?): String = when (state) {
+        null -> getString(R.string.wallet_ux_name_not_published)
+        "pending", "handoffPrepared" -> getString(R.string.wallet_ux_name_publication_sending)
+        "retryScheduled" -> getString(R.string.wallet_ux_name_publication_retry)
+        "relayAccepted", "directAnnounced" -> getString(R.string.wallet_ux_name_publication_advertised)
+        "exhausted" -> getString(R.string.wallet_ux_name_publication_attention)
+        else -> getString(R.string.wallet_ux_name_stage_unknown)
+    }
+
     private fun shakedexQueryKind(query: NativeShakedexQuery): String = when (query) {
         is NativeShakedexQuery.ListOffers -> "offer-list query"
+        is NativeShakedexQuery.ListMyOffers -> "seller-offer-list query"
+        is NativeShakedexQuery.GetOffer -> "exact-offer query"
         is NativeShakedexQuery.GetSession -> "session query"
     }
 
@@ -10961,7 +11210,7 @@ class WalletActivity : ComponentActivity() {
         const val MAX_VALUE_ACTION_INPUT_CHARACTERS = 512
         const val MAX_RESOURCE_EDITOR_CHARACTERS = 4 * 1024
         const val DEFAULT_LISTING_LIFETIME_SECONDS = 7 * 24 * 60 * 60L
-        const val DEFAULT_OFFER_PAGE_SIZE = 32
+        const val DEFAULT_OFFER_PAGE_SIZE = 5
         const val DIRECT_SHAKESCAPE_FOREGROUND_TICK_MILLIS = 250L
         const val MAX_DIRECT_SHAKESCAPE_FRAMES_PER_TICK = 16
         const val DIRECT_SHAKESCAPE_STATUS_REFRESH_TICKS = 20
