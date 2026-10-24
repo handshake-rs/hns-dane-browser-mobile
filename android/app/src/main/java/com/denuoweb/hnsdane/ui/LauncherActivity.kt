@@ -5,13 +5,14 @@ import android.content.Intent
 import android.os.Bundle
 
 /**
- * Exported entry point for the system launcher, browser URLs, and Handshake payment URIs.
+ * Exported entry point for the system launcher, browser URLs, and wallet URIs.
  *
  * Keeping the browser activity non-exported prevents other apps from supplying
  * internal navigation extras that would otherwise be loaded with this app's
  * WebView cookies and storage. External `http` and `https` data is forwarded
  * only as an untrusted address for the browser's strict classifier; an
- * untrusted `handshake:` string is forwarded for strict wallet parsing.
+ * untrusted `handshake:` or `shakescape:` strings are forwarded for strict
+ * wallet parsing.
  */
 class LauncherActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -34,9 +35,11 @@ class LauncherActivity : Activity() {
             ?.dataString
             ?.takeIf { intent.data?.scheme == "shakescape" }
         if (nameOfferUri != null) {
+            val extra = if (intent.data?.host == "coin-offer")
+                EXTRA_SHAKESCAPE_COIN_OFFER_URI else EXTRA_SHAKESCAPE_NAME_OFFER_URI
             startActivity(
                 Intent(this, WalletActivity::class.java)
-                    .putExtra(EXTRA_SHAKESCAPE_NAME_OFFER_URI, nameOfferUri)
+                    .putExtra(extra, nameOfferUri)
                     .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
             )
             finish()

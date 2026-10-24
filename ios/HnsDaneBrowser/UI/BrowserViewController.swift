@@ -47,6 +47,7 @@ final class BrowserViewController: UIViewController {
     private var pendingExternalAddress: String?
     private var pendingHandshakePayment: HandshakePaymentRequest?
     private var pendingNameOffer: ShakescapeNameOfferLink?
+    private var pendingCoinOffer: ShakescapeCoinOfferLink?
     private var isForeground = false
     private var isPreparing = false
     private var isLoading = false
@@ -135,6 +136,7 @@ final class BrowserViewController: UIViewController {
         }
         presentPendingHandshakePaymentIfPossible()
         presentPendingNameOfferIfPossible()
+        presentPendingCoinOfferIfPossible()
 #if DEBUG && targetEnvironment(simulator)
         presentScreenshotProofIfNeeded()
 #endif
@@ -214,13 +216,17 @@ final class BrowserViewController: UIViewController {
             return
         }
         if url.scheme?.lowercased() == "shakescape" {
-            guard let link = ShakescapeNameOfferURI.parse(url.absoluteString),
-                  link.network == process.currentNetwork else {
+            if let link = ShakescapeNameOfferURI.parse(url.absoluteString),
+               link.network == process.currentNetwork {
+                pendingNameOffer = link
+                presentPendingNameOfferIfPossible()
+            } else if let link = ShakescapeCoinOfferURI.parse(url.absoluteString),
+                      link.network == process.currentNetwork {
+                pendingCoinOffer = link
+                presentPendingCoinOfferIfPossible()
+            } else {
                 showError(BrowserCoreError.unsupportedAddress)
-                return
             }
-            pendingNameOffer = link
-            presentPendingNameOfferIfPossible()
             return
         }
         guard url.isFileURL == false else {
@@ -271,6 +277,35 @@ final class BrowserViewController: UIViewController {
         let wallet = WalletViewController(
             network: process.currentNetwork,
             nameOfferListingID: link.listingID,
+            browserProcess: process
+        )
+        let navigation = UINavigationController(rootViewController: wallet)
+        navigation.modalPresentationStyle = .formSheet
+        present(navigation, animated: true)
+    }
+
+    private func presentPendingCoinOfferIfPossible() {
+        guard viewIfLoaded?.window != nil,
+              let link = pendingCoinOffer else { return }
+        guard link.network == process.currentNetwork else {
+            pendingCoinOffer = nil
+            showError(BrowserCoreError.unsupportedAddress)
+            return
+        }
+        if let navigation = presentedViewController as? UINavigationController,
+           let wallet = navigation.viewControllers.compactMap({ $0 as? WalletViewController }).last {
+            pendingCoinOffer = nil
+            guard wallet.receiveExternalCoinOffer(link) else {
+                showError(BrowserCoreError.unsupportedAddress)
+                return
+            }
+            return
+        }
+        guard presentedViewController == nil else { return }
+        pendingCoinOffer = nil
+        let wallet = WalletViewController(
+            network: process.currentNetwork,
+            coinOfferID: link.offerID,
             browserProcess: process
         )
         let navigation = UINavigationController(rootViewController: wallet)

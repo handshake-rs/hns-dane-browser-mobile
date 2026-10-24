@@ -18,7 +18,7 @@
 		</dict>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>com.denuoweb.shakescape.name-offer</string>
+			<string>com.denuoweb.shakescape.offer</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>shakescape</string>

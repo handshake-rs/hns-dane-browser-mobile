@@ -206,6 +206,8 @@ internal const val EXTRA_HANDSHAKE_PAYMENT_URI =
     "com.denuoweb.hnsdane.extra.HANDSHAKE_PAYMENT_URI"
 internal const val EXTRA_SHAKESCAPE_NAME_OFFER_URI =
     "com.denuoweb.hnsdane.extra.SHAKESCAPE_NAME_OFFER_URI"
+internal const val EXTRA_SHAKESCAPE_COIN_OFFER_URI =
+    "com.denuoweb.hnsdane.extra.SHAKESCAPE_COIN_OFFER_URI"
 
 private const val SHOW_SHAKEDEX_WALLET_CARD = true
 
@@ -349,6 +351,8 @@ class WalletActivity : ComponentActivity() {
     private var pendingHandshakePayment: HandshakePaymentRequest? = null
     private var pendingNameOfferListingId: String? = null
     private var pendingNameOfferPresentationScheduled = false
+    private var pendingCoinOfferId: String? = null
+    private var pendingCoinOfferPresentationScheduled = false
     private var pendingPaymentPresentationScheduled = false
     private var scannedPaymentShouldResumeAfterUnlock = false
     private var browserSyncObservation: Closeable? = null
@@ -491,6 +495,7 @@ class WalletActivity : ComponentActivity() {
         walletNetwork = HnsResolutionPreferences.handshakeNetwork(this)
         consumeHandshakePaymentIntent(intent)
         consumeShakescapeNameOfferIntent(intent)
+        consumeShakescapeCoinOfferIntent(intent)
         val storageNamespace = walletStorageNamespace(walletNetwork.id)
         walletDatabaseFile = File(
             File(noBackupFilesDir, storageNamespace.directoryName),
@@ -591,6 +596,7 @@ class WalletActivity : ComponentActivity() {
         }
         if (hasFocus) schedulePendingPaymentPresentation()
         if (hasFocus) schedulePendingNameOfferPresentation()
+        if (hasFocus) schedulePendingCoinOfferPresentation()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -598,8 +604,10 @@ class WalletActivity : ComponentActivity() {
         setIntent(intent)
         consumeHandshakePaymentIntent(intent)
         consumeShakescapeNameOfferIntent(intent)
+        consumeShakescapeCoinOfferIntent(intent)
         schedulePendingPaymentPresentation()
         schedulePendingNameOfferPresentation()
+        schedulePendingCoinOfferPresentation()
     }
 
     private fun consumeShakescapeNameOfferIntent(intent: Intent) {
@@ -611,6 +619,53 @@ class WalletActivity : ComponentActivity() {
             return
         }
         pendingNameOfferListingId = link.listingId
+    }
+
+    private fun consumeShakescapeCoinOfferIntent(intent: Intent) {
+        val raw = intent.getStringExtra(EXTRA_SHAKESCAPE_COIN_OFFER_URI) ?: return
+        intent.removeExtra(EXTRA_SHAKESCAPE_COIN_OFFER_URI)
+        val link = ShakescapeCoinOfferUri.parse(raw)
+        if (link == null || link.network != walletNetwork) {
+            Toast.makeText(this, R.string.wallet_swap_uri_invalid, Toast.LENGTH_LONG).show()
+            return
+        }
+        pendingCoinOfferId = link.offerId
+    }
+
+    private fun schedulePendingCoinOfferPresentation() {
+        if (pendingCoinOfferId == null || pendingCoinOfferPresentationScheduled) return
+        pendingCoinOfferPresentationScheduled = true
+        window.decorView.post {
+            pendingCoinOfferPresentationScheduled = false
+            val handle = walletHandle
+            val dialogVisible = walletDeletionDialog?.isShowing == true ||
+                sendFormDialog?.isShowing == true || sendApprovalDialog?.isShowing == true ||
+                valueApprovalDialog?.isShowing == true
+            val inspectable = !busy && handle != INVALID_HANDLE
+            when (walletPendingPaymentContinuation(
+                hasPendingPayment = pendingCoinOfferId != null,
+                resumeAfterScanner = false,
+                foreground = foreground,
+                windowHasFocus = window.decorView.hasWindowFocus(),
+                busy = busy || walletHnsSyncInProgress,
+                dialogVisible = dialogVisible,
+                hasController = handle != INVALID_HANDLE,
+                controllerUnlocked = inspectable && NativeWalletBridge.status(handle)?.locked == false,
+                hasHnsValue = inspectable && NativeWalletBridge.hasHnsValue(handle),
+                hasCurrentSnapshot = inspectable && hasCurrentWalletReadSnapshot(handle),
+                hasPendingOutgoing = pendingOutgoingSnapshotHeight != null,
+            )) {
+                WalletPendingPaymentContinuation.None,
+                WalletPendingPaymentContinuation.Wait -> Unit
+                WalletPendingPaymentContinuation.Unlock -> requestWalletUnlock()
+                WalletPendingPaymentContinuation.Synchronize -> synchronizeWalletReads()
+                WalletPendingPaymentContinuation.Present -> {
+                    val offerId = pendingCoinOfferId ?: return@post
+                    pendingCoinOfferId = null
+                    showDirectOfferFromLink(offerId)
+                }
+            }
+        }
     }
 
     private fun schedulePendingNameOfferPresentation() {
@@ -1014,6 +1069,7 @@ class WalletActivity : ComponentActivity() {
         }
         if (pendingHandshakePayment != null) schedulePendingPaymentPresentation()
         if (pendingNameOfferListingId != null) schedulePendingNameOfferPresentation()
+        if (pendingCoinOfferId != null) schedulePendingCoinOfferPresentation()
     }
 
     private fun renderNoWalletDashboard() {
@@ -1142,6 +1198,7 @@ class WalletActivity : ComponentActivity() {
         if (actionsAvailable) {
             schedulePendingPaymentPresentation()
             schedulePendingNameOfferPresentation()
+            schedulePendingCoinOfferPresentation()
         }
     }
 
@@ -5829,7 +5886,7 @@ class WalletActivity : ComponentActivity() {
                     val labels = offers.map(::directOfferLabel).toTypedArray()
                     walletAlertDialogBuilder()
                         .setTitle(R.string.wallet_swap_my_offers)
-                        .setItems(labels) { _, index -> confirmCancelDirectOffer(offers[index]) }
+                        .setItems(labels) { _, index -> showMyDirectOffer(offers[index]) }
                         .setNegativeButton(R.string.action_cancel, null)
                         .show()
                 }
@@ -5871,6 +5928,61 @@ class WalletActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    private fun showDirectOfferFromLink(offerId: String) {
+        val handle = walletHandle
+        if (handle == INVALID_HANDLE || busy) return
+        swapActionStatusView.text = getString(R.string.wallet_swap_loading_available_offers)
+        thread(name = "linked-direct-offer-lookup") {
+            // The URI is only a pointer. Read the wallet's verified, current board.
+            val offer = NativeWalletBridge.availableDirectOffers(handle)
+                ?.singleOrNull { it.offerId == offerId }
+            runOnUiThread {
+                if (walletHandle != handle || !foreground ||
+                    !walletHnsJourney.isConfirmedUnlocked()) return@runOnUiThread
+                if (offer == null) {
+                    swapActionStatusView.text = getString(R.string.wallet_swap_uri_unavailable)
+                    walletAlertDialogBuilder()
+                        .setTitle(R.string.wallet_swap_available_offers)
+                        .setMessage(R.string.wallet_swap_uri_unavailable)
+                        .setPositiveButton(android.R.string.ok, null)
+                        .show()
+                } else {
+                    swapActionStatusView.text = ""
+                    showDirectOfferAcceptanceForm(offer)
+                }
+            }
+        }
+    }
+
+    private fun showMyDirectOffer(offer: NativeDirectOfferSummary) {
+        val actions = buildList {
+            ShakescapeCoinOfferUri.format(offer.offerId, walletNetwork)?.let { appLink ->
+                add(WalletModalAction(getString(R.string.wallet_swap_copy_app_link), action = {
+                    getSystemService(ClipboardManager::class.java).setPrimaryClip(
+                        ClipData.newPlainText(getString(R.string.wallet_swap_copy_app_link), appLink),
+                    )
+                    Toast.makeText(this@WalletActivity, R.string.common_copied, Toast.LENGTH_SHORT).show()
+                }))
+            }
+            add(WalletModalAction(getString(R.string.wallet_swap_copy_offer_id), action = {
+                getSystemService(ClipboardManager::class.java).setPrimaryClip(
+                    ClipData.newPlainText(getString(R.string.wallet_swap_copy_offer_id), offer.offerId),
+                )
+                Toast.makeText(this@WalletActivity, R.string.common_copied, Toast.LENGTH_SHORT).show()
+            }))
+            add(WalletModalAction(getString(R.string.wallet_swap_cancel_offer), action = {
+                confirmCancelDirectOffer(offer)
+            }))
+        }
+        walletDetailDialog(
+            title = getString(R.string.wallet_swap_my_offers),
+            rows = listOf(getString(R.string.wallet_modal_details) to directOfferLabel(offer)),
+            actionSections = listOf(WalletModalActionSection(
+                getString(R.string.wallet_modal_actions), actions,
+            )),
+        )
     }
 
     private fun showAvailableDirectOffersPage(

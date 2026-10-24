@@ -72162,6 +72162,39 @@
         }
       }
     },
+    "wallet_swap_copy_app_link": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy app link"
+          }
+        }
+      }
+    },
+    "wallet_swap_copy_offer_id": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy offer ID"
+          }
+        }
+      }
+    },
+    "wallet_swap_uri_unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This coin offer is unavailable on your current ShakeScape board. Check your peer connection and refresh the board."
+          }
+        }
+      }
+    },
     "wallet_ux_name_accept_id": {
       "extractionState": "manual",
       "localizations": {

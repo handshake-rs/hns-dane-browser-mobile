@@ -619,6 +619,10 @@
     <string name="wallet_ux_name_copy_app_link" translatable="false">Copy app link</string>
     <string name="wallet_ux_name_copy_listing_id" translatable="false">Copy listing ID</string>
     <string name="wallet_ux_name_uri_invalid" translatable="false">This ShakeScape name offer link is invalid or belongs to another network.</string>
+    <string name="wallet_swap_uri_invalid" translatable="false">This ShakeScape coin offer link is invalid or belongs to another network.</string>
+    <string name="wallet_swap_uri_unavailable" translatable="false">This coin offer is unavailable on your current ShakeScape board. Check your peer connection and refresh the board.</string>
+    <string name="wallet_swap_copy_app_link" translatable="false">Copy app link</string>
+    <string name="wallet_swap_copy_offer_id" translatable="false">Copy offer ID</string>
     <string name="wallet_ux_name_stage_lock" translatable="false">Waiting for name lock</string>
     <string name="wallet_ux_name_stage_publication" translatable="false">Listing prepared</string>
     <string name="wallet_ux_name_stage_cancellation" translatable="false">Cancellation submitted</string>

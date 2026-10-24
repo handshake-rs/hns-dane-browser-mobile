@@ -4342,6 +4342,30 @@ final class BrowserRuntimeControlTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testCanonicalShakescapeCoinOfferURIIsVersionedAndNetworkBound() {
+        let id = String(repeating: "ab", count: 32)
+        let valid = "shakescape://coin-offer/v1/\(id)?network=mainnet"
+        XCTAssertEqual(ShakescapeCoinOfferURI.format(offerID: id, network: .mainnet), valid)
+        XCTAssertNil(ShakescapeCoinOfferURI.format(
+            offerID: String(repeating: "0", count: 64), network: .mainnet))
+        XCTAssertEqual(ShakescapeCoinOfferURI.parse(valid),
+            ShakescapeCoinOfferLink(offerID: id, network: .mainnet))
+        let mainnetWallet = WalletViewController(network: .mainnet)
+        XCTAssertFalse(mainnetWallet.receiveExternalCoinOffer(
+            ShakescapeCoinOfferLink(offerID: id, network: .testnet)))
+        for invalid in [
+            valid.replacingOccurrences(of: "/v1/", with: "/v2/"),
+            valid.replacingOccurrences(of: id, with: id.uppercased()),
+            valid + "&fee=0",
+            valid.replacingOccurrences(of: "mainnet", with: "testnet%20"),
+            valid.replacingOccurrences(of: id, with: String(repeating: "0", count: 64)),
+            valid.replacingOccurrences(of: "coin-offer", with: "name-offer"),
+        ] {
+            XCTAssertNil(ShakescapeCoinOfferURI.parse(invalid))
+        }
+    }
+
     func testExactNameOfferLookupRejectsEnvelopeShapeDrift() throws {
         let id = String(repeating: "ab", count: 32)
         let valid = """

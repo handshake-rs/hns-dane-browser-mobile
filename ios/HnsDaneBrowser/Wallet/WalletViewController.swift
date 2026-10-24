@@ -856,6 +856,8 @@ final class WalletViewController: UIViewController {
     private var pendingHandshakePayment: HandshakePaymentRequest?
     private var pendingNameOfferListingID: String?
     private var pendingNameOfferPresentationScheduled = false
+    private var pendingCoinOfferID: String?
+    private var pendingCoinOfferPresentationScheduled = false
     private var pendingPaymentPresentationScheduled = false
     private var scannedPaymentShouldResumeAfterUnlock = false
     private var browserSyncObservation: UUID?
@@ -903,12 +905,14 @@ final class WalletViewController: UIViewController {
         network: BrowserHandshakeNetwork,
         paymentRequest: HandshakePaymentRequest? = nil,
         nameOfferListingID: String? = nil,
+        coinOfferID: String? = nil,
         browserProcess: BrowserProcess? = nil
     ) {
         self.network = network
         self.keychain = WalletKeychainStore(network: network)
         self.pendingHandshakePayment = paymentRequest
         self.pendingNameOfferListingID = nameOfferListingID
+        self.pendingCoinOfferID = coinOfferID
         self.browserProcess = browserProcess
         super.init(nibName: nil, bundle: nil)
     }
@@ -921,7 +925,7 @@ final class WalletViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Wallet"
-        if pendingHandshakePayment != nil || pendingNameOfferListingID != nil {
+        if pendingHandshakePayment != nil || pendingNameOfferListingID != nil || pendingCoinOfferID != nil {
             navigationItem.leftBarButtonItem = UIBarButtonItem(
                 barButtonSystemItem: .done,
                 target: self,
@@ -1227,6 +1231,7 @@ final class WalletViewController: UIViewController {
         }
         if pendingHandshakePayment != nil { schedulePendingPaymentPresentation() }
         if pendingNameOfferListingID != nil { schedulePendingNameOfferPresentation() }
+        if pendingCoinOfferID != nil { schedulePendingCoinOfferPresentation() }
     }
 
     private func walletStatusBody(_ labels: [UIView]) -> [UIView] {
@@ -1398,6 +1403,7 @@ final class WalletViewController: UIViewController {
         ))
         schedulePendingPaymentPresentation()
         schedulePendingNameOfferPresentation()
+        schedulePendingCoinOfferPresentation()
     }
 
     private func dashboardCard(
@@ -2573,7 +2579,7 @@ final class WalletViewController: UIViewController {
                         actions: offers.map { offer in
                             WalletMenuAction(title: self.directOfferLabel(offer)) { [weak self, weak wallet] in
                                 guard let self, let wallet, self.wallet === wallet else { return }
-                                self.confirmCancelDirectOffer(offer, wallet: wallet)
+                                self.showMyDirectOffer(offer, wallet: wallet)
                             }
                         }
                     )
@@ -2585,6 +2591,30 @@ final class WalletViewController: UIViewController {
                 }
             }
         }
+    }
+
+    private func showMyDirectOffer(_ offer: NativeDirectOfferSummary, wallet: RustNativeWallet) {
+        var actions: [WalletMenuAction] = []
+        if let appLink = ShakescapeCoinOfferURI.format(offerID: offer.offerId, network: network) {
+            actions.append(WalletMenuAction(title: WalletCopy.text("wallet_swap_copy_app_link")) {
+                UIPasteboard.general.string = appLink
+            })
+        }
+        actions.append(WalletMenuAction(title: WalletCopy.text("wallet_swap_copy_offer_id")) {
+            UIPasteboard.general.string = offer.offerId
+        })
+        actions.append(WalletMenuAction(title: WalletCopy.text("wallet_swap_cancel_offer"),
+                                        style: .destructive) { [weak self, weak wallet] in
+            guard let self, let wallet, self.wallet === wallet else { return }
+            self.confirmCancelDirectOffer(offer, wallet: wallet)
+        })
+        presentWalletMenu(
+            title: WalletCopy.text("wallet_swap_my_offers"),
+            rows: [WalletMenuRow(title: WalletCopy.text("wallet_modal_details"),
+                                 detail: directOfferLabel(offer))],
+            actions: actions,
+            retainForChildActions: true
+        )
     }
 
     private func confirmCancelDirectOffer(
@@ -2659,6 +2689,30 @@ final class WalletViewController: UIViewController {
                         "wallet_swap_available_failed"
                     )
                     self.showError(error)
+                }
+            }
+        }
+    }
+
+    private func showDirectOfferFromLink(_ offerID: String) {
+        guard let wallet else { return }
+        swapActionStatusLabel.text = WalletCopy.text("wallet_swap_loading_available_offers")
+        DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+            // The URI is only a pointer. Read the wallet's verified, current board.
+            let outcome = Result { try wallet.availableDirectOffers() }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.wallet === wallet, self.walletIsUnlocked,
+                      self.walletAuthorityRequested, self.viewIfLoaded?.window != nil else {
+                    return
+                }
+                if case .success(let offers) = outcome,
+                   let offer = offers.first(where: { $0.offerId == offerID }) {
+                    self.swapActionStatusLabel.text = nil
+                    self.showDirectOfferAcceptanceForm(offer)
+                } else {
+                    let message = WalletCopy.text("wallet_swap_uri_unavailable")
+                    self.swapActionStatusLabel.text = message
+                    self.showErrorMessage(message)
                 }
             }
         }
@@ -4131,6 +4185,48 @@ final class WalletViewController: UIViewController {
         pendingNameOfferListingID = link.listingID
         schedulePendingNameOfferPresentation()
         return true
+    }
+
+    @discardableResult
+    func receiveExternalCoinOffer(_ link: ShakescapeCoinOfferLink) -> Bool {
+        guard link.network == network else { return false }
+        pendingCoinOfferID = link.offerID
+        schedulePendingCoinOfferPresentation()
+        return true
+    }
+
+    private func schedulePendingCoinOfferPresentation() {
+        guard pendingCoinOfferID != nil,
+              !pendingCoinOfferPresentationScheduled else { return }
+        pendingCoinOfferPresentationScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.pendingCoinOfferPresentationScheduled = false
+            let continuation = walletPendingPaymentContinuation(
+                hasPendingPayment: self.pendingCoinOfferID != nil,
+                resumeAfterScanner: false,
+                foreground: self.walletAuthorityRequested && self.viewIfLoaded?.window != nil,
+                dialogVisible: self.presentedViewController != nil,
+                busy: self.isOperating,
+                hasController: self.wallet != nil,
+                controllerUnlocked: self.walletIsUnlocked,
+                hasHnsValue: self.directHnsValueAvailable,
+                hasCurrentSnapshot: self.recentTransactions != nil,
+                hasPendingOutgoing: self.pendingOutgoingSnapshotHeight != nil
+            )
+            switch continuation {
+            case .none, .wait:
+                break
+            case .unlock:
+                self.openOrUnlockWallet()
+            case .synchronize:
+                self.synchronizeWalletReadsFromUserAction()
+            case .present:
+                guard let offerID = self.pendingCoinOfferID else { return }
+                self.pendingCoinOfferID = nil
+                self.showDirectOfferFromLink(offerID)
+            }
+        }
     }
 
     private func schedulePendingNameOfferPresentation() {
@@ -10795,6 +10891,44 @@ enum HandshakePaymentURI {
 struct ShakescapeNameOfferLink: Equatable, Sendable {
     let listingID: String
     let network: BrowserHandshakeNetwork
+}
+
+struct ShakescapeCoinOfferLink: Equatable, Sendable {
+    let offerID: String
+    let network: BrowserHandshakeNetwork
+}
+
+enum ShakescapeCoinOfferURI {
+    static func format(offerID: String, network: BrowserHandshakeNetwork) -> String? {
+        let uri = "shakescape://coin-offer/v1/\(offerID)?network=\(network.rawValue)"
+        return parse(uri) == ShakescapeCoinOfferLink(offerID: offerID, network: network)
+            ? uri : nil
+    }
+
+    static func parse(_ raw: String) -> ShakescapeCoinOfferLink? {
+        guard raw.utf8.count <= 160,
+              let parts = URLComponents(string: raw),
+              parts.scheme == "shakescape",
+              parts.host == "coin-offer",
+              parts.user == nil, parts.password == nil, parts.port == nil,
+              parts.fragment == nil,
+              parts.path.hasPrefix("/v1/"),
+              let items = parts.queryItems, items.count == 1,
+              items[0].name == "network",
+              let networkValue = items[0].value,
+              let network = BrowserHandshakeNetwork(rawValue: networkValue) else {
+            return nil
+        }
+        let offerID = String(parts.path.dropFirst(4))
+        guard offerID.utf8.count == 64,
+              offerID != String(repeating: "0", count: 64),
+              offerID.utf8.allSatisfy({ (0x30...0x39).contains($0) ||
+                  (0x61...0x66).contains($0) }),
+              raw == "shakescape://coin-offer/v1/\(offerID)?network=\(network.rawValue)" else {
+            return nil
+        }
+        return ShakescapeCoinOfferLink(offerID: offerID, network: network)
+    }
 }
 
 enum ShakescapeNameOfferURI {
