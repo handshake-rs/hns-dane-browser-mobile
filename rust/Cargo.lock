@@ -1140,9 +1140,9 @@ dependencies = [
 
 [[package]]
 name = "getifs"
-version = "0.6.1"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa6e6a0cbb0aa38784226ac6aa9a8ddaf7683f0f6de05c699487de1cd30cae88"
+checksum = "0a0d3e16cebd3b1717161e49422252db21f0f60158f14b36a99d52bae67bd8b9"
 dependencies = [
  "bitflags",
  "cfg-if",
@@ -1152,11 +1152,10 @@ dependencies = [
  "iprobe",
  "libc",
  "linux-raw-sys",
- "paste",
+ "pastey",
  "rustix",
  "smallvec-wrapper",
  "smol_str",
- "triomphe",
  "widestring",
  "windows-sys 0.61.2",
 ]
@@ -1260,11 +1259,11 @@ dependencies = [
 
 [[package]]
 name = "hardware-address"
-version = "0.3.0"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12579d20f6036b21016ca703197f69ba898a5a7d6db7fd7264d2cfcb3abd5dbb"
+checksum = "50a8bfffa92827dbbdd8bcccb0d4ee4af66d124f4855e0091c69d899bb41f9a2"
 dependencies = [
- "paste",
+ "pastey",
  "thiserror 2.0.21",
 ]
 
@@ -2415,20 +2414,21 @@ checksum = "791930b43c0d5973160d90a8f3894509f2b273430f5c5c73b668636d0287c5c0"
 
 [[package]]
 name = "iprfc"
-version = "0.2.3"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef9ffeec22969abcddea4070ffeffa22307f56e228063c26a9296c9a5e4bb9e2"
+checksum = "29ab9fb3724c3be005a8bf66c373ed1d6438f770e04008dccd136cbd446dbb8b"
 dependencies = [
  "bitflags",
  "ipnet",
- "paste",
+ "pastey",
+ "serde",
 ]
 
 [[package]]
 name = "iprobe"
-version = "0.1.2"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3bd62ac914a5bf1539c0219670a907f222ad4b25214c853e4525e25efd272517"
+checksum = "749bb1999d367058cd5249b10198331b66d9e7636ec65d2548ea1029b6fa335e"
 dependencies = [
  "rustix",
 ]
@@ -3145,6 +3145,12 @@ name = "paste"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
+
+[[package]]
+name = "pastey"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ee67f1008b1ba2321834326597b8e186293b049a023cdef258527550b9935b4"
 
 [[package]]
 name = "percent-encoding"
@@ -4386,16 +4392,6 @@ dependencies = [
  "tracing",
  "tracing-core",
  "tracing-log",
-]
-
-[[package]]
-name = "triomphe"
-version = "0.1.17"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d15f4f5898bcfc5d8a8e45ed30b2f108d710c1a2e5489dbf80e078f707181bc"
-dependencies = [
- "serde",
- "stable_deref_trait",
 ]
 
 [[package]]
