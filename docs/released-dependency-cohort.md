@@ -32,6 +32,13 @@ before store delivery, then requalify installed builds. See the
 [engine upgrade note](https://github.com/handshake-rs/hns-dane-engine/blob/main/release/dane-trust-anchor-security-2026-10-23.md)
 and [Tokio advisory](https://rustsec.org/advisories/RUSTSEC-2026-0386.html).
 
+The app lockfile retains `libc` 0.2.189 for this release. `libc` 0.2.190 and
+0.2.191 expose `in6_ifreq` only on macOS, while the published `netdev` 0.46.3
+dependency still uses it on iOS through `netwatch` and `portmapper`. The
+exact-commit Apple gate caught the resulting iOS compilation error. Keep this
+lockfile constraint until an upstream `netdev`/`libc` combination passes the
+complete Apple gate; do not refresh `libc` independently.
+
 The DNSSEC and DANE security releases bind TLSA trust-anchor matches to signed
 certificate paths on both mobile and Chromium. The app pins the complete
 published browser stack so the resolver, policy, transport, and gateway use the
