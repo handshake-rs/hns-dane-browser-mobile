@@ -22,6 +22,17 @@ source overrides and Git dependencies, and requires one copy of each package.
 | `hns-wallet-market` | 0.5.1 |
 | `hns-wallet-mobile` | 0.6.4 |
 
+The selected `hns-browser-dane` and `hns-browser-transport` 0.2.4 releases
+contain the trust-anchor path fix. The subsequent 0.2.5 release adds the public
+path-verifier interface and raises transport dependency floors for separate
+certificate-store and Tokio advisories. In this source snapshot,
+`rust/Cargo.lock` already selects `rustls-webpki` 0.103.16 and `webpki-roots`
+1.0.10, but still selects Tokio 1.53.1. Before the next store delivery, update
+the engine pins to 0.2.5, resolve Tokio to at least 1.53.3, and requalify the
+exact app source and installed builds. See the
+[engine upgrade note](https://github.com/handshake-rs/hns-dane-engine/blob/main/release/dane-trust-anchor-security-2026-10-23.md)
+and [Tokio advisory](https://rustsec.org/advisories/RUSTSEC-2026-0386.html).
+
 The DNSSEC and DANE security releases bind TLSA trust-anchor matches to signed
 certificate paths on both mobile and Chromium. The app pins the complete
 published browser stack so the resolver, policy, transport, and gateway use the

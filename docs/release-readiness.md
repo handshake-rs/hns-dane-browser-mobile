@@ -58,6 +58,10 @@ been qualified with funded synthetic transactions and fresh wallet profiles.
 
 ## Required before delivery
 
+- Update the browser engine DANE and transport pins to 0.2.5 and refresh the
+  lockfile so Tokio resolves to at least 1.53.3, as documented in the
+  [dependency guide](released-dependency-cohort.md). Requalify the resulting
+  exact app source and installed builds.
 - Qualify the exact source commit with the portable checks, strict Rust lint,
   Android build/unit/instrumentation gates, and complete Apple gate.
 - Verify the published wallet patches described in
