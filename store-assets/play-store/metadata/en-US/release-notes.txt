@@ -1,1 +1,1 @@
-1.0.20 Includes security and dependency maintenance for browsing and wallet features.
+1.0.21 Includes security and dependency maintenance for browsing and wallet features.

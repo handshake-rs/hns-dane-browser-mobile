@@ -9,7 +9,7 @@ members = [
 
 [workspace.package]
 edition = "2024"
-version = "1.0.2"
+version = "1.0.3"
 license = "PolyForm-Noncommercial-1.0.0"
 rust-version = "1.98"
 publish = false
@@ -17,31 +17,31 @@ publish = false
 [workspace.dependencies]
 crab_nat = "0.8.1"
 getifs = "0.6.0"
-hns-header-consensus = "=0.5.0"
-hns-light-sync = "=0.2.6"
+hns-header-consensus = "=0.5.1"
+hns-light-sync = "=0.2.7"
 hns-cache = "=0.2.2"
 hns-chain = { package = "hns-browser-chain", version = "=0.2.6" }
 hns-core = { package = "hns-browser-primitives", version = "=0.2.2" }
-hns-dane = { package = "hns-browser-dane", version = "=0.2.4" }
-hns-dnssec = { package = "hns-browser-dnssec", version = "=0.2.3" }
-hns-gateway = { package = "hns-browser-gateway", version = "=0.2.4", default-features = false, features = ["mobile"] }
+hns-dane = { package = "hns-browser-dane", version = "=0.2.6" }
+hns-dnssec = { package = "hns-browser-dnssec", version = "=0.2.4" }
+hns-gateway = { package = "hns-browser-gateway", version = "=0.2.5", default-features = false, features = ["mobile"] }
 hns-browser-observability = "=0.3.0"
 hns-browser-runtime = "=0.2.2"
 hns-icann-dane = "=0.2.2"
-hns-loopback-proxy = { package = "hns-browser-loopback-proxy", version = "=0.2.4", default-features = false, features = ["mobile"] }
+hns-loopback-proxy = { package = "hns-browser-loopback-proxy", version = "=0.2.5", default-features = false, features = ["mobile"] }
 # Pin the published peer, market, Bitcoin, and name-offer wallet releases.
 # Compatible transitive ranges select the reviewed transport and Kyoto patches.
-hns-wallet-ffi = "=0.4.1"
-hns-wallet-mobile = "=0.6.4"
+hns-wallet-ffi = "=0.4.2"
+hns-wallet-mobile = "=0.6.5"
 hns-wallet-types = "=0.4.2"
-hns-wallet-hns = "=0.4.6"
+hns-wallet-hns = "=0.4.7"
 hns-mobile-platform-runtime = { path = "crates/hns-mobile-platform-runtime" }
 hns-namespace-resolution = "=0.2.3"
 hns-resolution-policy = "=0.3.0"
 hns-p2p = { package = "hns-browser-p2p", version = "=0.2.6" }
-hns-resolver = { package = "hns-browser-resolver", version = "=0.2.7" }
+hns-resolver = { package = "hns-browser-resolver", version = "=0.2.8" }
 hns-sync = { package = "hns-browser-sync", version = "=0.2.2" }
-hns-transport = { package = "hns-browser-transport", version = "=0.2.4", default-features = false, features = ["mobile"] }
+hns-transport = { package = "hns-browser-transport", version = "=0.2.6", default-features = false, features = ["mobile"] }
 hns-urkel = { package = "hns-browser-urkel", version = "=0.2.2" }
 httparse = "1.10"
 igd-next = { version = "0.17.1", features = ["aio_tokio"] }
@@ -51,7 +51,7 @@ rusqlite = { version = "=0.40.2", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"
 thiserror = "2"
-tokio = { version = "1", features = ["net", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.53.3", features = ["net", "rt-multi-thread", "sync", "time"] }
 
 [profile.release]
 codegen-units = 1

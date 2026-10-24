@@ -2,6 +2,10 @@
 
 This file describes the current application candidate.
 
+## 1.0.21 - 2026-10-24
+
+Android `1.0.21` / code `73` and iOS `1.0.21` / build `84` migrate the browser and wallet dependency graph to the patched crypto stack. The shared Rust runtime is `1.0.3`.
+
 ## 1.0.20 - 2026-10-19
 
 Android `1.0.20` / code `72` and iOS `1.0.20` / build `83` include the patched

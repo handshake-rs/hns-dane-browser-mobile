@@ -104,9 +104,9 @@ import tomllib
 root = Path.cwd()
 expected_engine_packages = {
     "rust/fuzz/Cargo.lock": {
-        "hns-browser-dane": "0.2.4",
-        "hns-browser-dnssec": "0.2.3",
-        "hns-browser-p2p": "0.2.2",
+        "hns-browser-dane": "0.2.6",
+        "hns-browser-dnssec": "0.2.4",
+        "hns-browser-p2p": "0.2.6",
         "hns-browser-primitives": "0.2.2",
         "hns-browser-urkel": "0.2.2",
     },

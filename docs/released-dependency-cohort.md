@@ -8,28 +8,27 @@ source overrides and Git dependencies, and requires one copy of each package.
 
 | Dependency | Source requirement |
 | --- | --- |
-| `hns-rs` protocol packages | 0.5.0 |
-| Engine light-client and SQLite browser adapters | 0.2.6 |
-| Engine DNSSEC and DANE browser stack | `hns-browser-dnssec` 0.2.3, `hns-browser-dane` 0.2.4, `hns-browser-resolver` 0.2.7, `hns-browser-transport` 0.2.4, `hns-browser-gateway` 0.2.4 |
+| `hns-rs` protocol packages | 0.5.1 |
+| Engine light-client packages | 0.2.7 |
+| Engine DNSSEC and DANE browser stack | `hns-browser-dnssec` 0.2.4, `hns-browser-dane` 0.2.6, `hns-browser-resolver` 0.2.8, `hns-browser-transport` 0.2.6, `hns-browser-gateway` 0.2.5 |
 | Other engine packages | Exact package versions in `rust/Cargo.toml` |
-| `hns-wallet-ffi` | 0.4.1 |
-| `hns-wallet-types`, `hns-wallet-provider`, `hns-wallet-shakedex` | 0.4.2 |
+| `hns-wallet-ffi` | 0.4.2 |
+| `hns-wallet-types`, `hns-wallet-provider` | 0.4.2 |
+| `hns-wallet-shakedex` | 0.4.3 |
 | `hns-wallet-bip157` | Published 0.4.3 |
-| `hns-wallet-bitcoin-kyoto` | 0.4.6 |
-| `hns-wallet-chain-api` | 0.4.2 |
-| `hns-wallet-service` | 0.4.3 |
-| `hns-wallet-hns` | 0.4.6 |
-| `hns-wallet-market` | 0.5.1 |
-| `hns-wallet-mobile` | 0.6.4 |
+| `hns-wallet-bitcoin-kyoto` | 0.4.7 |
+| `hns-wallet-chain-api` | 0.4.3 |
+| `hns-wallet-service` | 0.4.4 |
+| `hns-wallet-hns` | 0.4.7 |
+| `hns-wallet-market` | 0.5.2 |
+| `hns-wallet-mobile` | 0.6.5 |
 
-The selected `hns-browser-dane` and `hns-browser-transport` 0.2.4 releases
-contain the trust-anchor path fix. The subsequent 0.2.5 release adds the public
-path-verifier interface and raises transport dependency floors for separate
-certificate-store and Tokio advisories. In this source snapshot,
-`rust/Cargo.lock` already selects `rustls-webpki` 0.103.16 and `webpki-roots`
-1.0.10, but still selects Tokio 1.53.1. Before the next store delivery, update
-the engine pins to 0.2.5, resolve Tokio to at least 1.53.3, and requalify the
-exact app source and installed builds. See the
+The selected `hns-browser-dane` and `hns-browser-transport` releases include
+the trust-anchor path fix and public path-verifier interface. The new protocol,
+engine, and wallet cohort moves the elliptic-curve dependency graph to
+`crypto-bigint` 0.7.7 and raises Tokio to at least 1.53.3. Resolve the exact
+app lockfiles, checksum manifest, and notices against the published archives
+before store delivery, then requalify installed builds. See the
 [engine upgrade note](https://github.com/handshake-rs/hns-dane-engine/blob/main/release/dane-trust-anchor-security-2026-10-23.md)
 and [Tokio advisory](https://rustsec.org/advisories/RUSTSEC-2026-0386.html).
 

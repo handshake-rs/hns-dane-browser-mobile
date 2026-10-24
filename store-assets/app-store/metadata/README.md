@@ -1,10 +1,10 @@
 # App Store metadata
 
-This directory contains the reviewed listing source for iOS `1.0.20` / build
-`83`, bundle ID `com.denuoweb.hnsdane.ios`. Validate screenshots and signed artifacts against this exact candidate.
+This directory contains the reviewed listing source for iOS `1.0.21` / build
+`84`, bundle ID `com.denuoweb.hnsdane.ios`. Validate screenshots and signed artifacts against this exact candidate.
 
-- Version: `1.0.20`
-- Build: `83`
+- Version: `1.0.21`
+- Build: `84`
 
 The iOS browser loads permanently reserved ICANN websites while Handshake
 headers synchronize, with WebKit WebPKI for HTTPS. It retains the published
@@ -14,7 +14,7 @@ seed-only swap recovery cohort. The app registers
 MarketplaceKit app-installation entitlements remain absent pending Apple
 approval.
 
-Build 83 accepts system-managed ownership transitions in the iOS app container
+Build 84 accepts system-managed ownership transitions in the iOS app container
 while still requiring an owner-only wallet directory. It uses one
 hsd/Bob-compatible account-zero receive chain for ordinary HNS and Handshake
 name ownership. The iOS shell, Apple C ABI, and native wallet all use that

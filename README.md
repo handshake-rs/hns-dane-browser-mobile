@@ -8,8 +8,8 @@ wallet, and direct peer-to-peer ShakeDex name and HNS/BTC swap workflows.
 - [Google Play](https://play.google.com/store/apps/details?id=com.denuoweb.hnsdane)
 - [Apple App Store](https://apps.apple.com/us/app/hns-dane-browser/id6791914326)
 
-The configured Android source is `1.0.20` / code `72`; the iOS source is
-`1.0.20` / build `83`. iOS distribution follows Apple approval through the
+The configured Android source is `1.0.21` / code `73`; the iOS source is
+`1.0.21` / build `84`. iOS distribution follows Apple approval through the
 App Store. The repository’s embedded Rust workspace is private to the
 application and is not published as a crate.
 
@@ -138,7 +138,7 @@ and exact published wallet package versions recorded in the
 [dependency guide](docs/released-dependency-cohort.md).
 All wallet packages use registry sources with exact versions and reviewed
 archive checksums for reproducible clean builds.
-The Rust runtime is `1.0.2`. [Release readiness](docs/release-readiness.md)
+The Rust runtime is `1.0.3`. [Release readiness](docs/release-readiness.md)
 defines the delivery gates and configured platform versions.
 
 ## Security boundaries

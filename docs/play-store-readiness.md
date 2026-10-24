@@ -1,6 +1,6 @@
 # Google Play release readiness
 
-The Android candidate is `1.0.20`, version code `72`. Read its configuration
+The Android candidate is `1.0.21`, version code `73`. Read its configuration
 from `android/app/build.gradle.kts` before building or uploading. Validate the
 exact candidate using [release readiness](release-readiness.md), the platform
 unit and instrumentation suites, and signed-device lifecycle tests.

@@ -62,8 +62,8 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
 
     def test_platform_identity_and_reviewed_registry_cohort(self) -> None:
         gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
-        self.assertRegex(gradle, r"(?m)^\s*versionName = \"1\.0\.20\"$")
-        self.assertRegex(gradle, r"(?m)^\s*versionCode = 72$")
+        self.assertRegex(gradle, r"(?m)^\s*versionName = \"1\.0\.21\"$")
+        self.assertRegex(gradle, r"(?m)^\s*versionCode = 73$")
         self.assertIn(
             '?: listOf("armeabi-v7a", "arm64-v8a")',
             gradle,
@@ -149,32 +149,32 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
 
         with (ROOT / "rust/Cargo.toml").open("rb") as source:
             manifest = tomllib.load(source)
-        self.assertEqual(manifest["workspace"]["package"]["version"], "1.0.2")
+        self.assertEqual(manifest["workspace"]["package"]["version"], "1.0.3")
         self.assertFalse(manifest["workspace"]["package"]["publish"])
         wallet = manifest["workspace"]["dependencies"]["hns-wallet-mobile"]
-        self.assertEqual(wallet, "=0.6.4")
+        self.assertEqual(wallet, "=0.6.5")
 
         with (ROOT / "rust/Cargo.lock").open("rb") as source:
             locked_packages = tomllib.load(source)["package"]
         locked_by_name = {package["name"]: package for package in locked_packages}
         self.assertEqual(locked_by_name["rustls"]["version"], "0.23.46")
-        self.assertEqual(locked_by_name["hns-wallet-mobile"]["version"], "0.6.4")
+        self.assertEqual(locked_by_name["hns-wallet-mobile"]["version"], "0.6.5")
         self.assertEqual(
             locked_by_name["hns-wallet-mobile"]["source"],
             WALLET_SOURCE,
         )
         self.assertRegex(locked_by_name["hns-wallet-mobile"]["checksum"], r"^[0-9a-f]{64}$")
         for package, version in (
-            ("hns-wallet-bitcoin-kyoto", "0.4.6"),
-            ("hns-wallet-hns", "0.4.6"),
-            ("hns-wallet-market", "0.5.1"),
+            ("hns-wallet-bitcoin-kyoto", "0.4.7"),
+            ("hns-wallet-hns", "0.4.7"),
+            ("hns-wallet-market", "0.5.2"),
         ):
             self.assertEqual(locked_by_name[package]["version"], version)
             self.assertEqual(locked_by_name[package]["source"], WALLET_SOURCE)
 
         lockfile = (ROOT / "rust/Cargo.lock").read_text(encoding="utf-8")
         self.assertIn(
-            'name = "hns-header-consensus"\nversion = "0.5.0"\nsource = "registry+https://github.com/rust-lang/crates.io-index"',
+            'name = "hns-header-consensus"\nversion = "0.5.1"\nsource = "registry+https://github.com/rust-lang/crates.io-index"',
             lockfile,
         )
         for package in (
@@ -183,18 +183,18 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
             "hns-light-wallet",
         ):
             self.assertIn(
-                f'name = "{package}"\nversion = "0.2.6"\nsource = "registry+https://github.com/rust-lang/crates.io-index"',
+                f'name = "{package}"\nversion = "0.2.7"\nsource = "registry+https://github.com/rust-lang/crates.io-index"',
                 lockfile,
             )
         for package, version in (
             ("hns-browser-chain", "0.2.6"),
-            ("hns-browser-dane", "0.2.4"),
-            ("hns-browser-dnssec", "0.2.3"),
-            ("hns-browser-gateway", "0.2.4"),
+            ("hns-browser-dane", "0.2.6"),
+            ("hns-browser-dnssec", "0.2.4"),
+            ("hns-browser-gateway", "0.2.5"),
             ("hns-browser-p2p", "0.2.6"),
-            ("hns-browser-resolver", "0.2.7"),
-            ("hns-browser-transport", "0.2.4"),
-            ("hns-light-p2p", "0.2.6"),
+            ("hns-browser-resolver", "0.2.8"),
+            ("hns-browser-transport", "0.2.6"),
+            ("hns-light-p2p", "0.2.7"),
         ):
             self.assertEqual(locked_by_name[package]["version"], version)
             self.assertEqual(
@@ -212,8 +212,8 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertEqual(deny["advisories"]["ignore"], ["RUSTSEC-2024-0436"])
 
         project = (ROOT / "ios/project.yml").read_text(encoding="utf-8")
-        self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 1\.0\.20$")
-        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 83$")
+        self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 1\.0\.21$")
+        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 84$")
         self.assertIn('TARGETED_DEVICE_FAMILY: "1,2"', project)
         self.assertIn("SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: YES", project)
         self.assertIn("- sdk: SystemConfiguration.framework", project)

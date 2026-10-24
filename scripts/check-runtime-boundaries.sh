@@ -25,7 +25,7 @@ for shared_crate in hns-mobile-platform-runtime; do
 
   # The reviewed SQLite light-chain package is part of the mobile graph.
   # Continue rejecting other versions as well as every OpenSSL/host facade.
-  if matches="$(grep -E '^hns-light-chain v' <<<"$dependency_tree" | grep -Ev '^hns-light-chain v0\.2\.6([ (]|$)' || true)" && [[ -n "$matches" ]]; then
+  if matches="$(grep -E '^hns-light-chain v' <<<"$dependency_tree" | grep -Ev '^hns-light-chain v0\.2\.7([ (]|$)' || true)" && [[ -n "$matches" ]]; then
     echo "ERROR: $shared_crate contains an unreviewed light-chain version." >&2
     printf '%s\n' "$matches" >&2
     exit 1

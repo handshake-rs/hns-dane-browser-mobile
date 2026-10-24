@@ -241,15 +241,15 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             ROOT,
             "a" * 40,
             "a" * 40,
-            "1.0.20",
-            "83",
+            "1.0.21",
+            "84",
         )
         plan = release_client.local_plan(release)
         self.assertEqual(plan["mode"], "plan")
         self.assertEqual(plan["networkRequests"], 0)
         self.assertEqual(plan["mutations"], 0)
-        self.assertEqual(plan["version"], "1.0.20")
-        self.assertEqual(plan["build"], "83")
+        self.assertEqual(plan["version"], "1.0.21")
+        self.assertEqual(plan["build"], "84")
         serialized = json.dumps(plan)
         self.assertNotIn(release.metadata["reviewNotes"], serialized)
 

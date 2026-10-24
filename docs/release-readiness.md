@@ -1,7 +1,7 @@
 # Release readiness
 
-The configured Android application is `1.0.20`, version code `72`. The iOS
-application is `1.0.20`, build `83`. The shared Rust runtime is `1.0.2`.
+The configured Android application is `1.0.21`, version code `73`. The iOS
+application is `1.0.21`, build `84`. The shared Rust runtime is `1.0.3`.
 Platform releases and Rust package releases have independent versions.
 
 Version 1.0.16 has been delivered to Google Play production and submitted to
@@ -58,10 +58,10 @@ been qualified with funded synthetic transactions and fresh wallet profiles.
 
 ## Required before delivery
 
-- Update the browser engine DANE and transport pins to 0.2.5 and refresh the
-  lockfile so Tokio resolves to at least 1.53.3, as documented in the
-  [dependency guide](released-dependency-cohort.md). Requalify the resulting
-  exact app source and installed builds.
+- Verify the browser engine DANE and transport pins resolve to 0.2.6 and
+  Tokio resolves to at least 1.53.3, as documented in the
+  [dependency guide](released-dependency-cohort.md). Qualify the exact app
+  source and installed builds against those locked versions.
 - Qualify the exact source commit with the portable checks, strict Rust lint,
   Android build/unit/instrumentation gates, and complete Apple gate.
 - Verify the published wallet patches described in
