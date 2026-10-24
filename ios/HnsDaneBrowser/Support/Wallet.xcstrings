@@ -71986,6 +71986,28 @@
         }
       }
     },
+    "wallet_ux_coin_copy_app_link": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy app link"
+          }
+        }
+      }
+    },
+    "wallet_ux_coin_copy_offer_id": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy offer ID"
+          }
+        }
+      }
+    },
     "wallet_ux_coin_offers": {
       "extractionState": "manual",
       "localizations": {
@@ -71993,6 +72015,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Create coin offer"
+          }
+        }
+      }
+    },
+    "wallet_ux_coin_uri_invalid": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This ShakeScape coin offer link is invalid or belongs to another network."
+          }
+        }
+      }
+    },
+    "wallet_ux_coin_uri_unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This coin offer is unavailable on your current ShakeScape board. Check your peer connection and refresh the board."
           }
         }
       }
@@ -72158,39 +72202,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Manage offers and sessions"
-          }
-        }
-      }
-    },
-    "wallet_swap_copy_app_link": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Copy app link"
-          }
-        }
-      }
-    },
-    "wallet_swap_copy_offer_id": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Copy offer ID"
-          }
-        }
-      }
-    },
-    "wallet_swap_uri_unavailable": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This coin offer is unavailable on your current ShakeScape board. Check your peer connection and refresh the board."
           }
         }
       }

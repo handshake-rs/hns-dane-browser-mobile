@@ -2596,11 +2596,11 @@ final class WalletViewController: UIViewController {
     private func showMyDirectOffer(_ offer: NativeDirectOfferSummary, wallet: RustNativeWallet) {
         var actions: [WalletMenuAction] = []
         if let appLink = ShakescapeCoinOfferURI.format(offerID: offer.offerId, network: network) {
-            actions.append(WalletMenuAction(title: WalletCopy.text("wallet_swap_copy_app_link")) {
+            actions.append(WalletMenuAction(title: WalletCopy.text("wallet_ux_coin_copy_app_link")) {
                 UIPasteboard.general.string = appLink
             })
         }
-        actions.append(WalletMenuAction(title: WalletCopy.text("wallet_swap_copy_offer_id")) {
+        actions.append(WalletMenuAction(title: WalletCopy.text("wallet_ux_coin_copy_offer_id")) {
             UIPasteboard.general.string = offer.offerId
         })
         actions.append(WalletMenuAction(title: WalletCopy.text("wallet_swap_cancel_offer"),
@@ -2610,7 +2610,7 @@ final class WalletViewController: UIViewController {
         })
         presentWalletMenu(
             title: WalletCopy.text("wallet_swap_my_offers"),
-            rows: [WalletMenuRow(title: WalletCopy.text("wallet_modal_details"),
+            rows: [WalletMenuRow(title: WalletCopy.text("wallet_ux_offer_details"),
                                  detail: directOfferLabel(offer))],
             actions: actions,
             retainForChildActions: true
@@ -2710,7 +2710,7 @@ final class WalletViewController: UIViewController {
                     self.swapActionStatusLabel.text = nil
                     self.showDirectOfferAcceptanceForm(offer)
                 } else {
-                    let message = WalletCopy.text("wallet_swap_uri_unavailable")
+                    let message = WalletCopy.text("wallet_ux_coin_uri_unavailable")
                     self.swapActionStatusLabel.text = message
                     self.showErrorMessage(message)
                 }

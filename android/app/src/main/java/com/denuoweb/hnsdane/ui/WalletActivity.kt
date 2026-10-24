@@ -626,7 +626,7 @@ class WalletActivity : ComponentActivity() {
         intent.removeExtra(EXTRA_SHAKESCAPE_COIN_OFFER_URI)
         val link = ShakescapeCoinOfferUri.parse(raw)
         if (link == null || link.network != walletNetwork) {
-            Toast.makeText(this, R.string.wallet_swap_uri_invalid, Toast.LENGTH_LONG).show()
+            Toast.makeText(this, R.string.wallet_ux_coin_uri_invalid, Toast.LENGTH_LONG).show()
             return
         }
         pendingCoinOfferId = link.offerId
@@ -5942,10 +5942,10 @@ class WalletActivity : ComponentActivity() {
                 if (walletHandle != handle || !foreground ||
                     !walletHnsJourney.isConfirmedUnlocked()) return@runOnUiThread
                 if (offer == null) {
-                    swapActionStatusView.text = getString(R.string.wallet_swap_uri_unavailable)
+                    swapActionStatusView.text = getString(R.string.wallet_ux_coin_uri_unavailable)
                     walletAlertDialogBuilder()
                         .setTitle(R.string.wallet_swap_available_offers)
-                        .setMessage(R.string.wallet_swap_uri_unavailable)
+                        .setMessage(R.string.wallet_ux_coin_uri_unavailable)
                         .setPositiveButton(android.R.string.ok, null)
                         .show()
                 } else {
@@ -5959,16 +5959,16 @@ class WalletActivity : ComponentActivity() {
     private fun showMyDirectOffer(offer: NativeDirectOfferSummary) {
         val actions = buildList {
             ShakescapeCoinOfferUri.format(offer.offerId, walletNetwork)?.let { appLink ->
-                add(WalletModalAction(getString(R.string.wallet_swap_copy_app_link), action = {
+                add(WalletModalAction(getString(R.string.wallet_ux_coin_copy_app_link), action = {
                     getSystemService(ClipboardManager::class.java).setPrimaryClip(
-                        ClipData.newPlainText(getString(R.string.wallet_swap_copy_app_link), appLink),
+                        ClipData.newPlainText(getString(R.string.wallet_ux_coin_copy_app_link), appLink),
                     )
                     Toast.makeText(this@WalletActivity, R.string.common_copied, Toast.LENGTH_SHORT).show()
                 }))
             }
-            add(WalletModalAction(getString(R.string.wallet_swap_copy_offer_id), action = {
+            add(WalletModalAction(getString(R.string.wallet_ux_coin_copy_offer_id), action = {
                 getSystemService(ClipboardManager::class.java).setPrimaryClip(
-                    ClipData.newPlainText(getString(R.string.wallet_swap_copy_offer_id), offer.offerId),
+                    ClipData.newPlainText(getString(R.string.wallet_ux_coin_copy_offer_id), offer.offerId),
                 )
                 Toast.makeText(this@WalletActivity, R.string.common_copied, Toast.LENGTH_SHORT).show()
             }))
