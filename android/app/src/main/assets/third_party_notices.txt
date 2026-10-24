@@ -28,7 +28,7 @@ Generated input SHA-256:
   android/app/src/main/assets/fonts/Orbitron-VariableFont_wght.ttf = f42db2dd16e642258e35782916eceb1dcdbea06fb958d77ad71dc5963587e8fd
   android/app/src/main/assets/fonts/OFL-Orbitron.txt = dd6fdb6716fd179d1fe891759efb3f9200753fdf6abf513b55b712c4ae16e512
   rust/Cargo.toml = dbf16e525b4412e999a2341610f3e5a1ef708da7a5f5a7a293f5ddd46a59bf46
-  rust/Cargo.lock = 0094ff45a0c27d57e2f7c6a01ef14c6708ac0347e8087e967f03026b98f8282e
+  rust/Cargo.lock = 78e7e9939c8ff2d232704db1c5b005177b3b8413b5f04439b19fa77c370af73c
   android/gradle/libs.versions.toml = 4d4192e18d9f57560df22378ce1c5ab6162e72fff3174dd87c360035438c8206
   android/app/gradle.lockfile = e95e57647b76cbd3bf797125325617f81ad4f803ebfa3c591bd89dd997837949
   android/gradle/verification-metadata.xml = a77c594e2faf67153a47ff03a44cd16286c9f5018b66fa2a1456166f5bab105b
@@ -290,7 +290,7 @@ RUST COMPONENTS (407)
   k256 0.14.0 | Apache-2.0 OR MIT
   keccak 0.1.6 | Apache-2.0 OR MIT
   lazy_static 1.5.1 | MIT OR Apache-2.0
-  libc 0.2.191 | MIT OR Apache-2.0
+  libc 0.2.189 | MIT OR Apache-2.0
   libsqlite3-sys 0.38.2 | MIT
   linux-raw-sys 0.12.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
   litemap 0.8.3 | Unicode-3.0
@@ -7925,7 +7925,7 @@ THE SOFTWARE.
 Notice SHA-256: 85ad950cce8752f716dbf49be95b2639172cb49f291336d57f1fdc9989e38179
 Applies to:
   - Rust crate itoa 1.0.18
-  - Rust crate libc 0.2.191
+  - Rust crate libc 0.2.189
   - Rust crate num_enum 0.7.6
   - Rust crate num_enum_derive 0.7.6
   - Rust crate paste 1.0.15
@@ -12677,7 +12677,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 ================================================================================
 Notice SHA-256: c96302294382bf166f3963bdbce0760aa2b9f0abaa2a7bdb296de7a1c7b51867
 Applies to:
-  - Rust crate libc 0.2.191
+  - Rust crate libc 0.2.189
 Source file names:
   - LICENSE-MIT
 --------------------------------------------------------------------------------
