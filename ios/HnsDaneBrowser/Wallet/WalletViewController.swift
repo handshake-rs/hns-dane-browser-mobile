@@ -3538,7 +3538,7 @@ final class WalletViewController: UIViewController {
             title: WalletCopy.format("wallet_ux_swap_trade_title",
                 swapAmount(execution.offeredAmount, asset: execution.offeredAsset),
                 swapAmount(execution.receivedAmount, asset: execution.receivedAsset)),
-            message: "\(shakescapeExecutionProgress(execution).summary)\n\(stage)\n" +
+            message: "\(swapExecutionHeadline(execution))\n\(stage)\n" +
                 WalletCopy.text(attentionKey),
             preferredStyle: .alert
         )
@@ -4936,6 +4936,24 @@ final class WalletViewController: UIViewController {
         }
         lines.append(WalletCopy.text("wallet_ux_swap_open_record"))
         return lines.joined(separator: "\n")
+    }
+
+    private func swapExecutionHeadline(_ execution: NativeShakescapeExecutionSummary) -> String {
+        let maker = execution.localRole == "maker"
+        let localChain = swapChainLabel(maker ? execution.firstChain : execution.secondChain)
+        let otherChain = swapChainLabel(maker ? execution.secondChain : execution.firstChain)
+        let localConfirmed = maker ? execution.firstFundingConfirmed : execution.secondFundingConfirmed
+        let otherConfirmed = maker ? execution.secondFundingConfirmed : execution.firstFundingConfirmed
+        if localConfirmed {
+            return WalletCopy.format("wallet_ux_swap_your_lock_confirmed", localChain)
+        }
+        if ["broadcast", "seen"].contains(execution.localFundingState ?? "") {
+            return WalletCopy.format("wallet_ux_swap_your_lock_submitted", localChain)
+        }
+        if otherConfirmed {
+            return WalletCopy.format("wallet_ux_swap_their_lock_confirmed", otherChain)
+        }
+        return shakescapeExecutionProgress(execution).summary
     }
 
     private func shakedexOverviewSummary(includeHelp: Bool = true) -> String {

@@ -2701,6 +2701,23 @@ class WalletActivity : ComponentActivity() {
         add(getString(R.string.wallet_ux_swap_open_record))
     }.joinToString("\n")
 
+    private fun swapExecutionHeadline(execution: NativeShakescapeExecutionSummary): String {
+        val maker = execution.localRole == "maker"
+        val localChain = swapChainLabel(if (maker) execution.firstChain else execution.secondChain)
+        val otherChain = swapChainLabel(if (maker) execution.secondChain else execution.firstChain)
+        val localConfirmed = if (maker) execution.firstFundingConfirmed
+            else execution.secondFundingConfirmed
+        val otherConfirmed = if (maker) execution.secondFundingConfirmed
+            else execution.firstFundingConfirmed
+        return when {
+            localConfirmed -> getString(R.string.wallet_ux_swap_your_lock_confirmed, localChain)
+            execution.localFundingState == "broadcast" || execution.localFundingState == "seen" ->
+                getString(R.string.wallet_ux_swap_your_lock_submitted, localChain)
+            otherConfirmed -> getString(R.string.wallet_ux_swap_their_lock_confirmed, otherChain)
+            else -> swapExecutionProgress(execution).first
+        }
+    }
+
     private fun shakedexOverviewSummary(): String = buildList {
         val active = singleActiveShakedexExecution()
         val status = latestShakescapeExecutionStatus
@@ -6779,7 +6796,7 @@ class WalletActivity : ComponentActivity() {
             .setTitle(getString(R.string.wallet_ux_swap_trade_title,
                 formatSwapAmount(execution.offeredAsset, execution.offeredAmount),
                 formatSwapAmount(execution.receivedAsset, execution.receivedAmount)))
-            .setMessage("${swapExecutionProgress(execution).first}\n$stage\n${getString(attention)}")
+            .setMessage("${swapExecutionHeadline(execution)}\n$stage\n${getString(attention)}")
             .setNegativeButton(R.string.action_cancel, null)
             .setNeutralButton(R.string.wallet_ux_swap_technical_details) { _, _ ->
                 val details = walletAlertDialogBuilder()

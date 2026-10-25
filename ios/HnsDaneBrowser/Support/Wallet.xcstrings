@@ -73405,6 +73405,17 @@
         }
       }
     },
+    "wallet_ux_swap_their_lock_confirmed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Their %1$@ lock is confirmed"
+          }
+        }
+      }
+    },
     "wallet_ux_swap_trade_title": {
       "extractionState": "manual",
       "localizations": {
@@ -73434,6 +73445,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Wallet checkpoints"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_your_lock_confirmed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your %1$@ lock is confirmed"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_your_lock_submitted": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your %1$@ lock was submitted"
           }
         }
       }

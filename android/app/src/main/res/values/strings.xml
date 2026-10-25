@@ -921,6 +921,9 @@
     <string name="wallet_ux_swap_candidate_title" translatable="false">Review buyer response</string>
     <string name="wallet_ux_swap_candidate_count" translatable="false">%1$d buyer responses to review.</string>
     <string name="wallet_ux_swap_one_candidate" translatable="false">A buyer response is ready to review.</string>
+    <string name="wallet_ux_swap_your_lock_confirmed" translatable="false">Your %1$s lock is confirmed</string>
+    <string name="wallet_ux_swap_your_lock_submitted" translatable="false">Your %1$s lock was submitted</string>
+    <string name="wallet_ux_swap_their_lock_confirmed" translatable="false">Their %1$s lock is confirmed</string>
     <string name="wallet_ux_swap_candidate_notification" translatable="false">A buyer responded. Open ShakeDex to review and confirm.</string>
     <string name="wallet_ux_swap_candidate_action" translatable="false">Review buyer %1$s… · offers %2$s</string>
     <string name="wallet_ux_swap_candidate_message" translatable="false">Buyer %1$s… offers %2$s for your %3$s. Confirming signs the swap agreement and reserves your funds for its funding window. No transaction is broadcast yet.</string>
