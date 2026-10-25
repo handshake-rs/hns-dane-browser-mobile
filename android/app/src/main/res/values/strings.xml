@@ -1393,6 +1393,13 @@
     <string name="wallet_ux_swap_scan_needs_attention" translatable="false">Bitcoin scan needs attention</string>
     <string name="wallet_ux_swap_scan_last_checked" translatable="false">last checked block %1$d</string>
     <string name="wallet_ux_swap_scan_no_checkpoint" translatable="false">no verified block yet</string>
+    <string name="wallet_ux_swap_active_heading" translatable="false">Swap in progress</string>
+    <string name="wallet_ux_swap_active_card_title" translatable="false">Active swap · %1$s → %2$s</string>
+    <string name="wallet_ux_swap_action_needed" translatable="false">Action needed</string>
+    <string name="wallet_ux_swap_no_action_needed" translatable="false">No action needed · we’ll keep monitoring</string>
+    <string name="wallet_ux_swap_claim_deadline" translatable="false">Claim before %1$s</string>
+    <string name="wallet_ux_swap_open_record" translatable="false">View full swap record</string>
+    <string name="wallet_ux_swap_all_history" translatable="false">All swaps and history</string>
     <string name="wallet_ux_hns_pending_change" translatable="false">A pending HNS send can leave change unconfirmed. The verified spendable amount updates after the change confirms.</string>
     <string name="wallet_ux_swap_session_hns_reserved" translatable="false">This open session reserves %1$s HNS for its HNS lock.</string>
     <string name="wallet_ux_swap_session_hns_release" translatable="false">After the funding deadline, the wallet checks its saved broadcast record and verified chain before releasing an unfunded session’s reservation.</string>

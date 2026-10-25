@@ -170,6 +170,16 @@ enum WalletSwapExecutionList {
         }
     }
 
+    static func singleActive(
+        _ executions: [NativeShakescapeExecutionSummary],
+        hiddenIDs: Set<String>, now: UInt64
+    ) -> NativeShakescapeExecutionSummary? {
+        let active = visible(executions, hiddenIDs: hiddenIDs, now: now).filter {
+            !["completed", "refunded", "failed"].contains($0.state)
+        }
+        return active.count == 1 ? active[0] : nil
+    }
+
     static func page(
         _ executions: [NativeShakescapeExecutionSummary], requestedIndex: Int
     ) -> Page {
@@ -4871,7 +4881,45 @@ final class WalletViewController: UIViewController {
             }], retainForChildActions: true)
     }
 
+    private func singleActiveShakedexExecution() -> NativeShakescapeExecutionSummary? {
+        guard let status = shakescapeExecutionStatusSnapshot else { return nil }
+        return WalletSwapExecutionList.singleActive(
+            status.executions,
+            hiddenIDs: WalletSwapExecutionPresentationStore.hiddenIDs(networkID: network.rawValue),
+            now: UInt64(Date().timeIntervalSince1970)
+        )
+    }
+
+    private func activeSwapCardTitle(_ execution: NativeShakescapeExecutionSummary) -> String {
+        let now = UInt64(Date().timeIntervalSince1970)
+        var lines = [WalletCopy.format("wallet_ux_swap_active_card_title",
+            swapAmount(execution.offeredAmount, asset: execution.offeredAsset),
+            swapAmount(execution.receivedAmount, asset: execution.receivedAsset))]
+        lines.append(shakescapeExecutionStage(execution))
+        lines.append(WalletCopy.text(swapExecutionNeedsAttention(execution, now: now)
+            ? "wallet_ux_swap_action_needed" : "wallet_ux_swap_no_action_needed"))
+        lines.append(shakescapeExecutionProgress(execution).summary)
+        if swapRedemptionActionRequired(execution) {
+            let claimDeadline = execution.localRole == "maker"
+                ? execution.secondRefundAtUnix : execution.firstRefundAtUnix
+            if claimDeadline > now {
+                lines.append(WalletCopy.format("wallet_ux_swap_claim_deadline",
+                    formatAtomicSwapDeadline(claimDeadline)))
+            }
+        }
+        lines.append(WalletCopy.text("wallet_ux_swap_open_record"))
+        return lines.joined(separator: "\n")
+    }
+
     private func shakedexOverviewSummary(includeHelp: Bool = true) -> String {
+        if let active = singleActiveShakedexExecution() {
+            var lines = [WalletCopy.text("wallet_ux_swap_active_heading")]
+            if swapBitcoinConfirmationPending(active),
+               let scan = shakedexBitcoinScanStatus(pendingConfirmation: true) {
+                lines.append(scan)
+            }
+            return lines.joined(separator: "\n")
+        }
         let paired = directShakescapeStatusSnapshot?.peerEndpoint != nil
         var lines: [String] = []
         if let status = shakescapeExecutionStatusSnapshot {
@@ -5008,7 +5056,15 @@ final class WalletViewController: UIViewController {
     private func shakedexOverviewActions() -> [WalletMenuAction] {
         let available = shakedexActionMayStart && !bitcoinSyncInProgress && !bitcoinBirthdayResetInProgress
         let paired = directShakescapeStatusSnapshot?.peerEndpoint != nil
+        let active = singleActiveShakedexExecution()
         var actions: [WalletMenuAction] = []
+        if let active {
+            actions.append(WalletMenuAction(title: activeSwapCardTitle(active), primary: true) {
+                [weak self] in
+                guard let self, let wallet = self.wallet else { return }
+                self.showShakescapeExecution(active, wallet: wallet)
+            })
+        }
         if bitcoinStage == .recoveryStart {
             actions.append(WalletMenuAction(title: WalletCopy.text("wallet_ux_swap_setup_bitcoin"),
                 enabled: walletIsUnlocked && wallet != nil && !isOperating
@@ -5033,10 +5089,12 @@ final class WalletViewController: UIViewController {
                 enabled: available, dismissBeforeAction: true, primary: !hasActiveSwapOverview
             ) { [weak self] in self?.showPairDirectShakescapeForm() })
         }
-        actions.append(WalletMenuAction(title: WalletCopy.text("wallet_swap_executions"),
-            enabled: walletIsUnlocked && wallet != nil && shakedexAvailable && !isOperating,
-            primary: hasActiveSwapOverview
-        ) { [weak self] in self?.showShakescapeExecutions() })
+        if active == nil {
+            actions.append(WalletMenuAction(title: WalletCopy.text("wallet_swap_executions"),
+                enabled: walletIsUnlocked && wallet != nil && shakedexAvailable && !isOperating,
+                primary: hasActiveSwapOverview
+            ) { [weak self] in self?.showShakescapeExecutions() })
+        }
         if paired {
             actions.append(WalletMenuAction(title: WalletCopy.text("wallet_swap_available_offers"),
                 enabled: available, primary: !hasActiveSwapOverview
@@ -5049,6 +5107,11 @@ final class WalletViewController: UIViewController {
         ) { [weak self] in self?.showMyDirectOffers() })
         actions.append(WalletMenuAction(title: WalletCopy.text("wallet_ux_name_market"), enabled: available
         ) { [weak self] in self?.showNameMarketMenu() })
+        if active != nil {
+            actions.append(WalletMenuAction(title: WalletCopy.text("wallet_ux_swap_all_history"),
+                section: WalletCopy.text("wallet_ux_details")
+            ) { [weak self] in self?.showShakescapeExecutions() })
+        }
         actions.append(WalletMenuAction(title: WalletCopy.text("wallet_ux_connection"),
             section: WalletCopy.text("wallet_ux_details")
         ) { [weak self] in self?.showShakedexConnectionDetails() })

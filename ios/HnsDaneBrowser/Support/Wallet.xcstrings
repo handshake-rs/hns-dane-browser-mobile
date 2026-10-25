@@ -72613,6 +72613,50 @@
         }
       }
     },
+    "wallet_ux_swap_action_needed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Action needed"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_active_card_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Active swap · %1$@ → %2$@"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_active_heading": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swap in progress"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_all_history": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All swaps and history"
+          }
+        }
+      }
+    },
     "wallet_ux_swap_automatic_minimum_receive": {
       "extractionState": "manual",
       "localizations": {
@@ -72723,6 +72767,17 @@
         }
       }
     },
+    "wallet_ux_swap_claim_deadline": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claim before %1$@"
+          }
+        }
+      }
+    },
     "wallet_ux_swap_custom_fee_cap": {
       "extractionState": "manual",
       "localizations": {
@@ -72796,6 +72851,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "HNS wallet scanned through block %1$d"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_no_action_needed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No action needed · we’ll keep monitoring"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_open_record": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View full swap record"
           }
         }
       }

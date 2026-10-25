@@ -2671,7 +2671,38 @@ class WalletActivity : ComponentActivity() {
         }
     }
 
+    private fun singleActiveShakedexExecution(): NativeShakescapeExecutionSummary? =
+        latestShakescapeExecutionStatus?.executions?.let {
+            singleActiveSwapExecution(it, dismissedSwapExecutionIds())
+        }
+
+    private fun activeSwapCardLabel(execution: NativeShakescapeExecutionSummary): String = buildList {
+        val now = System.currentTimeMillis() / 1_000L
+        add(getString(R.string.wallet_ux_swap_active_card_title,
+            formatSwapAmount(execution.offeredAsset, execution.offeredAmount),
+            formatSwapAmount(execution.receivedAsset, execution.receivedAmount)))
+        add(swapExecutionStage(execution))
+        add(getString(if (swapExecutionNeedsAttention(execution, now))
+            R.string.wallet_ux_swap_action_needed else R.string.wallet_ux_swap_no_action_needed))
+        add(swapExecutionProgress(execution).first)
+        if (swapRedemptionActionRequired(execution)) {
+            val claimDeadline = if (execution.localRole == "maker")
+                execution.secondRefundAtUnix else execution.firstRefundAtUnix
+            if (claimDeadline > now) add(getString(R.string.wallet_ux_swap_claim_deadline,
+                formatAtomicSwapDeadline(claimDeadline)))
+        }
+        add(getString(R.string.wallet_ux_swap_open_record))
+    }.joinToString("\n")
+
     private fun shakedexOverviewSummary(): String = buildList {
+        val active = singleActiveShakedexExecution()
+        if (active != null) {
+            add(getString(R.string.wallet_ux_swap_active_heading))
+            if (swapBitcoinConfirmationPending(active)) {
+                shakedexBitcoinScanStatus(pendingConfirmation = true)?.let { add(it) }
+            }
+            return@buildList
+        }
         add(shakedexSummary())
         add(shakedexReadinessSummary())
         if (!hasLiveAtomicSwap()) add(getString(if (directShakescapePeerEndpoint == null)
@@ -2752,7 +2783,12 @@ class WalletActivity : ComponentActivity() {
             sections = {
                 val available = overviewActionsAvailable() && latestReadSnapshot != null
                 val paired = directShakescapePeerEndpoint != null
+                val active = singleActiveShakedexExecution()
                 val main = buildList {
+                    if (active != null) add(WalletModalAction(
+                        activeSwapCardLabel(active), action = { showShakescapeExecution(active) },
+                        primary = true,
+                    ))
                     if (bitcoinStage() == BitcoinOverviewStage.RecoveryStart) {
                         add(WalletModalAction(getString(R.string.wallet_ux_swap_setup_bitcoin),
                             overviewActionsAvailable(), ::showBitcoinDashboard))
@@ -2778,7 +2814,7 @@ class WalletActivity : ComponentActivity() {
                     // The durable execution journal is useful before a fresh
                     // chain sync completes; funding actions still check their
                     // exact native prerequisites when opened.
-                    add(WalletModalAction(getString(R.string.wallet_swap_executions),
+                    if (active == null) add(WalletModalAction(getString(R.string.wallet_swap_executions),
                         walletHandle != INVALID_HANDLE && !busy &&
                             lastKnownWalletStatus?.shakedexEnabled == true,
                         { showShakescapeExecutions() }, primary = hasLiveAtomicSwap()))
@@ -2793,9 +2829,14 @@ class WalletActivity : ComponentActivity() {
                 }
                 listOf(
                     WalletModalActionSection(getString(R.string.wallet_modal_actions), main),
-                    WalletModalActionSection(getString(R.string.wallet_ux_details), listOf(
-                        WalletModalAction(getString(R.string.wallet_ux_connection), action = ::showShakedexConnectionDetails),
-                    )),
+                    WalletModalActionSection(getString(R.string.wallet_ux_details), buildList {
+                        if (active != null) add(WalletModalAction(
+                            getString(R.string.wallet_ux_swap_all_history),
+                            action = ::showShakescapeExecutions,
+                        ))
+                        add(WalletModalAction(getString(R.string.wallet_ux_connection),
+                            action = ::showShakedexConnectionDetails))
+                    }),
                 )
             },
         )

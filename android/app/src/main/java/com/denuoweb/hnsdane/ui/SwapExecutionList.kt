@@ -47,6 +47,13 @@ internal fun visibleSwapExecutions(
     it.sessionId in dismissedIds && swapExecutionCanDismiss(it)
 }
 
+/** Show a direct ShakeDex card only when one visible session still needs monitoring. */
+internal fun singleActiveSwapExecution(
+    executions: List<NativeShakescapeExecutionSummary>,
+    dismissedIds: Set<String>,
+): NativeShakescapeExecutionSummary? = visibleSwapExecutions(executions, dismissedIds)
+    .filter { it.state !in setOf("completed", "refunded", "failed") }.singleOrNull()
+
 internal data class SwapExecutionPage(
     val entries: List<NativeShakescapeExecutionSummary>,
     val index: Int,

@@ -4,10 +4,25 @@ import com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionSummary
 import com.denuoweb.hnsdane.wallet.NativeLocalRedemptionSummary
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SwapExecutionListTest {
+    @Test
+    fun oneVisibleLiveSwapGetsTheDirectCardButHistoryAndMultipleSwapsUseTheList() {
+        val live = execution("live", state = "both_funded", firstFundingConfirmed = true)
+        val history = execution("history", state = "completed",
+            firstFundingConfirmed = true).copy(
+                firstRedemptionConfirmed = true, secondRedemptionConfirmed = true)
+        assertEquals(live, singleActiveSwapExecution(listOf(history, live), emptySet()))
+        assertNull(singleActiveSwapExecution(listOf(history), emptySet()))
+        assertNull(singleActiveSwapExecution(listOf(live,
+            execution("other", state = "first_funded")), emptySet()))
+        // A funded session remains visible even if the user hid its old row.
+        assertEquals(live, singleActiveSwapExecution(listOf(live), setOf(live.sessionId)))
+    }
+
     @Test
     fun bitcoinScanFollowsTheSubmittedClaimAndOffersResumeOnlyForAttention() {
         val moto = execution("moto", state = "secret_observed").copy(

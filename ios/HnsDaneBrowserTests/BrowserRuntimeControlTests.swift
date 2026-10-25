@@ -4505,6 +4505,18 @@ final class BrowserRuntimeControlTests: XCTestCase {
             [recovered, funded], hiddenIDs: [recovered.sessionId, funded.sessionId], now: 2_000
         )
         XCTAssertEqual(visible.map(\.sessionId), [funded.sessionId])
+        XCTAssertEqual(WalletSwapExecutionList.singleActive(
+            [recovered, funded], hiddenIDs: [recovered.sessionId, funded.sessionId], now: 2_000
+        )?.sessionId, funded.sessionId)
+        XCTAssertNil(WalletSwapExecutionList.singleActive(
+            [recovered], hiddenIDs: [], now: 2_000
+        ))
+        let second = try swapExecutionFixture(
+            id: "c", state: "first_funded", deadline: 400, verifiedAt: 300
+        )
+        XCTAssertNil(WalletSwapExecutionList.singleActive(
+            [funded, second], hiddenIDs: [], now: 2_000
+        ))
     }
 
     func testSwapExecutionPagesStayNewestFirstAfterOldSessionRescan() throws {
