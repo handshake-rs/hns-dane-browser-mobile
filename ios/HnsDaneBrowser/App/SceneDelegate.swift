@@ -3,6 +3,7 @@ import UIKit
 final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
     private var browserViewController: BrowserViewController?
+    private var pendingAtomicSwapNotificationSessionID: String?
 
     func scene(
         _ scene: UIScene,
@@ -61,8 +62,14 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     @discardableResult
     func presentWalletFromAtomicSwapNotification() -> Bool {
-        guard let browserViewController else { return false }
-        browserViewController.presentWalletFromAtomicSwapNotification()
+        guard let browserViewController,
+              let sessionID = pendingAtomicSwapNotificationSessionID else { return false }
+        browserViewController.presentWalletFromAtomicSwapNotification(sessionID: sessionID)
+        pendingAtomicSwapNotificationSessionID = nil
         return true
+    }
+
+    func prepareAtomicSwapNotification(sessionID: String) {
+        pendingAtomicSwapNotificationSessionID = sessionID
     }
 }

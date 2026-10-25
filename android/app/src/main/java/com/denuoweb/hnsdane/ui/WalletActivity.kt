@@ -208,6 +208,8 @@ internal const val EXTRA_SHAKESCAPE_NAME_OFFER_URI =
     "com.denuoweb.hnsdane.extra.SHAKESCAPE_NAME_OFFER_URI"
 internal const val EXTRA_SHAKESCAPE_COIN_OFFER_URI =
     "com.denuoweb.hnsdane.extra.SHAKESCAPE_COIN_OFFER_URI"
+internal const val EXTRA_ATOMIC_SWAP_NOTIFICATION_SESSION_ID =
+    "com.denuoweb.hnsdane.extra.ATOMIC_SWAP_NOTIFICATION_SESSION_ID"
 
 private const val SHOW_SHAKEDEX_WALLET_CARD = true
 
@@ -387,6 +389,8 @@ class WalletActivity : ComponentActivity() {
         refreshDirectShakescapeStatus()
     }
     private lateinit var atomicSwapNotifications: AtomicSwapNotificationCoordinator
+    private var pendingAtomicSwapNotificationSessionId: String? = null
+    private var pendingAtomicSwapNotificationPresentationScheduled = false
     private var atomicSwapNotificationPermissionRequestInFlight = false
     private val atomicSwapNotificationPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -498,6 +502,7 @@ class WalletActivity : ComponentActivity() {
         consumeHandshakePaymentIntent(intent)
         consumeShakescapeNameOfferIntent(intent)
         consumeShakescapeCoinOfferIntent(intent)
+        consumeAtomicSwapNotificationIntent(intent)
         val storageNamespace = walletStorageNamespace(walletNetwork.id)
         walletDatabaseFile = File(
             File(noBackupFilesDir, storageNamespace.directoryName),
@@ -607,9 +612,43 @@ class WalletActivity : ComponentActivity() {
         consumeHandshakePaymentIntent(intent)
         consumeShakescapeNameOfferIntent(intent)
         consumeShakescapeCoinOfferIntent(intent)
+        consumeAtomicSwapNotificationIntent(intent)
         schedulePendingPaymentPresentation()
         schedulePendingNameOfferPresentation()
         schedulePendingCoinOfferPresentation()
+    }
+
+    private fun consumeAtomicSwapNotificationIntent(intent: Intent) {
+        val sessionId = intent.getStringExtra(EXTRA_ATOMIC_SWAP_NOTIFICATION_SESSION_ID)
+            ?.takeIf { it.isNotBlank() } ?: return
+        intent.removeExtra(EXTRA_ATOMIC_SWAP_NOTIFICATION_SESSION_ID)
+        pendingAtomicSwapNotificationSessionId = sessionId
+    }
+
+    /** Route a notification using the fresh, unlocked journal, never the
+     * notification's old text or an unauthenticated session projection. */
+    private fun schedulePendingAtomicSwapNotificationPresentation() {
+        if (pendingAtomicSwapNotificationSessionId == null ||
+            pendingAtomicSwapNotificationPresentationScheduled) return
+        pendingAtomicSwapNotificationPresentationScheduled = true
+        window.decorView.post {
+            pendingAtomicSwapNotificationPresentationScheduled = false
+            val sessionId = pendingAtomicSwapNotificationSessionId ?: return@post
+            val status = latestShakescapeExecutionStatus ?: return@post
+            if (!foreground || !window.decorView.hasWindowFocus() || busy ||
+                walletHandle == INVALID_HANDLE || !walletHnsJourney.isConfirmedUnlocked()
+            ) return@post
+            pendingAtomicSwapNotificationSessionId = null
+            status.pendingOfferCandidates.singleOrNull { it.sessionId == sessionId }?.let {
+                confirmChooseDirectOfferCandidate(walletHandle, it)
+                return@post
+            }
+            status.executions.singleOrNull { it.sessionId == sessionId }?.let {
+                showShakescapeExecution(it)
+                return@post
+            }
+            showShakedexDashboard()
+        }
     }
 
     private fun consumeShakescapeNameOfferIntent(intent: Intent) {
@@ -2796,10 +2835,11 @@ class WalletActivity : ComponentActivity() {
     }.joinToString("\n")
 
     private fun shakedexBitcoinScanStatus(pendingConfirmation: Boolean): String? {
-        if (bitcoinStage() in setOf(
-                BitcoinOverviewStage.RecoveryStart, BitcoinOverviewStage.SavingRecoveryStart,
-                BitcoinOverviewStage.Unavailable,
-            )) return null
+        val stage = bitcoinStage()
+        if (stage in setOf(BitcoinOverviewStage.RecoveryStart,
+                BitcoinOverviewStage.SavingRecoveryStart) ||
+            (stage == BitcoinOverviewStage.Unavailable &&
+                !bitcoinLastSyncFailed && !bitcoinLastSyncStopped)) return null
         val paused = bitcoinLastSyncStopped ||
             SystemClock.elapsedRealtime() < automaticSwapBitcoinSyncPausedUntilElapsedMillis
         val headline = when {
@@ -2851,14 +2891,17 @@ class WalletActivity : ComponentActivity() {
                     if (bitcoinStage() == BitcoinOverviewStage.RecoveryStart) {
                         add(WalletModalAction(getString(R.string.wallet_ux_swap_setup_bitcoin),
                             overviewActionsAvailable(), ::showBitcoinDashboard))
-                    } else if (bitcoinStage() in
-                        setOf(BitcoinOverviewStage.FirstSync, BitcoinOverviewStage.Sync) &&
+                    } else if ((bitcoinStage() in
+                        setOf(BitcoinOverviewStage.FirstSync, BitcoinOverviewStage.Sync) ||
+                        (bitcoinStage() == BitcoinOverviewStage.Unavailable &&
+                            (bitcoinLastSyncFailed || bitcoinLastSyncStopped))) &&
                         swapScanNeedsAttention(walletBitcoinSyncInProgress, bitcoinLastSyncFailed,
                             bitcoinLastSyncStopped || SystemClock.elapsedRealtime() <
                                 automaticSwapBitcoinSyncPausedUntilElapsedMillis)) {
                         add(WalletModalAction(
                             getString(R.string.wallet_ux_swap_readiness_sync_bitcoin),
-                            overviewActionsAvailable() && bitcoinSnapshot != null,
+                            overviewActionsAvailable() &&
+                                NativeWalletBridge.hasBitcoinValue(walletHandle),
                             {
                                 automaticSwapBitcoinSyncPausedUntilElapsedMillis = Long.MIN_VALUE
                                 shakedexReadinessScanRequested = false
@@ -5088,6 +5131,7 @@ class WalletActivity : ComponentActivity() {
     ): Boolean {
         val previous = shakedexExecutionStatusView.text.toString()
         latestShakescapeExecutionStatus = status
+        schedulePendingAtomicSwapNotificationPresentation()
         publishAtomicSwapNotifications(status)
         val terminal = setOf("completed", "refunded", "failed")
         val openCount = status.executions.count {

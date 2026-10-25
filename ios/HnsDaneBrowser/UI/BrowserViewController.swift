@@ -313,15 +313,18 @@ final class BrowserViewController: UIViewController {
         present(navigation, animated: true)
     }
 
-    func presentWalletFromAtomicSwapNotification() {
+    func presentWalletFromAtomicSwapNotification(sessionID: String) {
         guard !isDestroyed else { return }
         if let navigation = presentedViewController as? UINavigationController {
-            if navigation.viewControllers.contains(where: { $0 is WalletViewController }) {
+            if let wallet = navigation.viewControllers.compactMap({ $0 as? WalletViewController }).last {
+                navigation.popToViewController(wallet, animated: true)
+                wallet.openAtomicSwapNotification(sessionID: sessionID)
                 return
             }
             navigation.pushViewController(
                 WalletViewController(
                     network: process.currentNetwork,
+                    atomicSwapNotificationSessionID: sessionID,
                     browserProcess: process
                 ),
                 animated: true
@@ -330,12 +333,13 @@ final class BrowserViewController: UIViewController {
         }
         guard presentedViewController == nil else {
             dismiss(animated: false) { [weak self] in
-                self?.presentWalletFromAtomicSwapNotification()
+                self?.presentWalletFromAtomicSwapNotification(sessionID: sessionID)
             }
             return
         }
         let wallet = WalletViewController(
             network: process.currentNetwork,
+            atomicSwapNotificationSessionID: sessionID,
             browserProcess: process
         )
         let navigation = UINavigationController(rootViewController: wallet)

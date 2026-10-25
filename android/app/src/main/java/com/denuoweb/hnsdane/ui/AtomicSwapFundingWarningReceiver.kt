@@ -33,9 +33,10 @@ internal class AtomicSwapFundingWarningReceiver : BroadcastReceiver() {
         val openWallet = PendingIntent.getActivity(
             context,
             sessionId.hashCode() and Int.MAX_VALUE,
-            Intent(context, WalletActivity::class.java).addFlags(
-                Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP,
-            ),
+            Intent(context, WalletActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                putExtra(EXTRA_ATOMIC_SWAP_NOTIFICATION_SESSION_ID, sessionId)
+            },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         manager.notify(

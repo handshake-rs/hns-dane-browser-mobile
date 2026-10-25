@@ -4,7 +4,7 @@ import UserNotifications
 @main
 final class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     let browserProcess = BrowserProcess()
-    private var pendingAtomicSwapNotificationOpen = false
+    private var pendingAtomicSwapNotificationSessionID: String?
 
     func application(
         _ application: UIApplication,
@@ -52,16 +52,26 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationC
     ) async {
         guard response.notification.request.content.categoryIdentifier ==
                 "ATOMIC_SWAP_STATUS" else { return }
-        pendingAtomicSwapNotificationOpen = true
+        let identifier = response.notification.request.identifier
+        let sessionID: String
+        if identifier.hasPrefix("atomic-swap:") {
+            sessionID = String(identifier.dropFirst("atomic-swap:".count))
+        } else if identifier.hasPrefix("atomic-swap-funding-warning:") {
+            sessionID = String(identifier.dropFirst("atomic-swap-funding-warning:".count))
+        } else {
+            return
+        }
+        pendingAtomicSwapNotificationSessionID = sessionID
         routePendingAtomicSwapNotification()
     }
 
     func routePendingAtomicSwapNotification() {
-        guard pendingAtomicSwapNotificationOpen else { return }
+        guard let sessionID = pendingAtomicSwapNotificationSessionID else { return }
         for scene in UIApplication.shared.connectedScenes {
-            guard let delegate = scene.delegate as? SceneDelegate,
-                  delegate.presentWalletFromAtomicSwapNotification() else { continue }
-            pendingAtomicSwapNotificationOpen = false
+            guard let delegate = scene.delegate as? SceneDelegate else { continue }
+            delegate.prepareAtomicSwapNotification(sessionID: sessionID)
+            guard delegate.presentWalletFromAtomicSwapNotification() else { continue }
+            pendingAtomicSwapNotificationSessionID = nil
             return
         }
     }
