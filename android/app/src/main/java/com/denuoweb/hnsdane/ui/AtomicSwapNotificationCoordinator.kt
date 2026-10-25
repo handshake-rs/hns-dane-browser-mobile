@@ -52,7 +52,7 @@ internal fun swapBitcoinConfirmationPending(
     return (fundingChain == "bitcoin" &&
         execution.localFundingState in setOf("broadcast", "seen")) ||
         (claimChain == "bitcoin" &&
-            execution.localRedemption?.state in setOf("queued", "submitted", "seen"))
+            execution.localRedemption?.state in setOf("submitted", "seen"))
 }
 
 internal fun swapScanNeedsAttention(syncing: Boolean, failed: Boolean, paused: Boolean): Boolean =
@@ -473,6 +473,7 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
         val requestCode = record.sessionId.hashCode() and Int.MAX_VALUE
         val intent = Intent(applicationContext, WalletActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            putExtra(EXTRA_ATOMIC_SWAP_NOTIFICATION_SESSION_ID, record.sessionId)
         }
         val pendingIntent = PendingIntent.getActivity(
             applicationContext,

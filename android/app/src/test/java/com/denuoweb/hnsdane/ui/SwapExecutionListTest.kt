@@ -36,6 +36,9 @@ class SwapExecutionListTest {
             localRedemption = NativeLocalRedemptionSummary("submitted", "a".repeat(64)),
         )
         assertTrue(swapBitcoinConfirmationPending(moto))
+        // A prepared claim has not reached broadcast submission yet.
+        assertFalse(swapBitcoinConfirmationPending(moto.copy(
+            localRedemption = NativeLocalRedemptionSummary("queued", "a".repeat(64)))))
         assertTrue(swapBitcoinConfirmationPending(moto.copy(
             localRedemption = NativeLocalRedemptionSummary("seen", "a".repeat(64)))))
         assertFalse(swapBitcoinConfirmationPending(moto.copy(

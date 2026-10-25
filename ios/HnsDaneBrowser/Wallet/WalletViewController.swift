@@ -112,7 +112,7 @@ func swapBitcoinConfirmationPending(_ execution: NativeShakescapeExecutionSummar
     return (fundingChain == "bitcoin" &&
         ["broadcast", "seen"].contains(execution.localFundingState ?? "")) ||
         (claimChain == "bitcoin" &&
-            ["queued", "submitted", "seen"].contains(execution.localRedemption?.state ?? ""))
+            ["submitted", "seen"].contains(execution.localRedemption?.state ?? ""))
 }
 
 func swapScanNeedsAttention(syncing: Bool, failed: Bool, paused: Bool) -> Bool {
@@ -858,6 +858,8 @@ final class WalletViewController: UIViewController {
     private var lastAutomaticSwapBitcoinSyncFingerprint: String?
     private var automaticSwapBitcoinSyncPausedUntilUptime: TimeInterval?
     private var shakedexReadinessScanRequested = false
+    private var pendingAtomicSwapNotificationSessionID: String?
+    private var pendingAtomicSwapNotificationPresentationScheduled = false
     private var automaticSwapSettlementAttempts: [String: TimeInterval] = [:]
     private let atomicSwapNotifications = AtomicSwapNotificationCoordinator()
     private var recentDirectShakescapePeers: [String] = []
@@ -944,6 +946,7 @@ final class WalletViewController: UIViewController {
         paymentRequest: HandshakePaymentRequest? = nil,
         nameOfferListingID: String? = nil,
         coinOfferID: String? = nil,
+        atomicSwapNotificationSessionID: String? = nil,
         browserProcess: BrowserProcess? = nil
     ) {
         self.network = network
@@ -951,6 +954,7 @@ final class WalletViewController: UIViewController {
         self.pendingHandshakePayment = paymentRequest
         self.pendingNameOfferListingID = nameOfferListingID
         self.pendingCoinOfferID = coinOfferID
+        self.pendingAtomicSwapNotificationSessionID = atomicSwapNotificationSessionID
         self.browserProcess = browserProcess
         super.init(nibName: nil, bundle: nil)
     }
@@ -5053,7 +5057,7 @@ final class WalletViewController: UIViewController {
 
     private func shakedexBitcoinScanStatus(pendingConfirmation: Bool) -> String? {
         if bitcoinStage == .recoveryStart || bitcoinStage == .savingRecoveryStart ||
-            bitcoinStage == .unavailable {
+            (bitcoinStage == .unavailable && !bitcoinLastSyncFailed && !bitcoinLastSyncStopped) {
             return nil
         }
         let paused = bitcoinLastSyncStopped || (automaticSwapBitcoinSyncPausedUntilUptime.map {
@@ -5125,7 +5129,8 @@ final class WalletViewController: UIViewController {
             actions.append(WalletMenuAction(title: WalletCopy.text("wallet_ux_swap_setup_bitcoin"),
                 enabled: walletIsUnlocked && wallet != nil && !isOperating
             ) { [weak self] in self?.showBitcoinDashboard() })
-        } else if (bitcoinStage == .firstSync || bitcoinStage == .sync) &&
+        } else if (bitcoinStage == .firstSync || bitcoinStage == .sync ||
+            (bitcoinStage == .unavailable && (bitcoinLastSyncFailed || bitcoinLastSyncStopped))) &&
             swapScanNeedsAttention(syncing: bitcoinSyncInProgress, failed: bitcoinLastSyncFailed,
                 paused: bitcoinLastSyncStopped || (automaticSwapBitcoinSyncPausedUntilUptime.map {
                     ProcessInfo.processInfo.systemUptime < $0
@@ -5190,6 +5195,39 @@ final class WalletViewController: UIViewController {
             actions: shakedexOverviewActions(), retainForChildActions: true,
             liveActions: { [weak self] in self?.shakedexOverviewActions() ?? [] }
         )
+    }
+
+    func openAtomicSwapNotification(sessionID: String) {
+        guard !sessionID.isEmpty else { return }
+        pendingAtomicSwapNotificationSessionID = sessionID
+    }
+
+    /// The notification supplies an identifier only. Review uses the latest
+    /// authenticated swap journal after the wallet is unlocked.
+    private func schedulePendingAtomicSwapNotificationPresentation() {
+        guard pendingAtomicSwapNotificationSessionID != nil,
+              !pendingAtomicSwapNotificationPresentationScheduled else { return }
+        pendingAtomicSwapNotificationPresentationScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.pendingAtomicSwapNotificationPresentationScheduled = false
+            guard let sessionID = self.pendingAtomicSwapNotificationSessionID,
+                  let status = self.shakescapeExecutionStatusSnapshot,
+                  let wallet = self.wallet,
+                  self.walletIsUnlocked,
+                  self.walletAuthorityRequested,
+                  self.viewIfLoaded?.window != nil,
+                  !self.isOperating,
+                  self.walletCanPresentChild else { return }
+            self.pendingAtomicSwapNotificationSessionID = nil
+            if let candidate = status.pendingOfferCandidates.first(where: { $0.sessionId == sessionID }) {
+                self.confirmChooseDirectOfferCandidate(candidate, wallet: wallet)
+            } else if let execution = status.executions.first(where: { $0.sessionId == sessionID }) {
+                self.showShakescapeExecution(execution, wallet: wallet)
+            } else {
+                self.showShakedexDashboard()
+            }
+        }
     }
 
     private func showCoinOfferMenu() {
@@ -5895,6 +5933,7 @@ final class WalletViewController: UIViewController {
                 if let executions {
                     let previous = self.shakescapeExecutionStatusSnapshot
                     self.shakescapeExecutionStatusSnapshot = executions
+                    self.schedulePendingAtomicSwapNotificationPresentation()
                     self.atomicSwapNotifications.reconcile(
                         executions,
                         stageText: self.shakescapeExecutionNotificationStage

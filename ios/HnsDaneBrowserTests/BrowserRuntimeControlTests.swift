@@ -4790,6 +4790,13 @@ final class BrowserRuntimeControlTests: XCTestCase {
                        claimTransaction)
         XCTAssertFalse(swapRedemptionActionRequired(claimStatus.executions[0]))
         XCTAssertTrue(swapBitcoinConfirmationPending(claimStatus.executions[0]))
+        let queuedClaim = try JSONDecoder().decode(
+            NativeShakescapeExecutionStatus.self,
+            from: Data(claimJSON.replacingOccurrences(
+                of: "\"state\":\"submitted\"", with: "\"state\":\"queued\""
+            ).utf8)
+        )
+        XCTAssertFalse(swapBitcoinConfirmationPending(queuedClaim.executions[0]))
         let confirmedClaim = try JSONDecoder().decode(
             NativeShakescapeExecutionStatus.self,
             from: Data(claimJSON.replacingOccurrences(
