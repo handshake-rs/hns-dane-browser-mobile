@@ -95,7 +95,7 @@ class WalletOverviewInstrumentationTest {
     fun disconnectedShakedexExplainsThePrerequisiteAndKeepsDetailsReachable() = fixture { scenario ->
         scenario.onActivity { invoke(it, "showShakedexDashboard") }
         onView(withText(R.string.row_wallet_pair_direct_shakescape)).inRoot(isDialog()).check(matches(isDisplayed()))
-        onView(withText(R.string.wallet_swap_available_offers)).inRoot(isDialog()).check(matches(not(isEnabled())))
+        onView(withText(R.string.wallet_swap_available_offers)).inRoot(isDialog()).check(doesNotExist())
         onView(withText(R.string.row_wallet_retry_direct_shakescape_host)).inRoot(isDialog()).check(doesNotExist())
         capture("shakedex-disconnected")
     }
