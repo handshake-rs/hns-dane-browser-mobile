@@ -3273,11 +3273,11 @@ final class WalletViewController: UIViewController {
         guard let redemption = execution.localRedemption else { return nil }
         let key: String
         switch redemption.state {
-        case "queued": key = "wallet_swap_redemption_queued"
-        case "submitted": key = "wallet_swap_redemption_submitted"
-        case "seen": key = "wallet_swap_redemption_seen"
-        case "confirmed": key = "wallet_swap_redemption_confirmed"
-        default: key = "wallet_swap_redemption_needs_recovery"
+        case "queued": key = "wallet_ux_swap_redemption_queued"
+        case "submitted": key = "wallet_ux_swap_redemption_submitted"
+        case "seen": key = "wallet_ux_swap_redemption_seen"
+        case "confirmed": key = "wallet_ux_swap_redemption_confirmed"
+        default: key = "wallet_ux_swap_redemption_needs_recovery"
         }
         return WalletCopy.format(key, chain)
     }
@@ -3478,12 +3478,12 @@ final class WalletViewController: UIViewController {
                 scan = latestReadSnapshot.flatMap {
                     $0.moduleStatus.validatedHeight > 0
                         ? "\n" + WalletCopy.format(
-                            "wallet_swap_hns_last_scanned", Int($0.moduleStatus.validatedHeight)
+                            "wallet_ux_swap_hns_last_scanned", Int($0.moduleStatus.validatedHeight)
                         ) : nil
                 } ?? ""
             }
             return "\n\n" + WalletCopy.format(
-                "wallet_swap_redemption_transaction", claim.transactionId
+                "wallet_ux_swap_redemption_transaction", claim.transactionId
             ) + scan
         } ?? ""
         let alert = UIAlertController(
@@ -6040,7 +6040,7 @@ final class WalletViewController: UIViewController {
         case "first_redeemed":
             stage = execution.localRole == "taker"
                 ? (localRedemptionStage(execution, chain: first) ??
-                    WalletCopy.text("wallet_swap_stage_verifying_secret"))
+                    WalletCopy.text("wallet_ux_swap_stage_verifying_secret"))
                 : WalletCopy.format("wallet_swap_stage_waiting_counterparty_final_redeem", first)
         case "secret_observed":
             stage = execution.localRole == "taker"

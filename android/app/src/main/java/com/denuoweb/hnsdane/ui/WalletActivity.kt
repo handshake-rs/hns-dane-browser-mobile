@@ -5221,7 +5221,7 @@ class WalletActivity : ComponentActivity() {
             }
             "first_redeemed" -> if (execution.localRole == "taker") {
                 localRedemptionStage(execution, first)
-                    ?: getString(R.string.wallet_swap_stage_verifying_secret)
+                    ?: getString(R.string.wallet_ux_swap_stage_verifying_secret)
             } else {
                 getString(R.string.wallet_swap_stage_waiting_counterparty_final_redeem, first)
             }
@@ -6433,11 +6433,11 @@ class WalletActivity : ComponentActivity() {
         chain: String,
     ): String? = execution.localRedemption?.let { redemption ->
         val message = when (redemption.state) {
-            "queued" -> R.string.wallet_swap_redemption_queued
-            "submitted" -> R.string.wallet_swap_redemption_submitted
-            "seen" -> R.string.wallet_swap_redemption_seen
-            "confirmed" -> R.string.wallet_swap_redemption_confirmed
-            else -> R.string.wallet_swap_redemption_needs_recovery
+            "queued" -> R.string.wallet_ux_swap_redemption_queued
+            "submitted" -> R.string.wallet_ux_swap_redemption_submitted
+            "seen" -> R.string.wallet_ux_swap_redemption_seen
+            "confirmed" -> R.string.wallet_ux_swap_redemption_confirmed
+            else -> R.string.wallet_ux_swap_redemption_needs_recovery
         }
         getString(message, chain)
     }
@@ -6570,9 +6570,9 @@ class WalletActivity : ComponentActivity() {
             val chain = redemptionChain
             val scan = if (chain == "bitcoin") bitcoinScan else
                 latestReadSnapshot?.height?.takeIf { height -> height > 0L }?.let { height ->
-                    "\n" + getString(R.string.wallet_swap_hns_last_scanned, height)
+                    "\n" + getString(R.string.wallet_ux_swap_hns_last_scanned, height)
                 }.orEmpty()
-            "\n\n" + getString(R.string.wallet_swap_redemption_transaction, it.transactionId) + scan
+            "\n\n" + getString(R.string.wallet_ux_swap_redemption_transaction, it.transactionId) + scan
         }.orEmpty()
         val builder = walletAlertDialogBuilder()
             .setTitle(R.string.wallet_swap_execution_title)
