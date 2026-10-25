@@ -899,6 +899,14 @@
     <string name="wallet_swap_stage_redeem_ready_here">Both funding transactions are verified · redeem received %1$s now</string>
     <string name="wallet_swap_stage_waiting_counterparty_redeem">Both funding transactions are verified · waiting for the counterparty to redeem %1$s</string>
     <string name="wallet_swap_stage_secret_redeem_ready_here">Swap secret verified · redeem received %1$s now</string>
+    <string name="wallet_ux_swap_stage_verifying_secret" translatable="false">Counterparty claim confirmed · verifying the swap secret</string>
+    <string name="wallet_ux_swap_redemption_queued" translatable="false">%1$s claim saved · waiting for broadcast and chain scan</string>
+    <string name="wallet_ux_swap_redemption_submitted" translatable="false">%1$s claim submitted · waiting for confirmation</string>
+    <string name="wallet_ux_swap_redemption_seen" translatable="false">%1$s claim seen by the network · waiting for confirmation</string>
+    <string name="wallet_ux_swap_redemption_confirmed" translatable="false">%1$s claim confirmed · updating swap progress</string>
+    <string name="wallet_ux_swap_redemption_needs_recovery" translatable="false">%1$s claim needs recovery · inspect the transaction ID</string>
+    <string name="wallet_ux_swap_redemption_transaction" translatable="false">Claim transaction ID: %1$s</string>
+    <string name="wallet_ux_swap_hns_last_scanned" translatable="false">HNS wallet scanned through block %1$d</string>
     <string name="wallet_swap_stage_waiting_counterparty_final_redeem">Swap secret revealed · waiting for the counterparty to redeem %1$s</string>
     <string name="wallet_swap_stage_second_redeemed">Both redemptions were observed · waiting for final verified completion</string>
     <string name="wallet_swap_stage_completed">Atomic swap completed with both redemptions locally verified</string>

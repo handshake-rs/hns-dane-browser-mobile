@@ -4,15 +4,15 @@ The mobile application consumes these published patches:
 
 | Package | Version | Reason |
 | --- | --- | --- |
-| `hns-wallet-hns` | 0.4.7 | Concurrent initial peer races, idle socket maintenance, public transport sharing, reconnects, recovery-publication expiry, recovered counterparty lock lookup, and the crypto dependency update |
+| `hns-wallet-hns` | 0.4.8 | Durable HNS redeem submission and confirmation status for the exact swap session |
 | `hns-wallet-bip157` | 0.4.3 | Durable Bitcoin filter caches |
-| `hns-wallet-bitcoin-kyoto` | 0.4.7 | Durable scan resume, funded swap-watch replay, Bitcoin fee preflight bounded by verified funding authority, and the crypto dependency update |
+| `hns-wallet-bitcoin-kyoto` | 0.4.8 | Durable Bitcoin HTLC redeem submission and scan observation status |
 | `hns-wallet-chain-api` | 0.4.3 | Public recovery terms and the crypto dependency update |
 | `hns-wallet-service` | 0.4.4 | Native recoverable funding, name-offer lifecycle, and the crypto dependency update |
 | `hns-wallet-market` | 0.5.2 | Seed-only contract discovery, reclaim, verified settlement, and the crypto dependency update |
 | `hns-wallet-types`, `hns-wallet-provider` | 0.4.2 | Signed name offers, relay access, and HIP-0001 swap flow |
 | `hns-wallet-shakedex` | 0.4.3 | Signed name offers, relay access, HIP-0001 swap flow, and the crypto dependency update |
-| `hns-wallet-mobile` | 0.6.5 | Native name-offer browse, publish, accept, cancel, and recovery alongside the coin-swap controller and the crypto dependency update |
+| `hns-wallet-mobile` | 0.6.6 | Exact local redemption status in normal and recovered swap summaries |
 
 Other selected wallet package versions are listed in the
 [dependency guide](released-dependency-cohort.md). The Android and iOS

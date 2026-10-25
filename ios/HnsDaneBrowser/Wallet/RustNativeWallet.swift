@@ -689,6 +689,25 @@ private struct NativeBtcForHnsOfferList: Decodable {
     }
 }
 
+struct NativeLocalRedemptionSummary: Decodable, Equatable, Sendable {
+    let state: String
+    let transactionId: String
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case state, transactionId
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        state = try container.decode(String.self, forKey: .state)
+        transactionId = try container.decode(String.self, forKey: .transactionId)
+        guard ["queued", "submitted", "seen", "confirmed", "needs_recovery"].contains(state),
+              NativeBitcoinHtlcFundingReceipt.validHash(transactionId) else {
+            throw NativeWalletBridgeError.invalidOutput("invalid durable redemption")
+        }
+    }
+}
+
 struct NativeShakescapeExecutionSummary: Decodable, Equatable, Sendable {
     let sessionId: String
     let revision: UInt64
@@ -705,6 +724,7 @@ struct NativeShakescapeExecutionSummary: Decodable, Equatable, Sendable {
     let firstRefundAtUnix: UInt64
     let secondRefundAtUnix: UInt64
     let localFundingState: String?
+    let localRedemption: NativeLocalRedemptionSummary?
     let firstFundingConfirmed: Bool
     let secondFundingConfirmed: Bool
     let firstRedemptionConfirmed: Bool
@@ -717,13 +737,19 @@ struct NativeShakescapeExecutionSummary: Decodable, Equatable, Sendable {
         case sessionId, revision, state, firstChain, secondChain, offeredAsset, offeredAmount
         case receivedAsset, receivedAmount, localRole, fundingDeadlineUnix
         case firstFundingCutoffUnix
-        case firstRefundAtUnix, secondRefundAtUnix, localFundingState
+        case firstRefundAtUnix, secondRefundAtUnix, localFundingState, localRedemption
         case firstFundingConfirmed, secondFundingConfirmed, firstRedemptionConfirmed
         case secondRedemptionConfirmed, refundConfirmed, lastVerifiedAtUnix, failureReason
     }
 
     init(from decoder: Decoder) throws {
-        let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        let fields = try decoder.container(keyedBy: NativeWalletAnyCodingKey.self)
+        let actual = Set(fields.allKeys.map(\.stringValue))
+        let expected = Set(CodingKeys.allCases.map(\.stringValue))
+        guard actual == expected || actual == expected.subtracting(["localRedemption"]) else {
+            throw NativeWalletBridgeError.invalidOutput("invalid durable Shakescape fields")
+        }
+        let container = try decoder.container(keyedBy: CodingKeys.self)
         sessionId = try container.decode(String.self, forKey: .sessionId)
         revision = try container.decode(UInt64.self, forKey: .revision)
         state = try container.decode(String.self, forKey: .state)
@@ -742,6 +768,9 @@ struct NativeShakescapeExecutionSummary: Decodable, Equatable, Sendable {
         secondRefundAtUnix = try container.decode(UInt64.self, forKey: .secondRefundAtUnix)
         localFundingState = try container.decodeIfPresent(
             String.self, forKey: .localFundingState
+        )
+        localRedemption = try container.decodeIfPresent(
+            NativeLocalRedemptionSummary.self, forKey: .localRedemption
         )
         firstFundingConfirmed = try container.decode(Bool.self, forKey: .firstFundingConfirmed)
         secondFundingConfirmed = try container.decode(Bool.self, forKey: .secondFundingConfirmed)

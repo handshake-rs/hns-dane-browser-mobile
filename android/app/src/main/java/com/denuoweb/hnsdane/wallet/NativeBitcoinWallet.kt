@@ -312,6 +312,12 @@ internal data class NativeShakescapeExecutionSummary(
     val refundConfirmed: Boolean,
     val lastVerifiedAtUnix: Long,
     val failureReason: String?,
+    val localRedemption: NativeLocalRedemptionSummary? = null,
+)
+
+internal data class NativeLocalRedemptionSummary(
+    val state: String,
+    val transactionId: String,
 )
 
 internal data class NativeBitcoinBroadcastRecovery(
@@ -1041,7 +1047,7 @@ internal object NativeBitcoinWalletBundle {
     }
 
     private fun parseShakescapeExecution(json: JSONObject): NativeShakescapeExecutionSummary? {
-        if (!hasExactKeys(json, setOf(
+        val expectedKeys = setOf(
             "sessionId", "revision", "state", "firstChain", "secondChain",
             "offeredAsset", "offeredAmount", "receivedAsset", "receivedAmount",
             "localRole",
@@ -1050,7 +1056,9 @@ internal object NativeBitcoinWalletBundle {
             "firstFundingConfirmed",
             "secondFundingConfirmed", "firstRedemptionConfirmed", "secondRedemptionConfirmed",
             "refundConfirmed", "lastVerifiedAtUnix", "failureReason",
-        ))) return null
+        )
+        if (!hasExactKeys(json, expectedKeys) &&
+            !hasExactKeys(json, expectedKeys + "localRedemption")) return null
         val state = json.optString("state", "").takeIf { it in SHAKESCAPE_EXECUTION_STATES }
             ?: return null
         val firstChain = json.optString("firstChain", "").takeIf { it in SHAKESCAPE_CHAINS }
@@ -1081,6 +1089,16 @@ internal object NativeBitcoinWalletBundle {
         val failure = if (json.isNull("failureReason")) null else
             json.optString("failureReason", "").takeIf { it.isNotEmpty() && it.length <= 256 }
                 ?: return null
+        val localRedemption = if (json.isNull("localRedemption")) null else {
+            val redemption = json.optJSONObject("localRedemption") ?: return null
+            if (!hasExactKeys(redemption, setOf("state", "transactionId"))) return null
+            NativeLocalRedemptionSummary(
+                redemption.optString("state", "")
+                    .takeIf { it in setOf("queued", "submitted", "seen", "confirmed", "needs_recovery") }
+                    ?: return null,
+                hexHash(redemption.optString("transactionId", "")) ?: return null,
+            )
+        }
         if (firstChain == secondChain || offeredAsset == receivedAsset ||
             (!recoveredPublication && firstFundingCutoff >= fundingDeadline) ||
             fundingDeadline >= secondRefund ||
@@ -1113,6 +1131,7 @@ internal object NativeBitcoinWalletBundle {
                 nonnegativeLong(json, "lastVerifiedAtUnix") ?: return null
             else positiveLong(json, "lastVerifiedAtUnix") ?: return null,
             failureReason = failure,
+            localRedemption = localRedemption,
         )
     }
 

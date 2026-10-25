@@ -332,6 +332,14 @@ class NativeBitcoinSyncProgressTest {
         assertEquals(true, status.executions.single().firstFundingConfirmed)
         assertEquals(1L, status.bitcoinBroadcastRecovery?.unobservedPrepared)
         assertEquals(2, status.bitcoinBroadcastRecovery?.highestAttemptCount)
+        val claimTransaction = "fa".repeat(32)
+        val claimJSON = """{"executions":[{"sessionId":"$sessionId","revision":7,"state":"secret_observed","firstChain":"bitcoin","secondChain":"handshake","offeredAsset":"btc","offeredAmount":10000,"receivedAsset":"hns","receivedAmount":2000000,"localRole":"taker","fundingDeadlineUnix":1000,"firstFundingCutoffUnix":900,"firstRefundAtUnix":2000,"secondRefundAtUnix":1500,"localFundingState":"confirmed","localRedemption":{"state":"submitted","transactionId":"$claimTransaction"},"firstFundingConfirmed":true,"secondFundingConfirmed":true,"firstRedemptionConfirmed":true,"secondRedemptionConfirmed":false,"refundConfirmed":false,"lastVerifiedAtUnix":1200,"failureReason":null}],"pendingAcceptances":[],"pendingOfferResponses":[],"pendingOfferCandidates":[],"bitcoinBroadcastRecovery":null}"""
+        val claimStatus = NativeBitcoinWalletBundle.shakescapeExecutions(bundle(claimJSON))
+        assertEquals("submitted", claimStatus?.executions?.single()?.localRedemption?.state)
+        assertEquals(claimTransaction, claimStatus?.executions?.single()?.localRedemption?.transactionId)
+        assertNull(NativeBitcoinWalletBundle.shakescapeExecutions(bundle(
+            claimJSON.replace("\"state\":\"submitted\"", "\"state\":\"invented\""),
+        )))
 
         val localOfferResponse = """{"offerId":"${"12".repeat(32)}","sessionId":"$sessionId","offerSetterSellsHns":true,"offeredAsset":"hns","offeredAmount":2000000,"receivedAsset":"btc","receivedAmount":10000,"btcAmountSats":10000,"hnsAmountDollarydoos":2000000,"offeredFeeReserve":50000,"local":true,"createdAtUnix":1000,"expiresAtUnix":2000}"""
         val responseStatus = NativeBitcoinWalletBundle.shakescapeExecutions(bundle(

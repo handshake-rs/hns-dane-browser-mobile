@@ -72789,6 +72789,17 @@
         }
       }
     },
+    "wallet_ux_swap_hns_last_scanned": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HNS wallet scanned through block %1$d"
+          }
+        }
+      }
+    },
     "wallet_ux_swap_package_fee_cap_hint": {
       "extractionState": "manual",
       "localizations": {
@@ -72899,6 +72910,72 @@
         }
       }
     },
+    "wallet_ux_swap_redemption_confirmed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ claim confirmed · updating swap progress"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_redemption_needs_recovery": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ claim needs recovery · inspect the transaction ID"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_redemption_queued": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ claim saved · waiting for broadcast and chain scan"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_redemption_seen": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ claim seen by the network · waiting for confirmation"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_redemption_submitted": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ claim submitted · waiting for confirmation"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_redemption_transaction": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claim transaction ID: %1$@"
+          }
+        }
+      }
+    },
     "wallet_ux_swap_session_hns_expired": {
       "extractionState": "manual",
       "localizations": {
@@ -72972,6 +73049,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Swap %1$@ transaction submitted. Transaction ID: %2$@. Track this ID in Bitcoin activity and wait for a verified chain scan."
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_stage_verifying_secret": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Counterparty claim confirmed · verifying the swap secret"
           }
         }
       }

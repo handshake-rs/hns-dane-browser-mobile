@@ -4734,6 +4734,57 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertEqual(executionStatus.executions.count, 1)
         XCTAssertEqual(executionStatus.executions.first?.localFundingState, "confirmed")
         XCTAssertEqual(executionStatus.executions.first?.firstFundingCutoffUnix, 900)
+        let claimTransaction = String(repeating: "fa", count: 32)
+        let claimJSON = executionJSON
+            .replacingOccurrences(of: "\"state\":\"first_funded\"",
+                                  with: "\"state\":\"secret_observed\"")
+            .replacingOccurrences(of: "\"localRole\":\"maker\"",
+                                  with: "\"localRole\":\"taker\"")
+            .replacingOccurrences(of: "\"secondFundingConfirmed\":false",
+                                  with: "\"secondFundingConfirmed\":true")
+            .replacingOccurrences(of: "\"firstRedemptionConfirmed\":false",
+                                  with: "\"firstRedemptionConfirmed\":true")
+            .replacingOccurrences(
+                of: "\"localFundingState\":\"confirmed\"",
+                with: "\"localFundingState\":\"confirmed\",\"localRedemption\":{\"state\":\"submitted\",\"transactionId\":\"\(claimTransaction)\"}"
+            )
+        let claimStatus = try JSONDecoder().decode(
+            NativeShakescapeExecutionStatus.self, from: Data(claimJSON.utf8)
+        )
+        XCTAssertEqual(claimStatus.executions.first?.localRedemption?.state, "submitted")
+        XCTAssertEqual(claimStatus.executions.first?.localRedemption?.transactionId,
+                       claimTransaction)
+        XCTAssertFalse(swapRedemptionActionRequired(claimStatus.executions[0]))
+        let earlierClaim = try JSONDecoder().decode(
+            NativeShakescapeExecutionStatus.self,
+            from: Data(claimJSON.replacingOccurrences(
+                of: "\"state\":\"secret_observed\"",
+                with: "\"state\":\"first_redeemed\""
+            ).utf8)
+        )
+        XCTAssertFalse(swapRedemptionActionRequired(earlierClaim.executions[0]))
+        let readyClaimJSON = claimJSON.replacingOccurrences(
+            of: ",\"localRedemption\":{\"state\":\"submitted\",\"transactionId\":\"\(claimTransaction)\"}",
+            with: ""
+        )
+        let readyClaim = try JSONDecoder().decode(
+            NativeShakescapeExecutionStatus.self, from: Data(readyClaimJSON.utf8)
+        )
+        XCTAssertTrue(swapRedemptionActionRequired(readyClaim.executions[0]))
+        let waitingForSecret = try JSONDecoder().decode(
+            NativeShakescapeExecutionStatus.self,
+            from: Data(readyClaimJSON.replacingOccurrences(
+                of: "\"state\":\"secret_observed\"",
+                with: "\"state\":\"first_redeemed\""
+            ).utf8)
+        )
+        XCTAssertFalse(swapRedemptionActionRequired(waitingForSecret.executions[0]))
+        XCTAssertThrowsError(try JSONDecoder().decode(
+            NativeShakescapeExecutionStatus.self,
+            from: Data(claimJSON.replacingOccurrences(
+                of: "\"state\":\"submitted\"", with: "\"state\":\"invented\""
+            ).utf8)
+        ))
         XCTAssertThrowsError(try JSONDecoder().decode(
             NativeShakescapeExecutionStatus.self,
             from: Data(executionJSON.replacingOccurrences(

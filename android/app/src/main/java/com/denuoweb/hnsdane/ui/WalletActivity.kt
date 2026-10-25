@@ -4927,11 +4927,13 @@ class WalletActivity : ComponentActivity() {
         latestShakescapeExecutionStatus = status
         publishAtomicSwapNotifications(status)
         val terminal = setOf("completed", "refunded", "failed")
-        val openCount = status.executions.count { it.state !in terminal }
+        val openCount = status.executions.count {
+            it.state !in terminal || it.localRedemption != null
+        }
         val visibleOpenCount = visibleSwapExecutions(
             status.executions,
             dismissedSwapExecutionIds(),
-        ).count { it.state !in terminal }
+        ).count { it.state !in terminal || it.localRedemption != null }
         val offerResponse = status.pendingOfferResponses.maxByOrNull { it.createdAtUnix }
         val candidateCount = status.pendingOfferCandidates.size
         val pending = status.pendingAcceptances.maxByOrNull { it.createdAtUnix }
@@ -4995,9 +4997,7 @@ class WalletActivity : ComponentActivity() {
                 execution.state == "first_funded" && execution.localRole == "maker" &&
                     now >= execution.firstRefundAtUnix -> "refund"
                 execution.state == "refund_eligible" -> "refund"
-                execution.state == "both_funded" && execution.localRole == "maker" -> "redeem"
-                execution.state in setOf("first_redeemed", "secret_observed") &&
-                    execution.localRole == "taker" -> "redeem"
+                swapRedemptionActionRequired(execution) -> "redeem"
                 else -> null
             } ?: continue
             val chain = if (action == "redeem") {
@@ -5046,10 +5046,13 @@ class WalletActivity : ComponentActivity() {
                     null
                 }
                 approval?.close()
+                NativeWalletBridge.reconcileShakescapeExecutions(handle)
+                val updatedExecutions = NativeWalletBridge.shakescapeExecutions(handle)
                 runOnUiThread {
                     val current = operationIsCurrent(epoch, lease) && walletHandle == handle
                     finishWalletOperationIfOwned(operationSerial)
                     if (current) {
+                        updatedExecutions?.let(::refreshShakescapeExecutionStatus)
                         refreshControllerState(resetReads = false)
                         swapActionStatusView.text = if (receipt == null) {
                             getString(R.string.wallet_ux_swap_settlement_not_ready)
@@ -5211,12 +5214,20 @@ class WalletActivity : ComponentActivity() {
                 getString(R.string.wallet_swap_stage_waiting_counterparty_funding, second)
             }
             "both_funded" -> if (execution.localRole == "maker") {
-                getString(R.string.wallet_swap_stage_redeem_ready_here, second)
+                localRedemptionStage(execution, second)
+                    ?: getString(R.string.wallet_swap_stage_redeem_ready_here, second)
             } else {
                 getString(R.string.wallet_swap_stage_waiting_counterparty_redeem, second)
             }
-            "first_redeemed", "secret_observed" -> if (execution.localRole == "taker") {
-                getString(R.string.wallet_swap_stage_secret_redeem_ready_here, first)
+            "first_redeemed" -> if (execution.localRole == "taker") {
+                localRedemptionStage(execution, first)
+                    ?: getString(R.string.wallet_ux_swap_stage_verifying_secret)
+            } else {
+                getString(R.string.wallet_swap_stage_waiting_counterparty_final_redeem, first)
+            }
+            "secret_observed" -> if (execution.localRole == "taker") {
+                localRedemptionStage(execution, first)
+                    ?: getString(R.string.wallet_swap_stage_secret_redeem_ready_here, first)
             } else {
                 getString(R.string.wallet_swap_stage_waiting_counterparty_final_redeem, first)
             }
@@ -5237,6 +5248,10 @@ class WalletActivity : ComponentActivity() {
             "refunded" -> getString(R.string.wallet_swap_stage_refunded)
             "failed" -> getString(R.string.wallet_swap_stage_failed)
             else -> execution.state.replace('_', ' ')
+        }
+        if (execution.state in setOf("refund_eligible", "refund_broadcast", "failed")) {
+            val chain = if (execution.localRole == "maker") second else first
+            localRedemptionStage(execution, chain)?.let { stage = "$it\n$stage" }
         }
         if (fundingTarget != null && now < execution.fundingDeadlineUnix) {
             stage = getString(
@@ -5339,7 +5354,7 @@ class WalletActivity : ComponentActivity() {
         val terminal = setOf("completed", "refunded", "failed")
         return projection.pendingOfferResponses.isNotEmpty() ||
             projection.pendingAcceptances.isNotEmpty() ||
-            projection.executions.any { it.state !in terminal }
+            projection.executions.any { it.state !in terminal || it.localRedemption != null }
     }
 
     /**
@@ -5392,7 +5407,9 @@ class WalletActivity : ComponentActivity() {
         status: NativeShakescapeExecutionStatus,
     ): Boolean {
         val terminal = setOf("completed", "refunded", "failed")
-        val liveExecutions = status.executions.filter { it.state !in terminal }
+        val liveExecutions = status.executions.filter {
+            it.state !in terminal || it.localRedemption != null
+        }
         val pendingBroadcastRecovery = walletBitcoinBroadcastRecoveryPending(status)
         // A new Bitcoin scan can hold the native wallet for minutes. Give an
         // actionable redemption and the remaining HNS-chain confirmation the
@@ -6409,9 +6426,21 @@ class WalletActivity : ComponentActivity() {
         execution.state == "refund_eligible" ||
         (execution.state == "first_funded" && execution.localRole == "maker" &&
             now >= execution.firstRefundAtUnix) ||
-        (execution.state == "both_funded" && execution.localRole == "maker") ||
-        (execution.state in setOf("first_redeemed", "secret_observed") &&
-            execution.localRole == "taker")
+        swapRedemptionActionRequired(execution)
+
+    private fun localRedemptionStage(
+        execution: NativeShakescapeExecutionSummary,
+        chain: String,
+    ): String? = execution.localRedemption?.let { redemption ->
+        val message = when (redemption.state) {
+            "queued" -> R.string.wallet_ux_swap_redemption_queued
+            "submitted" -> R.string.wallet_ux_swap_redemption_submitted
+            "seen" -> R.string.wallet_ux_swap_redemption_seen
+            "confirmed" -> R.string.wallet_ux_swap_redemption_confirmed
+            else -> R.string.wallet_ux_swap_redemption_needs_recovery
+        }
+        getString(message, chain)
+    }
 
     private fun swapExecutionPriority(
         execution: NativeShakescapeExecutionSummary,
@@ -6535,6 +6564,16 @@ class WalletActivity : ComponentActivity() {
         val bitcoinScan = bitcoinSnapshot?.synchronizedHeight?.takeIf { it > 0L }?.let {
             "\n" + getString(R.string.wallet_ux_last_scanned, it)
         }.orEmpty()
+        val redemptionChain = if (execution.localRole == "maker") execution.secondChain
+            else execution.firstChain
+        val redemption = execution.localRedemption?.let {
+            val chain = redemptionChain
+            val scan = if (chain == "bitcoin") bitcoinScan else
+                latestReadSnapshot?.height?.takeIf { height -> height > 0L }?.let { height ->
+                    "\n" + getString(R.string.wallet_ux_swap_hns_last_scanned, height)
+                }.orEmpty()
+            "\n\n" + getString(R.string.wallet_ux_swap_redemption_transaction, it.transactionId) + scan
+        }.orEmpty()
         val builder = walletAlertDialogBuilder()
             .setTitle(R.string.wallet_swap_execution_title)
             .setMessage(
@@ -6542,12 +6581,15 @@ class WalletActivity : ComponentActivity() {
                     "${formatSwapAmount(execution.offeredAsset, execution.offeredAmount)} → " +
                     "${formatSwapAmount(execution.receivedAsset, execution.receivedAmount)}\n" +
                     "${swapExecutionStage(execution, includeBitcoinSync = false)}\n\n" +
-                    "${swapExecutionProgress(execution).second}\n\n$message$bitcoinScan$reservation"
+                    "${swapExecutionProgress(execution).second}\n\n$message" +
+                    "${if (redemption.isEmpty()) bitcoinScan else redemption}$reservation"
             )
             .setNegativeButton(R.string.action_cancel, null)
-            .setNeutralButton(R.string.wallet_bitcoin_recent_activity) { _, _ ->
+        if (execution.localRedemption == null || redemptionChain == "bitcoin") {
+            builder.setNeutralButton(R.string.wallet_bitcoin_recent_activity) { _, _ ->
                 showBitcoinActivityDetails()
             }
+        }
         // Offer acceptance binds amounts, participants, and timeouts, but it
         // cannot safely approve a fee-selected transaction which does not yet
         // exist. Keep the exact funding preview/approval and make its durable
@@ -6603,9 +6645,7 @@ class WalletActivity : ComponentActivity() {
                 showSwapSettlementFeeForm(execution, "refund", bitcoin)
             }
         } else if (
-            (execution.state == "both_funded" && execution.localRole == "maker") ||
-            (execution.state in setOf("first_redeemed", "secret_observed") &&
-                execution.localRole == "taker")
+            swapRedemptionActionRequired(execution)
         ) {
             val bitcoin = if (execution.localRole == "maker") {
                 execution.secondChain == "bitcoin"
@@ -6774,10 +6814,13 @@ class WalletActivity : ComponentActivity() {
                     val receipt = NativeWalletBridge.approveSwapSettlement(
                         handle, approval.actionToken, bitcoin,
                     )
+                    NativeWalletBridge.reconcileShakescapeExecutions(handle)
+                    val updatedExecutions = NativeWalletBridge.shakescapeExecutions(handle)
                     runOnUiThread {
                         val current = operationIsCurrent(epoch, lease)
                         finishWalletOperationIfOwned(operationSerial)
                         if (current) {
+                            updatedExecutions?.let(::refreshShakescapeExecutionStatus)
                             refreshControllerState(resetReads = false)
                             swapActionStatusView.text = if (receipt == null) {
                                 getString(R.string.wallet_swap_settlement_broadcast_failed)
@@ -10875,7 +10918,7 @@ class WalletActivity : ComponentActivity() {
         val status = latestShakescapeExecutionStatus ?: return
         val terminal = setOf("completed", "refunded", "failed")
         val hasLiveSwap = status.pendingAcceptances.isNotEmpty() ||
-            status.executions.any { it.state !in terminal }
+            status.executions.any { it.state !in terminal || it.localRedemption != null }
         if (!hasLiveSwap || pendingOutgoingSnapshotHeight != null) return
         val refreshHeight = walletActiveSwapHnsRefreshHeight(
             snapshotHeight = latestReadSnapshot?.height,
@@ -11392,10 +11435,14 @@ internal fun walletBitcoinBroadcastRecoveryPending(status: NativeShakescapeExecu
 internal fun walletSwapBitcoinScanShouldYieldToSettlement(
     status: NativeShakescapeExecutionStatus,
 ): Boolean = !walletBitcoinBroadcastRecoveryPending(status) && status.executions.any {
-    (it.state == "both_funded" && it.localRole == "maker") ||
-        (it.firstChain == "handshake" && it.firstRedemptionConfirmed && it.state in setOf(
-            "first_redeemed", "secret_observed", "second_redeemed",
-        ))
+    val claimChain = if (it.localRole == "maker") it.secondChain else it.firstChain
+    val pendingHnsClaim = it.localRedemption?.state in
+        setOf("queued", "submitted", "seen") && claimChain == "handshake"
+    val pendingHnsVerification = it.firstChain == "handshake" &&
+        it.firstRedemptionConfirmed && it.state in setOf("first_redeemed", "second_redeemed")
+    pendingHnsClaim || pendingHnsVerification || (swapRedemptionActionRequired(it) &&
+        (it.localRole == "maker" ||
+            (it.firstChain == "handshake" && it.firstRedemptionConfirmed)))
 }
 
 /** An expired maker reservation is unresolved until the native wallet proves no lock was sent. */
@@ -11412,11 +11459,14 @@ internal fun swapExecutionHasUnverifiedMakerFunding(
 internal fun walletActiveSwapSyncFingerprint(status: NativeShakescapeExecutionStatus): String =
     buildString {
         status.executions
-            .filter { it.state !in setOf("completed", "refunded", "failed") }
+            .filter { it.state !in setOf("completed", "refunded", "failed") ||
+                it.localRedemption != null }
             .sortedBy { it.sessionId }
             .forEach {
                 append(it.sessionId).append(':').append(it.state).append(':')
                     .append(it.localFundingState).append(':')
+                    .append(it.localRedemption?.state).append(':')
+                    .append(it.localRedemption?.transactionId).append(':')
                     .append(it.firstFundingConfirmed).append(':')
                     .append(it.secondFundingConfirmed).append(':')
                     .append(it.firstRedemptionConfirmed).append(':')

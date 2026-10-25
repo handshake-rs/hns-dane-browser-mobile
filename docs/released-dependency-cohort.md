@@ -16,12 +16,12 @@ source overrides and Git dependencies, and requires one copy of each package.
 | `hns-wallet-types`, `hns-wallet-provider` | 0.4.2 |
 | `hns-wallet-shakedex` | 0.4.3 |
 | `hns-wallet-bip157` | Published 0.4.3 |
-| `hns-wallet-bitcoin-kyoto` | 0.4.7 |
+| `hns-wallet-bitcoin-kyoto` | 0.4.8 |
 | `hns-wallet-chain-api` | 0.4.3 |
 | `hns-wallet-service` | 0.4.4 |
-| `hns-wallet-hns` | 0.4.7 |
+| `hns-wallet-hns` | 0.4.8 |
 | `hns-wallet-market` | 0.5.2 |
-| `hns-wallet-mobile` | 0.6.5 |
+| `hns-wallet-mobile` | 0.6.6 |
 
 The selected `hns-browser-dane` and `hns-browser-transport` releases include
 the trust-anchor path fix and public path-verifier interface. The new protocol,

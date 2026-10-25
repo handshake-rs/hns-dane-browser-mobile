@@ -94,6 +94,15 @@ private func swapFundingActionRequired(
     }
 }
 
+func swapRedemptionActionRequired(
+    _ execution: NativeShakescapeExecutionSummary
+) -> Bool {
+    execution.localRedemption == nil && (
+        (execution.state == "both_funded" && execution.localRole == "maker") ||
+        (execution.state == "secret_observed" && execution.localRole == "taker")
+    )
+}
+
 /// Presentation-only execution controls. Hidden sessions stay in the native
 /// journal and return to the visible list if funding or recovery appears.
 enum WalletSwapExecutionList {
@@ -262,7 +271,8 @@ private final class AtomicSwapNotificationCoordinator {
             switch execution.state {
             case "completed": title = WalletCopy.text("wallet_swap_notification_completed")
             case "refunded": title = WalletCopy.text("wallet_swap_notification_refunded")
-            case "failed": title = WalletCopy.text("wallet_swap_notification_failed")
+            case "failed" where execution.localRedemption == nil:
+                title = WalletCopy.text("wallet_swap_notification_failed")
             case _ where actionRequired:
                 title = WalletCopy.text("wallet_swap_notification_action_required")
             default: title = WalletCopy.text("wallet_swap_notification_updated")
@@ -279,7 +289,8 @@ private final class AtomicSwapNotificationCoordinator {
                     stage,
                     String(execution.sessionId.prefix(12))
                 ),
-                historicalTerminal: terminalStates.contains(execution.state),
+                historicalTerminal: terminalStates.contains(execution.state) &&
+                    execution.localRedemption == nil,
                 actionRequired: actionRequired,
                 initialTitle: execution.localRole == "taker" &&
                     !terminalStates.contains(execution.state) &&
@@ -515,6 +526,9 @@ private final class AtomicSwapNotificationCoordinator {
         if swapFundingActionRequired(execution, now: now), execution.localRole == "maker" {
             return "first-funding-action"
         }
+        if let redemption = execution.localRedemption {
+            return "redemption-\(redemption.state)"
+        }
         return execution.state
     }
 
@@ -528,9 +542,7 @@ private final class AtomicSwapNotificationCoordinator {
                 "first-funding-action",
                 "second-funding-action",
             ].contains(milestone) ||
-            (execution.state == "both_funded" && execution.localRole == "maker") ||
-            (["first_redeemed", "secret_observed"].contains(execution.state) &&
-                execution.localRole == "taker")
+            swapRedemptionActionRequired(execution)
     }
 
     /// Fixed-price name sales have no interactive acceptance packet. Their
@@ -3252,9 +3264,22 @@ final class WalletViewController: UIViewController {
             execution.state == "refund_eligible" ||
             (execution.state == "first_funded" && execution.localRole == "maker" &&
                 now >= execution.firstRefundAtUnix) ||
-            (execution.state == "both_funded" && execution.localRole == "maker") ||
-            (["first_redeemed", "secret_observed"].contains(execution.state) &&
-                execution.localRole == "taker")
+            swapRedemptionActionRequired(execution)
+    }
+
+    private func localRedemptionStage(
+        _ execution: NativeShakescapeExecutionSummary, chain: String
+    ) -> String? {
+        guard let redemption = execution.localRedemption else { return nil }
+        let key: String
+        switch redemption.state {
+        case "queued": key = "wallet_ux_swap_redemption_queued"
+        case "submitted": key = "wallet_ux_swap_redemption_submitted"
+        case "seen": key = "wallet_ux_swap_redemption_seen"
+        case "confirmed": key = "wallet_ux_swap_redemption_confirmed"
+        default: key = "wallet_ux_swap_redemption_needs_recovery"
+        }
+        return WalletCopy.format(key, chain)
     }
 
     private func automaticSwapMinimumReceive(
@@ -3442,22 +3467,44 @@ final class WalletViewController: UIViewController {
             ? "\n" + WalletCopy.format("wallet_ux_last_scanned", Int($0.synchronizedHeight))
             : nil
         } ?? ""
+        let redemptionChain = execution.localRole == "maker"
+            ? execution.secondChain : execution.firstChain
+        let redemption = execution.localRedemption.map { claim in
+            let chain = redemptionChain
+            let scan: String
+            if chain == "bitcoin" {
+                scan = bitcoinScan
+            } else {
+                scan = latestReadSnapshot.flatMap {
+                    $0.moduleStatus.validatedHeight > 0
+                        ? "\n" + WalletCopy.format(
+                            "wallet_ux_swap_hns_last_scanned", Int($0.moduleStatus.validatedHeight)
+                        ) : nil
+                } ?? ""
+            }
+            return "\n\n" + WalletCopy.format(
+                "wallet_ux_swap_redemption_transaction", claim.transactionId
+            ) + scan
+        } ?? ""
         let alert = UIAlertController(
             title: WalletCopy.text("wallet_swap_execution_title"),
             message: "\(shakescapeExecutionProgress(execution).summary)\n" +
                 "\(swapAmount(execution.offeredAmount, asset: execution.offeredAsset)) → " +
                 "\(swapAmount(execution.receivedAmount, asset: execution.receivedAsset))\n" +
                 "\(shakescapeExecutionStage(execution, includeBitcoinSync: false))\n\n" +
-                "\(shakescapeExecutionProgress(execution).detail)\n\n\(message)\(bitcoinScan)\(reservation)",
+                "\(shakescapeExecutionProgress(execution).detail)\n\n\(message)" +
+                "\(redemption.isEmpty ? bitcoinScan : redemption)\(reservation)",
             preferredStyle: .alert
         )
         alert.addAction(UIAlertAction(
             title: WalletCopy.text("wallet_action_done"),
             style: .cancel
         ))
-        alert.addAction(UIAlertAction(
-            title: WalletCopy.text("wallet_bitcoin_recent_activity"), style: .default
-        ) { [weak self] _ in self?.showBitcoinActivity() })
+        if execution.localRedemption == nil || redemptionChain == "bitcoin" {
+            alert.addAction(UIAlertAction(
+                title: WalletCopy.text("wallet_bitcoin_recent_activity"), style: .default
+            ) { [weak self] _ in self?.showBitcoinActivity() })
+        }
         // Acceptance binds the trade and its timeouts, not a later
         // fee-selected transaction which the user has never reviewed. Keep
         // that exact preview/approval and surface readiness as an immediate
@@ -3539,9 +3586,7 @@ final class WalletViewController: UIViewController {
                 }
             })
         }
-        if (execution.state == "both_funded" && execution.localRole == "maker") ||
-            (["first_redeemed", "secret_observed"].contains(execution.state) &&
-                execution.localRole == "taker") {
+        if swapRedemptionActionRequired(execution) {
             let bitcoin = execution.localRole == "maker"
                 ? execution.secondChain == "bitcoin"
                 : execution.firstChain == "bitcoin"
@@ -3750,9 +3795,18 @@ final class WalletViewController: UIViewController {
                         pending.actionToken, bitcoin: isBitcoin
                     )
                 }
+                _ = try? wallet.reconcileShakescapeExecutions()
+                let updatedExecutions = try? wallet.shakescapeExecutions()
                 DispatchQueue.main.async { [weak self] in
                     guard let self, self.wallet === wallet else { return }
                     self.isOperating = false
+                    if let updatedExecutions {
+                        self.shakescapeExecutionStatusSnapshot = updatedExecutions
+                        self.atomicSwapNotifications.reconcile(
+                            updatedExecutions,
+                            stageText: self.shakescapeExecutionNotificationStage
+                        )
+                    }
                     switch outcome {
                     case .success(let receipt):
                         self.swapActionStatusLabel.text = self.swapSettlementReceiptText(
@@ -3765,6 +3819,7 @@ final class WalletViewController: UIViewController {
                         self.showError(error)
                     }
                     self.refreshButtonStates()
+                    self.renderWalletDashboard()
                 }
             }
         })
@@ -4796,7 +4851,7 @@ final class WalletViewController: UIViewController {
                 status.executions,
                 hiddenIDs: WalletSwapExecutionPresentationStore.hiddenIDs(networkID: network.rawValue),
                 now: now
-            ).filter { !terminal.contains($0.state) }
+            ).filter { !terminal.contains($0.state) || $0.localRedemption != nil }
             if !visibleOpen.isEmpty {
                 lines.append(WalletCopy.format("wallet_swap_overview_open", visibleOpen.count))
             } else if !status.pendingOfferCandidates.isEmpty {
@@ -5659,9 +5714,7 @@ final class WalletViewController: UIViewController {
             if (execution.state == "first_funded" && execution.localRole == "maker" &&
                 now >= execution.firstRefundAtUnix) || execution.state == "refund_eligible" {
                 action = .refund
-            } else if (execution.state == "both_funded" && execution.localRole == "maker") ||
-                (["first_redeemed", "secret_observed"].contains(execution.state) &&
-                    execution.localRole == "taker") {
+            } else if swapRedemptionActionRequired(execution) {
                 action = .redeem
             } else {
                 continue
@@ -5704,11 +5757,20 @@ final class WalletViewController: UIViewController {
                         approval.actionToken, bitcoin: bitcoin
                     )
                 }
+                _ = try? wallet.reconcileShakescapeExecutions()
+                let updatedExecutions = try? wallet.shakescapeExecutions()
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
                     guard self.walletAuthorityGeneration == authority,
                           self.wallet.map({ ObjectIdentifier($0) }) == identity else { return }
                     self.isOperating = false
+                    if let updatedExecutions {
+                        self.shakescapeExecutionStatusSnapshot = updatedExecutions
+                        self.atomicSwapNotifications.reconcile(
+                            updatedExecutions,
+                            stageText: self.shakescapeExecutionNotificationStage
+                        )
+                    }
                     if case .success(let receipt) = result {
                         self.automaticSwapSettlementAttempts[key] = .infinity
                         self.swapActionStatusLabel.text = self.swapSettlementReceiptText(
@@ -5729,12 +5791,14 @@ final class WalletViewController: UIViewController {
     ) -> String? {
         let terminal: Set<String> = ["completed", "refunded", "failed"]
         let live = status.executions
-            .filter { !terminal.contains($0.state) }
+            .filter { !terminal.contains($0.state) || $0.localRedemption != nil }
             .sorted { $0.sessionId < $1.sessionId }
         let pending = status.pendingAcceptances.sorted { $0.sessionId < $1.sessionId }
         guard !live.isEmpty || !pending.isEmpty else { return nil }
         let executions = live.map {
             "\($0.sessionId):\($0.state):\(String(describing: $0.localFundingState)):" +
+                "\(String(describing: $0.localRedemption?.state)):" +
+                "\(String(describing: $0.localRedemption?.transactionId)):" +
                 "\($0.firstFundingConfirmed):\($0.secondFundingConfirmed):" +
                 "\($0.firstRedemptionConfirmed):\($0.secondRedemptionConfirmed):" +
                 "\($0.refundConfirmed)"
@@ -5798,9 +5862,16 @@ final class WalletViewController: UIViewController {
         // the maker's first redemption and HNS-chain final settlement while
         // preserving recovery of any already approved Bitcoin broadcast.
         if !pendingBitcoinRecovery && status.executions.contains(where: {
-            ($0.state == "both_funded" && $0.localRole == "maker") ||
-                ($0.firstChain == "handshake" && $0.firstRedemptionConfirmed &&
-                    ["first_redeemed", "secret_observed", "second_redeemed"].contains($0.state))
+            let claimChain = $0.localRole == "maker" ? $0.secondChain : $0.firstChain
+            let pendingHnsClaim = ["queued", "submitted", "seen"]
+                .contains($0.localRedemption?.state ?? "") && claimChain == "handshake"
+            let pendingHnsVerification = $0.firstChain == "handshake" &&
+                $0.firstRedemptionConfirmed &&
+                ["first_redeemed", "second_redeemed"].contains($0.state)
+            return pendingHnsClaim || pendingHnsVerification ||
+                (swapRedemptionActionRequired($0) &&
+                ($0.localRole == "maker" ||
+                    ($0.firstChain == "handshake" && $0.firstRedemptionConfirmed)))
         }) {
             return false
         }
@@ -5960,17 +6031,22 @@ final class WalletViewController: UIViewController {
             }
         case "both_funded":
             stage = execution.localRole == "maker"
-                ? WalletCopy.format(
+                ? (localRedemptionStage(execution, chain: second) ?? WalletCopy.format(
                     "wallet_swap_stage_redeem_ready_here", second
-                )
+                ))
                 : WalletCopy.format(
                     "wallet_swap_stage_waiting_counterparty_redeem", second
                 )
-        case "first_redeemed", "secret_observed":
+        case "first_redeemed":
             stage = execution.localRole == "taker"
-                ? WalletCopy.format(
+                ? (localRedemptionStage(execution, chain: first) ??
+                    WalletCopy.text("wallet_ux_swap_stage_verifying_secret"))
+                : WalletCopy.format("wallet_swap_stage_waiting_counterparty_final_redeem", first)
+        case "secret_observed":
+            stage = execution.localRole == "taker"
+                ? (localRedemptionStage(execution, chain: first) ?? WalletCopy.format(
                     "wallet_swap_stage_secret_redeem_ready_here", first
-                )
+                ))
                 : WalletCopy.format(
                     "wallet_swap_stage_waiting_counterparty_final_redeem", first
                 )
@@ -5996,6 +6072,12 @@ final class WalletViewController: UIViewController {
             stage = WalletCopy.text("wallet_swap_stage_failed")
         default:
             stage = execution.state.replacingOccurrences(of: "_", with: " ")
+        }
+        if ["refund_eligible", "refund_broadcast", "failed"].contains(execution.state) {
+            let chain = execution.localRole == "maker" ? second : first
+            if let claim = localRedemptionStage(execution, chain: chain) {
+                stage = "\(claim)\n\(stage)"
+            }
         }
         if let fundingTarget,
            now < execution.fundingDeadlineUnix {
