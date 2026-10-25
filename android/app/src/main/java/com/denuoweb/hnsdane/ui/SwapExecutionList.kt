@@ -47,6 +47,16 @@ internal fun visibleSwapExecutions(
     it.sessionId in dismissedIds && swapExecutionCanDismiss(it)
 }
 
+/** Keep a single funded failure visible for recovery as well as live sessions. */
+internal fun singleActiveSwapExecution(
+    executions: List<NativeShakescapeExecutionSummary>,
+    dismissedIds: Set<String>,
+): NativeShakescapeExecutionSummary? = visibleSwapExecutions(executions, dismissedIds)
+    .filter {
+        it.state !in setOf("completed", "refunded", "failed") ||
+            (it.state == "failed" && !swapExecutionCanDismiss(it))
+    }.singleOrNull()
+
 internal data class SwapExecutionPage(
     val entries: List<NativeShakescapeExecutionSummary>,
     val index: Int,

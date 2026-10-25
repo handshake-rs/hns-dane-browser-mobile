@@ -4,10 +4,58 @@ import com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionSummary
 import com.denuoweb.hnsdane.wallet.NativeLocalRedemptionSummary
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SwapExecutionListTest {
+    @Test
+    fun oneVisibleLiveSwapGetsTheDirectCardButHistoryAndMultipleSwapsUseTheList() {
+        val live = execution("live", state = "both_funded", firstFundingConfirmed = true)
+        val history = execution("history", state = "completed",
+            firstFundingConfirmed = true).copy(
+                firstRedemptionConfirmed = true, secondRedemptionConfirmed = true)
+        assertEquals(live, singleActiveSwapExecution(listOf(history, live), emptySet()))
+        assertNull(singleActiveSwapExecution(listOf(history), emptySet()))
+        assertNull(singleActiveSwapExecution(listOf(live,
+            execution("other", state = "first_funded")), emptySet()))
+        // A funded session remains visible even if the user hid its old row.
+        assertEquals(live, singleActiveSwapExecution(listOf(live), setOf(live.sessionId)))
+        val fundedFailure = execution("recovery", state = "failed",
+            firstFundingConfirmed = true)
+        assertEquals(fundedFailure, singleActiveSwapExecution(listOf(fundedFailure), emptySet()))
+        assertNull(singleActiveSwapExecution(listOf(
+            execution("unfunded-failure", state = "failed")), emptySet()))
+    }
+
+    @Test
+    fun bitcoinScanFollowsTheSubmittedClaimAndOffersResumeOnlyForAttention() {
+        val moto = execution("moto", state = "secret_observed").copy(
+            localRole = "taker", firstChain = "bitcoin", secondChain = "handshake",
+            localFundingState = "confirmed",
+            localRedemption = NativeLocalRedemptionSummary("submitted", "a".repeat(64)),
+        )
+        assertTrue(swapBitcoinConfirmationPending(moto))
+        assertTrue(swapBitcoinConfirmationPending(moto.copy(
+            localRedemption = NativeLocalRedemptionSummary("seen", "a".repeat(64)))))
+        assertFalse(swapBitcoinConfirmationPending(moto.copy(
+            localRedemption = NativeLocalRedemptionSummary("confirmed", "a".repeat(64)))))
+        assertFalse(swapBitcoinConfirmationPending(moto.copy(
+            firstChain = "handshake", secondChain = "bitcoin")))
+
+        val funding = execution("pixel", state = "first_funding_pending",
+            localFundingState = "broadcast")
+        assertTrue(swapBitcoinConfirmationPending(funding))
+        assertTrue(swapBitcoinConfirmationPending(funding.copy(localFundingState = "seen")))
+        assertFalse(swapBitcoinConfirmationPending(funding.copy(localFundingState = "confirmed")))
+        assertFalse(swapBitcoinConfirmationPending(funding.copy(state = "completed")))
+
+        assertFalse(swapScanNeedsAttention(syncing = true, failed = true, paused = true))
+        assertFalse(swapScanNeedsAttention(syncing = false, failed = false, paused = false))
+        assertTrue(swapScanNeedsAttention(syncing = false, failed = true, paused = false))
+        assertTrue(swapScanNeedsAttention(syncing = false, failed = false, paused = true))
+    }
+
     @Test
     fun submittedClaimDoesNotOfferRedeemAgainWhileSwapPhaseWaitsForScan() {
         // Moto's recorded BTC claim was submitted while the verified swap

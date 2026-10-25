@@ -40,6 +40,24 @@ internal fun swapRedemptionActionRequired(
         (execution.state == "secret_observed" && execution.localRole == "taker")
     )
 
+/** A submitted local Bitcoin lock or claim still needs chain observation. */
+internal fun swapBitcoinConfirmationPending(
+    execution: com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionSummary,
+): Boolean {
+    if (execution.state in setOf("completed", "refunded")) return false
+    val fundingChain = if (execution.localRole == "maker") execution.firstChain
+        else execution.secondChain
+    val claimChain = if (execution.localRole == "maker") execution.secondChain
+        else execution.firstChain
+    return (fundingChain == "bitcoin" &&
+        execution.localFundingState in setOf("broadcast", "seen")) ||
+        (claimChain == "bitcoin" &&
+            execution.localRedemption?.state in setOf("queued", "submitted", "seen"))
+}
+
+internal fun swapScanNeedsAttention(syncing: Boolean, failed: Boolean, paused: Boolean): Boolean =
+    !syncing && (failed || paused)
+
 /**
  * Publishes one durable, deduplicated notification for each meaningful atomic-swap stage.
  *
@@ -97,10 +115,7 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
                 sessionId = candidate.sessionId,
                 fingerprint = "candidate_available",
                 title = applicationContext.getString(R.string.wallet_ux_swap_candidate_title),
-                text = applicationContext.getString(
-                    R.string.wallet_ux_swap_candidate_notification,
-                    candidate.offerId.take(12),
-                ),
+                text = applicationContext.getString(R.string.wallet_ux_swap_candidate_notification),
                 historicalTerminal = false,
             )
         }

@@ -4505,6 +4505,31 @@ final class BrowserRuntimeControlTests: XCTestCase {
             [recovered, funded], hiddenIDs: [recovered.sessionId, funded.sessionId], now: 2_000
         )
         XCTAssertEqual(visible.map(\.sessionId), [funded.sessionId])
+        XCTAssertEqual(WalletSwapExecutionList.singleActive(
+            [recovered, funded], hiddenIDs: [recovered.sessionId, funded.sessionId], now: 2_000
+        )?.sessionId, funded.sessionId)
+        XCTAssertNil(WalletSwapExecutionList.singleActive(
+            [recovered], hiddenIDs: [], now: 2_000
+        ))
+        let second = try swapExecutionFixture(
+            id: "c", state: "first_funded", deadline: 400, verifiedAt: 300
+        )
+        XCTAssertNil(WalletSwapExecutionList.singleActive(
+            [funded, second], hiddenIDs: [], now: 2_000
+        ))
+        let fundedFailure = try swapExecutionFixture(
+            id: "d", state: "failed", deadline: 500, verifiedAt: 400,
+            fundingState: "confirmed"
+        )
+        XCTAssertEqual(WalletSwapExecutionList.singleActive(
+            [fundedFailure], hiddenIDs: [], now: 2_000
+        )?.sessionId, fundedFailure.sessionId)
+        let unfundedFailure = try swapExecutionFixture(
+            id: "e", state: "failed", deadline: 500, verifiedAt: 400
+        )
+        XCTAssertNil(WalletSwapExecutionList.singleActive(
+            [unfundedFailure], hiddenIDs: [], now: 2_000
+        ))
     }
 
     func testSwapExecutionPagesStayNewestFirstAfterOldSessionRescan() throws {
@@ -4734,6 +4759,15 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertEqual(executionStatus.executions.count, 1)
         XCTAssertEqual(executionStatus.executions.first?.localFundingState, "confirmed")
         XCTAssertEqual(executionStatus.executions.first?.firstFundingCutoffUnix, 900)
+        let submittedFunding = try JSONDecoder().decode(
+            NativeShakescapeExecutionStatus.self,
+            from: Data(executionJSON.replacingOccurrences(
+                of: "\"localFundingState\":\"confirmed\"",
+                with: "\"localFundingState\":\"broadcast\""
+            ).utf8)
+        )
+        XCTAssertTrue(swapBitcoinConfirmationPending(submittedFunding.executions[0]))
+        XCTAssertFalse(swapBitcoinConfirmationPending(executionStatus.executions[0]))
         let claimTransaction = String(repeating: "fa", count: 32)
         let claimJSON = executionJSON
             .replacingOccurrences(of: "\"state\":\"first_funded\"",
@@ -4755,6 +4789,18 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertEqual(claimStatus.executions.first?.localRedemption?.transactionId,
                        claimTransaction)
         XCTAssertFalse(swapRedemptionActionRequired(claimStatus.executions[0]))
+        XCTAssertTrue(swapBitcoinConfirmationPending(claimStatus.executions[0]))
+        let confirmedClaim = try JSONDecoder().decode(
+            NativeShakescapeExecutionStatus.self,
+            from: Data(claimJSON.replacingOccurrences(
+                of: "\"state\":\"submitted\"", with: "\"state\":\"confirmed\""
+            ).utf8)
+        )
+        XCTAssertFalse(swapBitcoinConfirmationPending(confirmedClaim.executions[0]))
+        XCTAssertFalse(swapScanNeedsAttention(syncing: true, failed: true, paused: true))
+        XCTAssertFalse(swapScanNeedsAttention(syncing: false, failed: false, paused: false))
+        XCTAssertTrue(swapScanNeedsAttention(syncing: false, failed: true, paused: false))
+        XCTAssertTrue(swapScanNeedsAttention(syncing: false, failed: false, paused: true))
         let earlierClaim = try JSONDecoder().decode(
             NativeShakescapeExecutionStatus.self,
             from: Data(claimJSON.replacingOccurrences(

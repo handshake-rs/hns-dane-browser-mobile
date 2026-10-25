@@ -918,12 +918,20 @@
     <string name="wallet_swap_notification_updated">Atomic swap updated</string>
     <string name="wallet_swap_notification_offer_accepted">Your offer was accepted</string>
     <string name="wallet_swap_notification_offer_accepted_detail">Another wallet started the swap · waiting for signed terms · Session %1$s…</string>
-    <string name="wallet_ux_swap_candidate_title" translatable="false">Choose a swap responder</string>
-    <string name="wallet_ux_swap_candidate_count" translatable="false">%1$d signed responses are waiting for your choice.</string>
-    <string name="wallet_ux_swap_candidate_notification" translatable="false">Review signed responses for offer %1$s…</string>
-    <string name="wallet_ux_swap_candidate_action" translatable="false">Review %1$s… · offer %2$s…</string>
-    <string name="wallet_ux_swap_candidate_message" translatable="false">Responder %1$s… offers %2$s for your %3$s on offer %4$s…. Choosing signs the swap terms and keeps your offered amount reserved through the funding window. No transaction is broadcast by this choice. Other responses to this offer will not start a swap.</string>
-    <string name="wallet_ux_swap_candidate_choose" translatable="false">Choose and countersign</string>
+    <string name="wallet_ux_swap_candidate_title" translatable="false">Review buyer response</string>
+    <string name="wallet_ux_swap_candidate_count" translatable="false">%1$d buyer responses to review.</string>
+    <string name="wallet_ux_swap_one_candidate" translatable="false">A buyer response is ready to review.</string>
+    <string name="wallet_ux_swap_your_lock_confirmed" translatable="false">Your %1$s lock is confirmed</string>
+    <string name="wallet_ux_swap_your_lock_submitted" translatable="false">Your %1$s lock was submitted</string>
+    <string name="wallet_ux_swap_their_lock_confirmed" translatable="false">Their %1$s lock is confirmed</string>
+    <string name="wallet_ux_swap_candidate_notification" translatable="false">A buyer responded. Open ShakeDex to review and confirm.</string>
+    <string name="wallet_ux_swap_candidate_action" translatable="false">Review buyer %1$s… · offers %2$s</string>
+    <string name="wallet_ux_swap_candidate_message" translatable="false">Buyer %1$s… offers %2$s for your %3$s. Confirming signs the swap agreement and reserves your funds for its funding window. No transaction is broadcast yet.</string>
+    <string name="wallet_ux_swap_candidate_choose" translatable="false">Confirm this buyer</string>
+    <string name="wallet_ux_swap_review_fund_bitcoin" translatable="false">Review and fund Bitcoin</string>
+    <string name="wallet_ux_swap_funding_approval_title" translatable="false">Review Bitcoin lock</string>
+    <string name="wallet_ux_swap_funding_approval_message" translatable="false">Lock %1$d sats. Network fee: %2$d sats (maximum %3$d).\n\nBroadcasting starts the Bitcoin lock. We’ll scan for confirmation before the swap continues.</string>
+    <string name="wallet_ux_swap_broadcast_bitcoin_lock" translatable="false">Broadcast Bitcoin lock</string>
     <string name="wallet_ux_swap_candidate_failed" translatable="false">Could not choose this responder. Refresh the offer and try again.</string>
     <string name="wallet_hns_received_notification_title">HNS received</string>
     <string name="wallet_hns_received_notification_detail">%1$s HNS confirmed</string>
@@ -944,7 +952,7 @@
     <string name="wallet_swap_funding_prepare_failed">Bitcoin HTLC funding was not prepared. Confirm the accepted session, current chain state, and signed fee reserve.</string>
     <string name="wallet_swap_funding_approval_title">Broadcast Bitcoin funding?</string>
     <string name="wallet_swap_funding_approval_message">Lock %1$d sats. Network fee: %2$d sats (maximum %3$d).\n\nTransaction: %4$s\nSession: %5$s\n\nBroadcast is irreversible. The swap advances after the Bitcoin lock is confirmed.</string>
-    <string name="wallet_ux_swap_automatic_settlement_consent" translatable="false">This approval also lets this wallet redeem this exact swap automatically. The redemption fee cap is 1,000 sats or 0.1 HNS, depending on what you receive. If the swap expires, the wallet may refund its own lock within the fee reserve shown above. No further approval is needed while this wallet is available.</string>
+    <string name="wallet_ux_swap_automatic_settlement_consent" translatable="false">This approval lets the wallet claim this swap automatically, with a fee cap of 1,000 sats or 0.1 HNS. If it expires, the wallet can refund your lock within the reserved fee. No further approval is needed while the wallet is available.</string>
     <string name="wallet_ux_swap_automatic_minimum_receive" translatable="false">Minimum received after the redemption fee: %1$s.</string>
     <string name="wallet_ux_swap_automatic_settlement_unavailable" translatable="false">Funding was submitted, but automatic settlement approval could not be saved. Open this swap to redeem or refund manually.</string>
     <string name="wallet_ux_swap_custom_fee_cap" translatable="false">Advanced fee cap</string>
@@ -1379,13 +1387,42 @@
     <string name="wallet_ux_bitcoin_setup_trade" translatable="false">Set up Bitcoin before creating a coin offer.</string>
     <string name="wallet_ux_swap_readiness_hns" translatable="false">HNS verified at block %1$s: %2$s HNS</string>
     <string name="wallet_ux_swap_readiness_hns_missing" translatable="false">HNS balance needs a verified wallet sync.</string>
-    <string name="wallet_ux_swap_readiness_btc" translatable="false">Bitcoin last scanned at block %1$s: %2$s confirmed sats</string>
+    <string name="wallet_ux_swap_readiness_btc" translatable="false">Bitcoin ready · last checked block %1$s · %2$s confirmed sats</string>
     <string name="wallet_ux_swap_readiness_btc_missing" translatable="false">Bitcoin balance needs its first verified scan.</string>
     <string name="wallet_ux_swap_readiness_peer" translatable="false">Offer peer: %1$s</string>
     <string name="wallet_ux_swap_readiness_peer_missing" translatable="false">Offer peer: connect before browsing or publishing.</string>
     <string name="wallet_ux_swap_readiness_blocked" translatable="false">Current task: %1$s</string>
     <string name="wallet_ux_swap_readiness_ready" translatable="false">No wallet task is blocking swap actions. Check the last scanned heights before funding.</string>
-    <string name="wallet_ux_swap_readiness_sync_bitcoin" translatable="false">Continue Bitcoin sync</string>
+    <string name="wallet_ux_swap_readiness_sync_bitcoin" translatable="false">Resume scan</string>
+    <string name="wallet_ux_swap_setup_bitcoin" translatable="false">Set up Bitcoin</string>
+    <string name="wallet_ux_swap_scan_confirmation" translatable="false">Scanning Bitcoin for confirmation</string>
+    <string name="wallet_ux_swap_scan_readiness" translatable="false">Checking Bitcoin readiness</string>
+    <string name="wallet_ux_swap_scan_stopped" translatable="false">Bitcoin scan stopped</string>
+    <string name="wallet_ux_swap_scan_needs_attention" translatable="false">Bitcoin scan needs attention</string>
+    <string name="wallet_ux_swap_scan_last_checked" translatable="false">last checked block %1$d</string>
+    <string name="wallet_ux_swap_scan_no_checkpoint" translatable="false">no verified block yet</string>
+    <string name="wallet_ux_swap_active_heading" translatable="false">Swap in progress</string>
+    <string name="wallet_ux_swap_active_card_title" translatable="false">Active swap · %1$s → %2$s</string>
+    <string name="wallet_ux_swap_action_needed" translatable="false">Action needed</string>
+    <string name="wallet_ux_swap_no_action_needed" translatable="false">No action needed · we’ll keep monitoring</string>
+    <string name="wallet_ux_swap_claim_deadline" translatable="false">Claim before %1$s</string>
+    <string name="wallet_ux_swap_open_record" translatable="false">View full swap record</string>
+    <string name="wallet_ux_swap_all_history" translatable="false">All swaps and history</string>
+    <string name="wallet_ux_swap_action_feedback" translatable="false">Recent action result</string>
+    <string name="wallet_ux_swap_bitcoin_checked" translatable="false">Bitcoin ready · last checked block %1$d</string>
+    <string name="wallet_ux_swap_browse_hint" translatable="false">Browse offers or create one</string>
+    <string name="wallet_ux_swap_complete" translatable="false">This swap is complete</string>
+    <string name="wallet_ux_swap_connect_peer" translatable="false">Connect a peer to trade</string>
+    <string name="wallet_ux_swap_latest_complete" translatable="false">Latest swap complete</string>
+    <string name="wallet_ux_swap_multiple_active" translatable="false">%1$d swaps in progress</string>
+    <string name="wallet_ux_swap_open_swaps" translatable="false">Open swaps to review next steps</string>
+    <string name="wallet_ux_swap_resume_scan_hint" translatable="false">Scan needs attention · use Resume scan in ShakeDex</string>
+    <string name="wallet_ux_swap_review_buyer" translatable="false">Review the buyer response</string>
+    <string name="wallet_ux_swap_saved_broadcasts" translatable="false">Saved Bitcoin broadcasts</string>
+    <string name="wallet_ux_swap_technical_details" translatable="false">Technical details</string>
+    <string name="wallet_ux_swap_trade_title" translatable="false">%1$s → %2$s</string>
+    <string name="wallet_ux_swap_waiting_verify_lock" translatable="false">Waiting to verify their %1$s lock</string>
+    <string name="wallet_ux_swap_wallet_checkpoints" translatable="false">Wallet checkpoints</string>
     <string name="wallet_ux_hns_pending_change" translatable="false">A pending HNS send can leave change unconfirmed. The verified spendable amount updates after the change confirms.</string>
     <string name="wallet_ux_swap_session_hns_reserved" translatable="false">This open session reserves %1$s HNS for its HNS lock.</string>
     <string name="wallet_ux_swap_session_hns_release" translatable="false">After the funding deadline, the wallet checks its saved broadcast record and verified chain before releasing an unfunded session’s reservation.</string>
