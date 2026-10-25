@@ -2682,7 +2682,14 @@ class WalletActivity : ComponentActivity() {
             formatSwapAmount(execution.offeredAsset, execution.offeredAmount),
             formatSwapAmount(execution.receivedAsset, execution.receivedAmount)))
         add(swapExecutionStage(execution))
-        add(getString(if (swapExecutionNeedsAttention(execution, now))
+        val pendingConfirmation = swapBitcoinConfirmationPending(execution)
+        if (pendingConfirmation) shakedexBitcoinScanStatus(pendingConfirmation = true)?.let(::add)
+        val scanPaused = bitcoinLastSyncStopped ||
+            SystemClock.elapsedRealtime() < automaticSwapBitcoinSyncPausedUntilElapsedMillis
+        val scanNeedsAttention = pendingConfirmation && swapScanNeedsAttention(
+            walletBitcoinSyncInProgress, bitcoinLastSyncFailed, scanPaused,
+        )
+        add(getString(if (swapExecutionNeedsAttention(execution, now) || scanNeedsAttention)
             R.string.wallet_ux_swap_action_needed else R.string.wallet_ux_swap_no_action_needed))
         add(swapExecutionProgress(execution).first)
         if (swapRedemptionActionRequired(execution)) {
@@ -2696,26 +2703,51 @@ class WalletActivity : ComponentActivity() {
 
     private fun shakedexOverviewSummary(): String = buildList {
         val active = singleActiveShakedexExecution()
-        if (active != null) {
-            add(getString(R.string.wallet_ux_swap_active_heading))
-            if (swapBitcoinConfirmationPending(active)) {
-                shakedexBitcoinScanStatus(pendingConfirmation = true)?.let { add(it) }
-            }
-            return@buildList
+        val status = latestShakescapeExecutionStatus
+        val liveCount = status?.executions?.count {
+            it.state !in setOf("completed", "refunded", "failed")
+        } ?: 0
+        add(when {
+            active != null -> getString(R.string.wallet_ux_swap_active_heading)
+            liveCount > 1 -> getString(R.string.wallet_ux_swap_multiple_active, liveCount)
+            status?.pendingOfferCandidates?.isNotEmpty() == true ->
+                candidateCountSummary(status.pendingOfferCandidates.size)
+            status?.pendingOfferResponses?.isNotEmpty() == true ||
+                status?.pendingAcceptances?.isNotEmpty() == true ->
+                getString(R.string.wallet_dashboard_swap_negotiating)
+            status?.executions?.any { it.state == "completed" } == true ->
+                getString(R.string.wallet_ux_swap_latest_complete)
+            directShakescapePeerEndpoint != null -> getString(R.string.wallet_dashboard_connected)
+            else -> getString(R.string.wallet_dashboard_not_connected)
+        })
+        val scan = shakedexBitcoinScanStatus(
+            pendingConfirmation = active?.let(::swapBitcoinConfirmationPending) == true,
+        )
+        if (scan != null && active == null) add(scan) else if (active == null) {
+            val height = bitcoinSnapshot?.synchronizedHeight ?: 0L
+            add(when {
+                bitcoinStage() == BitcoinOverviewStage.RecoveryStart ->
+                    getString(R.string.wallet_ux_setup_required)
+                height > 0L -> getString(R.string.wallet_ux_swap_bitcoin_checked, height)
+                else -> getString(R.string.wallet_ux_swap_readiness_btc_missing)
+            })
         }
-        add(shakedexSummary())
-        add(shakedexReadinessSummary())
-        if (!hasLiveAtomicSwap()) add(getString(if (directShakescapePeerEndpoint == null)
-            R.string.wallet_ux_connect_help else R.string.wallet_ux_connected_help))
-        if (latestReadSnapshot == null) add(getString(R.string.wallet_dashboard_sync_required))
-        if (busy) add(getString(R.string.wallet_ux_busy))
-        val feedback = swapActionStatusView.text.toString()
-        val pendingBitcoinConfirmation = latestShakescapeExecutionStatus?.executions
-            ?.any(::swapBitcoinConfirmationPending) == true
-        if (feedback.isNotBlank() && feedback != getString(R.string.wallet_swap_status_none) &&
-            !(pendingBitcoinConfirmation &&
-                feedback == getString(R.string.wallet_ux_swap_settlement_not_ready))) add(feedback)
-    }.joinToString("\n\n")
+        if (active == null) {
+            add(when {
+                latestReadSnapshot == null -> getString(R.string.wallet_ux_swap_readiness_hns_missing)
+                status?.pendingOfferCandidates?.isNotEmpty() == true ->
+                    getString(R.string.wallet_ux_swap_review_buyer)
+                liveCount > 1 -> getString(R.string.wallet_ux_swap_open_swaps)
+                hasLiveAtomicSwap() -> getString(R.string.wallet_ux_swap_no_action_needed)
+                directShakescapePeerEndpoint == null -> getString(R.string.wallet_ux_swap_connect_peer)
+                else -> getString(R.string.wallet_ux_swap_browse_hint)
+            })
+        }
+    }.joinToString("\n")
+
+    private fun candidateCountSummary(count: Int): String = if (count == 1) {
+        getString(R.string.wallet_ux_swap_one_candidate)
+    } else getString(R.string.wallet_ux_swap_candidate_count, count)
 
     private fun shakedexReadinessSummary(): String = buildList {
         val hns = latestReadSnapshot
@@ -2789,6 +2821,15 @@ class WalletActivity : ComponentActivity() {
                         activeSwapCardLabel(active), action = { showShakescapeExecution(active) },
                         primary = true,
                     ))
+                    val soleCandidate = latestShakescapeExecutionStatus
+                        ?.pendingOfferCandidates?.singleOrNull()
+                    if (active == null && soleCandidate != null) add(WalletModalAction(
+                        getString(R.string.wallet_ux_swap_review_buyer),
+                        enabled = walletHandle != INVALID_HANDLE && !busy &&
+                            lastKnownWalletStatus?.shakedexEnabled == true,
+                        action = { confirmChooseDirectOfferCandidate(walletHandle, soleCandidate) },
+                        primary = true,
+                    ))
                     if (bitcoinStage() == BitcoinOverviewStage.RecoveryStart) {
                         add(WalletModalAction(getString(R.string.wallet_ux_swap_setup_bitcoin),
                             overviewActionsAvailable(), ::showBitcoinDashboard))
@@ -2814,7 +2855,7 @@ class WalletActivity : ComponentActivity() {
                     // The durable execution journal is useful before a fresh
                     // chain sync completes; funding actions still check their
                     // exact native prerequisites when opened.
-                    if (active == null) add(WalletModalAction(getString(R.string.wallet_swap_executions),
+                    if (active == null && soleCandidate == null) add(WalletModalAction(getString(R.string.wallet_swap_executions),
                         walletHandle != INVALID_HANDLE && !busy &&
                             lastKnownWalletStatus?.shakedexEnabled == true,
                         { showShakescapeExecutions() }, primary = hasLiveAtomicSwap()))
@@ -2834,7 +2875,7 @@ class WalletActivity : ComponentActivity() {
                             getString(R.string.wallet_ux_swap_all_history),
                             action = ::showShakescapeExecutions,
                         ))
-                        add(WalletModalAction(getString(R.string.wallet_ux_connection),
+                        add(WalletModalAction(getString(R.string.wallet_ux_swap_technical_details),
                             action = ::showShakedexConnectionDetails))
                     }),
                 )
@@ -2900,8 +2941,12 @@ class WalletActivity : ComponentActivity() {
                 ::disconnectWalletOwnedDirectShakescape))
         }
         walletDetailDialog(
-            title = getString(R.string.wallet_ux_connection),
+            title = getString(R.string.wallet_ux_swap_technical_details),
             rows = listOf(
+                getString(R.string.wallet_ux_swap_wallet_checkpoints) to shakedexReadinessSummary(),
+                getString(R.string.wallet_ux_swap_saved_broadcasts) to bitcoinBroadcastRecoveryText(
+                    latestShakescapeExecutionStatus?.bitcoinBroadcastRecovery),
+                getString(R.string.wallet_ux_swap_action_feedback) to swapActionStatusView.text.toString(),
                 getString(R.string.wallet_ux_overview) to getString(R.string.wallet_shakedex_connection_help),
                 getString(R.string.row_wallet_direct_shakescape_host) to directShakescapeStatusView.text.toString(),
                 getString(R.string.row_wallet_swap_progress) to shakedexExecutionStatusView.text.toString(),
@@ -5052,7 +5097,7 @@ class WalletActivity : ComponentActivity() {
             .maxByOrNull { it.lastVerifiedAtUnix }
         activeShakescapeDashboardSummary = when {
             visibleOpenCount > 0 -> getString(R.string.wallet_swap_overview_open, visibleOpenCount)
-            candidateCount > 0 -> getString(R.string.wallet_ux_swap_candidate_count, candidateCount)
+            candidateCount > 0 -> candidateCountSummary(candidateCount)
             latestCompleted != null -> getString(
                     R.string.wallet_dashboard_swap_latest_completed,
                     formatSwapAmount(latestCompleted.offeredAsset, latestCompleted.offeredAmount),
@@ -5065,7 +5110,7 @@ class WalletActivity : ComponentActivity() {
         }
         shakedexExecutionStatusView.text = when {
             visibleOpenCount > 0 -> getString(R.string.wallet_swap_overview_open, visibleOpenCount)
-            candidateCount > 0 -> getString(R.string.wallet_ux_swap_candidate_count, candidateCount)
+            candidateCount > 0 -> candidateCountSummary(candidateCount)
             offerResponse != null -> getString(
                 R.string.wallet_swap_notification_offer_accepted_detail,
                 offerResponse.sessionId.take(12),
@@ -5276,7 +5321,7 @@ class WalletActivity : ComponentActivity() {
                 )
                 execution.localRole == "maker" ->
                     getString(R.string.wallet_swap_stage_funding_ready_here, first)
-                else -> getString(R.string.wallet_swap_stage_waiting_counterparty_funding, first)
+                else -> getString(R.string.wallet_ux_swap_waiting_verify_lock, first)
             }
             "first_funded" -> when {
                 now >= execution.fundingDeadlineUnix -> fundingClosedStage(
@@ -5291,7 +5336,7 @@ class WalletActivity : ComponentActivity() {
                     getString(R.string.wallet_swap_stage_funding_reorged, second)
                 execution.localRole == "taker" ->
                     getString(R.string.wallet_swap_stage_funding_ready_here, second)
-                else -> getString(R.string.wallet_swap_stage_waiting_counterparty_funding, second)
+                else -> getString(R.string.wallet_ux_swap_waiting_verify_lock, second)
             }
             "second_funding_pending" -> if (
                 execution.localRole == "taker" && now >= execution.fundingDeadlineUnix
@@ -5308,7 +5353,7 @@ class WalletActivity : ComponentActivity() {
                     getString(R.string.wallet_swap_stage_funding_ready_here, second)
                 }
             } else {
-                getString(R.string.wallet_swap_stage_waiting_counterparty_funding, second)
+                getString(R.string.wallet_ux_swap_waiting_verify_lock, second)
             }
             "both_funded" -> if (execution.localRole == "maker") {
                 localRedemptionStage(execution, second)
@@ -6286,8 +6331,7 @@ class WalletActivity : ComponentActivity() {
                     status.executions.isEmpty() && status.pendingAcceptances.isEmpty() &&
                         status.pendingOfferResponses.isEmpty() && status.pendingOfferCandidates.isEmpty()
                 ) {
-                    val message = getString(R.string.wallet_swap_no_executions_waiting) +
-                        "\n\n" + bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery)
+                    val message = getString(R.string.wallet_swap_no_executions_waiting)
                     swapActionStatusView.text = message
                     walletAlertDialogBuilder()
                         .setTitle(R.string.wallet_swap_executions)
@@ -6295,7 +6339,7 @@ class WalletActivity : ComponentActivity() {
                         .setPositiveButton(android.R.string.ok, null)
                         .show()
                 } else {
-                    swapActionStatusView.text = bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery)
+                    swapActionStatusView.text = getString(R.string.wallet_swap_status_none)
                     showShakescapeExecutionPageLater(handle, status, 0, false)
                 }
             }
@@ -6346,8 +6390,6 @@ class WalletActivity : ComponentActivity() {
             ))
             if (showDismissed) add(getString(R.string.wallet_swap_executions_hidden_title) to
                 getString(R.string.wallet_swap_executions_hidden_explanation))
-            status.bitcoinBroadcastRecovery?.takeIf { it.totalApproved > 0L && !showDismissed }
-                ?.let { add(getString(R.string.wallet_swap_executions) to bitcoinBroadcastRecoveryText(it)) }
             if (!showDismissed && page.index == 0) status.pendingOfferResponses.forEach {
                 add(getString(R.string.wallet_swap_notification_offer_accepted) to getString(
                     R.string.wallet_swap_notification_offer_accepted_detail,
@@ -6356,15 +6398,15 @@ class WalletActivity : ComponentActivity() {
             }
             if (!showDismissed && page.index == 0 && status.pendingOfferCandidates.isNotEmpty()) {
                 add(getString(R.string.wallet_ux_swap_candidate_title) to
-                    getString(R.string.wallet_ux_swap_candidate_count,
-                        status.pendingOfferCandidates.size))
+                    candidateCountSummary(status.pendingOfferCandidates.size))
             }
         }
         val executionActions = buildList {
             if (!showDismissed && page.index == 0) status.pendingOfferCandidates.forEach { candidate ->
                 add(WalletModalAction(
                     getString(R.string.wallet_ux_swap_candidate_action,
-                        candidate.responderIdentity.take(12), candidate.offerId.take(12)),
+                        candidate.responderIdentity.take(12),
+                        formatSwapAmount(candidate.receivedAsset, candidate.receivedAmount)),
                     action = { confirmChooseDirectOfferCandidate(handle, candidate) },
                     primary = true,
                 ))
@@ -6467,18 +6509,21 @@ class WalletActivity : ComponentActivity() {
                 candidate.responderIdentity.take(12),
                 formatSwapAmount(candidate.receivedAsset, candidate.receivedAmount),
                 formatSwapAmount(candidate.offeredAsset, candidate.offeredAmount),
-                candidate.offerId.take(12),
             ))
             .setNegativeButton(android.R.string.cancel, null)
             .setPositiveButton(R.string.wallet_ux_swap_candidate_choose) { _, _ ->
                 thread(name = "denuo-choose-swap-responder") {
                     val selected = NativeWalletBridge.chooseDirectOfferCandidate(handle, candidate)
                     if (selected) NativeWalletBridge.reconcileShakescapeExecutions(handle)
+                    val updated = if (selected) NativeWalletBridge.shakescapeExecutions(handle) else null
                     runOnUiThread {
                         if (walletHandle != handle || !foreground ||
                             !walletHnsJourney.isConfirmedUnlocked()
                         ) return@runOnUiThread
-                        if (selected) showShakescapeExecutions() else {
+                        if (selected) {
+                            updated?.let(::refreshShakescapeExecutionStatus)
+                            showShakedexDashboard()
+                        } else {
                             walletAlertDialogBuilder()
                                 .setTitle(R.string.wallet_ux_swap_candidate_title)
                                 .setMessage(R.string.wallet_ux_swap_candidate_failed)
@@ -6714,22 +6759,40 @@ class WalletActivity : ComponentActivity() {
                 }.orEmpty()
             "\n\n" + getString(R.string.wallet_ux_swap_redemption_transaction, it.transactionId) + scan
         }.orEmpty()
-        val builder = walletAlertDialogBuilder()
-            .setTitle(R.string.wallet_swap_execution_title)
-            .setMessage(
-                "${swapExecutionProgress(execution).first}\n" +
-                    "${formatSwapAmount(execution.offeredAsset, execution.offeredAmount)} → " +
-                    "${formatSwapAmount(execution.receivedAsset, execution.receivedAmount)}\n" +
-                    "${swapExecutionStage(execution)}\n\n" +
-                    "${swapExecutionProgress(execution).second}\n\n$message" +
-                    "${if (redemption.isEmpty()) bitcoinScan else redemption}$reservation"
-            )
-            .setNegativeButton(R.string.action_cancel, null)
-        if (execution.localRedemption == null || redemptionChain == "bitcoin") {
-            builder.setNeutralButton(R.string.wallet_bitcoin_recent_activity) { _, _ ->
-                showBitcoinActivityDetails()
-            }
+        val technicalDetails = "${swapExecutionProgress(execution).second}\n\n$message" +
+            "${if (redemption.isEmpty()) bitcoinScan else redemption}$reservation"
+        val now = System.currentTimeMillis() / 1_000L
+        val scanPaused = bitcoinLastSyncStopped ||
+            SystemClock.elapsedRealtime() < automaticSwapBitcoinSyncPausedUntilElapsedMillis
+        val attention = when {
+            swapBitcoinConfirmationPending(execution) && swapScanNeedsAttention(
+                walletBitcoinSyncInProgress, bitcoinLastSyncFailed, scanPaused,
+            ) -> R.string.wallet_ux_swap_resume_scan_hint
+            swapExecutionNeedsAttention(execution, now) -> R.string.wallet_ux_swap_action_needed
+            execution.state in setOf("completed", "refunded") -> R.string.wallet_ux_swap_complete
+            else -> R.string.wallet_ux_swap_no_action_needed
         }
+        val stage = if (swapBitcoinConfirmationPending(execution)) {
+            shakedexBitcoinScanStatus(pendingConfirmation = true) ?: swapExecutionStage(execution)
+        } else swapExecutionStage(execution)
+        val builder = walletAlertDialogBuilder()
+            .setTitle(getString(R.string.wallet_ux_swap_trade_title,
+                formatSwapAmount(execution.offeredAsset, execution.offeredAmount),
+                formatSwapAmount(execution.receivedAsset, execution.receivedAmount)))
+            .setMessage("${swapExecutionProgress(execution).first}\n$stage\n${getString(attention)}")
+            .setNegativeButton(R.string.action_cancel, null)
+            .setNeutralButton(R.string.wallet_ux_swap_technical_details) { _, _ ->
+                val details = walletAlertDialogBuilder()
+                    .setTitle(R.string.wallet_ux_swap_technical_details)
+                    .setMessage(technicalDetails)
+                    .setPositiveButton(R.string.wallet_modal_done, null)
+                if (execution.localRedemption == null || redemptionChain == "bitcoin") {
+                    details.setNeutralButton(R.string.wallet_bitcoin_recent_activity) { _, _ ->
+                        showBitcoinActivityDetails()
+                    }
+                }
+                details.show()
+            }
         // Offer acceptance binds amounts, participants, and timeouts, but it
         // cannot safely approve a fee-selected transaction which does not yet
         // exist. Keep the exact funding preview/approval and make its durable
@@ -6744,7 +6807,7 @@ class WalletActivity : ComponentActivity() {
             if (execution.localRole == "maker") execution.firstChain else execution.secondChain
         } else null
         if (fundingChain == "bitcoin") {
-            builder.setPositiveButton(R.string.wallet_swap_fund_bitcoin) { _, _ ->
+            builder.setPositiveButton(R.string.wallet_ux_swap_review_fund_bitcoin) { _, _ ->
                 prepareBtcForHnsFunding(
                     execution, DEFAULT_BITCOIN_SWAP_FEE_RESERVE_SATS,
                 )
@@ -7023,7 +7086,7 @@ class WalletActivity : ComponentActivity() {
         lease: WalletStorageOwnershipGate.Lease,
         epoch: Long,
     ) {
-        val reviewStatus = getString(R.string.wallet_swap_funding_approval_title)
+        val reviewStatus = getString(R.string.wallet_ux_swap_funding_approval_title)
         statusView.text = reviewStatus
         swapActionStatusView.text = reviewStatus
         var settled = false
@@ -7054,16 +7117,15 @@ class WalletActivity : ComponentActivity() {
             }
         }
         walletAlertDialogBuilder()
-            .setTitle(R.string.wallet_swap_funding_approval_title)
+            .setTitle(R.string.wallet_ux_swap_funding_approval_title)
             .setMessage(getString(
-                R.string.wallet_swap_funding_approval_message,
+                R.string.wallet_ux_swap_funding_approval_message,
                 approval.amountSats, approval.feeSats, approval.maximumFeeSats,
-                approval.txid, approval.sessionId,
             ) + "\n\n" + getString(R.string.wallet_ux_swap_automatic_minimum_receive,
                 automaticSwapMinimumReceive(execution)) + "\n\n" +
                 getString(R.string.wallet_ux_swap_automatic_settlement_consent))
             .setNegativeButton(R.string.action_reject) { _, _ -> reject() }
-            .setPositiveButton(R.string.wallet_swap_broadcast_funding) { _, _ ->
+            .setPositiveButton(R.string.wallet_ux_swap_broadcast_bitcoin_lock) { _, _ ->
                 if (settled) return@setPositiveButton
                 settled = true
                 thread(name = "denuo-bitcoin-funding-broadcast") {

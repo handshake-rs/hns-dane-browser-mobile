@@ -72613,6 +72613,17 @@
         }
       }
     },
+    "wallet_ux_swap_action_feedback": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recent action result"
+          }
+        }
+      }
+    },
     "wallet_ux_swap_action_needed": {
       "extractionState": "manual",
       "localizations": {
@@ -72674,7 +72685,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This approval also lets this wallet redeem this exact swap automatically. The redemption fee cap is 1,000 sats or 0.1 HNS, depending on what you receive. If the swap expires, the wallet may refund its own lock within the fee reserve shown above. No further approval is needed while this wallet is available."
+            "value": "This approval lets the wallet claim this swap automatically, with a fee cap of 1,000 sats or 0.1 HNS. If it expires, the wallet can refund your lock within the reserved fee. No further approval is needed while the wallet is available."
           }
         }
       }
@@ -72690,13 +72701,46 @@
         }
       }
     },
+    "wallet_ux_swap_bitcoin_checked": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitcoin ready · last checked block %1$d"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_broadcast_bitcoin_lock": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Broadcast Bitcoin lock"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_browse_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Browse offers or create one"
+          }
+        }
+      }
+    },
     "wallet_ux_swap_candidate_action": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Review %1$@… · offer %2$@…"
+            "value": "Review buyer %1$@… · offers %2$@"
           }
         }
       }
@@ -72707,7 +72751,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Choose and countersign"
+            "value": "Confirm this buyer"
           }
         }
       }
@@ -72718,7 +72762,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$d signed responses are waiting for your choice."
+            "value": "%1$d buyer responses to review."
           }
         }
       }
@@ -72740,7 +72784,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Responder %1$@… offers %2$@ for your %3$@ on offer %4$@…. Choosing signs the swap terms and keeps your offered amount reserved through the funding window. No transaction is broadcast by this choice. Other responses to this offer will not start a swap."
+            "value": "Buyer %1$@… offers %2$@ for your %3$@. Confirming signs the swap agreement and reserves your funds for its funding window. No transaction is broadcast yet."
           }
         }
       }
@@ -72751,7 +72795,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Review signed responses for offer %1$@…"
+            "value": "A buyer responded. Open ShakeDex to review and confirm."
           }
         }
       }
@@ -72762,7 +72806,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Choose a swap responder"
+            "value": "Review buyer response"
           }
         }
       }
@@ -72774,6 +72818,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Claim before %1$@"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_complete": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This swap is complete"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_connect_peer": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect a peer to trade"
           }
         }
       }
@@ -72833,6 +72899,28 @@
         }
       }
     },
+    "wallet_ux_swap_funding_approval_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lock %1$d sats. Network fee: %2$d sats (maximum %3$d).\n\nBroadcasting starts the Bitcoin lock. We’ll scan for confirmation before the swap continues."
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_funding_approval_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review Bitcoin lock"
+          }
+        }
+      }
+    },
     "wallet_ux_swap_hns_first_funding_prepare_failed": {
       "extractionState": "manual",
       "localizations": {
@@ -72855,6 +72943,28 @@
         }
       }
     },
+    "wallet_ux_swap_latest_complete": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Latest swap complete"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_multiple_active": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d swaps in progress"
+          }
+        }
+      }
+    },
     "wallet_ux_swap_no_action_needed": {
       "extractionState": "manual",
       "localizations": {
@@ -72866,6 +72976,17 @@
         }
       }
     },
+    "wallet_ux_swap_one_candidate": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A buyer response is ready to review."
+          }
+        }
+      }
+    },
     "wallet_ux_swap_open_record": {
       "extractionState": "manual",
       "localizations": {
@@ -72873,6 +72994,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "View full swap record"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_open_swaps": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open swaps to review next steps"
           }
         }
       }
@@ -73053,6 +73185,50 @@
         }
       }
     },
+    "wallet_ux_swap_resume_scan_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan needs attention · use Resume scan in ShakeDex"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_review_buyer": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review the buyer response"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_review_fund_bitcoin": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review and fund Bitcoin"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_saved_broadcasts": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved Bitcoin broadcasts"
+          }
+        }
+      }
+    },
     "wallet_ux_swap_scan_confirmation": {
       "extractionState": "manual",
       "localizations": {
@@ -73214,6 +73390,50 @@
           "stringUnit": {
             "state": "translated",
             "value": "Counterparty claim confirmed · verifying the swap secret"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_technical_details": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Technical details"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_trade_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ → %2$@"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_waiting_verify_lock": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting to verify their %1$@ lock"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_wallet_checkpoints": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wallet checkpoints"
           }
         }
       }

@@ -115,10 +115,7 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
                 sessionId = candidate.sessionId,
                 fingerprint = "candidate_available",
                 title = applicationContext.getString(R.string.wallet_ux_swap_candidate_title),
-                text = applicationContext.getString(
-                    R.string.wallet_ux_swap_candidate_notification,
-                    candidate.offerId.take(12),
-                ),
+                text = applicationContext.getString(R.string.wallet_ux_swap_candidate_notification),
                 historicalTerminal = false,
             )
         }
