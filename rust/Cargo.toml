@@ -16,7 +16,7 @@ publish = false
 
 [workspace.dependencies]
 crab_nat = "0.8.1"
-getifs = "0.6.0"
+getifs = "0.7.0"
 hns-header-consensus = "=0.5.1"
 hns-light-sync = "=0.2.7"
 hns-cache = "=0.2.2"
