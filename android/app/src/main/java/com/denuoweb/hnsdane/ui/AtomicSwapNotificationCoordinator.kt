@@ -32,6 +32,14 @@ internal fun swapFundingActionRequired(
     }
 }
 
+/** A verified swap phase offers a redeem only until its approved claim is durable. */
+internal fun swapRedemptionActionRequired(
+    execution: com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionSummary,
+): Boolean = execution.localRedemption == null && (
+    (execution.state == "both_funded" && execution.localRole == "maker") ||
+        (execution.state == "secret_observed" && execution.localRole == "taker")
+    )
+
 /**
  * Publishes one durable, deduplicated notification for each meaningful atomic-swap stage.
  *
@@ -161,7 +169,8 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
                     stage,
                     execution.sessionId.take(12),
                 ),
-                historicalTerminal = execution.state in TERMINAL_STATES,
+                historicalTerminal = execution.state in TERMINAL_STATES &&
+                    execution.localRedemption == null,
                 actionRequired = actionRequired,
                 initialTitle = if (firstObservationIsOfferAcceptance) {
                     applicationContext.getString(R.string.wallet_swap_notification_offer_accepted)
@@ -488,6 +497,8 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
                 "second_funding_action"
             swapFundingActionRequired(execution, now) && execution.localRole == "maker" ->
                 "first_funding_action"
+            execution.localRedemption != null ->
+                "redemption_${execution.localRedemption.state}"
             else -> execution.state
         }
     }
@@ -502,7 +513,7 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
         execution.state == "refunded" -> applicationContext.getString(
             R.string.wallet_swap_notification_refunded,
         )
-        execution.state == "failed" -> applicationContext.getString(
+        execution.state == "failed" && execution.localRedemption == null -> applicationContext.getString(
             R.string.wallet_swap_notification_failed,
         )
         notificationRequiresAction(execution, milestone) ->
@@ -518,9 +529,7 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
             "funding_one_hour",
             "first_funding_action",
             "second_funding_action",
-        ) || (execution.state == "both_funded" && execution.localRole == "maker") ||
-        (execution.state in setOf("first_redeemed", "secret_observed") &&
-            execution.localRole == "taker")
+        ) || swapRedemptionActionRequired(execution)
 
     private fun canPostNotifications(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||

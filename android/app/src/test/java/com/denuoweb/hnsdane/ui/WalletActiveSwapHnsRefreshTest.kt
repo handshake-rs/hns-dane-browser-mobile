@@ -3,6 +3,7 @@ package com.denuoweb.hnsdane.ui
 import com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionStatus
 import com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionSummary
 import com.denuoweb.hnsdane.wallet.NativeBitcoinBroadcastRecovery
+import com.denuoweb.hnsdane.wallet.NativeLocalRedemptionSummary
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
@@ -107,10 +108,25 @@ class WalletActiveSwapHnsRefreshTest {
 
         assertEquals(true, walletSwapBitcoinScanShouldYieldToSettlement(status(execution)))
         assertEquals(false, walletSwapBitcoinScanShouldYieldToSettlement(status(
+            execution.copy(localRedemption = NativeLocalRedemptionSummary(
+                "submitted", "a".repeat(64),
+            )),
+        )))
+        assertEquals(true, walletSwapBitcoinScanShouldYieldToSettlement(status(
+            execution.copy(secondChain = "handshake", firstChain = "bitcoin",
+                localRedemption = NativeLocalRedemptionSummary(
+                    "submitted", "b".repeat(64),
+                )),
+        )))
+        assertEquals(false, walletSwapBitcoinScanShouldYieldToSettlement(status(
             execution.copy(localRole = "taker"),
         )))
         assertEquals(true, walletSwapBitcoinScanShouldYieldToSettlement(status(
             execution.copy(state = "secret_observed", localRole = "taker",
+                firstRedemptionConfirmed = true),
+        )))
+        assertEquals(true, walletSwapBitcoinScanShouldYieldToSettlement(status(
+            execution.copy(state = "first_redeemed", localRole = "taker",
                 firstRedemptionConfirmed = true),
         )))
         assertEquals(false, walletSwapBitcoinScanShouldYieldToSettlement(status(

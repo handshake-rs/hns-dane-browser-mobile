@@ -1,12 +1,38 @@
 package com.denuoweb.hnsdane.ui
 
 import com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionSummary
+import com.denuoweb.hnsdane.wallet.NativeLocalRedemptionSummary
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SwapExecutionListTest {
+    @Test
+    fun submittedClaimDoesNotOfferRedeemAgainWhileSwapPhaseWaitsForScan() {
+        // Moto's recorded BTC claim was submitted while the verified swap
+        // phase still said secret_observed and offered "Redeem received BTC".
+        val taker = execution("moto", state = "secret_observed")
+            .copy(localRole = "taker", firstChain = "bitcoin", secondChain = "handshake")
+        assertTrue(swapRedemptionActionRequired(taker))
+        assertFalse(swapRedemptionActionRequired(taker.copy(state = "first_redeemed")))
+        for (state in listOf("queued", "submitted", "seen", "confirmed", "needs_recovery")) {
+            assertFalse(swapRedemptionActionRequired(taker.copy(
+                localRedemption = NativeLocalRedemptionSummary(state, "a".repeat(64)),
+            )))
+            assertFalse(swapRedemptionActionRequired(taker.copy(
+                state = "first_redeemed",
+                localRedemption = NativeLocalRedemptionSummary(state, "a".repeat(64)),
+            )))
+        }
+
+        val maker = execution("pixel", state = "both_funded")
+        assertTrue(swapRedemptionActionRequired(maker))
+        assertFalse(swapRedemptionActionRequired(maker.copy(
+            localRedemption = NativeLocalRedemptionSummary("queued", "b".repeat(64)),
+        )))
+    }
+
     @Test
     fun dismissingAnUnfundedSessionNeverHidesLaterFundingOrRecovery() {
         val unfunded = execution("a", state = "first_funding_pending")
