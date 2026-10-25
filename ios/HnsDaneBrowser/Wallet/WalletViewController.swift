@@ -175,7 +175,8 @@ enum WalletSwapExecutionList {
         hiddenIDs: Set<String>, now: UInt64
     ) -> NativeShakescapeExecutionSummary? {
         let active = visible(executions, hiddenIDs: hiddenIDs, now: now).filter {
-            !["completed", "refunded", "failed"].contains($0.state)
+            !["completed", "refunded", "failed"].contains($0.state) ||
+                ($0.state == "failed" && !canHide($0, now: now))
         }
         return active.count == 1 ? active[0] : nil
     }
@@ -3526,6 +3527,8 @@ final class WalletViewController: UIViewController {
             attentionKey = "wallet_ux_swap_resume_scan_hint"
         } else if swapExecutionNeedsAttention(execution, now: now) {
             attentionKey = "wallet_ux_swap_action_needed"
+        } else if execution.state == "failed" {
+            attentionKey = "wallet_ux_swap_action_needed"
         } else if ["completed", "refunded"].contains(execution.state) {
             attentionKey = "wallet_ux_swap_complete"
         } else {
@@ -4923,7 +4926,8 @@ final class WalletViewController: UIViewController {
         let scanNeedsAttention = pendingConfirmation && swapScanNeedsAttention(
             syncing: bitcoinSyncInProgress, failed: bitcoinLastSyncFailed, paused: scanPaused
         )
-        lines.append(WalletCopy.text(swapExecutionNeedsAttention(execution, now: now) || scanNeedsAttention
+        lines.append(WalletCopy.text(swapExecutionNeedsAttention(execution, now: now) || scanNeedsAttention ||
+            execution.state == "failed"
             ? "wallet_ux_swap_action_needed" : "wallet_ux_swap_no_action_needed"))
         lines.append(shakescapeExecutionProgress(execution).summary)
         if swapRedemptionActionRequired(execution) {

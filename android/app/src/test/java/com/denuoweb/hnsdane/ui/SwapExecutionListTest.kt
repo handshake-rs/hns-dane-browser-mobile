@@ -21,6 +21,11 @@ class SwapExecutionListTest {
             execution("other", state = "first_funded")), emptySet()))
         // A funded session remains visible even if the user hid its old row.
         assertEquals(live, singleActiveSwapExecution(listOf(live), setOf(live.sessionId)))
+        val fundedFailure = execution("recovery", state = "failed",
+            firstFundingConfirmed = true)
+        assertEquals(fundedFailure, singleActiveSwapExecution(listOf(fundedFailure), emptySet()))
+        assertNull(singleActiveSwapExecution(listOf(
+            execution("unfunded-failure", state = "failed")), emptySet()))
     }
 
     @Test

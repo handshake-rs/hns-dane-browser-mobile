@@ -2689,7 +2689,8 @@ class WalletActivity : ComponentActivity() {
         val scanNeedsAttention = pendingConfirmation && swapScanNeedsAttention(
             walletBitcoinSyncInProgress, bitcoinLastSyncFailed, scanPaused,
         )
-        add(getString(if (swapExecutionNeedsAttention(execution, now) || scanNeedsAttention)
+        add(getString(if (swapExecutionNeedsAttention(execution, now) || scanNeedsAttention ||
+                execution.state == "failed")
             R.string.wallet_ux_swap_action_needed else R.string.wallet_ux_swap_no_action_needed))
         add(swapExecutionProgress(execution).first)
         if (swapRedemptionActionRequired(execution)) {
@@ -6785,7 +6786,8 @@ class WalletActivity : ComponentActivity() {
             swapBitcoinConfirmationPending(execution) && swapScanNeedsAttention(
                 walletBitcoinSyncInProgress, bitcoinLastSyncFailed, scanPaused,
             ) -> R.string.wallet_ux_swap_resume_scan_hint
-            swapExecutionNeedsAttention(execution, now) -> R.string.wallet_ux_swap_action_needed
+            swapExecutionNeedsAttention(execution, now) || execution.state == "failed" ->
+                R.string.wallet_ux_swap_action_needed
             execution.state in setOf("completed", "refunded") -> R.string.wallet_ux_swap_complete
             else -> R.string.wallet_ux_swap_no_action_needed
         }
