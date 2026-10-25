@@ -4518,14 +4518,14 @@ final class BrowserRuntimeControlTests: XCTestCase {
             [funded, second], hiddenIDs: [], now: 2_000
         ))
         let fundedFailure = try swapExecutionFixture(
-            id: "r", state: "failed", deadline: 500, verifiedAt: 400,
+            id: "d", state: "failed", deadline: 500, verifiedAt: 400,
             fundingState: "confirmed"
         )
         XCTAssertEqual(WalletSwapExecutionList.singleActive(
             [fundedFailure], hiddenIDs: [], now: 2_000
         )?.sessionId, fundedFailure.sessionId)
         let unfundedFailure = try swapExecutionFixture(
-            id: "u", state: "failed", deadline: 500, verifiedAt: 400
+            id: "e", state: "failed", deadline: 500, verifiedAt: 400
         )
         XCTAssertNil(WalletSwapExecutionList.singleActive(
             [unfundedFailure], hiddenIDs: [], now: 2_000
