@@ -103,6 +103,22 @@ func swapRedemptionActionRequired(
     )
 }
 
+func swapBitcoinConfirmationPending(_ execution: NativeShakescapeExecutionSummary) -> Bool {
+    if ["completed", "refunded"].contains(execution.state) { return false }
+    let fundingChain = execution.localRole == "maker"
+        ? execution.firstChain : execution.secondChain
+    let claimChain = execution.localRole == "maker"
+        ? execution.secondChain : execution.firstChain
+    return (fundingChain == "bitcoin" &&
+        ["broadcast", "seen"].contains(execution.localFundingState ?? "")) ||
+        (claimChain == "bitcoin" &&
+            ["queued", "submitted", "seen"].contains(execution.localRedemption?.state ?? ""))
+}
+
+func swapScanNeedsAttention(syncing: Bool, failed: Bool, paused: Bool) -> Bool {
+    !syncing && (failed || paused)
+}
+
 /// Presentation-only execution controls. Hidden sessions stay in the native
 /// journal and return to the visible list if funding or recovery appears.
 enum WalletSwapExecutionList {
@@ -833,6 +849,7 @@ final class WalletViewController: UIViewController {
     private var lastAutomaticSwapBitcoinSyncAtUptime: TimeInterval?
     private var lastAutomaticSwapBitcoinSyncFingerprint: String?
     private var automaticSwapBitcoinSyncPausedUntilUptime: TimeInterval?
+    private var shakedexReadinessScanRequested = false
     private var automaticSwapSettlementAttempts: [String: TimeInterval] = [:]
     private let atomicSwapNotifications = AtomicSwapNotificationCoordinator()
     private var recentDirectShakescapePeers: [String] = []
@@ -845,6 +862,7 @@ final class WalletViewController: UIViewController {
     private var bitcoinProgressSummary: String?
     private var bitcoinCompletedSyncMessage: String?
     private var bitcoinLastSyncFailed = false
+    private var bitcoinLastSyncStopped = false
     private var bitcoinSnapshot: NativeBitcoinWalletSnapshot?
     private var bitcoinValueAvailable = false
     private var bitcoinReceiveAddressAvailable = false
@@ -1915,6 +1933,7 @@ final class WalletViewController: UIViewController {
         bitcoinSyncInProgress = true
         bitcoinProgressSummary = nil
         bitcoinLastSyncFailed = false
+        bitcoinLastSyncStopped = false
         bitcoinSyncStopRequested = false
         bitcoinStatusLabel.text = WalletCopy.text("wallet_bitcoin_syncing")
         startBitcoinProgressWatcher(wallet: wallet)
@@ -1930,6 +1949,7 @@ final class WalletViewController: UIViewController {
                 self.bitcoinSyncStopRequested = false
                 switch outcome {
                 case .success(let synchronization):
+                    self.automaticSwapBitcoinSyncPausedUntilUptime = nil
                     self.lastAutomaticSwapBitcoinSyncAtUptime = ProcessInfo.processInfo.systemUptime
                     self.renderBitcoinSnapshot(synchronization.snapshot)
                     let elapsed = String(format: "%.2fs", Double(synchronization.totalMs) / 1_000)
@@ -1942,6 +1962,7 @@ final class WalletViewController: UIViewController {
                     )
                     self.bitcoinCompletedSyncMessage = self.bitcoinStatusLabel.text
                 case .failure where stopped:
+                    self.bitcoinLastSyncStopped = true
                     self.bitcoinStatusLabel.text = WalletCopy.text(
                         "wallet_bitcoin_sync_stopped"
                     )
@@ -3103,12 +3124,15 @@ final class WalletViewController: UIViewController {
             let stage = swapExecutionHasUnverifiedMakerFunding(execution, now: now)
                 ? WalletCopy.format("wallet_swap_stage_funding_recovery_pending",
                                     swapChainLabel(execution.firstChain))
-                : shakescapeExecutionStage(execution, includeBitcoinSync: false)
+                : shakescapeExecutionStage(execution)
+            let scanStage = swapBitcoinConfirmationPending(execution)
+                ? shakedexBitcoinScanStatus(pendingConfirmation: true).map { "\n" + $0 } ?? ""
+                : ""
             actions.append(WalletMenuAction(
                 title: "\(shakescapeExecutionProgress(execution).summary) · " +
                     "\(swapAmount(execution.offeredAmount, asset: execution.offeredAsset)) → " +
                     "\(swapAmount(execution.receivedAmount, asset: execution.receivedAsset))\n" +
-                    "\(stage) · \(execution.sessionId.prefix(12))…",
+                    "\(stage)\(scanStage) · \(execution.sessionId.prefix(12))…",
                 section: actionSection,
                 primary: !showHidden && swapExecutionNeedsAttention(execution, now: now)
             ) { [weak self, weak wallet] in
@@ -3463,10 +3487,16 @@ final class WalletViewController: UIViewController {
                     : "wallet_ux_swap_session_hns_release"
             )
         } ?? ""
-        let bitcoinScan = bitcoinSnapshot.flatMap { $0.synchronizedHeight > 0
-            ? "\n" + WalletCopy.format("wallet_ux_last_scanned", Int($0.synchronizedHeight))
-            : nil
-        } ?? ""
+        let bitcoinScan: String
+        if swapBitcoinConfirmationPending(execution) {
+            bitcoinScan = shakedexBitcoinScanStatus(pendingConfirmation: true)
+                .map { "\n" + $0 } ?? ""
+        } else {
+            bitcoinScan = bitcoinSnapshot.flatMap { $0.synchronizedHeight > 0
+                ? "\n" + WalletCopy.format("wallet_ux_last_scanned", Int($0.synchronizedHeight))
+                : nil
+            } ?? ""
+        }
         let redemptionChain = execution.localRole == "maker"
             ? execution.secondChain : execution.firstChain
         let redemption = execution.localRedemption.map { claim in
@@ -3491,7 +3521,7 @@ final class WalletViewController: UIViewController {
             message: "\(shakescapeExecutionProgress(execution).summary)\n" +
                 "\(swapAmount(execution.offeredAmount, asset: execution.offeredAsset)) → " +
                 "\(swapAmount(execution.receivedAmount, asset: execution.receivedAsset))\n" +
-                "\(shakescapeExecutionStage(execution, includeBitcoinSync: false))\n\n" +
+                "\(shakescapeExecutionStage(execution))\n\n" +
                 "\(shakescapeExecutionProgress(execution).detail)\n\n\(message)" +
                 "\(redemption.isEmpty ? bitcoinScan : redemption)\(reservation)",
             preferredStyle: .alert
@@ -4875,10 +4905,18 @@ final class WalletViewController: UIViewController {
         }
         if includeHelp {
             lines.append(shakedexReadinessSummary())
-            lines.append(WalletCopy.text(paired ? "wallet_ux_connected_help" : "wallet_ux_connect_help"))
-            if isOperating || bitcoinSyncInProgress { lines.append(WalletCopy.text("wallet_ux_busy")) }
+            if !hasActiveSwapOverview {
+                lines.append(WalletCopy.text(paired ? "wallet_ux_connected_help" : "wallet_ux_connect_help"))
+            }
+            if isOperating { lines.append(WalletCopy.text("wallet_ux_busy")) }
             if !synchronizedReadsAvailable { lines.append(WalletCopy.text("wallet_dashboard_sync_required")) }
-            if let update = swapActionStatusLabel.text, !update.isEmpty { lines.append(update) }
+            let pendingBitcoinConfirmation = shakescapeExecutionStatusSnapshot?.executions
+                .contains(where: swapBitcoinConfirmationPending) == true
+            if let update = swapActionStatusLabel.text, !update.isEmpty,
+               !(pendingBitcoinConfirmation &&
+                    update == WalletCopy.text("wallet_ux_swap_settlement_not_ready")) {
+                lines.append(update)
+            }
         }
         return lines.joined(separator: "\n\n")
     }
@@ -4893,7 +4931,12 @@ final class WalletViewController: UIViewController {
         } else {
             lines.append(WalletCopy.text("wallet_ux_swap_readiness_hns_missing"))
         }
-        if let bitcoin = bitcoinSnapshot, bitcoin.synchronizedHeight > 0 {
+        let pendingConfirmation = shakescapeExecutionStatusSnapshot?.executions
+            .contains(where: swapBitcoinConfirmationPending) == true
+        let scanStatus = shakedexBitcoinScanStatus(pendingConfirmation: pendingConfirmation)
+        if let scanStatus {
+            lines.append(scanStatus)
+        } else if let bitcoin = bitcoinSnapshot, bitcoin.synchronizedHeight > 0 {
             lines.append(WalletCopy.format(
                 "wallet_ux_swap_readiness_btc", String(bitcoin.synchronizedHeight),
                 String(bitcoin.confirmedSats)
@@ -4906,34 +4949,84 @@ final class WalletViewController: UIViewController {
         } else {
             lines.append(WalletCopy.text("wallet_ux_swap_readiness_peer_missing"))
         }
-        if bitcoinSyncInProgress || bitcoinLastSyncFailed || bitcoinStage != .sync {
+        if scanStatus == nil && bitcoinStage != .sync {
             lines.append(WalletCopy.format("wallet_ux_swap_readiness_blocked", bitcoinSetupSummary()))
-        } else if isOperating || !synchronizedReadsAvailable {
+        } else if scanStatus == nil && (isOperating || !synchronizedReadsAvailable) {
             lines.append(WalletCopy.format(
                 "wallet_ux_swap_readiness_blocked", WalletCopy.text("wallet_dashboard_sync_required")
             ))
-        } else {
-            lines.append(WalletCopy.text("wallet_ux_swap_readiness_ready"))
         }
         return lines.joined(separator: "\n")
+    }
+
+    private func shakedexBitcoinScanStatus(pendingConfirmation: Bool) -> String? {
+        if bitcoinStage == .recoveryStart || bitcoinStage == .savingRecoveryStart ||
+            bitcoinStage == .unavailable {
+            return nil
+        }
+        let paused = bitcoinLastSyncStopped || (automaticSwapBitcoinSyncPausedUntilUptime.map {
+            ProcessInfo.processInfo.systemUptime < $0
+        } ?? false)
+        let key: String
+        if bitcoinLastSyncFailed && !bitcoinSyncInProgress {
+            key = "wallet_ux_swap_scan_needs_attention"
+        } else if paused && !bitcoinSyncInProgress {
+            key = "wallet_ux_swap_scan_stopped"
+        } else if pendingConfirmation {
+            key = "wallet_ux_swap_scan_confirmation"
+        } else if bitcoinSyncInProgress || shakedexReadinessScanRequested {
+            key = "wallet_ux_swap_scan_readiness"
+        } else {
+            return nil
+        }
+        let checkpoint = bitcoinSnapshot.flatMap { snapshot -> String? in
+            snapshot.synchronizedHeight > 0
+                ? WalletCopy.format("wallet_ux_swap_scan_last_checked", Int(snapshot.synchronizedHeight))
+                : nil
+        } ?? WalletCopy.text("wallet_ux_swap_scan_no_checkpoint")
+        return "\(WalletCopy.text(key)) · \(checkpoint)"
     }
 
     private var hasActiveSwapOverview: Bool {
         guard let status = shakescapeExecutionStatusSnapshot else { return false }
         return !status.pendingAcceptances.isEmpty || !status.pendingOfferResponses.isEmpty ||
             !status.pendingOfferCandidates.isEmpty ||
-            status.executions.contains { !["completed", "refunded", "failed"].contains($0.state) }
+            status.executions.contains {
+                !["completed", "refunded", "failed"].contains($0.state) ||
+                    $0.localRedemption != nil
+            }
+    }
+
+    private func hasLiveSwapScanDemand(_ status: NativeShakescapeExecutionStatus) -> Bool {
+        if liveAtomicSwapFingerprint(status) != nil { return true }
+        return status.bitcoinBroadcastRecovery.map {
+            $0.unobservedPrepared > 0 || $0.unobservedSubmissionStarted > 0 ||
+                $0.unobservedSubmitted > 0
+        } ?? false
     }
 
     private func shakedexOverviewActions() -> [WalletMenuAction] {
         let available = shakedexActionMayStart && !bitcoinSyncInProgress && !bitcoinBirthdayResetInProgress
         let paired = directShakescapeStatusSnapshot?.peerEndpoint != nil
         var actions: [WalletMenuAction] = []
-        if bitcoinStage == .firstSync || bitcoinStage == .sync {
+        if bitcoinStage == .recoveryStart {
+            actions.append(WalletMenuAction(title: WalletCopy.text("wallet_ux_swap_setup_bitcoin"),
+                enabled: walletIsUnlocked && wallet != nil && !isOperating
+            ) { [weak self] in self?.showBitcoinDashboard() })
+        } else if (bitcoinStage == .firstSync || bitcoinStage == .sync) &&
+            swapScanNeedsAttention(syncing: bitcoinSyncInProgress, failed: bitcoinLastSyncFailed,
+                paused: bitcoinLastSyncStopped || (automaticSwapBitcoinSyncPausedUntilUptime.map {
+                    ProcessInfo.processInfo.systemUptime < $0
+                } ?? false)) {
             actions.append(WalletMenuAction(
                 title: WalletCopy.text("wallet_ux_swap_readiness_sync_bitcoin"),
-                enabled: available && bitcoinValueAvailable
-            ) { [weak self] in self?.startBitcoinSynchronization() })
+                enabled: walletIsUnlocked && wallet != nil && bitcoinValueAvailable &&
+                    !isOperating && !bitcoinSyncInProgress && !bitcoinBirthdayResetInProgress
+            ) { [weak self] in
+                self?.automaticSwapBitcoinSyncPausedUntilUptime = nil
+                self?.shakedexReadinessScanRequested = false
+                self?.startBitcoinSynchronization()
+            })
         }
         if !paired {
             actions.append(WalletMenuAction(title: WalletCopy.text("row_wallet_pair_direct_shakescape"),
@@ -4964,6 +5057,13 @@ final class WalletViewController: UIViewController {
 
     private func showShakedexDashboard() {
         guard walletCanPresentChild else { return }
+        shakedexReadinessScanRequested = true
+        if let status = shakescapeExecutionStatusSnapshot, hasLiveSwapScanDemand(status) {
+            shakedexReadinessScanRequested = false
+            _ = maybeStartAutomaticSwapBitcoinSync(status)
+        } else {
+            _ = maybeStartShakedexReadinessScan()
+        }
         presentWalletMenu(
             title: WalletCopy.text("wallet_dashboard_shakedex"),
             rows: [WalletMenuRow(title: WalletCopy.text("wallet_ux_overview"), detail: shakedexOverviewSummary(),
@@ -5593,6 +5693,8 @@ final class WalletViewController: UIViewController {
             lastAutomaticSwapBitcoinSyncAtUptime = nil
             lastAutomaticSwapBitcoinSyncFingerprint = nil
             automaticSwapBitcoinSyncPausedUntilUptime = nil
+            shakedexReadinessScanRequested = false
+            bitcoinLastSyncStopped = false
             automaticSwapSettlementAttempts.removeAll()
             return
         }
@@ -5696,6 +5798,7 @@ final class WalletViewController: UIViewController {
                         _ = self.maybeStartAutomaticSwapBitcoinSync(executions)
                     }
                 }
+                _ = self.maybeStartShakedexReadinessScan()
             }
         }
     }
@@ -5884,6 +5987,7 @@ final class WalletViewController: UIViewController {
             automaticSwapBitcoinSyncPausedUntilUptime = nil
             return false
         }
+        if bitcoinLastSyncStopped { return false }
         let fingerprint = "\(liveFingerprint ?? ""):bitcoin_recovery=\(pendingBitcoinRecovery)"
         if fingerprint != lastAutomaticSwapBitcoinSyncFingerprint {
             lastAutomaticSwapBitcoinSyncFingerprint = fingerprint
@@ -5907,6 +6011,40 @@ final class WalletViewController: UIViewController {
         }
         lastAutomaticSwapBitcoinSyncAtUptime = now
         startBitcoinSynchronization()
+        return bitcoinSyncInProgress
+    }
+
+    /// Entering ShakeDex requests one bounded readiness scan. If a wallet
+    /// operation owns the controller, the direct-service tick retries it.
+    @discardableResult
+    private func maybeStartShakedexReadinessScan() -> Bool {
+        guard shakedexReadinessScanRequested else { return false }
+        if let status = shakescapeExecutionStatusSnapshot, hasLiveSwapScanDemand(status) {
+            shakedexReadinessScanRequested = false
+            return false // the live-swap scheduler owns this scan
+        }
+        switch bitcoinStage {
+        case .syncing, .stopping, .recoveryStart, .savingRecoveryStart, .unavailable:
+            shakedexReadinessScanRequested = false
+            return false
+        case .firstSync, .sync:
+            break
+        }
+        let now = ProcessInfo.processInfo.systemUptime
+        if bitcoinLastSyncFailed || bitcoinLastSyncStopped ||
+            automaticSwapBitcoinSyncPausedUntilUptime.map({ now < $0 }) == true {
+            return false
+        }
+        guard !walletAuthenticationInProgress,
+              !isOperating,
+              !bitcoinSyncInProgress,
+              !bitcoinBirthdayResetInProgress,
+              walletAuthorityRequested,
+              walletIsUnlocked,
+              wallet != nil,
+              bitcoinValueAvailable else { return false }
+        startBitcoinSynchronization()
+        if bitcoinSyncInProgress { shakedexReadinessScanRequested = false }
         return bitcoinSyncInProgress
     }
 
@@ -5935,10 +6073,7 @@ final class WalletViewController: UIViewController {
         return (summary, detail)
     }
 
-    private func shakescapeExecutionStage(
-        _ execution: NativeShakescapeExecutionSummary,
-        includeBitcoinSync: Bool = true
-    ) -> String {
+    private func shakescapeExecutionStage(_ execution: NativeShakescapeExecutionSummary) -> String {
         let first = swapChainLabel(execution.firstChain)
         let second = swapChainLabel(execution.secondChain)
         let now = UInt64(Date().timeIntervalSince1970)
@@ -6089,9 +6224,6 @@ final class WalletViewController: UIViewController {
                 formatAtomicSwapDeadline(execution.fundingDeadlineUnix)
             )
         }
-        if includeBitcoinSync && bitcoinSyncInProgress {
-            stage = WalletCopy.format("wallet_swap_stage_syncing_append", stage)
-        }
         return stage
     }
 
@@ -6158,7 +6290,7 @@ final class WalletViewController: UIViewController {
     private func shakescapeExecutionNotificationStage(
         _ execution: NativeShakescapeExecutionSummary
     ) -> String {
-        shakescapeExecutionStage(execution, includeBitcoinSync: false)
+        shakescapeExecutionStage(execution)
     }
 
     private func rememberDirectShakescapePeer(_ endpoint: String) {
@@ -8572,6 +8704,7 @@ final class WalletViewController: UIViewController {
         bitcoinProgressSummary = nil
         bitcoinCompletedSyncMessage = nil
         bitcoinLastSyncFailed = false
+        bitcoinLastSyncStopped = false
         swapActionStatusLabel.text = nil
         bitcoinActivityPageOffset = 0
         try? wallet?.lock()

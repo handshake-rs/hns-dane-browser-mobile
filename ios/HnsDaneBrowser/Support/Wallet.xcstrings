@@ -72828,7 +72828,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bitcoin last scanned at block %1$@: %2$@ confirmed sats"
+            "value": "Bitcoin ready · last checked block %1$@ · %2$@ confirmed sats"
           }
         }
       }
@@ -72905,7 +72905,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Continue Bitcoin sync"
+            "value": "Resume scan"
           }
         }
       }
@@ -72972,6 +72972,72 @@
           "stringUnit": {
             "state": "translated",
             "value": "Claim transaction ID: %1$@"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_scan_confirmation": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scanning Bitcoin for confirmation"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_scan_last_checked": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "last checked block %1$d"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_scan_needs_attention": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitcoin scan needs attention"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_scan_no_checkpoint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no verified block yet"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_scan_readiness": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking Bitcoin readiness"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_scan_stopped": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitcoin scan stopped"
           }
         }
       }
@@ -73049,6 +73115,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Swap %1$@ transaction submitted. Transaction ID: %2$@. Track this ID in Bitcoin activity and wait for a verified chain scan."
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_setup_bitcoin": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set up Bitcoin"
           }
         }
       }

@@ -1379,13 +1379,20 @@
     <string name="wallet_ux_bitcoin_setup_trade" translatable="false">Set up Bitcoin before creating a coin offer.</string>
     <string name="wallet_ux_swap_readiness_hns" translatable="false">HNS verified at block %1$s: %2$s HNS</string>
     <string name="wallet_ux_swap_readiness_hns_missing" translatable="false">HNS balance needs a verified wallet sync.</string>
-    <string name="wallet_ux_swap_readiness_btc" translatable="false">Bitcoin last scanned at block %1$s: %2$s confirmed sats</string>
+    <string name="wallet_ux_swap_readiness_btc" translatable="false">Bitcoin ready · last checked block %1$s · %2$s confirmed sats</string>
     <string name="wallet_ux_swap_readiness_btc_missing" translatable="false">Bitcoin balance needs its first verified scan.</string>
     <string name="wallet_ux_swap_readiness_peer" translatable="false">Offer peer: %1$s</string>
     <string name="wallet_ux_swap_readiness_peer_missing" translatable="false">Offer peer: connect before browsing or publishing.</string>
     <string name="wallet_ux_swap_readiness_blocked" translatable="false">Current task: %1$s</string>
     <string name="wallet_ux_swap_readiness_ready" translatable="false">No wallet task is blocking swap actions. Check the last scanned heights before funding.</string>
-    <string name="wallet_ux_swap_readiness_sync_bitcoin" translatable="false">Continue Bitcoin sync</string>
+    <string name="wallet_ux_swap_readiness_sync_bitcoin" translatable="false">Resume scan</string>
+    <string name="wallet_ux_swap_setup_bitcoin" translatable="false">Set up Bitcoin</string>
+    <string name="wallet_ux_swap_scan_confirmation" translatable="false">Scanning Bitcoin for confirmation</string>
+    <string name="wallet_ux_swap_scan_readiness" translatable="false">Checking Bitcoin readiness</string>
+    <string name="wallet_ux_swap_scan_stopped" translatable="false">Bitcoin scan stopped</string>
+    <string name="wallet_ux_swap_scan_needs_attention" translatable="false">Bitcoin scan needs attention</string>
+    <string name="wallet_ux_swap_scan_last_checked" translatable="false">last checked block %1$d</string>
+    <string name="wallet_ux_swap_scan_no_checkpoint" translatable="false">no verified block yet</string>
     <string name="wallet_ux_hns_pending_change" translatable="false">A pending HNS send can leave change unconfirmed. The verified spendable amount updates after the change confirms.</string>
     <string name="wallet_ux_swap_session_hns_reserved" translatable="false">This open session reserves %1$s HNS for its HNS lock.</string>
     <string name="wallet_ux_swap_session_hns_release" translatable="false">After the funding deadline, the wallet checks its saved broadcast record and verified chain before releasing an unfunded session’s reservation.</string>

@@ -9,6 +9,34 @@ import org.junit.Test
 
 class SwapExecutionListTest {
     @Test
+    fun bitcoinScanFollowsTheSubmittedClaimAndOffersResumeOnlyForAttention() {
+        val moto = execution("moto", state = "secret_observed").copy(
+            localRole = "taker", firstChain = "bitcoin", secondChain = "handshake",
+            localFundingState = "confirmed",
+            localRedemption = NativeLocalRedemptionSummary("submitted", "a".repeat(64)),
+        )
+        assertTrue(swapBitcoinConfirmationPending(moto))
+        assertTrue(swapBitcoinConfirmationPending(moto.copy(
+            localRedemption = NativeLocalRedemptionSummary("seen", "a".repeat(64)))))
+        assertFalse(swapBitcoinConfirmationPending(moto.copy(
+            localRedemption = NativeLocalRedemptionSummary("confirmed", "a".repeat(64)))))
+        assertFalse(swapBitcoinConfirmationPending(moto.copy(
+            firstChain = "handshake", secondChain = "bitcoin")))
+
+        val funding = execution("pixel", state = "first_funding_pending",
+            localFundingState = "broadcast")
+        assertTrue(swapBitcoinConfirmationPending(funding))
+        assertTrue(swapBitcoinConfirmationPending(funding.copy(localFundingState = "seen")))
+        assertFalse(swapBitcoinConfirmationPending(funding.copy(localFundingState = "confirmed")))
+        assertFalse(swapBitcoinConfirmationPending(funding.copy(state = "completed")))
+
+        assertFalse(swapScanNeedsAttention(syncing = true, failed = true, paused = true))
+        assertFalse(swapScanNeedsAttention(syncing = false, failed = false, paused = false))
+        assertTrue(swapScanNeedsAttention(syncing = false, failed = true, paused = false))
+        assertTrue(swapScanNeedsAttention(syncing = false, failed = false, paused = true))
+    }
+
+    @Test
     fun submittedClaimDoesNotOfferRedeemAgainWhileSwapPhaseWaitsForScan() {
         // Moto's recorded BTC claim was submitted while the verified swap
         // phase still said secret_observed and offered "Redeem received BTC".
