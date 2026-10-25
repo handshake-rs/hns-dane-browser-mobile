@@ -127,8 +127,7 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
                     R.string.wallet_swap_notification_offer_accepted,
                 ),
                 text = applicationContext.getString(
-                    R.string.wallet_swap_notification_offer_accepted_detail,
-                    offer.sessionId.take(12),
+                    R.string.wallet_swap_notification_offer_accepted_detail
                 ),
                 historicalTerminal = false,
             )
@@ -147,13 +146,11 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
                 ),
                 text = if (deadline == null) {
                     applicationContext.getString(
-                        R.string.wallet_swap_notification_negotiating,
-                        pending.sessionId.take(12),
+                        R.string.wallet_swap_notification_negotiating
                     )
                 } else {
                     applicationContext.getString(
                         R.string.wallet_swap_acceptance_sent,
-                        pending.sessionId.take(12),
                         localDeadline(deadline),
                         remainingTime(deadline, now),
                     )
@@ -182,7 +179,6 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
                 text = applicationContext.getString(
                     R.string.wallet_swap_notification_stage,
                     stage,
-                    execution.sessionId.take(12),
                 ),
                 historicalTerminal = execution.state in TERMINAL_STATES &&
                     execution.localRedemption == null,
@@ -195,7 +191,6 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
                 initialText = if (firstObservationIsOfferAcceptance) {
                     applicationContext.getString(
                         R.string.wallet_swap_notification_offer_accepted_detail,
-                        execution.sessionId.take(12),
                     )
                 } else {
                     null
@@ -321,7 +316,6 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
             ) { deadline ->
                 applicationContext.getString(
                     R.string.wallet_swap_acceptance_sent,
-                    pending.sessionId.take(12),
                     deadline,
                     applicationContext.getString(
                         R.string.wallet_swap_duration_hours_minutes,
@@ -358,7 +352,6 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
                 applicationContext.getString(
                     R.string.wallet_swap_notification_stage,
                     warningStage,
-                    execution.sessionId.take(12),
                 )
             }
         }
