@@ -32,9 +32,9 @@ hns-loopback-proxy = { package = "hns-browser-loopback-proxy", version = "=0.2.5
 # Pin the published peer, market, Bitcoin, and name-offer wallet releases.
 # Compatible transitive ranges select the reviewed transport and Kyoto patches.
 hns-wallet-ffi = "=0.4.2"
-hns-wallet-mobile = "=0.6.5"
+hns-wallet-mobile = "=0.6.6"
 hns-wallet-types = "=0.4.2"
-hns-wallet-hns = "=0.4.7"
+hns-wallet-hns = "=0.4.8"
 hns-mobile-platform-runtime = { path = "crates/hns-mobile-platform-runtime" }
 hns-namespace-resolution = "=0.2.3"
 hns-resolution-policy = "=0.3.0"
