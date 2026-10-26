@@ -77,7 +77,7 @@ private func swapExecutionHasUnverifiedMakerFunding(
         !["broadcast", "seen", "confirmed"].contains(execution.localFundingState ?? "")
 }
 
-private func swapFundingActionRequired(
+func swapFundingActionRequired(
     _ execution: NativeShakescapeExecutionSummary, now: UInt64
 ) -> Bool {
     guard now < execution.fundingDeadlineUnix,
