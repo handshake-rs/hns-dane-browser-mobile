@@ -463,6 +463,8 @@ class WalletActivity : ComponentActivity() {
     private var lastAutomaticSwapHnsSyncAtElapsedMillis = Long.MIN_VALUE
     private var lastAutomaticSwapHnsSyncFingerprint: String? = null
     private var lastAutomaticSwapBitcoinSyncAtElapsedMillis = Long.MIN_VALUE
+    private var lastCompletedBitcoinScanAtElapsedMillis: Long? = null
+    private var swapBitcoinScanDemandSinceElapsedMillis: Long? = null
     private var lastAutomaticSwapBitcoinSyncFingerprint: String? = null
     private var automaticSwapBitcoinSyncPausedUntilElapsedMillis = Long.MIN_VALUE
     private var shakedexReadinessScanRequested = false
@@ -2723,17 +2725,16 @@ class WalletActivity : ComponentActivity() {
         val pendingConfirmation = swapBitcoinConfirmationPending(execution)
         add(if (pendingConfirmation) swapExecutionHeadline(execution) else swapExecutionStage(execution))
         if (pendingConfirmation) shakedexBitcoinScanStatus(pendingConfirmation = true)?.let(::add)
-        val scanPaused = bitcoinLastSyncStopped ||
-            SystemClock.elapsedRealtime() < automaticSwapBitcoinSyncPausedUntilElapsedMillis
-        val scanNeedsAttention = pendingConfirmation && swapScanNeedsAttention(
-            walletBitcoinSyncInProgress, bitcoinLastSyncFailed, scanPaused,
-        )
+        val scanNeedsAttention = pendingConfirmation &&
+            swapScanNeedsAttention(currentSwapScanState())
         add(getString(if (swapExecutionNeedsAttention(execution, now) || scanNeedsAttention ||
                 execution.state == "failed")
             R.string.wallet_ux_swap_action_needed else R.string.wallet_ux_swap_no_action_needed))
         add(swapExecutionProgress(execution).first)
         if (execution.state in setOf("terms_frozen", "refunds_prepared", "first_funding_pending",
                 "first_funded", "second_funding_pending") && now < execution.fundingDeadlineUnix &&
+            !(execution.localRole == "maker" && execution.state == "first_funding_pending" &&
+                now > execution.firstFundingCutoffUnix && execution.localFundingState == null) &&
             !swapFundingActionRequired(execution, now)) {
             add(getString(R.string.wallet_ux_swap_funding_window_closes,
                 formatAtomicSwapDeadline(execution.fundingDeadlineUnix)))
@@ -2840,25 +2841,43 @@ class WalletActivity : ComponentActivity() {
         )
     }.joinToString("\n")
 
+    private fun currentSwapScanState(): SwapScanState = swapScanState(
+        syncing = walletBitcoinSyncInProgress,
+        failed = bitcoinLastSyncFailed,
+        paused = bitcoinLastSyncStopped ||
+            SystemClock.elapsedRealtime() < automaticSwapBitcoinSyncPausedUntilElapsedMillis,
+        available = walletHandle != INVALID_HANDLE && bitcoinSnapshot != null &&
+            bitcoinStage() in setOf(BitcoinOverviewStage.FirstSync, BitcoinOverviewStage.Sync),
+        lastCompletedAtMillis = listOfNotNull(lastCompletedBitcoinScanAtElapsedMillis,
+            swapBitcoinScanDemandSinceElapsedMillis).maxOrNull(),
+        nowMillis = SystemClock.elapsedRealtime(),
+    )
+
     private fun shakedexBitcoinScanStatus(pendingConfirmation: Boolean): String? {
         val stage = bitcoinStage()
         if (stage in setOf(BitcoinOverviewStage.RecoveryStart,
                 BitcoinOverviewStage.SavingRecoveryStart) ||
             (stage == BitcoinOverviewStage.Unavailable &&
                 !bitcoinLastSyncFailed && !bitcoinLastSyncStopped)) return null
-        val paused = bitcoinLastSyncStopped ||
-            SystemClock.elapsedRealtime() < automaticSwapBitcoinSyncPausedUntilElapsedMillis
-        val headline = when {
-            bitcoinLastSyncFailed && !walletBitcoinSyncInProgress ->
-                R.string.wallet_ux_swap_scan_needs_attention
-            paused && !walletBitcoinSyncInProgress -> R.string.wallet_ux_swap_scan_stopped
-            pendingConfirmation -> R.string.wallet_ux_swap_scan_confirmation
-            walletBitcoinSyncInProgress || shakedexReadinessScanRequested ->
-                R.string.wallet_ux_swap_scan_readiness
-            else -> return null
+        if (!pendingConfirmation && !walletBitcoinSyncInProgress &&
+            !shakedexReadinessScanRequested && !bitcoinLastSyncFailed && !bitcoinLastSyncStopped) {
+            return null
+        }
+        val headline = when (currentSwapScanState()) {
+            SwapScanState.CHECKING -> if (pendingConfirmation)
+                R.string.wallet_ux_swap_scan_confirmation else R.string.wallet_ux_swap_scan_readiness
+            SwapScanState.WAITING -> R.string.wallet_ux_swap_scan_waiting
+            SwapScanState.STOPPED -> R.string.wallet_ux_swap_scan_stopped
+            SwapScanState.FAILED -> R.string.wallet_ux_swap_scan_needs_attention
+            SwapScanState.OVERDUE -> R.string.wallet_ux_swap_scan_overdue
+            SwapScanState.UNAVAILABLE -> R.string.wallet_ux_swap_scan_unavailable
         }
         val checkpoint = bitcoinSnapshot?.synchronizedHeight?.takeIf { it > 0L }?.let {
-            getString(R.string.wallet_ux_swap_scan_last_checked, it)
+            val elapsed = lastCompletedBitcoinScanAtElapsedMillis?.let { checked ->
+                (SystemClock.elapsedRealtime() - checked).coerceAtLeast(0L) / 60_000L
+            }
+            if (elapsed == null) getString(R.string.wallet_ux_swap_scan_last_checked, it)
+            else getString(R.string.wallet_ux_swap_scan_last_checked_age, it, elapsed)
         } ?: getString(R.string.wallet_ux_swap_scan_no_checkpoint)
         return "${getString(headline)} · $checkpoint"
     }
@@ -2866,6 +2885,9 @@ class WalletActivity : ComponentActivity() {
     private fun showShakedexDashboard() {
         refreshDirectShakescapeStatus()
         shakedexReadinessScanRequested = true
+        if (swapBitcoinScanDemandSinceElapsedMillis == null) {
+            swapBitcoinScanDemandSinceElapsedMillis = SystemClock.elapsedRealtime()
+        }
         val executions = latestShakescapeExecutionStatus
         if (executions != null && hasLiveBitcoinScanDemand(executions)) {
             shakedexReadinessScanRequested = false
@@ -2902,9 +2924,7 @@ class WalletActivity : ComponentActivity() {
                         setOf(BitcoinOverviewStage.FirstSync, BitcoinOverviewStage.Sync) ||
                         (bitcoinStage() == BitcoinOverviewStage.Unavailable &&
                             (bitcoinLastSyncFailed || bitcoinLastSyncStopped))) &&
-                        swapScanNeedsAttention(walletBitcoinSyncInProgress, bitcoinLastSyncFailed,
-                            bitcoinLastSyncStopped || SystemClock.elapsedRealtime() <
-                                automaticSwapBitcoinSyncPausedUntilElapsedMillis)) {
+                        swapScanNeedsAttention(currentSwapScanState())) {
                         add(WalletModalAction(
                             getString(R.string.wallet_ux_swap_readiness_sync_bitcoin),
                             overviewActionsAvailable() &&
@@ -4834,6 +4854,8 @@ class WalletActivity : ComponentActivity() {
                     // status refresh, starving watch installation indefinitely.
                     lastAutomaticSwapBitcoinSyncAtElapsedMillis =
                         SystemClock.elapsedRealtime()
+                    lastCompletedBitcoinScanAtElapsedMillis =
+                        lastAutomaticSwapBitcoinSyncAtElapsedMillis
                     renderBitcoinSnapshot(synchronization.snapshot)
                     bitcoinStatusView.text = getString(
                         R.string.wallet_bitcoin_synchronized,
@@ -5143,6 +5165,13 @@ class WalletActivity : ComponentActivity() {
     ): Boolean {
         val previous = shakedexExecutionStatusView.text.toString()
         latestShakescapeExecutionStatus = status
+        if (hasLiveBitcoinScanDemand(status)) {
+            if (swapBitcoinScanDemandSinceElapsedMillis == null) {
+                swapBitcoinScanDemandSinceElapsedMillis = SystemClock.elapsedRealtime()
+            }
+        } else if (!shakedexReadinessScanRequested) {
+            swapBitcoinScanDemandSinceElapsedMillis = null
+        }
         schedulePendingAtomicSwapNotificationPresentation()
         publishAtomicSwapNotifications(status)
         val terminal = setOf("completed", "refunded", "failed")
@@ -5337,15 +5366,23 @@ class WalletActivity : ComponentActivity() {
         ) || execution.firstFundingConfirmed || execution.secondFundingConfirmed || completed
         val maker = execution.localRole == "maker"
         val milestones = listOf(
-            agreed to "Terms agreed",
+            agreed to getString(R.string.wallet_ux_swap_progress_terms_agreed),
             (completed || execution.firstFundingConfirmed) to
-                "${if (maker) "You" else "Other party"} lock ${swapChainLabel(execution.firstChain)}",
+                getString(if (maker) R.string.wallet_ux_swap_progress_your_lock
+                    else R.string.wallet_ux_swap_progress_their_lock,
+                    swapChainLabel(execution.firstChain)),
             (completed || execution.secondFundingConfirmed) to
-                "${if (maker) "Other party" else "You"} lock ${swapChainLabel(execution.secondChain)}",
+                getString(if (maker) R.string.wallet_ux_swap_progress_their_lock
+                    else R.string.wallet_ux_swap_progress_your_lock,
+                    swapChainLabel(execution.secondChain)),
             (completed || execution.firstRedemptionConfirmed) to
-                "${if (maker) "You" else "Other party"} redeem ${swapChainLabel(execution.secondChain)}",
+                getString(if (maker) R.string.wallet_ux_swap_progress_your_claim
+                    else R.string.wallet_ux_swap_progress_their_claim,
+                    swapChainLabel(execution.secondChain)),
             (completed || execution.secondRedemptionConfirmed) to
-                "${if (maker) "Other party" else "You"} redeem ${swapChainLabel(execution.firstChain)}",
+                getString(if (maker) R.string.wallet_ux_swap_progress_their_claim
+                    else R.string.wallet_ux_swap_progress_your_claim,
+                    swapChainLabel(execution.firstChain)),
         )
         val count = milestones.count { it.first }
         val summary = getString(R.string.wallet_ux_swap_progress_count, count, milestones.size)
@@ -5468,14 +5505,16 @@ class WalletActivity : ComponentActivity() {
             val chain = if (execution.localRole == "maker") second else first
             localRedemptionStage(execution, chain)?.let { stage = "$it\n$stage" }
         }
-        if (fundingTarget != null && now < execution.fundingDeadlineUnix &&
+        val localFundingDeadline = if (execution.localRole == "maker")
+            execution.firstFundingCutoffUnix else execution.fundingDeadlineUnix
+        if (fundingTarget != null && now < localFundingDeadline &&
             swapFundingActionRequired(execution, now)) {
             stage = getString(
                 R.string.wallet_swap_stage_with_deadline,
                 stage,
-                formatAtomicSwapRemaining(execution.fundingDeadlineUnix, now),
+                formatAtomicSwapRemaining(localFundingDeadline, now),
                 fundingTarget,
-                formatAtomicSwapDeadline(execution.fundingDeadlineUnix),
+                formatAtomicSwapDeadline(localFundingDeadline),
             )
         }
         return stage
@@ -5711,6 +5750,8 @@ class WalletActivity : ComponentActivity() {
         lastAutomaticSwapHnsSyncAtElapsedMillis = Long.MIN_VALUE
         lastAutomaticSwapHnsSyncFingerprint = null
         lastAutomaticSwapBitcoinSyncAtElapsedMillis = Long.MIN_VALUE
+        lastCompletedBitcoinScanAtElapsedMillis = null
+        swapBitcoinScanDemandSinceElapsedMillis = null
         lastAutomaticSwapBitcoinSyncFingerprint = null
         automaticSwapBitcoinSyncPausedUntilElapsedMillis = Long.MIN_VALUE
         shakedexReadinessScanRequested = false
@@ -6581,7 +6622,7 @@ class WalletActivity : ComponentActivity() {
                 candidate.responderIdentity.take(12),
                 formatSwapAmount(candidate.receivedAsset, candidate.receivedAmount),
                 formatSwapAmount(candidate.offeredAsset, candidate.offeredAmount),
-            ))
+            ) + "\n\n" + getString(R.string.wallet_ux_swap_wait_expectation))
             .setNegativeButton(android.R.string.cancel, null)
             .setPositiveButton(R.string.wallet_ux_swap_candidate_choose) { _, _ ->
                 thread(name = "denuo-choose-swap-responder") {
@@ -6834,12 +6875,10 @@ class WalletActivity : ComponentActivity() {
         val technicalDetails = "${swapExecutionProgress(execution).second}\n\n$message" +
             "${if (redemption.isEmpty()) bitcoinScan else redemption}$reservation"
         val now = System.currentTimeMillis() / 1_000L
-        val scanPaused = bitcoinLastSyncStopped ||
-            SystemClock.elapsedRealtime() < automaticSwapBitcoinSyncPausedUntilElapsedMillis
         val attention = when {
-            swapBitcoinConfirmationPending(execution) && swapScanNeedsAttention(
-                walletBitcoinSyncInProgress, bitcoinLastSyncFailed, scanPaused,
-            ) -> R.string.wallet_ux_swap_resume_scan_hint
+            swapBitcoinConfirmationPending(execution) &&
+                swapScanNeedsAttention(currentSwapScanState()) ->
+                R.string.wallet_ux_swap_resume_scan_hint
             swapExecutionNeedsAttention(execution, now) || execution.state == "failed" ->
                 R.string.wallet_ux_swap_action_needed
             execution.state in setOf("completed", "refunded") -> R.string.wallet_ux_swap_complete
@@ -7194,9 +7233,11 @@ class WalletActivity : ComponentActivity() {
             .setMessage(getString(
                 R.string.wallet_ux_swap_funding_approval_message,
                 approval.amountSats, approval.feeSats, approval.maximumFeeSats,
+                Math.addExact(approval.amountSats, approval.feeSats),
             ) + "\n\n" + getString(R.string.wallet_ux_swap_automatic_minimum_receive,
                 automaticSwapMinimumReceive(execution)) + "\n\n" +
-                getString(R.string.wallet_ux_swap_automatic_settlement_consent))
+                getString(R.string.wallet_ux_swap_automatic_settlement_consent) + "\n\n" +
+                getString(R.string.wallet_ux_swap_wait_expectation))
             .setNegativeButton(R.string.action_reject) { _, _ -> reject() }
             .setPositiveButton(R.string.wallet_ux_swap_broadcast_bitcoin_lock) { _, _ ->
                 if (settled) return@setPositiveButton
@@ -7675,7 +7716,7 @@ class WalletActivity : ComponentActivity() {
                     approval.offer.receivedAsset,
                     approval.totalReceivedAssetCommitment,
                 ),
-            ))
+            ) + "\n\n" + getString(R.string.wallet_ux_swap_wait_expectation))
             .setNegativeButton(R.string.action_reject) { _, _ -> reject() }
             .setPositiveButton(R.string.wallet_swap_acceptance_confirm) { _, _ ->
                 if (settled) return@setPositiveButton

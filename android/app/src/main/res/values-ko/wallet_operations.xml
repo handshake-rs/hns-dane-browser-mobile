@@ -510,8 +510,8 @@
     <string name="wallet_ux_swap_active_heading">스왑 진행 중</string>
     <string name="wallet_ux_swap_active_card_title">진행 중인 스왑 · %1$s → %2$s</string>
     <string name="wallet_ux_swap_action_needed">조치 필요</string>
-    <string name="wallet_ux_swap_no_action_needed">조치 불필요 · 계속 모니터링합니다</string>
-    <string name="wallet_ux_swap_claim_deadline">%1$s 전에 수령</string>
+    <string name="wallet_ux_swap_no_action_needed">지금은 승인이 필요하지 않습니다.</string>
+    <string name="wallet_ux_swap_claim_deadline">지금 자금을 청구하세요. 상대방은 %1$s 이후에 환불할 수 있습니다.</string>
     <string name="wallet_ux_swap_open_record">전체 스왑 기록 보기</string>
     <string name="wallet_ux_swap_technical_details">기술 세부 정보</string>
     <string name="wallet_ux_swap_waiting_verify_lock">상대방의 %1$s 잠금 검증 대기 중</string>
@@ -539,7 +539,18 @@
     <string name="wallet_ux_swap_trade_title">%1$s → %2$s</string>
     <string name="wallet_ux_swap_wallet_checkpoints">지갑 확인 지점</string>
     <string name="wallet_ux_swap_candidate_message">구매자 %1$s…가 귀하의 %3$s에 대해 %2$s를 제안합니다. 확정하면 스왑 계약에 서명하고 자금 제공 기간 동안 귀하의 자금을 예약합니다. 아직 거래가 전파되지는 않습니다.</string>
-    <string name="wallet_ux_swap_funding_approval_message">%1$d sats를 잠급니다. 네트워크 수수료: %2$d sats(최대 %3$d).\n\n거래를 전파하면 Bitcoin 잠금이 시작됩니다. 스왑이 계속되기 전에 체인에서 확인 여부를 검사합니다.</string>
+    <string name="wallet_ux_swap_funding_approval_message">잠긴 금액: %1$d sats\n비트코인 네트워크 수수료: %2$d sats (수수료 상한 %3$d sats)\n전송 시 지출된 총액: %4$d sats\n\n이 거래를 보내면 비트코인 ​​잠금이 시작됩니다. 지갑은 스왑이 계속되기 전에 확인을 확인합니다.</string>
     <string name="wallet_ux_swap_automatic_settlement_consent">이 승인으로 지갑이 이 스왑의 자금을 자동으로 수령할 수 있습니다. 수수료 상한은 1,000 sats 또는 0.1 HNS입니다. 스왑이 만료되면 지갑은 예약된 수수료 범위 내에서 잠긴 자금을 환불할 수 있습니다. 지갑을 사용할 수 있는 동안에는 추가 승인이 필요하지 않습니다.</string>
     <string name="wallet_ux_swap_funding_window_closes">자금 제공 기간은 %1$s에 종료됩니다</string>
+    <string name="wallet_ux_swap_scan_waiting">다음 비트코인 ​​스캔을 기다리는 중</string>
+    <string name="wallet_ux_swap_scan_overdue">비트코인 스캔 기한이 지났습니다</string>
+    <string name="wallet_ux_swap_scan_unavailable">지갑을 열어 비트코인 ​​스캔을 재개하세요</string>
+    <string name="wallet_ux_swap_scan_last_checked_age">비트코인 블록 %1$d이 %2$d분 전에 스캔되었습니다.</string>
+    <string name="wallet_ux_swap_progress_terms_agreed">조건에 동의함</string>
+    <string name="wallet_ux_swap_progress_your_lock">귀하의 %1$s 잠금 거래</string>
+    <string name="wallet_ux_swap_progress_their_lock">%1$s 잠금 트랜잭션</string>
+    <string name="wallet_ux_swap_progress_your_claim">귀하의 %1$s 상환 거래</string>
+    <string name="wallet_ux_swap_progress_their_claim">%1$s 상환 거래</string>
+    <string name="wallet_ux_swap_wait_expectation">체인 확인에는 1시간 이상 걸릴 수 있습니다. 이 지갑은 사용 가능한 동안 모니터링합니다. 비트코인 스캔이 중지되면 ShakeDex를 다시 엽니다.</string>
+    <string name="wallet_ux_swap_wait_expectation_ios">체인 확인에는 1시간 이상 걸릴 수 있습니다. 기다리는 동안 ShakeDex를 열어두세요. iOS는 자리를 떠날 때 검색을 일시 중지할 수 있습니다. 계속하려면 다시여세요.</string>
 </resources>

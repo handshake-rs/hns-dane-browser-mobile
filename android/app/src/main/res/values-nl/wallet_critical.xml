@@ -58,7 +58,7 @@
     <string name="wallet_swap_offer_acceptance_label">Je betaalt %1$s → Je ontvangt %2$s · %3$s…</string>
     <string name="wallet_swap_acceptance_review">Aanbieding controleren</string>
     <string name="wallet_swap_acceptance_approval_title">Deze ruilaanbieding accepteren?</string>
-    <string name="wallet_swap_acceptance_approval_message">Aanbieding: %1$s\n\nVergrendeling: %2$s\nMaximale kosten: %3$s\nTotaal: %4$s\n\nAcceptatie start de onderhandeling. Financiering wordt apart goedgekeurd.</string>
+    <string name="wallet_swap_acceptance_approval_message">Aanbieding: %1$s\n\nU vergrendelt %2$s, inclusief maximaal %3$s gereserveerd voor afwikkelingskosten.\nBedrag vastgelegd voor deze swap: %4$s. Een netwerkvergoeding is extra. Het exacte bedrag verschijnt voordat u de slottransactie verzendt.\n\nAls u dit aanbod accepteert, wordt er geen geld overgemaakt. U keurt de slottransactie afzonderlijk goed.</string>
     <string name="wallet_swap_acceptance_confirm">Aanbieding accepteren</string>
     <string name="wallet_swap_funding_approval_title">Bitcoin-financiering uitzenden?</string>
     <string name="wallet_swap_funding_approval_message">%1$d sats vergrendelen. Netwerkkosten: %2$d sats (maximaal %3$d).\n\nTransactie: %4$s\nSessie: %5$s\n\nUitzenden is onomkeerbaar. De ruil gaat verder nadat de Bitcoin-vergrendeling is bevestigd.</string>

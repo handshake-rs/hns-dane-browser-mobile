@@ -510,8 +510,8 @@
     <string name="wallet_ux_swap_active_heading">交換進行中</string>
     <string name="wallet_ux_swap_active_card_title">進行中的交換 · %1$s → %2$s</string>
     <string name="wallet_ux_swap_action_needed">需要採取行動</string>
-    <string name="wallet_ux_swap_no_action_needed">無需採取任何行動·我們會持續監察</string>
-    <string name="wallet_ux_swap_claim_deadline">在%1$s前領取</string>
+    <string name="wallet_ux_swap_no_action_needed">現在不需要批准</string>
+    <string name="wallet_ux_swap_claim_deadline">立即領取資金·對方可在%1$s後退款</string>
     <string name="wallet_ux_swap_open_record">檢視完整交換記錄</string>
     <string name="wallet_ux_swap_technical_details">技術詳情</string>
     <string name="wallet_ux_swap_waiting_verify_lock">等待驗證對方的 %1$s 鎖定</string>
@@ -539,7 +539,18 @@
     <string name="wallet_ux_swap_trade_title">%1$s → %2$s</string>
     <string name="wallet_ux_swap_wallet_checkpoints">錢包檢查點</string>
     <string name="wallet_ux_swap_candidate_message">買家 %1$s… 願以 %2$s 交換您的 %3$s。確認後會簽署交換協議，並在資金鎖定期限內預留您的資金。此時不會廣播交易。</string>
-    <string name="wallet_ux_swap_funding_approval_message">鎖定 %1$d sats。網路手續費：%2$d sats（最高 %3$d）。\n\n廣播交易將啟動 Bitcoin 鎖定。交換繼續前，我們會掃描區塊鏈以確認交易。</string>
+    <string name="wallet_ux_swap_funding_approval_message">鎖定金額：%1$d sats\n比特幣網路費用：%2$d sats（費用上限 %3$d sats）\n發送時總花費：%4$d sats\n\n發送此交易會啟動比特幣鎖定。錢包在繼續交換之前檢查確認。</string>
     <string name="wallet_ux_swap_automatic_settlement_consent">此項批准允許錢包自動領取本次交換的資金，手續費上限為 1,000 sats 或 0.1 HNS。若交換到期，錢包可在預留的手續費額度內退還您鎖定的資金。只要錢包可用，就無須再次批准。</string>
     <string name="wallet_ux_swap_funding_window_closes">資金期限於 %1$s 結束</string>
+    <string name="wallet_ux_swap_scan_waiting">等待下一次比特幣掃描</string>
+    <string name="wallet_ux_swap_scan_overdue">比特幣掃描逾期</string>
+    <string name="wallet_ux_swap_scan_unavailable">打開錢包恢復比特幣掃描</string>
+    <string name="wallet_ux_swap_scan_last_checked_age">已於 %2$d 分鐘前掃描比特幣區塊 %1$d</string>
+    <string name="wallet_ux_swap_progress_terms_agreed">同意條款</string>
+    <string name="wallet_ux_swap_progress_your_lock">您的 %1$s 鎖定交易</string>
+    <string name="wallet_ux_swap_progress_their_lock">他們的 %1$s 鎖定交易</string>
+    <string name="wallet_ux_swap_progress_your_claim">您的 %1$s 贖回交易</string>
+    <string name="wallet_ux_swap_progress_their_claim">他們的 %1$s 贖回交易</string>
+    <string name="wallet_ux_swap_wait_expectation">鏈上確認可能需要一個小時或更長。該錢包在保持可用狀態時進行監控。如果比特幣掃描停止，請重新開啟 ShakeDex。</string>
+    <string name="wallet_ux_swap_wait_expectation_ios">鏈上確認可能需要一個小時或更長。等待時保持 ShakeDex 開啟；當您離開時，iOS 可能會暫停掃描。重新打開它以繼續。</string>
 </resources>

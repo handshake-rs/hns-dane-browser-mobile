@@ -58,7 +58,7 @@
     <string name="wallet_swap_offer_acceptance_label">Anda membayar %1$s → Anda menerima %2$s · %3$s…</string>
     <string name="wallet_swap_acceptance_review">Tinjau penawaran</string>
     <string name="wallet_swap_acceptance_approval_title">Terima penawaran pertukaran ini?</string>
-    <string name="wallet_swap_acceptance_approval_message">Penawaran: %1$s\n\nKunci: %2$s\nBiaya maksimum: %3$s\nTotal: %4$s\n\nPenerimaan memulai negosiasi. Pendanaan disetujui secara terpisah.</string>
+    <string name="wallet_swap_acceptance_approval_message">Penawaran: %1$s\n\nAnda akan mengunci %2$s, termasuk hingga %3$s yang dicadangkan untuk biaya penyelesaian.\nJumlah yang dikomit untuk pertukaran ini: %4$s. Biaya jaringan tambahan. Jumlah persisnya muncul sebelum Anda mengirim transaksi kunci.\n\nMenerima tawaran ini tidak mengirimkan dana. Anda menyetujui transaksi kunci secara terpisah.</string>
     <string name="wallet_swap_acceptance_confirm">Terima penawaran</string>
     <string name="wallet_swap_funding_approval_title">Siarkan pendanaan Bitcoin?</string>
     <string name="wallet_swap_funding_approval_message">Kunci %1$d sat. Biaya jaringan: %2$d sat (maksimum %3$d).\n\nTransaksi: %4$s\nSesi: %5$s\n\nPenyiaran tidak dapat dibatalkan. Pertukaran berlanjut setelah kunci Bitcoin dikonfirmasi.</string>

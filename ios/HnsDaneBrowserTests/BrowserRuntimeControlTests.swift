@@ -4759,6 +4759,60 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertEqual(executionStatus.executions.count, 1)
         XCTAssertEqual(executionStatus.executions.first?.localFundingState, "confirmed")
         XCTAssertEqual(executionStatus.executions.first?.firstFundingCutoffUnix, 900)
+        let makerPending = try JSONDecoder().decode(
+            NativeShakescapeExecutionStatus.self,
+            from: Data(executionJSON
+                .replacingOccurrences(of: "\"state\":\"first_funded\"",
+                    with: "\"state\":\"first_funding_pending\"")
+                .replacingOccurrences(of: "\"localFundingState\":\"confirmed\"",
+                    with: "\"localFundingState\":null")
+                .replacingOccurrences(of: "\"firstFundingConfirmed\":true",
+                    with: "\"firstFundingConfirmed\":false")
+                .utf8)
+        ).executions[0]
+        XCTAssertTrue(swapFundingActionRequired(makerPending, now: 899))
+        XCTAssertFalse(swapFundingActionRequired(makerPending, now: 901))
+        let takerPending = try JSONDecoder().decode(
+            NativeShakescapeExecutionStatus.self,
+            from: Data(executionJSON
+                .replacingOccurrences(of: "\"localRole\":\"maker\"",
+                    with: "\"localRole\":\"taker\"")
+                .replacingOccurrences(of: "\"localFundingState\":\"confirmed\"",
+                    with: "\"localFundingState\":null")
+                .utf8)
+        ).executions[0]
+        XCTAssertTrue(swapFundingActionRequired(takerPending, now: 950))
+        let reorgedMaker = try JSONDecoder().decode(
+            NativeShakescapeExecutionStatus.self,
+            from: Data(executionJSON
+                .replacingOccurrences(of: "\"state\":\"first_funded\"",
+                    with: "\"state\":\"failed\"")
+                .replacingOccurrences(of: "\"localFundingState\":\"confirmed\"",
+                    with: "\"localFundingState\":\"reorged\"")
+                .replacingOccurrences(of: "\"firstFundingConfirmed\":true",
+                    with: "\"firstFundingConfirmed\":false")
+                .utf8)
+        ).executions[0]
+        XCTAssertFalse(swapFundingActionRequired(reorgedMaker, now: 950))
+        XCTAssertFalse(WalletSwapExecutionList.canHide(reorgedMaker, now: 950))
+        let refundEligible = try JSONDecoder().decode(
+            NativeShakescapeExecutionStatus.self,
+            from: Data(executionJSON
+                .replacingOccurrences(of: "\"state\":\"first_funded\"",
+                    with: "\"state\":\"refund_eligible\"")
+                .utf8)
+        ).executions[0]
+        XCTAssertFalse(WalletSwapExecutionList.canHide(refundEligible, now: 2100))
+        let refunded = try JSONDecoder().decode(
+            NativeShakescapeExecutionStatus.self,
+            from: Data(executionJSON
+                .replacingOccurrences(of: "\"state\":\"first_funded\"",
+                    with: "\"state\":\"refunded\"")
+                .replacingOccurrences(of: "\"refundConfirmed\":false",
+                    with: "\"refundConfirmed\":true")
+                .utf8)
+        ).executions[0]
+        XCTAssertTrue(WalletSwapExecutionList.canHide(refunded, now: 2100))
         let submittedFunding = try JSONDecoder().decode(
             NativeShakescapeExecutionStatus.self,
             from: Data(executionJSON.replacingOccurrences(
@@ -4808,6 +4862,16 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertFalse(swapScanNeedsAttention(syncing: false, failed: false, paused: false))
         XCTAssertTrue(swapScanNeedsAttention(syncing: false, failed: true, paused: false))
         XCTAssertTrue(swapScanNeedsAttention(syncing: false, failed: false, paused: true))
+        XCTAssertEqual(swapScanState(syncing: true, failed: false, paused: false,
+            available: true, lastCompletedAt: 1, now: 900), .checking)
+        XCTAssertEqual(swapScanState(syncing: false, failed: false, paused: false,
+            available: true, lastCompletedAt: 1, now: 120), .waiting)
+        let overdueScan = swapScanState(syncing: false, failed: false, paused: false,
+            available: true, lastCompletedAt: 1, now: 602)
+        XCTAssertEqual(overdueScan, .overdue)
+        XCTAssertTrue(swapScanNeedsAttention(overdueScan))
+        XCTAssertEqual(swapScanState(syncing: false, failed: false, paused: false,
+            available: false, lastCompletedAt: nil, now: 120), .unavailable)
         let earlierClaim = try JSONDecoder().decode(
             NativeShakescapeExecutionStatus.self,
             from: Data(claimJSON.replacingOccurrences(

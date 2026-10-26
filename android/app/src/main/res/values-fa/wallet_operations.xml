@@ -510,8 +510,8 @@
     <string name="wallet_ux_swap_active_heading">مبادله در حال انجام</string>
     <string name="wallet_ux_swap_active_card_title">مبادله فعال · %1$s → %2$s</string>
     <string name="wallet_ux_swap_action_needed">عملیات ضروری</string>
-    <string name="wallet_ux_swap_no_action_needed">نیازی به اقدام نیست · ما به نظارت ادامه خواهیم داد</string>
-    <string name="wallet_ux_swap_claim_deadline">قبل از %1$s مطالبه کنید</string>
+    <string name="wallet_ux_swap_no_action_needed">در حال حاضر نیازی به تایید نیست</string>
+    <string name="wallet_ux_swap_claim_deadline">اکنون وجوه خود را مطالبه کنید · طرف مقابل می تواند پس از %1$s بازپرداخت کند</string>
     <string name="wallet_ux_swap_open_record">مشاهده کل سابقه سوآپ</string>
     <string name="wallet_ux_swap_technical_details">جزییات فنی</string>
     <string name="wallet_ux_swap_waiting_verify_lock">در انتظار تأیید قفل %1$s طرف مقابل</string>
@@ -539,7 +539,18 @@
     <string name="wallet_ux_swap_trade_title">%1$s → %2$s</string>
     <string name="wallet_ux_swap_wallet_checkpoints">ایست‌های بازرسی کیف پول</string>
     <string name="wallet_ux_swap_candidate_message">خریدار %1$s… در برابر %3$s شما، %2$s پیشنهاد می‌کند. با تأیید، توافق مبادله امضا می‌شود و دارایی شما در بازه تأمین مالی کنار گذاشته می‌شود. هنوز هیچ تراکنشی پخش نمی‌شود.</string>
-    <string name="wallet_ux_swap_funding_approval_message">%1$d ساتوشی قفل کنید. کارمزد شبکه: %2$d ساتوشی (حداکثر %3$d).\n\nپخش تراکنش، قفل بیت‌کوین را آغاز می‌کند. پیش از ادامه مبادله، زنجیره را برای تأیید آن بررسی می‌کنیم.</string>
+    <string name="wallet_ux_swap_funding_approval_message">مبلغ قفل شده: %1$d sats\nکارمزد شبکه بیت کوین: %2$d sats (سرمایه هزینه %3$d sats)\nکل هزینه شده هنگام ارسال: %4$d sats\n\nارسال این تراکنش باعث شروع قفل بیت کوین می شود. کیف پول قبل از ادامه مبادله، تأیید را بررسی می کند.</string>
     <string name="wallet_ux_swap_automatic_settlement_consent">این تأیید به کیف پول اجازه می‌دهد این مبادله را به‌طور خودکار مطالبه کند، با سقف کارمزد ۱٬۰۰۰ ساتوشی یا ۰٫۱ HNS. اگر مهلت مبادله تمام شود، کیف پول می‌تواند دارایی قفل‌شده شما را در محدوده کارمزد رزروشده بازپرداخت کند. تا زمانی که کیف پول در دسترس باشد، تأیید دیگری لازم نیست.</string>
     <string name="wallet_ux_swap_funding_window_closes">بازه تأمین مالی در %1$s پایان می‌یابد</string>
+    <string name="wallet_ux_swap_scan_waiting">منتظر اسکن بعدی بیت کوین باشید</string>
+    <string name="wallet_ux_swap_scan_overdue">اسکن بیت کوین به تاخیر افتاده است</string>
+    <string name="wallet_ux_swap_scan_unavailable">برای از سرگیری اسکن بیت کوین کیف پول را باز کنید</string>
+    <string name="wallet_ux_swap_scan_last_checked_age">بلاک بیت کوین %1$d %2$d دقیقه پیش اسکن شد</string>
+    <string name="wallet_ux_swap_progress_terms_agreed">شرایط توافق شده است</string>
+    <string name="wallet_ux_swap_progress_your_lock">معامله قفل %1$s شما</string>
+    <string name="wallet_ux_swap_progress_their_lock">تراکنش قفل %1$s آنها</string>
+    <string name="wallet_ux_swap_progress_your_claim">تراکنش بازخرید %1$s شما</string>
+    <string name="wallet_ux_swap_progress_their_claim">تراکنش بازخرید %1$s آنها</string>
+    <string name="wallet_ux_swap_wait_expectation">تایید زنجیره ای ممکن است یک ساعت یا بیشتر طول بکشد. این کیف پول تا زمانی که در دسترس است نظارت می کند. اگر اسکن بیت کوین متوقف شد ShakeDex را دوباره باز کنید.</string>
+    <string name="wallet_ux_swap_wait_expectation_ios">تایید زنجیره ای ممکن است یک ساعت یا بیشتر طول بکشد. ShakeDex را در حین انتظار باز نگه دارید. هنگام خروج، iOS ممکن است اسکن را متوقف کند. برای ادامه آن را دوباره باز کنید.</string>
 </resources>

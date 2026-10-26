@@ -58,7 +58,7 @@
     <string name="wallet_swap_offer_acceptance_label">شما %1$s می‌پردازید ← %2$s دریافت می‌کنید · %3$s…</string>
     <string name="wallet_swap_acceptance_review">بررسی پیشنهاد</string>
     <string name="wallet_swap_acceptance_approval_title">این پیشنهاد مبادله پذیرفته شود؟</string>
-    <string name="wallet_swap_acceptance_approval_message">پیشنهاد: %1$s\n\nقفل: %2$s\nحداکثر کارمزد: %3$s\nمجموع: %4$s\n\nپذیرش، مذاکره را آغاز می‌کند. تأمین وجه جداگانه تأیید می‌شود.</string>
+    <string name="wallet_swap_acceptance_approval_message">پیشنهاد: %1$s\n\nشما %2$s را قفل خواهید کرد، از جمله حداکثر %3$s که برای هزینه های تسویه حساب رزرو شده است.\nمبلغ تعهد شده به این مبادله: %4$s. هزینه شبکه اضافی است. مقدار دقیق آن قبل از ارسال تراکنش قفل ظاهر می شود.\n\nپذیرش این پیشنهاد وجهی را ارسال نمی کند. شما معامله قفل را جداگانه تأیید می کنید.</string>
     <string name="wallet_swap_acceptance_confirm">پذیرش پیشنهاد</string>
     <string name="wallet_swap_funding_approval_title">پخش تأمین وجه Bitcoin؟</string>
     <string name="wallet_swap_funding_approval_message">%1$d سات قفل شود. کارمزد شبکه: %2$d سات (حداکثر %3$d).\n\nتراکنش: %4$s\nجلسه: %5$s\n\nپخش برگشت‌ناپذیر است. مبادله پس از تأیید قفل Bitcoin ادامه می‌یابد.</string>

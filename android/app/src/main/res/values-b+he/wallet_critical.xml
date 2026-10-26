@@ -58,7 +58,7 @@
     <string name="wallet_swap_offer_acceptance_label">אתם משלמים %1$s ← ומקבלים %2$s · %3$s…</string>
     <string name="wallet_swap_acceptance_review">בדיקת הצעה</string>
     <string name="wallet_swap_acceptance_approval_title">לקבל את הצעת ההחלפה הזו?</string>
-    <string name="wallet_swap_acceptance_approval_message">הצעה: %1$s\n\nנעילה: %2$s\nעמלה מרבית: %3$s\nסה״כ: %4$s\n\nהקבלה מתחילה משא ומתן. המימון מאושר בנפרד.</string>
+    <string name="wallet_swap_acceptance_approval_message">הצעה: %1$s\n\nאתה תנעל את %2$s, כולל עד %3$s השמור לעמלות פשרה.\nסכום שהתחייב להחלפה זו: %4$s. דמי רשת בתוספת תשלום. הסכום המדויק שלו מופיע לפני שאתה שולח את עסקת הנעילה.\n\nקבלת הצעה זו אינה שולחת כספים. אתה מאשר את עסקת הנעילה בנפרד.</string>
     <string name="wallet_swap_acceptance_confirm">קבלת הצעה</string>
     <string name="wallet_swap_funding_approval_title">לשדר מימון Bitcoin?</string>
     <string name="wallet_swap_funding_approval_message">נעילת %1$d סאט. עמלת רשת: %2$d סאט (מקסימום %3$d).\n\nעסקה: %4$s\nהפעלה: %5$s\n\nהשידור בלתי הפיך. ההחלפה מתקדמת לאחר אישור נעילת Bitcoin.</string>

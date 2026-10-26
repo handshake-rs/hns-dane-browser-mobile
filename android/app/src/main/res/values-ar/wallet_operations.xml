@@ -510,8 +510,8 @@
     <string name="wallet_ux_swap_active_heading">مبادلة جارية</string>
     <string name="wallet_ux_swap_active_card_title">مبادلة نشطة · %1$s → %2$s</string>
     <string name="wallet_ux_swap_action_needed">يلزم اتخاذ إجراء</string>
-    <string name="wallet_ux_swap_no_action_needed">لا يلزم اتخاذ أي إجراء · سنواصل المراقبة</string>
-    <string name="wallet_ux_swap_claim_deadline">المطالبة قبل %1$s</string>
+    <string name="wallet_ux_swap_no_action_needed">لا حاجة للموافقة الآن</string>
+    <string name="wallet_ux_swap_claim_deadline">طالب بأموالك الآن · يمكن للطرف الآخر استرداد أموالك بعد %1$s</string>
     <string name="wallet_ux_swap_open_record">عرض سجل المبادلة الكامل</string>
     <string name="wallet_ux_swap_technical_details">التفاصيل الفنية</string>
     <string name="wallet_ux_swap_waiting_verify_lock">في انتظار التحقق من قفل %1$s الخاص بهم</string>
@@ -539,7 +539,18 @@
     <string name="wallet_ux_swap_trade_title">%1$s → %2$s</string>
     <string name="wallet_ux_swap_wallet_checkpoints">نقاط تفتيش المحفظة</string>
     <string name="wallet_ux_swap_candidate_message">يعرض المشتري %1$s… مبلغ %2$s مقابل %3$s الخاصة بك. التأكيد يوقّع اتفاق المبادلة ويحجز أموالك خلال مهلة التمويل. لن تُبث أي معاملة الآن.</string>
-    <string name="wallet_ux_swap_funding_approval_message">اقفل %1$d ساتوشي. رسوم الشبكة: %2$d ساتوشي (الحد الأقصى %3$d).\n\nيبدأ بث المعاملة قفل Bitcoin. سنفحص السلسلة للتأكد من التأكيد قبل متابعة المبادلة.</string>
+    <string name="wallet_ux_swap_funding_approval_message">المبلغ المقفل: %1$d sats\nرسوم شبكة البيتكوين: %2$d sats (سقف الرسوم %3$d sats)\nإجمالي المبلغ المنفق عند الإرسال: %4$d sats\n\nيؤدي إرسال هذه المعاملة إلى بدء قفل البيتكوين. تتحقق المحفظة من التأكيد قبل استمرار عملية المبادلة.</string>
     <string name="wallet_ux_swap_automatic_settlement_consent">تسمح هذه الموافقة للمحفظة بالمطالبة بهذه المبادلة تلقائيًا، بحد أقصى للرسوم يبلغ 1,000 ساتوشي أو 0.1 HNS. إذا انتهت صلاحيتها، يمكن للمحفظة استرداد أموالك المقفلة ضمن الرسوم المحجوزة. لا يلزم موافقة أخرى ما دامت المحفظة متاحة.</string>
     <string name="wallet_ux_swap_funding_window_closes">تنتهي مهلة التمويل في %1$s</string>
+    <string name="wallet_ux_swap_scan_waiting">في انتظار فحص البيتكوين التالي</string>
+    <string name="wallet_ux_swap_scan_overdue">لقد تأخر فحص البيتكوين</string>
+    <string name="wallet_ux_swap_scan_unavailable">افتح المحفظة لاستئناف عمليات فحص البيتكوين</string>
+    <string name="wallet_ux_swap_scan_last_checked_age">تم مسح كتلة بيتكوين %1$d قبل %2$d دقيقة</string>
+    <string name="wallet_ux_swap_progress_terms_agreed">تم الاتفاق على الشروط</string>
+    <string name="wallet_ux_swap_progress_your_lock">معاملة القفل %1$s الخاصة بك</string>
+    <string name="wallet_ux_swap_progress_their_lock">معاملة القفل %1$s الخاصة بهم</string>
+    <string name="wallet_ux_swap_progress_your_claim">معاملة الاسترداد %1$s الخاصة بك</string>
+    <string name="wallet_ux_swap_progress_their_claim">معاملة الاسترداد %1$s الخاصة بهم</string>
+    <string name="wallet_ux_swap_wait_expectation">يمكن أن تستغرق تأكيدات السلسلة ساعة أو أكثر. تراقب هذه المحفظة بينما تظل متاحة. أعد فتح ShakeDex إذا توقف فحص البيتكوين.</string>
+    <string name="wallet_ux_swap_wait_expectation_ios">يمكن أن تستغرق تأكيدات السلسلة ساعة أو أكثر. أبقِ ShakeDex مفتوحًا أثناء الانتظار؛ قد يقوم نظام iOS بإيقاف المسح مؤقتًا عند المغادرة. أعد فتحه للمتابعة.</string>
 </resources>

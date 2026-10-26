@@ -58,7 +58,7 @@
     <string name="wallet_swap_offer_acceptance_label">%1$s 지불 → %2$s 수령 · %3$s…</string>
     <string name="wallet_swap_acceptance_review">제안 검토</string>
     <string name="wallet_swap_acceptance_approval_title">이 스왑 제안을 수락할까요?</string>
-    <string name="wallet_swap_acceptance_approval_message">제안: %1$s\n\n잠금: %2$s\n최대 수수료: %3$s\n합계: %4$s\n\n수락하면 협상이 시작됩니다. 자금 공급은 별도로 승인합니다.</string>
+    <string name="wallet_swap_acceptance_approval_message">제안: %1$s\n\n결제 수수료로 예약된 최대 %3$s을 포함하여 %2$s을 잠급니다.\n이 스왑에 약정된 금액: %4$s. 네트워크 요금은 별도입니다. 잠금 트랜잭션을 보내기 전에 정확한 금액이 나타납니다.\n\n이 제안을 수락해도 자금이 전송되지 않습니다. 잠금 트랜잭션을 별도로 승인합니다.</string>
     <string name="wallet_swap_acceptance_confirm">제안 수락</string>
     <string name="wallet_swap_funding_approval_title">Bitcoin 자금 공급을 브로드캐스트할까요?</string>
     <string name="wallet_swap_funding_approval_message">%1$d sats를 잠급니다. 네트워크 수수료: %2$d sats(최대 %3$d).\n\n트랜잭션: %4$s\n세션: %5$s\n\n브로드캐스트는 되돌릴 수 없습니다. Bitcoin 잠금 확인 후 스왑이 진행됩니다.</string>

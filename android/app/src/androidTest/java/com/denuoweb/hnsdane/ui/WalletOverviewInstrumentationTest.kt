@@ -148,6 +148,23 @@ class WalletOverviewInstrumentationTest {
     }
 
     @Test
+    fun interruptedSwapExplainsThatTheWalletMustResumeScanning() = fixture { scenario ->
+        val now = System.currentTimeMillis() / 1_000L
+        scenario.onActivity { activity ->
+            set(activity, "bitcoinSnapshot", snapshot("validated"))
+            set(activity, "latestShakescapeExecutionStatus", submittedBitcoinStatus(now))
+            invoke(activity, "showShakedexDashboard")
+        }
+        onView(withText(containsString("Open the wallet to resume Bitcoin scans")))
+            .inRoot(isDialog()).check(matches(isDisplayed()))
+        onView(withText(containsString("Scanning Bitcoin for confirmation")))
+            .inRoot(isDialog()).check(doesNotExist())
+        onView(withText(R.string.wallet_ux_swap_readiness_sync_bitcoin)).inRoot(isDialog())
+            .check(matches(not(isEnabled())))
+        capture("shakedex-wallet-unavailable")
+    }
+
+    @Test
     fun homeAndEmptyNamesGiveFeaturesAndOnboardingDedicatedSpace() = fixture { scenario ->
         scenario.onActivity { activity ->
             set(activity, "latestReadSnapshot", NativeWalletReadSnapshot(

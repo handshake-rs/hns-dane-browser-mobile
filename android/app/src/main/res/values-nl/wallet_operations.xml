@@ -510,8 +510,8 @@
     <string name="wallet_ux_swap_active_heading">Swap loopt</string>
     <string name="wallet_ux_swap_active_card_title">Actieve swap · %1$s → %2$s</string>
     <string name="wallet_ux_swap_action_needed">Actie nodig</string>
-    <string name="wallet_ux_swap_no_action_needed">Geen actie nodig · we blijven controleren</string>
-    <string name="wallet_ux_swap_claim_deadline">Claim vóór %1$s</string>
+    <string name="wallet_ux_swap_no_action_needed">Er is nu geen goedkeuring nodig</string>
+    <string name="wallet_ux_swap_claim_deadline">Claim nu uw geld · de andere partij kan terugbetalen na %1$s</string>
     <string name="wallet_ux_swap_open_record">Volledig swapverslag bekijken</string>
     <string name="wallet_ux_swap_technical_details">Technische details</string>
     <string name="wallet_ux_swap_waiting_verify_lock">Wachten op verificatie van hun %1$s-vergrendeling</string>
@@ -539,7 +539,18 @@
     <string name="wallet_ux_swap_trade_title">%1$s → %2$s</string>
     <string name="wallet_ux_swap_wallet_checkpoints">Controlepunten van de wallet</string>
     <string name="wallet_ux_swap_candidate_message">Koper %1$s… biedt %2$s voor jouw %3$s. Door te bevestigen onderteken je de swapovereenkomst en reserveer je jouw geld gedurende de financieringsperiode. Er wordt nog geen transactie uitgezonden.</string>
-    <string name="wallet_ux_swap_funding_approval_message">%1$d sats vergrendelen. Netwerkkosten: %2$d sats (maximaal %3$d).\n\nDoor de transactie uit te zenden begint de Bitcoin-vergrendeling. We controleren de bevestiging op de blockchain voordat de swap verdergaat.</string>
+    <string name="wallet_ux_swap_funding_approval_message">Bedrag vergrendeld: %1$d sats\nBitcoin-netwerkkosten: %2$d sats (tarieflimiet %3$d sats)\nTotaal uitgegeven bij verzending: %4$d sats\n\nHet verzenden van deze transactie start het Bitcoin-vergrendeling. De portemonnee controleert op bevestiging voordat de ruil doorgaat.</string>
     <string name="wallet_ux_swap_automatic_settlement_consent">Deze goedkeuring laat de wallet deze swap automatisch innen, met een kostenlimiet van 1.000 sats of 0,1 HNS. Als de swap verloopt, kan de wallet jouw vergrendelde geld terugbetalen binnen de gereserveerde kosten. Zolang de wallet beschikbaar is, is geen verdere goedkeuring nodig.</string>
     <string name="wallet_ux_swap_funding_window_closes">Financieringsperiode sluit op %1$s</string>
+    <string name="wallet_ux_swap_scan_waiting">Wachten op de volgende Bitcoin-scan</string>
+    <string name="wallet_ux_swap_scan_overdue">Bitcoin-scan te laat</string>
+    <string name="wallet_ux_swap_scan_unavailable">Open de portemonnee om Bitcoin-scans te hervatten</string>
+    <string name="wallet_ux_swap_scan_last_checked_age">Bitcoin-blok %1$d is %2$d minuten geleden gescand</string>
+    <string name="wallet_ux_swap_progress_terms_agreed">Voorwaarden overeengekomen</string>
+    <string name="wallet_ux_swap_progress_your_lock">Uw %1$s-vergrendelingstransactie</string>
+    <string name="wallet_ux_swap_progress_their_lock">De %1$s-vergrendelingstransactie van de tegenpartij</string>
+    <string name="wallet_ux_swap_progress_your_claim">Uw %1$s-inwisselingstransactie</string>
+    <string name="wallet_ux_swap_progress_their_claim">De %1$s-inwisselingstransactie van de tegenpartij</string>
+    <string name="wallet_ux_swap_wait_expectation">Ketenbevestigingen kunnen een uur of langer duren. Deze portemonnee monitort terwijl hij beschikbaar blijft. Open ShakeDex opnieuw als het scannen van Bitcoin stopt.</string>
+    <string name="wallet_ux_swap_wait_expectation_ios">Ketenbevestigingen kunnen een uur of langer duren. Houd ShakeDex open tijdens het wachten; iOS kan het scannen onderbreken wanneer u weggaat. Open het opnieuw om door te gaan.</string>
 </resources>

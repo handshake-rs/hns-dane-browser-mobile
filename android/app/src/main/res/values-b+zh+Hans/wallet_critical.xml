@@ -58,7 +58,7 @@
     <string name="wallet_swap_offer_acceptance_label">你支付 %1$s → 你收到 %2$s · %3$s…</string>
     <string name="wallet_swap_acceptance_review">查看报价</string>
     <string name="wallet_swap_acceptance_approval_title">接受此兑换报价？</string>
-    <string name="wallet_swap_acceptance_approval_message">报价：%1$s\n\n锁定：%2$s\n最高费用：%3$s\n总计：%4$s\n\n接受后开始协商。资金操作需另行批准。</string>
+    <string name="wallet_swap_acceptance_approval_message">报价：%1$s\n\n您将锁定%2$s，包括最多为结算费用保留的%3$s。\n承诺此交换的金额：%4$s。需要额外支付网络费。在您发送锁定交易之前，会显示其确切金额。\n\n接受此报价并不发送资金。您单独批准锁定交易。</string>
     <string name="wallet_swap_acceptance_confirm">接受报价</string>
     <string name="wallet_swap_funding_approval_title">广播 Bitcoin 资金交易？</string>
     <string name="wallet_swap_funding_approval_message">锁定 %1$d 聪。网络费用：%2$d 聪（最高 %3$d）。\n\n交易：%4$s\n会话：%5$s\n\n广播不可撤销。确认 Bitcoin 锁定后，兑换才会继续。</string>

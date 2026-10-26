@@ -510,8 +510,8 @@
     <string name="wallet_ux_swap_active_heading">Échange en cours</string>
     <string name="wallet_ux_swap_active_card_title">Swap actif · %1$s → %2$s</string>
     <string name="wallet_ux_swap_action_needed">Action requise</string>
-    <string name="wallet_ux_swap_no_action_needed">Aucune action requise · nous continuerons à surveiller</string>
-    <string name="wallet_ux_swap_claim_deadline">Réclamer avant %1$s</string>
+    <string name="wallet_ux_swap_no_action_needed">Aucune approbation nécessaire pour le moment</string>
+    <string name="wallet_ux_swap_claim_deadline">Réclamez vos fonds maintenant · l\'autre partie peut rembourser après %1$s</string>
     <string name="wallet_ux_swap_open_record">Afficher le dossier complet de l’échange</string>
     <string name="wallet_ux_swap_technical_details">Détails techniques</string>
     <string name="wallet_ux_swap_waiting_verify_lock">En attente de vérification de leur verrouillage %1$s</string>
@@ -539,7 +539,18 @@
     <string name="wallet_ux_swap_trade_title">%1$s → %2$s</string>
     <string name="wallet_ux_swap_wallet_checkpoints">Points de contrôle du portefeuille</string>
     <string name="wallet_ux_swap_candidate_message">L’acheteur %1$s… propose %2$s pour vos %3$s. En confirmant, vous signez l’accord d’échange et réservez vos fonds pendant la période de financement. Aucune transaction n’est encore diffusée.</string>
-    <string name="wallet_ux_swap_funding_approval_message">Verrouiller %1$d sats. Frais de réseau : %2$d sats (maximum %3$d).\n\nLa diffusion de la transaction lance le verrouillage Bitcoin. Nous vérifierons sa confirmation sur la chaîne avant la suite de l’échange.</string>
+    <string name="wallet_ux_swap_funding_approval_message">Montant bloqué : %1$d sats\nFrais de réseau Bitcoin : %2$d sats (plafond des frais %3$d sats)\nTotal dépensé lors de l\'envoi : %4$d sats\n\nL\'envoi de cette transaction démarre le verrouillage Bitcoin. Le portefeuille vérifie la confirmation avant que l\'échange ne continue.</string>
     <string name="wallet_ux_swap_automatic_settlement_consent">Cette approbation autorise le portefeuille à réclamer automatiquement les fonds de cet échange, avec un plafond de frais de 1 000 sats ou 0,1 HNS. Si l’échange expire, le portefeuille peut rembourser vos fonds verrouillés dans la limite des frais réservés. Aucune autre approbation n’est nécessaire tant que le portefeuille est disponible.</string>
     <string name="wallet_ux_swap_funding_window_closes">La période de financement se termine le %1$s</string>
+    <string name="wallet_ux_swap_scan_waiting">En attente du prochain scan Bitcoin</string>
+    <string name="wallet_ux_swap_scan_overdue">Analyse Bitcoin en retard</string>
+    <string name="wallet_ux_swap_scan_unavailable">Ouvrez le portefeuille pour reprendre les analyses Bitcoin</string>
+    <string name="wallet_ux_swap_scan_last_checked_age">Le bloc Bitcoin %1$d analysé il y a %2$d minutes</string>
+    <string name="wallet_ux_swap_progress_terms_agreed">Conditions convenues</string>
+    <string name="wallet_ux_swap_progress_your_lock">Votre transaction de verrouillage %1$s</string>
+    <string name="wallet_ux_swap_progress_their_lock">Leur transaction de verrouillage %1$s</string>
+    <string name="wallet_ux_swap_progress_your_claim">Votre opération de rachat %1$s</string>
+    <string name="wallet_ux_swap_progress_their_claim">Leur opération de rachat %1$s</string>
+    <string name="wallet_ux_swap_wait_expectation">Les confirmations en chaîne peuvent prendre une heure ou plus. Ce portefeuille surveille pendant qu\'il reste disponible. Rouvrez ShakeDex si l\'analyse Bitcoin s\'arrête.</string>
+    <string name="wallet_ux_swap_wait_expectation_ios">Les confirmations en chaîne peuvent prendre une heure ou plus. Gardez ShakeDex ouvert en attendant ; iOS peut suspendre l\'analyse lorsque vous partez. Rouvrez-le pour continuer.</string>
 </resources>

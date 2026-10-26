@@ -58,7 +58,7 @@
     <string name="wallet_swap_offer_acceptance_label">Pagas %1$s → Recibes %2$s · %3$s…</string>
     <string name="wallet_swap_acceptance_review">Revisar oferta</string>
     <string name="wallet_swap_acceptance_approval_title">¿Aceptar esta oferta de intercambio?</string>
-    <string name="wallet_swap_acceptance_approval_message">Oferta: %1$s\n\nBloqueo: %2$s\nComisión máxima: %3$s\nTotal: %4$s\n\nAceptar inicia la negociación. La financiación se aprueba por separado.</string>
+    <string name="wallet_swap_acceptance_approval_message">Oferta: %1$s\n\nBloquearás %2$s, incluido hasta %3$s reservado para tarifas de liquidación.\nMonto comprometido para este swap: %4$s. Una tarifa de red es adicional. Su monto exacto aparece antes de enviar la transacción de bloqueo.\n\nAceptar esta oferta no envía fondos. Usted aprueba la transacción de bloqueo por separado.</string>
     <string name="wallet_swap_acceptance_confirm">Aceptar oferta</string>
     <string name="wallet_swap_funding_approval_title">¿Transmitir la financiación en Bitcoin?</string>
     <string name="wallet_swap_funding_approval_message">Bloquear %1$d sats. Comisión de red: %2$d sats (máximo %3$d).\n\nTransacción: %4$s\nSesión: %5$s\n\nLa transmisión es irreversible. El intercambio avanza después de confirmar el bloqueo de Bitcoin.</string>

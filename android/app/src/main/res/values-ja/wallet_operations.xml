@@ -510,8 +510,8 @@
     <string name="wallet_ux_swap_active_heading">スワップ進行中</string>
     <string name="wallet_ux_swap_active_card_title">進行中のスワップ · %1$s → %2$s</string>
     <string name="wallet_ux_swap_action_needed">操作が必要です</string>
-    <string name="wallet_ux_swap_no_action_needed">操作は不要です · 引き続き監視します</string>
-    <string name="wallet_ux_swap_claim_deadline">%1$sまでに受け取り</string>
+    <string name="wallet_ux_swap_no_action_needed">今のところ承認は必要ありません</string>
+    <string name="wallet_ux_swap_claim_deadline">今すぐ資金を請求してください。相手方は %1$s 後に返金できます</string>
     <string name="wallet_ux_swap_open_record">スワップの全記録を表示</string>
     <string name="wallet_ux_swap_technical_details">技術的な詳細</string>
     <string name="wallet_ux_swap_waiting_verify_lock">相手の%1$sロックの検証を待っています</string>
@@ -539,7 +539,18 @@
     <string name="wallet_ux_swap_trade_title">%1$s → %2$s</string>
     <string name="wallet_ux_swap_wallet_checkpoints">ウォレットの確認地点</string>
     <string name="wallet_ux_swap_candidate_message">購入者 %1$s… は、あなたの %3$s に対して %2$s を提示しています。確定するとスワップ契約に署名し、資金提供期間中は資金が確保されます。この時点では取引は送信されません。</string>
-    <string name="wallet_ux_swap_funding_approval_message">%1$d satsをロックします。ネットワーク手数料：%2$d sats（上限 %3$d）。\n\n取引を送信するとBitcoinのロックが始まります。スワップが進む前に、チェーン上の承認を確認します。</string>
+    <string name="wallet_ux_swap_funding_approval_message">ロックされた量: %1$d sats\nビットコインネットワーク料金: %2$d sats (料金上限 %3$d sats)\n送信時に費やされた合計: %4$d sats\n\nこのトランザクションを送信すると、ビットコインのロックが開始されます。ウォレットはスワップを続行する前に確認をチェックします。</string>
     <string name="wallet_ux_swap_automatic_settlement_consent">この承認により、ウォレットはこのスワップを自動的に受け取れます。手数料の上限は1,000 satsまたは0.1 HNSです。スワップの期限が切れた場合、ウォレットは確保した手数料の範囲内でロックした資金を返金できます。ウォレットが利用可能な間は、追加の承認は不要です。</string>
     <string name="wallet_ux_swap_funding_window_closes">資金提供期間は%1$sに終了します</string>
+    <string name="wallet_ux_swap_scan_waiting">次のビットコインスキャンを待っています</string>
+    <string name="wallet_ux_swap_scan_overdue">ビットコインスキャンの期限が切れました</string>
+    <string name="wallet_ux_swap_scan_unavailable">ウォレットを開いてビットコインスキャンを再開します</string>
+    <string name="wallet_ux_swap_scan_last_checked_age">ビットコイン ブロック %1$d が %2$d 分前にスキャンされました</string>
+    <string name="wallet_ux_swap_progress_terms_agreed">合意された条件</string>
+    <string name="wallet_ux_swap_progress_your_lock">%1$s ロック トランザクション</string>
+    <string name="wallet_ux_swap_progress_their_lock">%1$s ロック トランザクション</string>
+    <string name="wallet_ux_swap_progress_your_claim">%1$s 引き換えトランザクション</string>
+    <string name="wallet_ux_swap_progress_their_claim">%1$s 引き換えトランザクション</string>
+    <string name="wallet_ux_swap_wait_expectation">チェーンの確認には 1 時間以上かかる場合があります。このウォレットは利用可能な間監視します。ビットコインのスキャンが停止した場合は、ShakeDex を再度開きます。</string>
+    <string name="wallet_ux_swap_wait_expectation_ios">チェーンの確認には 1 時間以上かかる場合があります。待機中は ShakeDex を開いたままにしてください。 iOS は、離れるときにスキャンを一時停止する場合があります。続行するには再度開いてください。</string>
 </resources>

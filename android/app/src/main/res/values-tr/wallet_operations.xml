@@ -510,8 +510,8 @@
     <string name="wallet_ux_swap_active_heading">Takas sürüyor</string>
     <string name="wallet_ux_swap_active_card_title">Aktif takas · %1$s → %2$s</string>
     <string name="wallet_ux_swap_action_needed">İşlem gerekli</string>
-    <string name="wallet_ux_swap_no_action_needed">İşlem gerekmiyor · izlemeye devam edeceğiz</string>
-    <string name="wallet_ux_swap_claim_deadline">%1$s tarihinden önce talep edin</string>
+    <string name="wallet_ux_swap_no_action_needed">Şu anda onaya gerek yok</string>
+    <string name="wallet_ux_swap_claim_deadline">Paranızı şimdi talep edin · karşı taraf %1$s tarihinden sonra para iadesi yapabilir</string>
     <string name="wallet_ux_swap_open_record">Takas kaydının tamamını görüntüle</string>
     <string name="wallet_ux_swap_technical_details">Teknik ayrıntılar</string>
     <string name="wallet_ux_swap_waiting_verify_lock">Karşı tarafın %1$s kilidinin doğrulanması bekleniyor</string>
@@ -539,7 +539,18 @@
     <string name="wallet_ux_swap_trade_title">%1$s → %2$s</string>
     <string name="wallet_ux_swap_wallet_checkpoints">Cüzdan kontrol noktaları</string>
     <string name="wallet_ux_swap_candidate_message">%1$s… alıcısı, %3$s tutarınız karşılığında %2$s teklif ediyor. Onaylamak, takas sözleşmesini imzalar ve fonlama süresi boyunca paranızı ayırır. Henüz hiçbir işlem yayımlanmaz.</string>
-    <string name="wallet_ux_swap_funding_approval_message">%1$d satoshi kilitleyin. Ağ ücreti: %2$d satoshi (en fazla %3$d).\n\nİşlemin yayımlanması Bitcoin kilidini başlatır. Takas devam etmeden önce zincirdeki onayı kontrol edeceğiz.</string>
+    <string name="wallet_ux_swap_funding_approval_message">Kilitlenen tutar: %1$d sats\nBitcoin ağ ücreti: %2$d sats (ücret tavanı %3$d sats)\nGönderirken harcanan toplam: %4$d sats\n\nBu işlemin gönderilmesi Bitcoin kilidini başlatır. Cüzdan, takas devam etmeden önce onay olup olmadığını kontrol eder.</string>
     <string name="wallet_ux_swap_automatic_settlement_consent">Bu onay, cüzdanın bu takastaki varlıkları 1.000 satoshi veya 0,1 HNS ücret üst sınırıyla otomatik olarak talep etmesine izin verir. Takasın süresi dolarsa cüzdan, ayrılan ücret sınırı içinde kilitlediğiniz varlıkları iade edebilir. Cüzdan kullanılabilir olduğu sürece başka onay gerekmez.</string>
     <string name="wallet_ux_swap_funding_window_closes">Fonlama süresi %1$s tarihinde sona eriyor</string>
+    <string name="wallet_ux_swap_scan_waiting">Bir sonraki Bitcoin taramasını bekliyorum</string>
+    <string name="wallet_ux_swap_scan_overdue">Bitcoin taraması gecikti</string>
+    <string name="wallet_ux_swap_scan_unavailable">Bitcoin taramalarına devam etmek için cüzdanı açın</string>
+    <string name="wallet_ux_swap_scan_last_checked_age">%1$d Bitcoin bloğu %2$d dakika önce tarandı</string>
+    <string name="wallet_ux_swap_progress_terms_agreed">Şartlar kabul edildi</string>
+    <string name="wallet_ux_swap_progress_your_lock">%1$s kilitleme işleminiz</string>
+    <string name="wallet_ux_swap_progress_their_lock">Karşı tarafın %1$s kilitleme işlemi</string>
+    <string name="wallet_ux_swap_progress_your_claim">%1$s tahsil işleminiz</string>
+    <string name="wallet_ux_swap_progress_their_claim">Karşı tarafın %1$s tahsil işlemi</string>
+    <string name="wallet_ux_swap_wait_expectation">Zincir onayları bir saat veya daha uzun sürebilir. Cüzdan kullanılabilir olduğu sürece takası izler. Bitcoin taraması durursa ShakeDex\'i yeniden açın.</string>
+    <string name="wallet_ux_swap_wait_expectation_ios">Zincir onayları bir saat veya daha uzun sürebilir. Beklerken ShakeDex\'i açık tutun; iOS, siz ayrılırken taramayı duraklatabilir. Devam etmek için yeniden açın.</string>
 </resources>

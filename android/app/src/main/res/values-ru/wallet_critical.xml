@@ -58,7 +58,7 @@
     <string name="wallet_swap_offer_acceptance_label">Вы платите %1$s → Вы получаете %2$s · %3$s…</string>
     <string name="wallet_swap_acceptance_review">Проверить предложение</string>
     <string name="wallet_swap_acceptance_approval_title">Принять это предложение обмена?</string>
-    <string name="wallet_swap_acceptance_approval_message">Предложение: %1$s\n\nБлокировка: %2$s\nМаксимальная комиссия: %3$s\nИтого: %4$s\n\nПринятие запускает переговоры. Финансирование подтверждается отдельно.</string>
+    <string name="wallet_swap_acceptance_approval_message">Предложение: %1$s\n\nВы заблокируете %2$s, включая до %3$s, зарезервированного для комиссий за расчеты.\nСумма, выделенная для этого свопа: %4$s. Плата за сеть взимается дополнительно. Его точная сумма появится перед отправкой транзакции блокировки.\n\nПринятие этого предложения не приводит к отправке средств. Вы утверждаете транзакцию блокировки отдельно.</string>
     <string name="wallet_swap_acceptance_confirm">Принять предложение</string>
     <string name="wallet_swap_funding_approval_title">Отправить финансирование Bitcoin?</string>
     <string name="wallet_swap_funding_approval_message">Заблокировать %1$d sats. Комиссия сети: %2$d sats (максимум %3$d).\n\nТранзакция: %4$s\nСессия: %5$s\n\nОтправка необратима. Обмен продолжится после подтверждения блокировки Bitcoin.</string>

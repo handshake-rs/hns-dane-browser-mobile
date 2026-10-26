@@ -510,8 +510,8 @@
     <string name="wallet_ux_swap_active_heading">Обмін триває</string>
     <string name="wallet_ux_swap_active_card_title">Активний обмін · %1$s → %2$s</string>
     <string name="wallet_ux_swap_action_needed">Потрібна дія</string>
-    <string name="wallet_ux_swap_no_action_needed">Дій не потрібно · продовжуємо спостереження</string>
-    <string name="wallet_ux_swap_claim_deadline">Отримати до %1$s</string>
+    <string name="wallet_ux_swap_no_action_needed">Зараз схвалення не потрібне</string>
+    <string name="wallet_ux_swap_claim_deadline">Вимагайте свої кошти зараз · інша сторона може повернути кошти після %1$s</string>
     <string name="wallet_ux_swap_open_record">Відкрити повний запис обміну</string>
     <string name="wallet_ux_swap_technical_details">Технічні подробиці</string>
     <string name="wallet_ux_swap_waiting_verify_lock">Очікування перевірки блокування %1$s іншої сторони</string>
@@ -539,7 +539,18 @@
     <string name="wallet_ux_swap_trade_title">%1$s → %2$s</string>
     <string name="wallet_ux_swap_wallet_checkpoints">Контрольні точки гаманця</string>
     <string name="wallet_ux_swap_candidate_message">Покупець %1$s… пропонує %2$s за ваші %3$s. Підтвердження підписує угоду обміну й резервує ваші кошти на час вікна фінансування. Транзакцію поки не надсилають.</string>
-    <string name="wallet_ux_swap_funding_approval_message">Заблокувати %1$d сатоші. Мережева комісія: %2$d сатоші (щонайбільше %3$d).\n\nНадсилання транзакції починає блокування Bitcoin. Перш ніж обмін продовжиться, ми перевіримо підтвердження в блокчейні.</string>
+    <string name="wallet_ux_swap_funding_approval_message">Заблокована сума: %1$d sats\nМережева комісія Bitcoin: %2$d sats (обмеження комісії %3$d sats)\nУсього витрачено під час надсилання: %4$d sats\n\nНадсилання цієї транзакції запускає блокування Bitcoin. Гаманець перевіряє наявність підтвердження перед продовженням обміну.</string>
     <string name="wallet_ux_swap_automatic_settlement_consent">Цей дозвіл дозволяє гаманцю автоматично отримати кошти за цим обміном з обмеженням комісії 1 000 сатоші або 0,1 HNS. Якщо термін обміну спливе, гаманець може повернути заблоковані кошти в межах зарезервованої комісії. Доки гаманець доступний, новий дозвіл не потрібен.</string>
     <string name="wallet_ux_swap_funding_window_closes">Вікно фінансування завершується %1$s</string>
+    <string name="wallet_ux_swap_scan_waiting">Очікування наступного сканування Bitcoin</string>
+    <string name="wallet_ux_swap_scan_overdue">Сканування біткойнів прострочено</string>
+    <string name="wallet_ux_swap_scan_unavailable">Відкрийте гаманець, щоб відновити сканування біткойнів</string>
+    <string name="wallet_ux_swap_scan_last_checked_age">Блок біткойн %1$d проскановано %2$d хвилин тому</string>
+    <string name="wallet_ux_swap_progress_terms_agreed">Умови узгоджені</string>
+    <string name="wallet_ux_swap_progress_your_lock">Ваша транзакція блокування %1$s</string>
+    <string name="wallet_ux_swap_progress_their_lock">Їхня транзакція блокування %1$s</string>
+    <string name="wallet_ux_swap_progress_your_claim">Ваша транзакція викупу %1$s</string>
+    <string name="wallet_ux_swap_progress_their_claim">Їхня транзакція викупу %1$s</string>
+    <string name="wallet_ux_swap_wait_expectation">Підтвердження ланцюжка може тривати годину або довше. Цей гаманець відстежує, поки він доступний. Повторно відкрийте ShakeDex, якщо сканування біткойнів припиниться.</string>
+    <string name="wallet_ux_swap_wait_expectation_ios">Підтвердження ланцюжка може тривати годину або довше. Тримайте ShakeDex відкритим під час очікування; iOS може призупинити сканування, коли ви йдете. Щоб продовжити, відкрийте його знову.</string>
 </resources>

@@ -50049,127 +50049,127 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "العرض: %1$@\n\nالقفل: %2$@\nالحد الأقصى للرسوم: %3$@\nالإجمالي: %4$@\n\nيبدأ القبول التفاوض. تتم الموافقة على التمويل بشكل منفصل."
+            "value": "العرض: %1$@\n\nسوف تقوم بقفل %2$@، بما في ذلك ما يصل إلى %3$@ المحجوز لرسوم التسوية.\nالمبلغ الملتزم به في هذا المبادلة: %4$@. رسوم الشبكة إضافية. يظهر المبلغ المحدد قبل إرسال معاملة القفل.\n\nقبول هذا العرض لا يرسل الأموال. أنت توافق على معاملة التأمين بشكل منفصل."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Angebot: %1$@\n\nSperrbetrag: %2$@\nMaximale Gebühr: %3$@\nGesamt: %4$@\n\nDie Annahme startet die Verhandlung. Die Finanzierung wird separat bestätigt."
+            "value": "Angebot: %1$@\n\nSie sperren %2$@, einschließlich bis zu %3$@, die für Abwicklungsgebühren reserviert sind.\nFür diesen Swap zugesagter Betrag: %4$@. Eine Netzwerkgebühr fällt extra an. Der genaue Betrag wird angezeigt, bevor Sie die Sperrtransaktion absenden.\n\nDurch die Annahme dieses Angebots wird kein Geld gesendet. Den Sperrvorgang genehmigen Sie gesondert."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Offer: %1$@\n\nLock: %2$@\nMaximum fee: %3$@\nTotal: %4$@\n\nAccepting starts negotiation. Funding is approved separately."
+            "value": "Offer: %1$@\n\nYou will lock %2$@, including up to %3$@ reserved for settlement fees.\nAmount committed to this swap: %4$@. A network fee is extra. Its exact amount appears before you send the lock transaction.\n\nAccepting this offer does not send funds. You approve the lock transaction separately."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Oferta: %1$@\n\nBloqueo: %2$@\nComisión máxima: %3$@\nTotal: %4$@\n\nAceptar inicia la negociación. La financiación se aprueba por separado."
+            "value": "Oferta: %1$@\n\nBloquearás %2$@, incluido hasta %3$@ reservado para tarifas de liquidación.\nMonto comprometido para este swap: %4$@. Una tarifa de red es adicional. Su monto exacto aparece antes de enviar la transacción de bloqueo.\n\nAceptar esta oferta no envía fondos. Usted aprueba la transacción de bloqueo por separado."
           }
         },
         "fa": {
           "stringUnit": {
             "state": "translated",
-            "value": "پیشنهاد: %1$@\n\nقفل: %2$@\nحداکثر کارمزد: %3$@\nمجموع: %4$@\n\nپذیرش، مذاکره را آغاز می‌کند. تأمین وجه جداگانه تأیید می‌شود."
+            "value": "پیشنهاد: %1$@\n\nشما %2$@ را قفل خواهید کرد، از جمله حداکثر %3$@ که برای هزینه های تسویه حساب رزرو شده است.\nمبلغ تعهد شده به این مبادله: %4$@. هزینه شبکه اضافی است. مقدار دقیق آن قبل از ارسال تراکنش قفل ظاهر می شود.\n\nپذیرش این پیشنهاد وجهی را ارسال نمی کند. شما معامله قفل را جداگانه تأیید می کنید."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Offre : %1$@\n\nVerrouillage : %2$@\nFrais maximum : %3$@\nTotal : %4$@\n\nL’acceptation lance la négociation. Le financement est approuvé séparément."
+            "value": "Offre : %1$@\n\nVous bloquerez %2$@, dont jusqu'à %3$@ réservé aux frais de règlement.\nMontant engagé pour cet échange : %4$@. Des frais de réseau sont en sus. Son montant exact apparaît avant que vous envoyiez la transaction de verrouillage.\n\nAccepter cette offre n'envoie pas de fonds. Vous approuvez la transaction de verrouillage séparément."
           }
         },
         "he": {
           "stringUnit": {
             "state": "translated",
-            "value": "הצעה: %1$@\n\nנעילה: %2$@\nעמלה מרבית: %3$@\nסה״כ: %4$@\n\nהקבלה מתחילה משא ומתן. המימון מאושר בנפרד."
+            "value": "הצעה: %1$@\n\nאתה תנעל את %2$@, כולל עד %3$@ השמור לעמלות פשרה.\nסכום שהתחייב להחלפה זו: %4$@. דמי רשת בתוספת תשלום. הסכום המדויק שלו מופיע לפני שאתה שולח את עסקת הנעילה.\n\nקבלת הצעה זו אינה שולחת כספים. אתה מאשר את עסקת הנעילה בנפרד."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "ऑफ़र: %1$@\n\nलॉक: %2$@\nअधिकतम शुल्क: %3$@\nकुल: %4$@\n\nस्वीकार करने पर बातचीत शुरू होती है। फंडिंग की मंज़ूरी अलग से दी जाती है।"
+            "value": "प्रस्ताव: %1$@\n\nआप %2$@ को लॉक कर देंगे, जिसमें निपटान शुल्क के लिए आरक्षित %3$@ तक शामिल है।\nइस स्वैप के लिए प्रतिबद्ध राशि: %4$@। एक नेटवर्क शुल्क अतिरिक्त है. इसकी सटीक राशि आपके द्वारा लॉक ट्रांजेक्शन भेजने से पहले दिखाई देती है।\n\nइस प्रस्ताव को स्वीकार करने से धनराशि नहीं भेजी जाती. आप लॉक लेनदेन को अलग से मंजूरी देते हैं।"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Penawaran: %1$@\n\nKunci: %2$@\nBiaya maksimum: %3$@\nTotal: %4$@\n\nPenerimaan memulai negosiasi. Pendanaan disetujui secara terpisah."
+            "value": "Penawaran: %1$@\n\nAnda akan mengunci %2$@, termasuk hingga %3$@ yang dicadangkan untuk biaya penyelesaian.\nJumlah yang dikomit untuk pertukaran ini: %4$@. Biaya jaringan tambahan. Jumlah persisnya muncul sebelum Anda mengirim transaksi kunci.\n\nMenerima tawaran ini tidak mengirimkan dana. Anda menyetujui transaksi kunci secara terpisah."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Offerta: %1$@\n\nBlocco: %2$@\nCommissione massima: %3$@\nTotale: %4$@\n\nL’accettazione avvia la negoziazione. Il finanziamento viene approvato separatamente."
+            "value": "Offerta: %1$@\n\nBloccherai %2$@, inclusi fino a %3$@ riservati per le commissioni di liquidazione.\nImporto impegnato in questo swap: %4$@. Una tariffa di rete è extra. Il suo importo esatto viene visualizzato prima di inviare la transazione di blocco.\n\nL'accettazione di questa offerta non invia fondi. Approvi la transazione di blocco separatamente."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "オファー：%1$@\n\nロック：%2$@\n最大手数料：%3$@\n合計：%4$@\n\n承認すると交渉が始まります。資金供給は別途承認します。"
+            "value": "オファー: %1$@\n\n決済手数料のために予約されている最大 %3$@ を含む %2$@ をロックします。\nこのスワップにコミットされた量: %4$@。ネットワーク料金は別途かかります。正確な金額は、ロック トランザクションを送信する前に表示されます。\n\nこのオファーを受け入れても資金は送金されません。ロック トランザクションは個別に承認します。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "제안: %1$@\n\n잠금: %2$@\n최대 수수료: %3$@\n합계: %4$@\n\n수락하면 협상이 시작됩니다. 자금 공급은 별도로 승인합니다."
+            "value": "제안: %1$@\n\n결제 수수료로 예약된 최대 %3$@을 포함하여 %2$@을 잠급니다.\n이 스왑에 약정된 금액: %4$@. 네트워크 요금은 별도입니다. 잠금 트랜잭션을 보내기 전에 정확한 금액이 나타납니다.\n\n이 제안을 수락해도 자금이 전송되지 않습니다. 잠금 트랜잭션을 별도로 승인합니다."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aanbieding: %1$@\n\nVergrendeling: %2$@\nMaximale kosten: %3$@\nTotaal: %4$@\n\nAcceptatie start de onderhandeling. Financiering wordt apart goedgekeurd."
+            "value": "Aanbieding: %1$@\n\nU vergrendelt %2$@, inclusief maximaal %3$@ gereserveerd voor afwikkelingskosten.\nBedrag vastgelegd voor deze swap: %4$@. Een netwerkvergoeding is extra. Het exacte bedrag verschijnt voordat u de slottransactie verzendt.\n\nAls u dit aanbod accepteert, wordt er geen geld overgemaakt. U keurt de slottransactie afzonderlijk goed."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Oferta: %1$@\n\nBlokada: %2$@\nMaksymalna opłata: %3$@\nRazem: %4$@\n\nPrzyjęcie rozpoczyna negocjacje. Finansowanie zatwierdza się osobno."
+            "value": "Oferta: %1$@\n\nZablokujesz %2$@, w tym aż do %3$@ zarezerwowanych na opłaty rozliczeniowe.\nKwota przeznaczona na tę zamianę: %4$@. Opłata sieciowa jest dodatkowa. Dokładna kwota pojawia się przed wysłaniem transakcji blokującej.\n\nZaakceptowanie tej oferty nie powoduje przesłania środków. Zatwierdzasz transakcję blokady osobno."
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Oferta: %1$@\n\nBloqueio: %2$@\nTaxa máxima: %3$@\nTotal: %4$@\n\nA aceitação inicia a negociação. O financiamento é aprovado separadamente."
+            "value": "Oferta: %1$@\n\nVocê bloqueará %2$@, incluindo até %3$@ reservado para taxas de liquidação.\nValor comprometido com esta troca: %4$@. Uma taxa de rede é extra. Seu valor exato aparece antes de você enviar a transação de bloqueio.\n\nAceitar esta oferta não envia fundos. Você aprova a transação de bloqueio separadamente."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Предложение: %1$@\n\nБлокировка: %2$@\nМаксимальная комиссия: %3$@\nИтого: %4$@\n\nПринятие запускает переговоры. Финансирование подтверждается отдельно."
+            "value": "Предложение: %1$@\n\nВы заблокируете %2$@, включая до %3$@, зарезервированного для комиссий за расчеты.\nСумма, выделенная для этого свопа: %4$@. Плата за сеть взимается дополнительно. Его точная сумма появится перед отправкой транзакции блокировки.\n\nПринятие этого предложения не приводит к отправке средств. Вы утверждаете транзакцию блокировки отдельно."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Teklif: %1$@\n\nKilit: %2$@\nAzami ücret: %3$@\nToplam: %4$@\n\nKabul, görüşmeyi başlatır. Fonlama ayrıca onaylanır."
+            "value": "Teklif: %1$@\n\nUzlaştırma ücretleri için ayrılmış en fazla %3$@ dahil olmak üzere %2$@'yi kilitleyeceksiniz.\nBu takasa taahhüt edilen tutar: %4$@. Ağ ücreti ekstradır. Kesin tutarı siz kilitleme işlemini göndermeden önce görünür.\n\nBu teklifi kabul etmek para göndermez. Kilitleme işlemini ayrıca onaylıyorsunuz."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Пропозиція: %1$@\n\nБлокування: %2$@\nМаксимальна комісія: %3$@\nРазом: %4$@\n\nПрийняття починає переговори. Фінансування підтверджується окремо."
+            "value": "Пропозиція: %1$@\n\nВи заблокуєте %2$@, включаючи до %3$@, зарезервовані для комісій за розрахунки.\nСума, виділена для цього обміну: %4$@. Плата за мережу є додатковою. Його точна сума з’являється перед тим, як ви надішлете транзакцію блокування.\n\nПрийняття цієї пропозиції не надсилає кошти. Ви окремо схвалюєте транзакцію блокування."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chào giá: %1$@\n\nKhóa: %2$@\nPhí tối đa: %3$@\nTổng: %4$@\n\nChấp nhận sẽ bắt đầu thương lượng. Việc cấp vốn được phê duyệt riêng."
+            "value": "Ưu đãi: %1$@\n\nBạn sẽ khóa %2$@, bao gồm tối đa %3$@ dành riêng cho phí thanh toán.\nSố tiền cam kết cho giao dịch hoán đổi này: %4$@. Một khoản phí mạng là thêm. Số tiền chính xác của nó xuất hiện trước khi bạn gửi giao dịch khóa.\n\nViệc chấp nhận lời đề nghị này không gửi tiền. Bạn phê duyệt giao dịch khóa riêng biệt."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "报价：%1$@\n\n锁定：%2$@\n最高费用：%3$@\n总计：%4$@\n\n接受后开始协商。资金操作需另行批准。"
+            "value": "报价：%1$@\n\n您将锁定%2$@，包括最多为结算费用保留的%3$@。\n承诺此交换的金额：%4$@。需要额外支付网络费。在您发送锁定交易之前，会显示其确切金额。\n\n接受此报价并不发送资金。您单独批准锁定交易。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "報價：%1$@\n\n鎖定：%2$@\n最高費用：%3$@\n總計：%4$@\n\n接受後開始協商。資金操作需另行核准。"
+            "value": "報價：%1$@\n\n您將鎖定%2$@，包括最多為結算費用保留的%3$@。\n承諾此交換的金額：%4$@。需額外支付網路費用。在您發送鎖定交易之前，會顯示其確切金額。\n\n接受此報價並不發送資金。您單獨批准鎖定交易。"
           }
         }
       }
@@ -74617,127 +74617,127 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "المطالبة قبل %1$@"
+            "value": "طالب بأموالك الآن · يمكن للطرف الآخر استرداد أموالك بعد %1$@"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Beanspruchen vor %1$@"
+            "value": "Fordern Sie jetzt Ihr Geld an · die Gegenpartei kann nach %1$@ eine Rückerstattung leisten"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Claim before %1$@"
+            "value": "Claim your funds now · the other party can refund after %1$@"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reclamar antes del %1$@"
+            "value": "Reclame sus fondos ahora · la otra parte puede reembolsar después de %1$@"
           }
         },
         "fa": {
           "stringUnit": {
             "state": "translated",
-            "value": "قبل از %1$@ مطالبه کنید"
+            "value": "اکنون وجوه خود را مطالبه کنید · طرف مقابل می تواند پس از %1$@ بازپرداخت کند"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Réclamer avant %1$@"
+            "value": "Réclamez vos fonds maintenant · l'autre partie peut rembourser après %1$@"
           }
         },
         "he": {
           "stringUnit": {
             "state": "translated",
-            "value": "אפשר לממש עד %1$@"
+            "value": "תבע את הכספים שלך עכשיו · הצד השני יכול לקבל החזר לאחר %1$@"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@ से पहले क्लेम करें"
+            "value": "अभी अपने फंड का दावा करें · दूसरा पक्ष %1$@ के बाद रिफंड कर सकता है"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Klaim sebelum %1$@"
+            "value": "Klaim dana Anda sekarang · pihak lain dapat mengembalikan dana setelah %1$@"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Riscuoti entro il %1$@"
+            "value": "Richiedi i tuoi fondi ora · l'altra parte potrà rimborsare dopo %1$@"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@までに受け取り"
+            "value": "今すぐ資金を請求してください。相手方は %1$@ 後に返金できます"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@ 전에 수령"
+            "value": "지금 자금을 청구하세요. 상대방은 %1$@ 이후에 환불할 수 있습니다."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Claim vóór %1$@"
+            "value": "Claim nu uw geld · de andere partij kan terugbetalen na %1$@"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Odbierz przed %1$@"
+            "value": "Odbierz swoje środki teraz · druga strona może dokonać zwrotu po %1$@"
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Resgatar antes de %1$@"
+            "value": "Reivindique seus fundos agora · a outra parte poderá reembolsá-los após %1$@"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Получить до %1$@"
+            "value": "Получите свои средства сейчас · другая сторона может вернуть деньги после %1$@"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@ tarihinden önce talep edin"
+            "value": "Paranızı şimdi talep edin · karşı taraf %1$@ tarihinden sonra para iadesi yapabilir"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Отримати до %1$@"
+            "value": "Вимагайте свої кошти зараз · інша сторона може повернути кошти після %1$@"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nhận trước %1$@"
+            "value": "Yêu cầu tiền của bạn ngay bây giờ · bên kia có thể hoàn lại tiền sau %1$@"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在%1$@前领取"
+            "value": "立即领取资金·对方可在%1$@后退款"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "在%1$@前領取"
+            "value": "立即領取資金·對方可在%1$@後退款"
           }
         }
       }
@@ -75065,127 +75065,127 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "اقفل %1$d ساتوشي. رسوم الشبكة: %2$d ساتوشي (الحد الأقصى %3$d).\n\nيبدأ بث المعاملة قفل Bitcoin. سنفحص السلسلة للتأكد من التأكيد قبل متابعة المبادلة."
+            "value": "المبلغ المقفل: %1$d sats\nرسوم شبكة البيتكوين: %2$d sats (سقف الرسوم %3$d sats)\nإجمالي المبلغ المنفق عند الإرسال: %4$d sats\n\nيؤدي إرسال هذه المعاملة إلى بدء قفل البيتكوين. تتحقق المحفظة من التأكيد قبل استمرار عملية المبادلة."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$d Sats sperren. Netzwerkgebühr: %2$d Sats (höchstens %3$d).\n\nMit dem Senden der Transaktion beginnt die Bitcoin-Sperre. Vor dem nächsten Tauschschritt prüfen wir die Bestätigung auf der Blockchain."
+            "value": "Gesperrter Betrag: %1$d sats\nBitcoin-Netzwerkgebühr: %2$d sats (Gebührenobergrenze %3$d sats)\nGesamtausgaben beim Senden: %4$d sats\n\nDurch das Senden dieser Transaktion wird die Bitcoin-Sperre gestartet. Das Wallet prüft die Bestätigung, bevor der Tausch fortgesetzt wird."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lock %1$d sats. Network fee: %2$d sats (maximum %3$d).\n\nBroadcasting starts the Bitcoin lock. We’ll scan for confirmation before the swap continues."
+            "value": "Amount locked: %1$d sats\nBitcoin network fee: %2$d sats (fee cap %3$d sats)\nTotal spent when sending: %4$d sats\n\nSending this transaction starts the Bitcoin lock. The wallet checks for confirmation before the swap continues."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bloquear %1$d sats. Comisión de red: %2$d sats (máximo %3$d).\n\nLa transmisión de la transacción inicia el bloqueo de Bitcoin. Buscaremos su confirmación en la cadena antes de que continúe el intercambio."
+            "value": "Monto bloqueado: %1$d sats\nTarifa de red Bitcoin: %2$d sats (límite de tarifa %3$d sats)\nTotal gastado al enviar: %4$d sats\n\nEl envío de esta transacción inicia el bloqueo de Bitcoin. La billetera busca confirmación antes de continuar con el intercambio."
           }
         },
         "fa": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$d ساتوشی قفل کنید. کارمزد شبکه: %2$d ساتوشی (حداکثر %3$d).\n\nپخش تراکنش، قفل بیت‌کوین را آغاز می‌کند. پیش از ادامه مبادله، زنجیره را برای تأیید آن بررسی می‌کنیم."
+            "value": "مبلغ قفل شده: %1$d sats\nکارمزد شبکه بیت کوین: %2$d sats (سرمایه هزینه %3$d sats)\nکل هزینه شده هنگام ارسال: %4$d sats\n\nارسال این تراکنش باعث شروع قفل بیت کوین می شود. کیف پول قبل از ادامه مبادله، تأیید را بررسی می کند."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Verrouiller %1$d sats. Frais de réseau : %2$d sats (maximum %3$d).\n\nLa diffusion de la transaction lance le verrouillage Bitcoin. Nous vérifierons sa confirmation sur la chaîne avant la suite de l’échange."
+            "value": "Montant bloqué : %1$d sats\nFrais de réseau Bitcoin : %2$d sats (plafond des frais %3$d sats)\nTotal dépensé lors de l'envoi : %4$d sats\n\nL'envoi de cette transaction démarre le verrouillage Bitcoin. Le portefeuille vérifie la confirmation avant que l'échange ne continue."
           }
         },
         "he": {
           "stringUnit": {
             "state": "translated",
-            "value": "נעילת %1$d סאטושי. עמלת רשת: %2$d סאטושי (עד %3$d).\n\nשידור העסקה מתחיל את נעילת ה-Bitcoin. נסרוק את השרשרת לאישור לפני שההחלפה תמשיך."
+            "value": "כמות נעולה: %1$d sats\nעמלת רשת ביטקוין: %2$d sats (תקרת עמלה %3$d sats)\nסה\"כ הוצאה בעת השליחה: %4$d sats\n\nשליחת עסקה זו מתחילה את נעילת הביטקוין. הארנק בודק אישור לפני המשך ההחלפה."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$d sats लॉक करें। नेटवर्क शुल्क: %2$d sats (अधिकतम %3$d)।\n\nलेन-देन प्रसारित करने से Bitcoin लॉक शुरू होता है। स्वैप आगे बढ़ने से पहले हम चेन पर पुष्टि जाँचेंगे।"
+            "value": "लॉक की गई राशि: %1$d sats\nबिटकॉइन नेटवर्क शुल्क: %2$d sats (शुल्क सीमा %3$d sats)\nभेजते समय कुल खर्च: %4$d sats\n\nइस लेनदेन को भेजने से बिटकॉइन लॉक शुरू हो जाता है। स्वैप जारी रखने से पहले वॉलेट पुष्टि के लिए जाँच करता है।"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kunci %1$d sats. Biaya jaringan: %2$d sats (maksimum %3$d).\n\nMenyiarkan transaksi memulai penguncian Bitcoin. Kami akan memindai rantai untuk konfirmasi sebelum swap berlanjut."
+            "value": "Jumlah terkunci: %1$d sats\nBiaya jaringan Bitcoin: %2$d sats (batas biaya %3$d sats)\nTotal yang dibelanjakan saat mengirim: %4$d sats\n\nMengirimkan transaksi ini akan memulai kunci Bitcoin. Dompet memeriksa konfirmasi sebelum pertukaran dilanjutkan."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Blocca %1$d sats. Commissione di rete: %2$d sats (massimo %3$d).\n\nLa trasmissione della transazione avvia il blocco Bitcoin. Verificheremo la conferma sulla blockchain prima che lo scambio prosegua."
+            "value": "Importo bloccato: %1$d sats\nCommissione di rete Bitcoin: %2$d sats (limite tariffario %3$d sats)\nSpesa totale durante l'invio: %4$d sats\n\nL'invio di questa transazione avvia il blocco Bitcoin. Il portafoglio verifica la conferma prima che lo scambio continui."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$d satsをロックします。ネットワーク手数料：%2$d sats（上限 %3$d）。\n\n取引を送信するとBitcoinのロックが始まります。スワップが進む前に、チェーン上の承認を確認します。"
+            "value": "ロックされた量: %1$d sats\nビットコインネットワーク料金: %2$d sats (料金上限 %3$d sats)\n送信時に費やされた合計: %4$d sats\n\nこのトランザクションを送信すると、ビットコインのロックが開始されます。ウォレットはスワップを続行する前に確認をチェックします。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$d sats를 잠급니다. 네트워크 수수료: %2$d sats(최대 %3$d).\n\n거래를 전파하면 Bitcoin 잠금이 시작됩니다. 스왑이 계속되기 전에 체인에서 확인 여부를 검사합니다."
+            "value": "잠긴 금액: %1$d sats\n비트코인 네트워크 수수료: %2$d sats (수수료 상한 %3$d sats)\n전송 시 지출된 총액: %4$d sats\n\n이 거래를 보내면 비트코인 ​​잠금이 시작됩니다. 지갑은 스왑이 계속되기 전에 확인을 확인합니다."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$d sats vergrendelen. Netwerkkosten: %2$d sats (maximaal %3$d).\n\nDoor de transactie uit te zenden begint de Bitcoin-vergrendeling. We controleren de bevestiging op de blockchain voordat de swap verdergaat."
+            "value": "Bedrag vergrendeld: %1$d sats\nBitcoin-netwerkkosten: %2$d sats (tarieflimiet %3$d sats)\nTotaal uitgegeven bij verzending: %4$d sats\n\nHet verzenden van deze transactie start het Bitcoin-vergrendeling. De portemonnee controleert op bevestiging voordat de ruil doorgaat."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zablokuj %1$d satoshi. Opłata sieciowa: %2$d satoshi (maksymalnie %3$d).\n\nNadanie transakcji rozpoczyna blokadę Bitcoin. Przed dalszym etapem wymiany sprawdzimy jej potwierdzenie w łańcuchu."
+            "value": "Kwota zablokowana: %1$d sats\nOpłata sieciowa Bitcoin: %2$d sats (limit opłat %3$d sats)\nŁącznie wydane na wysyłanie: %4$d sats\n\nWysłanie tej transakcji uruchamia blokadę Bitcoin. Portfel sprawdza potwierdzenie przed kontynuacją wymiany."
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bloquear %1$d sats. Taxa de rede: %2$d sats (máximo %3$d).\n\nA transmissão da transação inicia o bloqueio de Bitcoin. Verificaremos a confirmação na cadeia antes de a troca continuar."
+            "value": "Valor bloqueado: %1$d sats\nTaxa de rede Bitcoin: %2$d sats (limite de taxa %3$d sats)\nTotal gasto no envio: %4$d sats\n\nO envio desta transação inicia o bloqueio do Bitcoin. A carteira verifica a confirmação antes que a troca continue."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Заблокировать %1$d сатоши. Сетевая комиссия: %2$d сатоши (максимум %3$d).\n\nОтправка транзакции запускает блокировку Bitcoin. Перед продолжением обмена мы проверим подтверждение в блокчейне."
+            "value": "Заблокированная сумма: %1$d sats\nКомиссия сети Биткойн: %2$d sats (предел комиссии %3$d sats)\nВсего потрачено при отправке: %4$d sats\n\nОтправка этой транзакции запускает блокировку Биткойна. Кошелек проверяет подтверждение перед продолжением обмена."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$d satoshi kilitleyin. Ağ ücreti: %2$d satoshi (en fazla %3$d).\n\nİşlemin yayımlanması Bitcoin kilidini başlatır. Takas devam etmeden önce zincirdeki onayı kontrol edeceğiz."
+            "value": "Kilitlenen tutar: %1$d sats\nBitcoin ağ ücreti: %2$d sats (ücret tavanı %3$d sats)\nGönderirken harcanan toplam: %4$d sats\n\nBu işlemin gönderilmesi Bitcoin kilidini başlatır. Cüzdan, takas devam etmeden önce onay olup olmadığını kontrol eder."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Заблокувати %1$d сатоші. Мережева комісія: %2$d сатоші (щонайбільше %3$d).\n\nНадсилання транзакції починає блокування Bitcoin. Перш ніж обмін продовжиться, ми перевіримо підтвердження в блокчейні."
+            "value": "Заблокована сума: %1$d sats\nМережева комісія Bitcoin: %2$d sats (обмеження комісії %3$d sats)\nУсього витрачено під час надсилання: %4$d sats\n\nНадсилання цієї транзакції запускає блокування Bitcoin. Гаманець перевіряє наявність підтвердження перед продовженням обміну."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Khóa %1$d sats. Phí mạng: %2$d sats (tối đa %3$d).\n\nPhát giao dịch sẽ bắt đầu khóa Bitcoin. Chúng tôi sẽ kiểm tra xác nhận trên chuỗi trước khi hoán đổi tiếp tục."
+            "value": "Số tiền bị khóa: %1$d sats\nPhí mạng bitcoin: %2$d sats (giới hạn phí %3$d sats)\nTổng chi tiêu khi gửi: %4$d sats\n\nViệc gửi giao dịch này sẽ bắt đầu khóa Bitcoin. Ví sẽ kiểm tra xác nhận trước khi quá trình trao đổi tiếp tục."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "锁定 %1$d sats。网络手续费：%2$d sats（最高 %3$d）。\n\n广播交易将启动 Bitcoin 锁定。交换继续前，我们会扫描区块链以确认交易。"
+            "value": "锁定金额：%1$d sats\n比特币网络费用：%2$d sats（费用上限 %3$d sats）\n发送时总花费：%4$d sats\n\n发送此交易会启动比特币锁定。钱包在继续交换之前检查确认。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "鎖定 %1$d sats。網路手續費：%2$d sats（最高 %3$d）。\n\n廣播交易將啟動 Bitcoin 鎖定。交換繼續前，我們會掃描區塊鏈以確認交易。"
+            "value": "鎖定金額：%1$d sats\n比特幣網路費用：%2$d sats（費用上限 %3$d sats）\n發送時總花費：%4$d sats\n\n發送此交易會啟動比特幣鎖定。錢包在繼續交換之前檢查確認。"
           }
         }
       }
@@ -75742,127 +75742,127 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "لا يلزم اتخاذ أي إجراء · سنواصل المراقبة"
+            "value": "لا حاجة للموافقة الآن"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Keine Maßnahmen erforderlich · wir überwachen weiter"
+            "value": "Derzeit ist keine Genehmigung erforderlich"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No action needed · we’ll keep monitoring"
+            "value": "No approval needed now"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "No es necesario realizar ninguna acción · Seguiremos monitoreando"
+            "value": "No se necesita aprobación ahora"
           }
         },
         "fa": {
           "stringUnit": {
             "state": "translated",
-            "value": "نیازی به اقدام نیست · ما به نظارت ادامه خواهیم داد"
+            "value": "در حال حاضر نیازی به تایید نیست"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aucune action requise · nous continuerons à surveiller"
+            "value": "Aucune approbation nécessaire pour le moment"
           }
         },
         "he": {
           "stringUnit": {
             "state": "translated",
-            "value": "אין צורך בפעולה · נמשיך לעקוב"
+            "value": "אין צורך באישור כעת"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "कोई कार्रवाई करने की ज़रूरत नहीं है · हम निगरानी बनाए रखेंगे"
+            "value": "अब मंजूरी की जरूरत नहीं"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tidak perlu tindakan · kami akan terus memantau"
+            "value": "Tidak diperlukan persetujuan sekarang"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nessuna azione necessaria · continueremo a monitorare"
+            "value": "Nessuna approvazione necessaria ora"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "操作は不要です · 引き続き監視します"
+            "value": "今のところ承認は必要ありません"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "조치 불필요 · 계속 모니터링합니다"
+            "value": "지금은 승인이 필요하지 않습니다."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Geen actie nodig · we blijven controleren"
+            "value": "Er is nu geen goedkeuring nodig"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nie trzeba działać · nadal monitorujemy"
+            "value": "Teraz nie jest wymagana żadna zgoda"
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nenhuma ação necessária · continuaremos monitorando"
+            "value": "Nenhuma aprovação necessária agora"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Действий не требуется · продолжаем наблюдение"
+            "value": "Одобрение сейчас не требуется"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "İşlem gerekmiyor · izlemeye devam edeceğiz"
+            "value": "Şu anda onaya gerek yok"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Дій не потрібно · продовжуємо спостереження"
+            "value": "Зараз схвалення не потрібне"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Không cần hành động · chúng tôi sẽ tiếp tục theo dõi"
+            "value": "Không cần phê duyệt bây giờ"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "无需采取任何行动·我们会继续监控"
+            "value": "现在不需要批准"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "無需採取任何行動·我們會持續監察"
+            "value": "現在不需要批准"
           }
         }
       }
@@ -76398,6 +76398,661 @@
           "stringUnit": {
             "state": "translated",
             "value": "已完成 %1$d/%2$d 步"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_progress_terms_agreed": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تم الاتفاق على الشروط"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bedingungen vereinbart"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terms agreed"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Términos acordados"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "شرایط توافق شده است"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conditions convenues"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "תנאים מוסכמים"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "शर्तें सहमत"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Persyaratan disetujui"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Termini concordati"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "合意された条件"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "조건에 동의함"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voorwaarden overeengekomen"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warunki uzgodnione"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Termos acordados"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Условия согласованы"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şartlar kabul edildi"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Умови узгоджені"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Điều khoản đã đồng ý"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同意条款"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同意條款"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_progress_their_claim": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "معاملة الاسترداد %1$@ الخاصة بهم"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einlösungstransaktion der Gegenpartei für %1$@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Their %1$@ redemption transaction"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Su transacción de canje %1$@"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تراکنش بازخرید %1$@ آنها"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leur opération de rachat %1$@"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "עסקת הפדיון %1$@ שלהם"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "उनका %1$@ मोचन लेनदेन"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transaksi penebusan %1$@ mereka"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La loro transazione di riscatto %1$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ 引き換えトランザクション"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ 상환 거래"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "De %1$@-inwisselingstransactie van de tegenpartij"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ich transakcja wykupu %1$@"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sua transação de resgate %1$@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Их транзакция погашения %1$@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Karşı tarafın %1$@ tahsil işlemi"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Їхня транзакція викупу %1$@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giao dịch đổi quà %1$@ của họ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "他们的 %1$@ 赎回交易"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "他們的 %1$@ 贖回交易"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_progress_their_lock": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "معاملة القفل %1$@ الخاصة بهم"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sperrtransaktion der Gegenpartei für %1$@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Their %1$@ lock transaction"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Su transacción de bloqueo %1$@"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تراکنش قفل %1$@ آنها"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leur transaction de verrouillage %1$@"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "עסקת הנעילה %1$@ שלהם"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "उनका %1$@ लॉक लेनदेन"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transaksi kunci %1$@ mereka"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La loro transazione di blocco %1$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ ロック トランザクション"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ 잠금 트랜잭션"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "De %1$@-vergrendelingstransactie van de tegenpartij"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ich transakcja blokady %1$@"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sua transação de bloqueio %1$@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Их транзакция блокировки %1$@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Karşı tarafın %1$@ kilitleme işlemi"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Їхня транзакція блокування %1$@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giao dịch khóa %1$@ của họ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "他们的 %1$@ 锁定交易"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "他們的 %1$@ 鎖定交易"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_progress_your_claim": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "معاملة الاسترداد %1$@ الخاصة بك"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ihre %1$@-Einlösungstransaktion"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your %1$@ redemption transaction"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Su transacción de canje %1$@"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تراکنش بازخرید %1$@ شما"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre opération de rachat %1$@"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "עסקת המימוש %1$@ שלך"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "आपका %1$@ मोचन लेनदेन"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transaksi penukaran %1$@ Anda"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La tua transazione di riscatto %1$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ 引き換えトランザクション"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "귀하의 %1$@ 상환 거래"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uw %1$@-inwisselingstransactie"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Twoja transakcja wykupu %1$@"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sua transação de resgate %1$@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ваша транзакция погашения %1$@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ tahsil işleminiz"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ваша транзакція викупу %1$@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giao dịch đổi thưởng %1$@ của bạn"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "您的 %1$@ 赎回交易"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "您的 %1$@ 贖回交易"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_progress_your_lock": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "معاملة القفل %1$@ الخاصة بك"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ihre %1$@-Sperrtransaktion"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your %1$@ lock transaction"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Su transacción de bloqueo %1$@"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "معامله قفل %1$@ شما"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre transaction de verrouillage %1$@"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "עסקת הנעילה %1$@ שלך"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "आपका %1$@ लॉक लेनदेन"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transaksi kunci %1$@ Anda"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La tua transazione di blocco %1$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ ロック トランザクション"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "귀하의 %1$@ 잠금 거래"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uw %1$@-vergrendelingstransactie"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Twoja transakcja blokady %1$@"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sua transação de bloqueio %1$@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ваша транзакция блокировки %1$@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ kilitleme işleminiz"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ваша транзакція блокування %1$@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giao dịch khóa %1$@ của bạn"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "您的 %1$@ 锁定交易"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "您的 %1$@ 鎖定交易"
           }
         }
       }
@@ -77593,6 +78248,137 @@
         }
       }
     },
+    "wallet_ux_swap_scan_last_checked_age": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تم مسح كتلة بيتكوين %1$d قبل %2$d دقيقة"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Bitcoin-Block %1$d wurde vor %2$d Minuten gescannt"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitcoin block %1$d scanned %2$d minutes ago"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bloque Bitcoin %1$d escaneado hace %2$d minutos"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "بلاک بیت کوین %1$d %2$d دقیقه پیش اسکن شد"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le bloc Bitcoin %1$d analysé il y a %2$d minutes"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "בלוק ביטקוין %1$d נסרק לפני %2$d דקות"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "बिटकॉइन ब्लॉक %1$d को %2$d मिनट पहले स्कैन किया गया"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blok Bitcoin %1$d dipindai %2$d menit yang lalu"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blocco Bitcoin %1$d scansionato %2$d minuti fa"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ビットコイン ブロック %1$d が %2$d 分前にスキャンされました"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "비트코인 블록 %1$d이 %2$d분 전에 스캔되었습니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitcoin-blok %1$d is %2$d minuten geleden gescand"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blok Bitcoin %1$d zeskanowany %2$d minut temu"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bloco Bitcoin %1$d verificado %2$d minutos atrás"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Биткойн-блок %1$d отсканирован %2$d минут назад"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d Bitcoin bloğu %2$d dakika önce tarandı"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Блок біткойн %1$d проскановано %2$d хвилин тому"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Khối bitcoin %1$d được quét %2$d phút trước"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已于 %2$d 分钟前扫描比特币区块 %1$d"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已於 %2$d 分鐘前掃描比特幣區塊 %1$d"
+          }
+        }
+      }
+    },
     "wallet_ux_swap_scan_needs_attention": {
       "extractionState": "manual",
       "localizations": {
@@ -77855,6 +78641,137 @@
         }
       }
     },
+    "wallet_ux_swap_scan_overdue": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لقد تأخر فحص البيتكوين"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitcoin-Scan überfällig"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitcoin scan overdue"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escaneo de Bitcoin vencido"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "اسکن بیت کوین به تاخیر افتاده است"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analyse Bitcoin en retard"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "סריקת ביטקוין באיחור"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "बिटकॉइन स्कैन अतिदेय"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pemindaian Bitcoin terlambat"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scansione Bitcoin in ritardo"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ビットコインスキャンの期限が切れました"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "비트코인 스캔 기한이 지났습니다"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitcoin-scan te laat"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skanowanie bitcoinów opóźnione"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Varredura de Bitcoin atrasada"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сканирование биткойнов просрочено"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitcoin taraması gecikti"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сканування біткойнів прострочено"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quét bitcoin quá hạn"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "比特币扫描逾期"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "比特幣掃描逾期"
+          }
+        }
+      }
+    },
     "wallet_ux_swap_scan_readiness": {
       "extractionState": "manual",
       "localizations": {
@@ -78113,6 +79030,268 @@
           "stringUnit": {
             "state": "translated",
             "value": "比特幣掃描已停止"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_scan_unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "افتح المحفظة لاستئناف عمليات فحص البيتكوين"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Öffnen Sie die Wallet, um die Bitcoin-Scans fortzusetzen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open the wallet to resume Bitcoin scans"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abra la billetera para reanudar los escaneos de Bitcoin"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "برای از سرگیری اسکن بیت کوین کیف پول را باز کنید"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrez le portefeuille pour reprendre les analyses Bitcoin"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "פתח את הארנק כדי לחדש את סריקות הביטקוין"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "बिटकॉइन स्कैन फिर से शुरू करने के लिए वॉलेट खोलें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buka dompet untuk melanjutkan pemindaian Bitcoin"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apri il portafoglio per riprendere le scansioni Bitcoin"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ウォレットを開いてビットコインスキャンを再開します"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "지갑을 열어 비트코인 ​​스캔을 재개하세요"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open de portemonnee om Bitcoin-scans te hervatten"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otwórz portfel, aby wznowić skanowanie Bitcoinów"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abra a carteira para retomar as varreduras de Bitcoin"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Откройте кошелек, чтобы возобновить сканирование биткойнов."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitcoin taramalarına devam etmek için cüzdanı açın"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Відкрийте гаманець, щоб відновити сканування біткойнів"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở ví để tiếp tục quét Bitcoin"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开钱包恢复比特币扫描"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打開錢包恢復比特幣掃描"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_scan_waiting": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "في انتظار فحص البيتكوين التالي"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warten auf den nächsten Bitcoin-Scan"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for next Bitcoin scan"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esperando el próximo escaneo de Bitcoin"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "منتظر اسکن بعدی بیت کوین باشید"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En attente du prochain scan Bitcoin"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "מחכה לסריקת הביטקוין הבאה"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "अगले बिटकॉइन स्कैन की प्रतीक्षा है"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menunggu pemindaian Bitcoin berikutnya"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In attesa della prossima scansione Bitcoin"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "次のビットコインスキャンを待っています"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다음 비트코인 ​​스캔을 기다리는 중"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wachten op de volgende Bitcoin-scan"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Czekam na następny skan Bitcoina"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aguardando a próxima varredura de Bitcoin"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ожидание следующего сканирования биткойнов"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir sonraki Bitcoin taramasını bekliyorum"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Очікування наступного сканування Bitcoin"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang chờ lần quét Bitcoin tiếp theo"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待下一次比特币扫描"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待下一次比特幣掃描"
           }
         }
       }
@@ -78725,6 +79904,268 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$@ → %2$@"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_wait_expectation": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يمكن أن تستغرق تأكيدات السلسلة ساعة أو أكثر. تراقب هذه المحفظة بينما تظل متاحة. أعد فتح ShakeDex إذا توقف فحص البيتكوين."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kettenbestätigungen können eine Stunde oder länger dauern. Dieses Wallet überwacht, solange es verfügbar bleibt. Öffnen Sie ShakeDex erneut, wenn das Bitcoin-Scannen stoppt."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chain confirmations can take an hour or longer. This wallet monitors while it stays available. Reopen ShakeDex if Bitcoin scanning stops."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las confirmaciones en cadena pueden tardar una hora o más. Esta billetera monitorea mientras permanece disponible. Vuelva a abrir ShakeDex si se detiene el escaneo de Bitcoin."
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تایید زنجیره ای ممکن است یک ساعت یا بیشتر طول بکشد. این کیف پول تا زمانی که در دسترس است نظارت می کند. اگر اسکن بیت کوین متوقف شد ShakeDex را دوباره باز کنید."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les confirmations en chaîne peuvent prendre une heure ou plus. Ce portefeuille surveille pendant qu'il reste disponible. Rouvrez ShakeDex si l'analyse Bitcoin s'arrête."
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "אישורי שרשרת יכולים להימשך שעה או יותר. הארנק הזה עוקב בזמן שהוא נשאר זמין. פתח מחדש את ShakeDex אם סריקת הביטקוין נפסקת."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "श्रृंखला पुष्टिकरण में एक घंटा या उससे अधिक समय लग सकता है। यह वॉलेट उपलब्ध रहने तक निगरानी रखता है। यदि बिटकॉइन स्कैनिंग बंद हो जाए तो ShakeDex को फिर से खोलें।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konfirmasi berantai bisa memakan waktu satu jam atau lebih. Dompet ini memantau selama masih tersedia. Buka kembali ShakeDex jika pemindaian Bitcoin berhenti."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le conferme a catena possono richiedere un'ora o più. Questo portafoglio monitora mentre rimane disponibile. Riapri ShakeDex se la scansione di Bitcoin si interrompe."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "チェーンの確認には 1 時間以上かかる場合があります。このウォレットは利用可能な間監視します。ビットコインのスキャンが停止した場合は、ShakeDex を再度開きます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "체인 확인에는 1시간 이상 걸릴 수 있습니다. 이 지갑은 사용 가능한 동안 모니터링합니다. 비트코인 스캔이 중지되면 ShakeDex를 다시 엽니다."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ketenbevestigingen kunnen een uur of langer duren. Deze portemonnee monitort terwijl hij beschikbaar blijft. Open ShakeDex opnieuw als het scannen van Bitcoin stopt."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Potwierdzenia łańcuchowe mogą zająć godzinę lub dłużej. Ten portfel monitoruje, dopóki jest dostępny. Otwórz ponownie ShakeDex, jeśli skanowanie Bitcoinów się zatrzyma."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As confirmações da cadeia podem levar uma hora ou mais. Esta carteira monitora enquanto permanece disponível. Reabra ShakeDex se a verificação do Bitcoin for interrompida."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подтверждение цепочки может занять час или больше. Этот кошелек контролирует, пока он остается доступным. Снова откройте ShakeDex, если сканирование биткойнов прекратится."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zincir onayları bir saat veya daha uzun sürebilir. Cüzdan kullanılabilir olduğu sürece takası izler. Bitcoin taraması durursa ShakeDex'i yeniden açın."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Підтвердження ланцюжка може тривати годину або довше. Цей гаманець відстежує, поки він доступний. Повторно відкрийте ShakeDex, якщо сканування біткойнів припиниться."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quá trình xác nhận chuỗi có thể mất một giờ hoặc lâu hơn. Ví này giám sát trong khi nó vẫn có sẵn. Mở lại ShakeDex nếu quá trình quét Bitcoin dừng lại."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "链上确认可能需要一个小时或更长时间。该钱包在保持可用状态时进行监控。如果比特币扫描停止，请重新打开 ShakeDex。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鏈上確認可能需要一個小時或更長。該錢包在保持可用狀態時進行監控。如果比特幣掃描停止，請重新開啟 ShakeDex。"
+          }
+        }
+      }
+    },
+    "wallet_ux_swap_wait_expectation_ios": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يمكن أن تستغرق تأكيدات السلسلة ساعة أو أكثر. أبقِ ShakeDex مفتوحًا أثناء الانتظار؛ قد يقوم نظام iOS بإيقاف المسح مؤقتًا عند المغادرة. أعد فتحه للمتابعة."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kettenbestätigungen können eine Stunde oder länger dauern. Halten Sie ShakeDex während des Wartens geöffnet; iOS unterbricht möglicherweise den Scanvorgang, wenn Sie gehen. Öffnen Sie es erneut, um fortzufahren."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chain confirmations can take an hour or longer. Keep ShakeDex open while waiting; iOS may pause scanning when you leave. Reopen it to continue."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las confirmaciones en cadena pueden tardar una hora o más. Mantenga ShakeDex abierto mientras espera; iOS puede pausar el escaneo cuando te vayas. Vuelve a abrirlo para continuar."
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تایید زنجیره ای ممکن است یک ساعت یا بیشتر طول بکشد. ShakeDex را در حین انتظار باز نگه دارید. هنگام خروج، iOS ممکن است اسکن را متوقف کند. برای ادامه آن را دوباره باز کنید."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les confirmations en chaîne peuvent prendre une heure ou plus. Gardez ShakeDex ouvert en attendant ; iOS peut suspendre l'analyse lorsque vous partez. Rouvrez-le pour continuer."
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "אישורי שרשרת יכולים להימשך שעה או יותר. השאר את ShakeDex פתוח בזמן ההמתנה; iOS עשוי להשהות את הסריקה כשתעזוב. פתח אותו מחדש כדי להמשיך."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "श्रृंखला पुष्टिकरण में एक घंटा या उससे अधिक समय लग सकता है। प्रतीक्षा करते समय ShakeDex को खुला रखें; आपके जाने पर iOS स्कैनिंग रोक सकता है। जारी रखने के लिए इसे पुनः खोलें."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konfirmasi berantai bisa memakan waktu satu jam atau lebih. Biarkan ShakeDex tetap terbuka sambil menunggu; iOS mungkin menjeda pemindaian saat Anda keluar. Buka kembali untuk melanjutkan."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le conferme a catena possono richiedere un'ora o più. Tieni aperto ShakeDex durante l'attesa; iOS potrebbe mettere in pausa la scansione quando esci. Riaprilo per continuare."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "チェーンの確認には 1 時間以上かかる場合があります。待機中は ShakeDex を開いたままにしてください。 iOS は、離れるときにスキャンを一時停止する場合があります。続行するには再度開いてください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "체인 확인에는 1시간 이상 걸릴 수 있습니다. 기다리는 동안 ShakeDex를 열어두세요. iOS는 자리를 떠날 때 검색을 일시 중지할 수 있습니다. 계속하려면 다시여세요."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ketenbevestigingen kunnen een uur of langer duren. Houd ShakeDex open tijdens het wachten; iOS kan het scannen onderbreken wanneer u weggaat. Open het opnieuw om door te gaan."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Potwierdzenia łańcuchowe mogą zająć godzinę lub dłużej. Podczas oczekiwania trzymaj ShakeDex otwarty; iOS może wstrzymać skanowanie, gdy wyjdziesz. Otwórz go ponownie, aby kontynuować."
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As confirmações da cadeia podem levar uma hora ou mais. Mantenha ShakeDex aberto enquanto espera; O iOS pode pausar a verificação quando você sair. Abra-o novamente para continuar."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подтверждение цепочки может занять час или больше. Держите ShakeDex открытым во время ожидания; iOS может приостановить сканирование, когда вы уходите. Откройте его снова, чтобы продолжить."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zincir onayları bir saat veya daha uzun sürebilir. Beklerken ShakeDex'i açık tutun; iOS, siz ayrılırken taramayı duraklatabilir. Devam etmek için yeniden açın."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Підтвердження ланцюжка може тривати годину або довше. Тримайте ShakeDex відкритим під час очікування; iOS може призупинити сканування, коли ви йдете. Щоб продовжити, відкрийте його знову."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quá trình xác nhận chuỗi có thể mất một giờ hoặc lâu hơn. Giữ ShakeDex mở trong khi chờ đợi; iOS có thể tạm dừng quá trình quét khi bạn rời đi. Mở lại nó để tiếp tục."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "链上确认可能需要一个小时或更长时间。等待时保持 ShakeDex 打开；当您离开时，iOS 可能会暂停扫描。重新打开它以继续。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鏈上確認可能需要一個小時或更長。等待時保持 ShakeDex 開啟；當您離開時，iOS 可能會暫停掃描。重新打開它以繼續。"
           }
         }
       }

@@ -60,6 +60,68 @@ class SwapExecutionListTest {
     }
 
     @Test
+    fun interruptedPairedSwapKeepsTheCorrectParticipantActionAndRecoveryVisible() {
+        val maker = execution("paired", state = "first_funding_pending",
+            fundingDeadlineUnix = 200).copy(firstFundingCutoffUnix = 150)
+        val taker = maker.copy(localRole = "taker", localFundingState = null)
+        assertTrue(swapFundingActionRequired(maker, 100))
+        assertFalse(swapFundingActionRequired(taker, 100))
+        assertFalse(swapFundingActionRequired(maker, 151)) // maker's earlier cutoff
+
+        val firstFundedMaker = maker.copy(state = "first_funded",
+            localFundingState = "confirmed", firstFundingConfirmed = true)
+        val firstFundedTaker = taker.copy(state = "first_funded",
+            firstFundingConfirmed = true)
+        assertFalse(swapFundingActionRequired(firstFundedMaker, 160))
+        assertTrue(swapFundingActionRequired(firstFundedTaker, 160))
+
+        val bothFundedMaker = firstFundedMaker.copy(state = "both_funded",
+            secondFundingConfirmed = true)
+        val bothFundedTaker = firstFundedTaker.copy(state = "both_funded",
+            localFundingState = "confirmed", secondFundingConfirmed = true)
+        assertTrue(swapRedemptionActionRequired(bothFundedMaker))
+        assertFalse(swapRedemptionActionRequired(bothFundedTaker))
+        assertFalse(swapRedemptionActionRequired(bothFundedMaker.copy(
+            localRedemption = NativeLocalRedemptionSummary("queued", "a".repeat(64)))))
+
+        val secretObservedTaker = bothFundedTaker.copy(state = "secret_observed",
+            firstRedemptionConfirmed = true)
+        assertTrue(swapRedemptionActionRequired(secretObservedTaker))
+        val submittedClaim = secretObservedTaker.copy(
+            localRedemption = NativeLocalRedemptionSummary("submitted", "b".repeat(64)))
+        assertFalse(swapRedemptionActionRequired(submittedClaim))
+        assertTrue(swapBitcoinConfirmationPending(submittedClaim))
+        assertFalse(swapExecutionCanDismiss(submittedClaim))
+
+        val reorgedMaker = firstFundedMaker.copy(state = "failed",
+            firstFundingConfirmed = false, localFundingState = "reorged")
+        assertFalse(swapFundingActionRequired(reorgedMaker, 160))
+        assertFalse(swapExecutionCanDismiss(reorgedMaker))
+        assertFalse(swapExecutionCanDismiss(firstFundedMaker.copy(state = "refund_eligible")))
+        assertTrue(swapExecutionCanDismiss(firstFundedMaker.copy(state = "refunded",
+            refundConfirmed = true)))
+    }
+
+    @Test
+    fun scanStatesDistinguishAnActiveRoundFromOverdueAndStoppedRecovery() {
+        val checking = swapScanState(true, false, false, true, 1_000, 900_000)
+        val waiting = swapScanState(false, false, false, true, 1_000, 120_000)
+        val overdue = swapScanState(false, false, false, true, 1_000, 700_001)
+        val stopped = swapScanState(false, false, true, true, 1_000, 120_000)
+        val unavailable = swapScanState(false, false, false, false, 1_000, 120_000)
+        assertEquals(SwapScanState.CHECKING, checking)
+        assertEquals(SwapScanState.WAITING, waiting)
+        assertEquals(SwapScanState.OVERDUE, overdue)
+        assertEquals(SwapScanState.STOPPED, stopped)
+        assertEquals(SwapScanState.UNAVAILABLE, unavailable)
+        assertFalse(swapScanNeedsAttention(checking))
+        assertFalse(swapScanNeedsAttention(waiting))
+        assertTrue(swapScanNeedsAttention(overdue))
+        assertTrue(swapScanNeedsAttention(stopped))
+        assertTrue(swapScanNeedsAttention(unavailable))
+    }
+
+    @Test
     fun submittedClaimDoesNotOfferRedeemAgainWhileSwapPhaseWaitsForScan() {
         // Moto's recorded BTC claim was submitted while the verified swap
         // phase still said secret_observed and offered "Redeem received BTC".

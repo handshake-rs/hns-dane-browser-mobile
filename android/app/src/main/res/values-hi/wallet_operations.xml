@@ -510,8 +510,8 @@
     <string name="wallet_ux_swap_active_heading">स्वैप चल रहा है</string>
     <string name="wallet_ux_swap_active_card_title">सक्रिय स्वैप · %1$s → %2$s</string>
     <string name="wallet_ux_swap_action_needed">कार्रवाई की ज़रूरत है</string>
-    <string name="wallet_ux_swap_no_action_needed">कोई कार्रवाई करने की ज़रूरत नहीं है · हम निगरानी बनाए रखेंगे</string>
-    <string name="wallet_ux_swap_claim_deadline">%1$s से पहले क्लेम करें</string>
+    <string name="wallet_ux_swap_no_action_needed">अब मंजूरी की जरूरत नहीं</string>
+    <string name="wallet_ux_swap_claim_deadline">अभी अपने फंड का दावा करें · दूसरा पक्ष %1$s के बाद रिफंड कर सकता है</string>
     <string name="wallet_ux_swap_open_record">पूरा स्वैप रिकॉर्ड देखें</string>
     <string name="wallet_ux_swap_technical_details">तकनीकी विवरण</string>
     <string name="wallet_ux_swap_waiting_verify_lock">उनके %1$s लॉक को वेरिफ़ाई करने के लिए इंतज़ार किया जा रहा है</string>
@@ -539,7 +539,18 @@
     <string name="wallet_ux_swap_trade_title">%1$s → %2$s</string>
     <string name="wallet_ux_swap_wallet_checkpoints">वॉलेट चेकपॉइंट</string>
     <string name="wallet_ux_swap_candidate_message">खरीदार %1$s… आपके %3$s के बदले %2$s देता है। पुष्टि करने पर स्वैप समझौते पर हस्ताक्षर होते हैं और फ़ंडिंग अवधि के लिए आपकी राशि आरक्षित होती है। अभी कोई लेन-देन प्रसारित नहीं होता।</string>
-    <string name="wallet_ux_swap_funding_approval_message">%1$d sats लॉक करें। नेटवर्क शुल्क: %2$d sats (अधिकतम %3$d)।\n\nलेन-देन प्रसारित करने से Bitcoin लॉक शुरू होता है। स्वैप आगे बढ़ने से पहले हम चेन पर पुष्टि जाँचेंगे।</string>
+    <string name="wallet_ux_swap_funding_approval_message">लॉक की गई राशि: %1$d sats\nबिटकॉइन नेटवर्क शुल्क: %2$d sats (शुल्क सीमा %3$d sats)\nभेजते समय कुल खर्च: %4$d sats\n\nइस लेनदेन को भेजने से बिटकॉइन लॉक शुरू हो जाता है। स्वैप जारी रखने से पहले वॉलेट पुष्टि के लिए जाँच करता है।</string>
     <string name="wallet_ux_swap_automatic_settlement_consent">यह अनुमति वॉलेट को इस स्वैप की राशि अपने आप क्लेम करने देती है, जिसमें शुल्क सीमा 1,000 sats या 0.1 HNS है। स्वैप की अवधि समाप्त होने पर वॉलेट आरक्षित शुल्क सीमा में आपके लॉक को रिफ़ंड कर सकता है। वॉलेट उपलब्ध रहने तक और अनुमति की ज़रूरत नहीं है।</string>
     <string name="wallet_ux_swap_funding_window_closes">फ़ंडिंग अवधि %1$s को समाप्त होती है</string>
+    <string name="wallet_ux_swap_scan_waiting">अगले बिटकॉइन स्कैन की प्रतीक्षा है</string>
+    <string name="wallet_ux_swap_scan_overdue">बिटकॉइन स्कैन अतिदेय</string>
+    <string name="wallet_ux_swap_scan_unavailable">बिटकॉइन स्कैन फिर से शुरू करने के लिए वॉलेट खोलें</string>
+    <string name="wallet_ux_swap_scan_last_checked_age">बिटकॉइन ब्लॉक %1$d को %2$d मिनट पहले स्कैन किया गया</string>
+    <string name="wallet_ux_swap_progress_terms_agreed">शर्तें सहमत</string>
+    <string name="wallet_ux_swap_progress_your_lock">आपका %1$s लॉक लेनदेन</string>
+    <string name="wallet_ux_swap_progress_their_lock">उनका %1$s लॉक लेनदेन</string>
+    <string name="wallet_ux_swap_progress_your_claim">आपका %1$s मोचन लेनदेन</string>
+    <string name="wallet_ux_swap_progress_their_claim">उनका %1$s मोचन लेनदेन</string>
+    <string name="wallet_ux_swap_wait_expectation">श्रृंखला पुष्टिकरण में एक घंटा या उससे अधिक समय लग सकता है। यह वॉलेट उपलब्ध रहने तक निगरानी रखता है। यदि बिटकॉइन स्कैनिंग बंद हो जाए तो ShakeDex को फिर से खोलें।</string>
+    <string name="wallet_ux_swap_wait_expectation_ios">श्रृंखला पुष्टिकरण में एक घंटा या उससे अधिक समय लग सकता है। प्रतीक्षा करते समय ShakeDex को खुला रखें; आपके जाने पर iOS स्कैनिंग रोक सकता है। जारी रखने के लिए इसे पुनः खोलें.</string>
 </resources>

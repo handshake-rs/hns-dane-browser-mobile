@@ -119,6 +119,27 @@ func swapScanNeedsAttention(syncing: Bool, failed: Bool, paused: Bool) -> Bool {
     !syncing && (failed || paused)
 }
 
+enum SwapScanState: Equatable { case checking, waiting, stopped, failed, overdue, unavailable }
+
+func swapScanState(
+    syncing: Bool, failed: Bool, paused: Bool, available: Bool,
+    lastCompletedAt: TimeInterval?, now: TimeInterval
+) -> SwapScanState {
+    if syncing { return .checking }
+    if failed { return .failed }
+    if paused { return .stopped }
+    if !available { return .unavailable }
+    if let lastCompletedAt, now - lastCompletedAt > 10 * 60 { return .overdue }
+    return .waiting
+}
+
+func swapScanNeedsAttention(_ state: SwapScanState) -> Bool {
+    switch state {
+    case .checking, .waiting: return false
+    case .stopped, .failed, .overdue, .unavailable: return true
+    }
+}
+
 /// Presentation-only execution controls. Hidden sessions stay in the native
 /// journal and return to the visible list if funding or recovery appears.
 enum WalletSwapExecutionList {
@@ -411,11 +432,13 @@ private final class AtomicSwapNotificationCoordinator {
         }
         for execution in status.executions where swapFundingActionRequired(execution, now: now) {
             let identifier = fundingWarningIdentifier(execution.sessionId)
-            guard execution.fundingDeadlineUnix > 60 * 60 else {
+            let localDeadline = execution.localRole == "maker"
+                ? execution.firstFundingCutoffUnix : execution.fundingDeadlineUnix
+            guard localDeadline > 60 * 60 else {
                 center.removePendingNotificationRequests(withIdentifiers: [identifier])
                 continue
             }
-            let warningAt = execution.fundingDeadlineUnix - 60 * 60
+            let warningAt = localDeadline - 60 * 60
             guard warningAt > now else {
                 center.removePendingNotificationRequests(withIdentifiers: [identifier])
                 continue
@@ -424,14 +447,14 @@ private final class AtomicSwapNotificationCoordinator {
                 ? execution.secondChain
                 : execution.firstChain
             let target = notificationChainLabel(targetChain)
-            let fingerprint = "\(execution.fundingDeadlineUnix):\(target)"
+            let fingerprint = "\(localDeadline):\(target)"
             scheduled[execution.sessionId] = fingerprint
             guard previous[execution.sessionId] != fingerprint else { continue }
             let deadlineFormatter = DateFormatter()
             deadlineFormatter.dateStyle = .medium
             deadlineFormatter.timeStyle = .short
             let deadline = deadlineFormatter.string(
-                from: Date(timeIntervalSince1970: TimeInterval(execution.fundingDeadlineUnix))
+                from: Date(timeIntervalSince1970: TimeInterval(localDeadline))
             )
             let warningStage = WalletCopy.format(
                 "wallet_swap_stage_with_deadline",
@@ -528,7 +551,8 @@ private final class AtomicSwapNotificationCoordinator {
             return "funding-expired"
         }
         if swapFundingActionRequired(execution, now: now),
-           execution.fundingDeadlineUnix - now <= 60 * 60 {
+           (execution.localRole == "maker" ? execution.firstFundingCutoffUnix :
+                execution.fundingDeadlineUnix) - now <= 60 * 60 {
             return "funding-one-hour"
         }
         if swapFundingActionRequired(execution, now: now), execution.localRole == "taker" {
@@ -842,6 +866,8 @@ final class WalletViewController: UIViewController {
     private var lastAutomaticSwapHnsSyncAtUptime: TimeInterval?
     private var lastAutomaticSwapHnsSyncFingerprint: String?
     private var lastAutomaticSwapBitcoinSyncAtUptime: TimeInterval?
+    private var lastCompletedBitcoinScanAtUptime: TimeInterval?
+    private var swapBitcoinScanDemandSinceUptime: TimeInterval?
     private var lastAutomaticSwapBitcoinSyncFingerprint: String?
     private var automaticSwapBitcoinSyncPausedUntilUptime: TimeInterval?
     private var shakedexReadinessScanRequested = false
@@ -1950,6 +1976,7 @@ final class WalletViewController: UIViewController {
                 case .success(let synchronization):
                     self.automaticSwapBitcoinSyncPausedUntilUptime = nil
                     self.lastAutomaticSwapBitcoinSyncAtUptime = ProcessInfo.processInfo.systemUptime
+                    self.lastCompletedBitcoinScanAtUptime = self.lastAutomaticSwapBitcoinSyncAtUptime
                     self.renderBitcoinSnapshot(synchronization.snapshot)
                     let elapsed = String(format: "%.2fs", Double(synchronization.totalMs) / 1_000)
                     self.bitcoinStatusLabel.text = WalletCopy.format(
@@ -2931,7 +2958,7 @@ final class WalletViewController: UIViewController {
         )
         let alert = UIAlertController(
             title: WalletCopy.text("wallet_swap_acceptance_approval_title"),
-            message: message,
+            message: message + "\n\n" + WalletCopy.text("wallet_ux_swap_wait_expectation_ios"),
             preferredStyle: .alert
         )
         directOfferAcceptanceApprovalAlert = alert
@@ -3360,7 +3387,7 @@ final class WalletViewController: UIViewController {
                 String(candidate.responderIdentity.prefix(12)),
                 swapAmount(candidate.receivedAmount, asset: candidate.receivedAsset),
                 swapAmount(candidate.offeredAmount, asset: candidate.offeredAsset)
-            ),
+            ) + "\n\n" + WalletCopy.text("wallet_ux_swap_wait_expectation_ios"),
             preferredStyle: .alert
         )
         alert.addAction(UIAlertAction(title: WalletCopy.text("wallet_action_cancel"), style: .cancel))
@@ -3505,14 +3532,9 @@ final class WalletViewController: UIViewController {
         let technicalDetails = "\(shakescapeExecutionProgress(execution).detail)\n\n\(message)" +
             "\(redemption.isEmpty ? bitcoinScan : redemption)\(reservation)"
         let now = UInt64(Date().timeIntervalSince1970)
-        let scanPaused = bitcoinLastSyncStopped ||
-            (automaticSwapBitcoinSyncPausedUntilUptime.map {
-                ProcessInfo.processInfo.systemUptime < $0
-            } ?? false)
         let attentionKey: String
-        if swapBitcoinConfirmationPending(execution) && swapScanNeedsAttention(
-            syncing: bitcoinSyncInProgress, failed: bitcoinLastSyncFailed, paused: scanPaused
-        ) {
+        if swapBitcoinConfirmationPending(execution) &&
+            swapScanNeedsAttention(currentSwapScanState()) {
             attentionKey = "wallet_ux_swap_resume_scan_hint"
         } else if swapExecutionNeedsAttention(execution, now: now) {
             attentionKey = "wallet_ux_swap_action_needed"
@@ -4053,14 +4075,16 @@ final class WalletViewController: UIViewController {
             "wallet_ux_swap_funding_approval_message",
             Int(approval.amountSats),
             Int(approval.feeSats),
-            Int(approval.maximumFeeSats)
+            Int(approval.maximumFeeSats),
+            Int(approval.amountSats) + Int(approval.feeSats)
         )
         let alert = UIAlertController(
             title: WalletCopy.text("wallet_ux_swap_funding_approval_title"),
             message: message + "\n\n" + WalletCopy.format(
                 "wallet_ux_swap_automatic_minimum_receive",
                 automaticSwapMinimumReceive(execution)
-            ) + "\n\n" + WalletCopy.text("wallet_ux_swap_automatic_settlement_consent"),
+            ) + "\n\n" + WalletCopy.text("wallet_ux_swap_automatic_settlement_consent") +
+                "\n\n" + WalletCopy.text("wallet_ux_swap_wait_expectation_ios"),
             preferredStyle: .alert
         )
         btcForHnsFundingApprovalAlert = alert
@@ -4909,13 +4933,8 @@ final class WalletViewController: UIViewController {
         if pendingConfirmation, let scan = shakedexBitcoinScanStatus(pendingConfirmation: true) {
             lines.append(scan)
         }
-        let scanPaused = bitcoinLastSyncStopped ||
-            (automaticSwapBitcoinSyncPausedUntilUptime.map {
-                ProcessInfo.processInfo.systemUptime < $0
-            } ?? false)
-        let scanNeedsAttention = pendingConfirmation && swapScanNeedsAttention(
-            syncing: bitcoinSyncInProgress, failed: bitcoinLastSyncFailed, paused: scanPaused
-        )
+        let scanNeedsAttention = pendingConfirmation &&
+            swapScanNeedsAttention(currentSwapScanState())
         lines.append(WalletCopy.text(swapExecutionNeedsAttention(execution, now: now) || scanNeedsAttention ||
             execution.state == "failed"
             ? "wallet_ux_swap_action_needed" : "wallet_ux_swap_no_action_needed"))
@@ -4923,6 +4942,8 @@ final class WalletViewController: UIViewController {
         if ["terms_frozen", "refunds_prepared", "first_funding_pending", "first_funded",
             "second_funding_pending"].contains(execution.state),
            now < execution.fundingDeadlineUnix,
+           !(execution.localRole == "maker" && execution.state == "first_funding_pending" &&
+                now > execution.firstFundingCutoffUnix && execution.localFundingState == nil),
            !swapFundingActionRequired(execution, now: now) {
             lines.append(WalletCopy.format("wallet_ux_swap_funding_window_closes",
                 formatAtomicSwapDeadline(execution.fundingDeadlineUnix)))
@@ -5048,30 +5069,47 @@ final class WalletViewController: UIViewController {
         return lines.joined(separator: "\n")
     }
 
+    private func currentSwapScanState() -> SwapScanState {
+        swapScanState(
+            syncing: bitcoinSyncInProgress, failed: bitcoinLastSyncFailed,
+            paused: bitcoinLastSyncStopped || (automaticSwapBitcoinSyncPausedUntilUptime.map {
+                ProcessInfo.processInfo.systemUptime < $0
+            } ?? false),
+            available: walletIsUnlocked && wallet != nil && bitcoinValueAvailable &&
+                UIApplication.shared.applicationState == .active,
+            lastCompletedAt: [lastCompletedBitcoinScanAtUptime,
+                swapBitcoinScanDemandSinceUptime].compactMap { $0 }.max(),
+            now: ProcessInfo.processInfo.systemUptime
+        )
+    }
+
     private func shakedexBitcoinScanStatus(pendingConfirmation: Bool) -> String? {
         if bitcoinStage == .recoveryStart || bitcoinStage == .savingRecoveryStart ||
             (bitcoinStage == .unavailable && !bitcoinLastSyncFailed && !bitcoinLastSyncStopped) {
             return nil
         }
-        let paused = bitcoinLastSyncStopped || (automaticSwapBitcoinSyncPausedUntilUptime.map {
-            ProcessInfo.processInfo.systemUptime < $0
-        } ?? false)
+        if !pendingConfirmation && !bitcoinSyncInProgress && !shakedexReadinessScanRequested &&
+            !bitcoinLastSyncFailed && !bitcoinLastSyncStopped { return nil }
         let key: String
-        if bitcoinLastSyncFailed && !bitcoinSyncInProgress {
-            key = "wallet_ux_swap_scan_needs_attention"
-        } else if paused && !bitcoinSyncInProgress {
-            key = "wallet_ux_swap_scan_stopped"
-        } else if pendingConfirmation {
-            key = "wallet_ux_swap_scan_confirmation"
-        } else if bitcoinSyncInProgress || shakedexReadinessScanRequested {
-            key = "wallet_ux_swap_scan_readiness"
-        } else {
-            return nil
+        switch currentSwapScanState() {
+        case .checking:
+            key = pendingConfirmation ? "wallet_ux_swap_scan_confirmation" :
+                "wallet_ux_swap_scan_readiness"
+        case .waiting: key = "wallet_ux_swap_scan_waiting"
+        case .stopped: key = "wallet_ux_swap_scan_stopped"
+        case .failed: key = "wallet_ux_swap_scan_needs_attention"
+        case .overdue: key = "wallet_ux_swap_scan_overdue"
+        case .unavailable: key = "wallet_ux_swap_scan_unavailable"
         }
         let checkpoint = bitcoinSnapshot.flatMap { snapshot -> String? in
-            snapshot.synchronizedHeight > 0
-                ? WalletCopy.format("wallet_ux_swap_scan_last_checked", Int(snapshot.synchronizedHeight))
-                : nil
+            guard snapshot.synchronizedHeight > 0 else { return nil }
+            if let last = lastCompletedBitcoinScanAtUptime {
+                let minutes = max(0, Int((ProcessInfo.processInfo.systemUptime - last) / 60))
+                return WalletCopy.format("wallet_ux_swap_scan_last_checked_age",
+                    Int(snapshot.synchronizedHeight), minutes)
+            }
+            return WalletCopy.format("wallet_ux_swap_scan_last_checked",
+                Int(snapshot.synchronizedHeight))
         } ?? WalletCopy.text("wallet_ux_swap_scan_no_checkpoint")
         return "\(WalletCopy.text(key)) · \(checkpoint)"
     }
@@ -5124,10 +5162,7 @@ final class WalletViewController: UIViewController {
             ) { [weak self] in self?.showBitcoinDashboard() })
         } else if (bitcoinStage == .firstSync || bitcoinStage == .sync ||
             (bitcoinStage == .unavailable && (bitcoinLastSyncFailed || bitcoinLastSyncStopped))) &&
-            swapScanNeedsAttention(syncing: bitcoinSyncInProgress, failed: bitcoinLastSyncFailed,
-                paused: bitcoinLastSyncStopped || (automaticSwapBitcoinSyncPausedUntilUptime.map {
-                    ProcessInfo.processInfo.systemUptime < $0
-                } ?? false)) {
+            swapScanNeedsAttention(currentSwapScanState()) {
             actions.append(WalletMenuAction(
                 title: WalletCopy.text("wallet_ux_swap_readiness_sync_bitcoin"),
                 enabled: walletIsUnlocked && wallet != nil && bitcoinValueAvailable &&
@@ -5175,6 +5210,9 @@ final class WalletViewController: UIViewController {
     private func showShakedexDashboard() {
         guard walletCanPresentChild else { return }
         shakedexReadinessScanRequested = true
+        if swapBitcoinScanDemandSinceUptime == nil {
+            swapBitcoinScanDemandSinceUptime = ProcessInfo.processInfo.systemUptime
+        }
         if let status = shakescapeExecutionStatusSnapshot, hasLiveSwapScanDemand(status) {
             shakedexReadinessScanRequested = false
             _ = maybeStartAutomaticSwapBitcoinSync(status)
@@ -5850,6 +5888,8 @@ final class WalletViewController: UIViewController {
             lastAutomaticSwapHnsSyncAtUptime = nil
             lastAutomaticSwapHnsSyncFingerprint = nil
             lastAutomaticSwapBitcoinSyncAtUptime = nil
+            lastCompletedBitcoinScanAtUptime = nil
+            swapBitcoinScanDemandSinceUptime = nil
             lastAutomaticSwapBitcoinSyncFingerprint = nil
             automaticSwapBitcoinSyncPausedUntilUptime = nil
             shakedexReadinessScanRequested = false
@@ -5928,6 +5968,14 @@ final class WalletViewController: UIViewController {
                 if let executions {
                     let previous = self.shakescapeExecutionStatusSnapshot
                     self.shakescapeExecutionStatusSnapshot = executions
+                    if self.hasLiveSwapScanDemand(executions) {
+                        if self.swapBitcoinScanDemandSinceUptime == nil {
+                            self.swapBitcoinScanDemandSinceUptime =
+                                ProcessInfo.processInfo.systemUptime
+                        }
+                    } else if !self.shakedexReadinessScanRequested {
+                        self.swapBitcoinScanDemandSinceUptime = nil
+                    }
                     self.schedulePendingAtomicSwapNotificationPresentation()
                     self.atomicSwapNotifications.reconcile(
                         executions,
@@ -6217,15 +6265,19 @@ final class WalletViewController: UIViewController {
             execution.secondFundingConfirmed || completed
         let maker = execution.localRole == "maker"
         let milestones: [(Bool, String)] = [
-            (agreed, "Terms agreed"),
+            (agreed, WalletCopy.text("wallet_ux_swap_progress_terms_agreed")),
             (completed || execution.firstFundingConfirmed,
-             "\(maker ? "You" : "Other party") lock \(swapChainLabel(execution.firstChain))"),
+             WalletCopy.format(maker ? "wallet_ux_swap_progress_your_lock" :
+                "wallet_ux_swap_progress_their_lock", swapChainLabel(execution.firstChain))),
             (completed || execution.secondFundingConfirmed,
-             "\(maker ? "Other party" : "You") lock \(swapChainLabel(execution.secondChain))"),
+             WalletCopy.format(maker ? "wallet_ux_swap_progress_their_lock" :
+                "wallet_ux_swap_progress_your_lock", swapChainLabel(execution.secondChain))),
             (completed || execution.firstRedemptionConfirmed,
-             "\(maker ? "You" : "Other party") redeem \(swapChainLabel(execution.secondChain))"),
+             WalletCopy.format(maker ? "wallet_ux_swap_progress_your_claim" :
+                "wallet_ux_swap_progress_their_claim", swapChainLabel(execution.secondChain))),
             (completed || execution.secondRedemptionConfirmed,
-             "\(maker ? "Other party" : "You") redeem \(swapChainLabel(execution.firstChain))"),
+             WalletCopy.format(maker ? "wallet_ux_swap_progress_their_claim" :
+                "wallet_ux_swap_progress_your_claim", swapChainLabel(execution.firstChain))),
         ]
         let summary = WalletCopy.format(
             "wallet_ux_swap_progress_count", milestones.filter { $0.0 }.count, milestones.count
@@ -6377,15 +6429,17 @@ final class WalletViewController: UIViewController {
                 stage = "\(claim)\n\(stage)"
             }
         }
+        let localFundingDeadline = execution.localRole == "maker"
+            ? execution.firstFundingCutoffUnix : execution.fundingDeadlineUnix
         if let fundingTarget,
-           now < execution.fundingDeadlineUnix,
+           now < localFundingDeadline,
            swapFundingActionRequired(execution, now: now) {
             stage = WalletCopy.format(
                 "wallet_swap_stage_with_deadline",
                 stage,
-                formatAtomicSwapRemaining(execution.fundingDeadlineUnix, now: now),
+                formatAtomicSwapRemaining(localFundingDeadline, now: now),
                 fundingTarget,
-                formatAtomicSwapDeadline(execution.fundingDeadlineUnix)
+                formatAtomicSwapDeadline(localFundingDeadline)
             )
         }
         return stage

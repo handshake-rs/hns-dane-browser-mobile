@@ -510,8 +510,8 @@
     <string name="wallet_ux_swap_active_heading">Intercambio en curso</string>
     <string name="wallet_ux_swap_active_card_title">Intercambio activo · %1$s → %2$s</string>
     <string name="wallet_ux_swap_action_needed">Acción necesaria</string>
-    <string name="wallet_ux_swap_no_action_needed">No es necesario realizar ninguna acción · Seguiremos monitoreando</string>
-    <string name="wallet_ux_swap_claim_deadline">Reclamar antes del %1$s</string>
+    <string name="wallet_ux_swap_no_action_needed">No se necesita aprobación ahora</string>
+    <string name="wallet_ux_swap_claim_deadline">Reclame sus fondos ahora · la otra parte puede reembolsar después de %1$s</string>
     <string name="wallet_ux_swap_open_record">Ver registro de intercambio completo</string>
     <string name="wallet_ux_swap_technical_details">Detalles técnicos</string>
     <string name="wallet_ux_swap_waiting_verify_lock">A la espera de verificar su bloqueo %1$s</string>
@@ -539,7 +539,18 @@
     <string name="wallet_ux_swap_trade_title">%1$s → %2$s</string>
     <string name="wallet_ux_swap_wallet_checkpoints">Puntos de control del monedero</string>
     <string name="wallet_ux_swap_candidate_message">El comprador %1$s… ofrece %2$s por tus %3$s. Al confirmar, firmas el acuerdo de intercambio y reservas tus fondos durante el plazo de financiación. Todavía no se transmite ninguna transacción.</string>
-    <string name="wallet_ux_swap_funding_approval_message">Bloquear %1$d sats. Comisión de red: %2$d sats (máximo %3$d).\n\nLa transmisión de la transacción inicia el bloqueo de Bitcoin. Buscaremos su confirmación en la cadena antes de que continúe el intercambio.</string>
+    <string name="wallet_ux_swap_funding_approval_message">Monto bloqueado: %1$d sats\nTarifa de red Bitcoin: %2$d sats (límite de tarifa %3$d sats)\nTotal gastado al enviar: %4$d sats\n\nEl envío de esta transacción inicia el bloqueo de Bitcoin. La billetera busca confirmación antes de continuar con el intercambio.</string>
     <string name="wallet_ux_swap_automatic_settlement_consent">Esta aprobación permite a la cartera reclamar este intercambio automáticamente, con un límite de comisión de 1.000 sats o 0,1 HNS. Si el intercambio vence, la cartera puede reembolsar tus fondos bloqueados dentro de la comisión reservada. No hace falta otra aprobación mientras la cartera esté disponible.</string>
     <string name="wallet_ux_swap_funding_window_closes">El plazo de financiación termina el %1$s</string>
+    <string name="wallet_ux_swap_scan_waiting">Esperando el próximo escaneo de Bitcoin</string>
+    <string name="wallet_ux_swap_scan_overdue">Escaneo de Bitcoin vencido</string>
+    <string name="wallet_ux_swap_scan_unavailable">Abra la billetera para reanudar los escaneos de Bitcoin</string>
+    <string name="wallet_ux_swap_scan_last_checked_age">Bloque Bitcoin %1$d escaneado hace %2$d minutos</string>
+    <string name="wallet_ux_swap_progress_terms_agreed">Términos acordados</string>
+    <string name="wallet_ux_swap_progress_your_lock">Su transacción de bloqueo %1$s</string>
+    <string name="wallet_ux_swap_progress_their_lock">Su transacción de bloqueo %1$s</string>
+    <string name="wallet_ux_swap_progress_your_claim">Su transacción de canje %1$s</string>
+    <string name="wallet_ux_swap_progress_their_claim">Su transacción de canje %1$s</string>
+    <string name="wallet_ux_swap_wait_expectation">Las confirmaciones en cadena pueden tardar una hora o más. Esta billetera monitorea mientras permanece disponible. Vuelva a abrir ShakeDex si se detiene el escaneo de Bitcoin.</string>
+    <string name="wallet_ux_swap_wait_expectation_ios">Las confirmaciones en cadena pueden tardar una hora o más. Mantenga ShakeDex abierto mientras espera; iOS puede pausar el escaneo cuando te vayas. Vuelve a abrirlo para continuar.</string>
 </resources>

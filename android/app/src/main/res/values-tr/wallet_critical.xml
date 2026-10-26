@@ -58,7 +58,7 @@
     <string name="wallet_swap_offer_acceptance_label">%1$s ödüyorsunuz → %2$s alıyorsunuz · %3$s…</string>
     <string name="wallet_swap_acceptance_review">Teklifi incele</string>
     <string name="wallet_swap_acceptance_approval_title">Bu takas teklifi kabul edilsin mi?</string>
-    <string name="wallet_swap_acceptance_approval_message">Teklif: %1$s\n\nKilit: %2$s\nAzami ücret: %3$s\nToplam: %4$s\n\nKabul, görüşmeyi başlatır. Fonlama ayrıca onaylanır.</string>
+    <string name="wallet_swap_acceptance_approval_message">Teklif: %1$s\n\nUzlaştırma ücretleri için ayrılmış en fazla %3$s dahil olmak üzere %2$s\'yi kilitleyeceksiniz.\nBu takasa taahhüt edilen tutar: %4$s. Ağ ücreti ekstradır. Kesin tutarı siz kilitleme işlemini göndermeden önce görünür.\n\nBu teklifi kabul etmek para göndermez. Kilitleme işlemini ayrıca onaylıyorsunuz.</string>
     <string name="wallet_swap_acceptance_confirm">Teklifi kabul et</string>
     <string name="wallet_swap_funding_approval_title">Bitcoin fonlaması yayınlansın mı?</string>
     <string name="wallet_swap_funding_approval_message">%1$d sats kilitleyin. Ağ ücreti: %2$d sats (azami %3$d).\n\nİşlem: %4$s\nOturum: %5$s\n\nYayın geri alınamaz. Takas, Bitcoin kilidi onaylandıktan sonra ilerler.</string>

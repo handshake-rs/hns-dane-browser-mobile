@@ -510,8 +510,8 @@
     <string name="wallet_ux_swap_active_heading">ההחלפה מתבצעת</string>
     <string name="wallet_ux_swap_active_card_title">החלפה פעילה · %1$s → %2$s</string>
     <string name="wallet_ux_swap_action_needed">נדרשת פעולה</string>
-    <string name="wallet_ux_swap_no_action_needed">אין צורך בפעולה · נמשיך לעקוב</string>
-    <string name="wallet_ux_swap_claim_deadline">אפשר לממש עד %1$s</string>
+    <string name="wallet_ux_swap_no_action_needed">אין צורך באישור כעת</string>
+    <string name="wallet_ux_swap_claim_deadline">תבע את הכספים שלך עכשיו · הצד השני יכול לקבל החזר לאחר %1$s</string>
     <string name="wallet_ux_swap_open_record">הצג רשומת החלפה מלאה</string>
     <string name="wallet_ux_swap_technical_details">פרטים טכניים</string>
     <string name="wallet_ux_swap_waiting_verify_lock">בהמתנה לאימות הנעילה של %1$s</string>
@@ -539,7 +539,18 @@
     <string name="wallet_ux_swap_trade_title">%1$s → %2$s</string>
     <string name="wallet_ux_swap_wallet_checkpoints">נקודות בדיקה של הארנק</string>
     <string name="wallet_ux_swap_candidate_message">הקונה %1$s… מציע %2$s תמורת %3$s שלך. האישור חותם על הסכם ההחלפה ושומר את הכספים שלך למשך חלון המימון. שום עסקה עדיין לא משודרת.</string>
-    <string name="wallet_ux_swap_funding_approval_message">נעילת %1$d סאטושי. עמלת רשת: %2$d סאטושי (עד %3$d).\n\nשידור העסקה מתחיל את נעילת ה-Bitcoin. נסרוק את השרשרת לאישור לפני שההחלפה תמשיך.</string>
+    <string name="wallet_ux_swap_funding_approval_message">כמות נעולה: %1$d sats\nעמלת רשת ביטקוין: %2$d sats (תקרת עמלה %3$d sats)\nסה\"כ הוצאה בעת השליחה: %4$d sats\n\nשליחת עסקה זו מתחילה את נעילת הביטקוין. הארנק בודק אישור לפני המשך ההחלפה.</string>
     <string name="wallet_ux_swap_automatic_settlement_consent">האישור הזה מאפשר לארנק לממש את ההחלפה הזו אוטומטית, עם תקרת עמלה של 1,000 סאטושי או 0.1 HNS. אם תוקף ההחלפה יפוג, הארנק עשוי להחזיר את הנעילה שלך במסגרת העמלה השמורה. לא יידרש אישור נוסף כל עוד הארנק זמין.</string>
     <string name="wallet_ux_swap_funding_window_closes">חלון המימון נסגר ב-%1$s</string>
+    <string name="wallet_ux_swap_scan_waiting">מחכה לסריקת הביטקוין הבאה</string>
+    <string name="wallet_ux_swap_scan_overdue">סריקת ביטקוין באיחור</string>
+    <string name="wallet_ux_swap_scan_unavailable">פתח את הארנק כדי לחדש את סריקות הביטקוין</string>
+    <string name="wallet_ux_swap_scan_last_checked_age">בלוק ביטקוין %1$d נסרק לפני %2$d דקות</string>
+    <string name="wallet_ux_swap_progress_terms_agreed">תנאים מוסכמים</string>
+    <string name="wallet_ux_swap_progress_your_lock">עסקת הנעילה %1$s שלך</string>
+    <string name="wallet_ux_swap_progress_their_lock">עסקת הנעילה %1$s שלהם</string>
+    <string name="wallet_ux_swap_progress_your_claim">עסקת המימוש %1$s שלך</string>
+    <string name="wallet_ux_swap_progress_their_claim">עסקת הפדיון %1$s שלהם</string>
+    <string name="wallet_ux_swap_wait_expectation">אישורי שרשרת יכולים להימשך שעה או יותר. הארנק הזה עוקב בזמן שהוא נשאר זמין. פתח מחדש את ShakeDex אם סריקת הביטקוין נפסקת.</string>
+    <string name="wallet_ux_swap_wait_expectation_ios">אישורי שרשרת יכולים להימשך שעה או יותר. השאר את ShakeDex פתוח בזמן ההמתנה; iOS עשוי להשהות את הסריקה כשתעזוב. פתח אותו מחדש כדי להמשיך.</string>
 </resources>

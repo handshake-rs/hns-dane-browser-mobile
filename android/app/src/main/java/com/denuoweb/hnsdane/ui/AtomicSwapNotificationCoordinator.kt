@@ -55,6 +55,31 @@ internal fun swapBitcoinConfirmationPending(
             execution.localRedemption?.state in setOf("submitted", "seen"))
 }
 
+internal enum class SwapScanState { CHECKING, WAITING, STOPPED, FAILED, OVERDUE, UNAVAILABLE }
+
+/** Presentation state for a bounded scan, including the time between rounds. */
+internal fun swapScanState(
+    syncing: Boolean,
+    failed: Boolean,
+    paused: Boolean,
+    available: Boolean,
+    lastCompletedAtMillis: Long?,
+    nowMillis: Long,
+): SwapScanState = when {
+    syncing -> SwapScanState.CHECKING
+    failed -> SwapScanState.FAILED
+    paused -> SwapScanState.STOPPED
+    !available -> SwapScanState.UNAVAILABLE
+    lastCompletedAtMillis != null && nowMillis - lastCompletedAtMillis > 10 * 60_000L ->
+        SwapScanState.OVERDUE
+    else -> SwapScanState.WAITING
+}
+
+internal fun swapScanNeedsAttention(state: SwapScanState): Boolean = state in setOf(
+    SwapScanState.STOPPED, SwapScanState.FAILED, SwapScanState.OVERDUE,
+    SwapScanState.UNAVAILABLE,
+)
+
 internal fun swapScanNeedsAttention(syncing: Boolean, failed: Boolean, paused: Boolean): Boolean =
     !syncing && (failed || paused)
 
@@ -327,15 +352,17 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
         }
         status.executions.forEach { execution ->
             if (!swapFundingActionRequired(execution, now)) return@forEach
+            val localDeadline = if (execution.localRole == "maker")
+                execution.firstFundingCutoffUnix else execution.fundingDeadlineUnix
             val target = if (execution.state in setOf("first_funded", "second_funding_pending")) {
                 execution.secondChain
             } else {
                 execution.firstChain
             }.let(::chainLabel)
-            val warningFingerprint = "${execution.fundingDeadlineUnix}:$target"
+            val warningFingerprint = "$localDeadline:$target"
             scheduleWarning(
                 sessionId = execution.sessionId,
-                fundingDeadlineUnix = execution.fundingDeadlineUnix,
+                fundingDeadlineUnix = localDeadline,
                 warningFingerprint = warningFingerprint,
             ) { deadline ->
                 val warningStage = applicationContext.getString(
@@ -500,7 +527,8 @@ internal class AtomicSwapNotificationCoordinator(context: Context) {
         return when {
             fundingState && now >= execution.fundingDeadlineUnix -> "funding_expired"
             swapFundingActionRequired(execution, now) &&
-                execution.fundingDeadlineUnix - now <= ONE_HOUR_SECONDS ->
+                (if (execution.localRole == "maker") execution.firstFundingCutoffUnix
+                    else execution.fundingDeadlineUnix) - now <= ONE_HOUR_SECONDS ->
                 "funding_one_hour"
             swapFundingActionRequired(execution, now) && execution.localRole == "taker" ->
                 "second_funding_action"

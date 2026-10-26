@@ -510,8 +510,8 @@
     <string name="wallet_ux_swap_active_heading">交换进行中</string>
     <string name="wallet_ux_swap_active_card_title">进行中的交换 · %1$s → %2$s</string>
     <string name="wallet_ux_swap_action_needed">需要采取的行动</string>
-    <string name="wallet_ux_swap_no_action_needed">无需采取任何行动·我们会继续监控</string>
-    <string name="wallet_ux_swap_claim_deadline">在%1$s前领取</string>
+    <string name="wallet_ux_swap_no_action_needed">现在不需要批准</string>
+    <string name="wallet_ux_swap_claim_deadline">立即领取资金·对方可在%1$s后退款</string>
     <string name="wallet_ux_swap_open_record">查看完整交换记录</string>
     <string name="wallet_ux_swap_technical_details">技术细节</string>
     <string name="wallet_ux_swap_waiting_verify_lock">等待验证对方的 %1$s 锁定</string>
@@ -539,7 +539,18 @@
     <string name="wallet_ux_swap_trade_title">%1$s → %2$s</string>
     <string name="wallet_ux_swap_wallet_checkpoints">钱包检查点</string>
     <string name="wallet_ux_swap_candidate_message">买家 %1$s… 愿以 %2$s 交换您的 %3$s。确认后会签署交换协议，并在资金锁定期限内预留您的资金。此时不会广播交易。</string>
-    <string name="wallet_ux_swap_funding_approval_message">锁定 %1$d sats。网络手续费：%2$d sats（最高 %3$d）。\n\n广播交易将启动 Bitcoin 锁定。交换继续前，我们会扫描区块链以确认交易。</string>
+    <string name="wallet_ux_swap_funding_approval_message">锁定金额：%1$d sats\n比特币网络费用：%2$d sats（费用上限 %3$d sats）\n发送时总花费：%4$d sats\n\n发送此交易会启动比特币锁定。钱包在继续交换之前检查确认。</string>
     <string name="wallet_ux_swap_automatic_settlement_consent">此项批准允许钱包自动领取本次交换的资金，手续费上限为 1,000 sats 或 0.1 HNS。若交换到期，钱包可在预留的手续费额度内退还您锁定的资金。只要钱包可用，就无需再次批准。</string>
     <string name="wallet_ux_swap_funding_window_closes">资金窗口于 %1$s 关闭</string>
+    <string name="wallet_ux_swap_scan_waiting">等待下一次比特币扫描</string>
+    <string name="wallet_ux_swap_scan_overdue">比特币扫描逾期</string>
+    <string name="wallet_ux_swap_scan_unavailable">打开钱包恢复比特币扫描</string>
+    <string name="wallet_ux_swap_scan_last_checked_age">已于 %2$d 分钟前扫描比特币区块 %1$d</string>
+    <string name="wallet_ux_swap_progress_terms_agreed">同意条款</string>
+    <string name="wallet_ux_swap_progress_your_lock">您的 %1$s 锁定交易</string>
+    <string name="wallet_ux_swap_progress_their_lock">他们的 %1$s 锁定交易</string>
+    <string name="wallet_ux_swap_progress_your_claim">您的 %1$s 赎回交易</string>
+    <string name="wallet_ux_swap_progress_their_claim">他们的 %1$s 赎回交易</string>
+    <string name="wallet_ux_swap_wait_expectation">链上确认可能需要一个小时或更长时间。该钱包在保持可用状态时进行监控。如果比特币扫描停止，请重新打开 ShakeDex。</string>
+    <string name="wallet_ux_swap_wait_expectation_ios">链上确认可能需要一个小时或更长时间。等待时保持 ShakeDex 打开；当您离开时，iOS 可能会暂停扫描。重新打开它以继续。</string>
 </resources>

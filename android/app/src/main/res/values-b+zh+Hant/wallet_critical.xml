@@ -58,7 +58,7 @@
     <string name="wallet_swap_offer_acceptance_label">你支付 %1$s → 你收到 %2$s · %3$s…</string>
     <string name="wallet_swap_acceptance_review">檢視報價</string>
     <string name="wallet_swap_acceptance_approval_title">接受此兌換報價？</string>
-    <string name="wallet_swap_acceptance_approval_message">報價：%1$s\n\n鎖定：%2$s\n最高費用：%3$s\n總計：%4$s\n\n接受後開始協商。資金操作需另行核准。</string>
+    <string name="wallet_swap_acceptance_approval_message">報價：%1$s\n\n您將鎖定%2$s，包括最多為結算費用保留的%3$s。\n承諾此交換的金額：%4$s。需額外支付網路費用。在您發送鎖定交易之前，會顯示其確切金額。\n\n接受此報價並不發送資金。您單獨批准鎖定交易。</string>
     <string name="wallet_swap_acceptance_confirm">接受報價</string>
     <string name="wallet_swap_funding_approval_title">廣播 Bitcoin 資金交易？</string>
     <string name="wallet_swap_funding_approval_message">鎖定 %1$d 聰。網路費用：%2$d 聰（最高 %3$d）。\n\n交易：%4$s\n工作階段：%5$s\n\n廣播無法撤銷。確認 Bitcoin 鎖定後，兌換才會繼續。</string>

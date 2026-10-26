@@ -510,8 +510,8 @@
     <string name="wallet_ux_swap_active_heading">Hoán đổi đang diễn ra</string>
     <string name="wallet_ux_swap_active_card_title">Hoán đổi đang hoạt động · %1$s → %2$s</string>
     <string name="wallet_ux_swap_action_needed">Cần hành động</string>
-    <string name="wallet_ux_swap_no_action_needed">Không cần hành động · chúng tôi sẽ tiếp tục theo dõi</string>
-    <string name="wallet_ux_swap_claim_deadline">Nhận trước %1$s</string>
+    <string name="wallet_ux_swap_no_action_needed">Không cần phê duyệt bây giờ</string>
+    <string name="wallet_ux_swap_claim_deadline">Yêu cầu tiền của bạn ngay bây giờ · bên kia có thể hoàn lại tiền sau %1$s</string>
     <string name="wallet_ux_swap_open_record">Xem toàn bộ hồ sơ hoán đổi</string>
     <string name="wallet_ux_swap_technical_details">Chi tiết kỹ thuật</string>
     <string name="wallet_ux_swap_waiting_verify_lock">Đang chờ xác minh khoản khóa %1$s của bên kia</string>
@@ -539,7 +539,18 @@
     <string name="wallet_ux_swap_trade_title">%1$s → %2$s</string>
     <string name="wallet_ux_swap_wallet_checkpoints">Điểm kiểm tra của ví</string>
     <string name="wallet_ux_swap_candidate_message">Người mua %1$s… đề nghị %2$s để đổi lấy %3$s của bạn. Xác nhận sẽ ký thỏa thuận hoán đổi và dành riêng tiền của bạn trong thời hạn cấp vốn. Chưa có giao dịch nào được phát đi.</string>
-    <string name="wallet_ux_swap_funding_approval_message">Khóa %1$d sats. Phí mạng: %2$d sats (tối đa %3$d).\n\nPhát giao dịch sẽ bắt đầu khóa Bitcoin. Chúng tôi sẽ kiểm tra xác nhận trên chuỗi trước khi hoán đổi tiếp tục.</string>
+    <string name="wallet_ux_swap_funding_approval_message">Số tiền bị khóa: %1$d sats\nPhí mạng bitcoin: %2$d sats (giới hạn phí %3$d sats)\nTổng chi tiêu khi gửi: %4$d sats\n\nViệc gửi giao dịch này sẽ bắt đầu khóa Bitcoin. Ví sẽ kiểm tra xác nhận trước khi quá trình trao đổi tiếp tục.</string>
     <string name="wallet_ux_swap_automatic_settlement_consent">Sự chấp thuận này cho phép ví tự động nhận tài sản từ lần hoán đổi này, với mức phí tối đa 1.000 sats hoặc 0,1 HNS. Nếu hoán đổi hết hạn, ví có thể hoàn trả số tiền đã khóa trong giới hạn phí dự trữ. Không cần chấp thuận thêm khi ví vẫn khả dụng.</string>
     <string name="wallet_ux_swap_funding_window_closes">Thời hạn cấp vốn kết thúc lúc %1$s</string>
+    <string name="wallet_ux_swap_scan_waiting">Đang chờ lần quét Bitcoin tiếp theo</string>
+    <string name="wallet_ux_swap_scan_overdue">Quét bitcoin quá hạn</string>
+    <string name="wallet_ux_swap_scan_unavailable">Mở ví để tiếp tục quét Bitcoin</string>
+    <string name="wallet_ux_swap_scan_last_checked_age">Khối bitcoin %1$d được quét %2$d phút trước</string>
+    <string name="wallet_ux_swap_progress_terms_agreed">Điều khoản đã đồng ý</string>
+    <string name="wallet_ux_swap_progress_your_lock">Giao dịch khóa %1$s của bạn</string>
+    <string name="wallet_ux_swap_progress_their_lock">Giao dịch khóa %1$s của họ</string>
+    <string name="wallet_ux_swap_progress_your_claim">Giao dịch đổi thưởng %1$s của bạn</string>
+    <string name="wallet_ux_swap_progress_their_claim">Giao dịch đổi quà %1$s của họ</string>
+    <string name="wallet_ux_swap_wait_expectation">Quá trình xác nhận chuỗi có thể mất một giờ hoặc lâu hơn. Ví này giám sát trong khi nó vẫn có sẵn. Mở lại ShakeDex nếu quá trình quét Bitcoin dừng lại.</string>
+    <string name="wallet_ux_swap_wait_expectation_ios">Quá trình xác nhận chuỗi có thể mất một giờ hoặc lâu hơn. Giữ ShakeDex mở trong khi chờ đợi; iOS có thể tạm dừng quá trình quét khi bạn rời đi. Mở lại nó để tiếp tục.</string>
 </resources>

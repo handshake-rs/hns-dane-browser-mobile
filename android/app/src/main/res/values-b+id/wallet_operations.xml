@@ -510,8 +510,8 @@
     <string name="wallet_ux_swap_active_heading">Pertukaran sedang berlangsung</string>
     <string name="wallet_ux_swap_active_card_title">Swap aktif · %1$s → %2$s</string>
     <string name="wallet_ux_swap_action_needed">Perlu tindakan</string>
-    <string name="wallet_ux_swap_no_action_needed">Tidak perlu tindakan · kami akan terus memantau</string>
-    <string name="wallet_ux_swap_claim_deadline">Klaim sebelum %1$s</string>
+    <string name="wallet_ux_swap_no_action_needed">Tidak diperlukan persetujuan sekarang</string>
+    <string name="wallet_ux_swap_claim_deadline">Klaim dana Anda sekarang · pihak lain dapat mengembalikan dana setelah %1$s</string>
     <string name="wallet_ux_swap_open_record">Lihat catatan swap lengkap</string>
     <string name="wallet_ux_swap_technical_details">Detail teknis</string>
     <string name="wallet_ux_swap_waiting_verify_lock">Menunggu verifikasi penguncian %1$s pihak lain</string>
@@ -539,7 +539,18 @@
     <string name="wallet_ux_swap_trade_title">%1$s → %2$s</string>
     <string name="wallet_ux_swap_wallet_checkpoints">Titik pemeriksaan dompet</string>
     <string name="wallet_ux_swap_candidate_message">Pembeli %1$s… menawarkan %2$s untuk %3$s milik Anda. Konfirmasi menandatangani perjanjian swap dan mencadangkan dana Anda selama jendela pendanaan. Belum ada transaksi yang disiarkan.</string>
-    <string name="wallet_ux_swap_funding_approval_message">Kunci %1$d sats. Biaya jaringan: %2$d sats (maksimum %3$d).\n\nMenyiarkan transaksi memulai penguncian Bitcoin. Kami akan memindai rantai untuk konfirmasi sebelum swap berlanjut.</string>
+    <string name="wallet_ux_swap_funding_approval_message">Jumlah terkunci: %1$d sats\nBiaya jaringan Bitcoin: %2$d sats (batas biaya %3$d sats)\nTotal yang dibelanjakan saat mengirim: %4$d sats\n\nMengirimkan transaksi ini akan memulai kunci Bitcoin. Dompet memeriksa konfirmasi sebelum pertukaran dilanjutkan.</string>
     <string name="wallet_ux_swap_automatic_settlement_consent">Persetujuan ini mengizinkan dompet mengklaim swap ini secara otomatis, dengan batas biaya 1.000 sats atau 0,1 HNS. Jika swap kedaluwarsa, dompet dapat mengembalikan dana terkunci Anda dalam batas biaya yang dicadangkan. Tidak perlu persetujuan lagi selama dompet tersedia.</string>
     <string name="wallet_ux_swap_funding_window_closes">Jendela pendanaan ditutup %1$s</string>
+    <string name="wallet_ux_swap_scan_waiting">Menunggu pemindaian Bitcoin berikutnya</string>
+    <string name="wallet_ux_swap_scan_overdue">Pemindaian Bitcoin terlambat</string>
+    <string name="wallet_ux_swap_scan_unavailable">Buka dompet untuk melanjutkan pemindaian Bitcoin</string>
+    <string name="wallet_ux_swap_scan_last_checked_age">Blok Bitcoin %1$d dipindai %2$d menit yang lalu</string>
+    <string name="wallet_ux_swap_progress_terms_agreed">Persyaratan disetujui</string>
+    <string name="wallet_ux_swap_progress_your_lock">Transaksi kunci %1$s Anda</string>
+    <string name="wallet_ux_swap_progress_their_lock">Transaksi kunci %1$s mereka</string>
+    <string name="wallet_ux_swap_progress_your_claim">Transaksi penukaran %1$s Anda</string>
+    <string name="wallet_ux_swap_progress_their_claim">Transaksi penebusan %1$s mereka</string>
+    <string name="wallet_ux_swap_wait_expectation">Konfirmasi berantai bisa memakan waktu satu jam atau lebih. Dompet ini memantau selama masih tersedia. Buka kembali ShakeDex jika pemindaian Bitcoin berhenti.</string>
+    <string name="wallet_ux_swap_wait_expectation_ios">Konfirmasi berantai bisa memakan waktu satu jam atau lebih. Biarkan ShakeDex tetap terbuka sambil menunggu; iOS mungkin menjeda pemindaian saat Anda keluar. Buka kembali untuk melanjutkan.</string>
 </resources>

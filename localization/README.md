@@ -6,12 +6,12 @@ Three source files store a keyed translation for every selected message and
 supported locale:
 
 - `wallet-critical.json`: 65 onboarding and first-transaction strings.
-- `wallet-operations.json`: 541 synchronization, send, swap, deletion,
+- `wallet-operations.json`: 552 synchronization, send, swap, deletion,
   activity, and name-market strings.
 - `wallet-swap-list.json`: 23 swap execution list, hide, pagination, and
   dashboard summary strings.
 
-The first two files project 606 canonical keys to 20 additional locale groups
+The first two files project 617 canonical keys to 20 additional locale groups
 on Android and iOS. The swap-list file adds 23 strings to both platforms in
 the same locale groups.
 

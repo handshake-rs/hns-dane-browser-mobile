@@ -510,8 +510,8 @@
     <string name="wallet_ux_swap_active_heading">Wymiana w toku</string>
     <string name="wallet_ux_swap_active_card_title">Aktywna wymiana · %1$s → %2$s</string>
     <string name="wallet_ux_swap_action_needed">Wymagane działanie</string>
-    <string name="wallet_ux_swap_no_action_needed">Nie trzeba działać · nadal monitorujemy</string>
-    <string name="wallet_ux_swap_claim_deadline">Odbierz przed %1$s</string>
+    <string name="wallet_ux_swap_no_action_needed">Teraz nie jest wymagana żadna zgoda</string>
+    <string name="wallet_ux_swap_claim_deadline">Odbierz swoje środki teraz · druga strona może dokonać zwrotu po %1$s</string>
     <string name="wallet_ux_swap_open_record">Pokaż pełny zapis wymiany</string>
     <string name="wallet_ux_swap_technical_details">Szczegóły techniczne</string>
     <string name="wallet_ux_swap_waiting_verify_lock">Oczekiwanie na weryfikację ich blokady %1$s</string>
@@ -539,7 +539,18 @@
     <string name="wallet_ux_swap_trade_title">%1$s → %2$s</string>
     <string name="wallet_ux_swap_wallet_checkpoints">Punkty kontrolne portfela</string>
     <string name="wallet_ux_swap_candidate_message">Kupujący %1$s… oferuje %2$s za Twoje %3$s. Potwierdzenie podpisuje umowę wymiany i rezerwuje Twoje środki na czas okna finansowania. Żadna transakcja nie jest jeszcze nadawana.</string>
-    <string name="wallet_ux_swap_funding_approval_message">Zablokuj %1$d satoshi. Opłata sieciowa: %2$d satoshi (maksymalnie %3$d).\n\nNadanie transakcji rozpoczyna blokadę Bitcoin. Przed dalszym etapem wymiany sprawdzimy jej potwierdzenie w łańcuchu.</string>
+    <string name="wallet_ux_swap_funding_approval_message">Kwota zablokowana: %1$d sats\nOpłata sieciowa Bitcoin: %2$d sats (limit opłat %3$d sats)\nŁącznie wydane na wysyłanie: %4$d sats\n\nWysłanie tej transakcji uruchamia blokadę Bitcoin. Portfel sprawdza potwierdzenie przed kontynuacją wymiany.</string>
     <string name="wallet_ux_swap_automatic_settlement_consent">Ta zgoda pozwala portfelowi automatycznie odebrać środki z tej wymiany, z limitem opłaty 1 000 satoshi lub 0,1 HNS. Jeśli wymiana wygaśnie, portfel może zwrócić zablokowane środki w granicach zarezerwowanej opłaty. Gdy portfel jest dostępny, kolejna zgoda nie jest potrzebna.</string>
     <string name="wallet_ux_swap_funding_window_closes">Okno finansowania kończy się %1$s</string>
+    <string name="wallet_ux_swap_scan_waiting">Czekam na następny skan Bitcoina</string>
+    <string name="wallet_ux_swap_scan_overdue">Skanowanie bitcoinów opóźnione</string>
+    <string name="wallet_ux_swap_scan_unavailable">Otwórz portfel, aby wznowić skanowanie Bitcoinów</string>
+    <string name="wallet_ux_swap_scan_last_checked_age">Blok Bitcoin %1$d zeskanowany %2$d minut temu</string>
+    <string name="wallet_ux_swap_progress_terms_agreed">Warunki uzgodnione</string>
+    <string name="wallet_ux_swap_progress_your_lock">Twoja transakcja blokady %1$s</string>
+    <string name="wallet_ux_swap_progress_their_lock">Ich transakcja blokady %1$s</string>
+    <string name="wallet_ux_swap_progress_your_claim">Twoja transakcja wykupu %1$s</string>
+    <string name="wallet_ux_swap_progress_their_claim">Ich transakcja wykupu %1$s</string>
+    <string name="wallet_ux_swap_wait_expectation">Potwierdzenia łańcuchowe mogą zająć godzinę lub dłużej. Ten portfel monitoruje, dopóki jest dostępny. Otwórz ponownie ShakeDex, jeśli skanowanie Bitcoinów się zatrzyma.</string>
+    <string name="wallet_ux_swap_wait_expectation_ios">Potwierdzenia łańcuchowe mogą zająć godzinę lub dłużej. Podczas oczekiwania trzymaj ShakeDex otwarty; iOS może wstrzymać skanowanie, gdy wyjdziesz. Otwórz go ponownie, aby kontynuować.</string>
 </resources>
