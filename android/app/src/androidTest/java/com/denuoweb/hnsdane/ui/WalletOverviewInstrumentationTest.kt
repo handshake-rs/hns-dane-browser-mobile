@@ -20,10 +20,14 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.denuoweb.hnsdane.R
 import com.denuoweb.hnsdane.wallet.NativeBitcoinWalletSnapshot
+import com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionStatus
+import com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionSummary
 import com.denuoweb.hnsdane.wallet.NativeWalletReadSnapshot
 import com.denuoweb.hnsdane.wallet.NativeWalletPaymentReceiveTarget
 import org.hamcrest.Matchers.not
+import org.hamcrest.Matchers.containsString
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -91,9 +95,56 @@ class WalletOverviewInstrumentationTest {
     fun disconnectedShakedexExplainsThePrerequisiteAndKeepsDetailsReachable() = fixture { scenario ->
         scenario.onActivity { invoke(it, "showShakedexDashboard") }
         onView(withText(R.string.row_wallet_pair_direct_shakescape)).inRoot(isDialog()).check(matches(isDisplayed()))
-        onView(withText(R.string.wallet_swap_available_offers)).inRoot(isDialog()).check(matches(not(isEnabled())))
+        onView(withText(R.string.wallet_swap_available_offers)).inRoot(isDialog()).check(doesNotExist())
         onView(withText(R.string.row_wallet_retry_direct_shakescape_host)).inRoot(isDialog()).check(doesNotExist())
         capture("shakedex-disconnected")
+    }
+
+    @Test
+    fun submittedBitcoinLockShowsActiveCardAndResumeScan() = fixture { scenario ->
+        val now = System.currentTimeMillis() / 1_000L
+        scenario.onActivity { activity ->
+            val execution = submittedBitcoinStatus(now).executions.single()
+            val stage = WalletActivity::class.java.getDeclaredMethod(
+                "swapExecutionStage", NativeShakescapeExecutionSummary::class.java,
+            ).apply { isAccessible = true }.invoke(activity, execution) as String
+            assertFalse(stage.contains("remaining to fund BTC"))
+            set(activity, "bitcoinSnapshot", snapshot("validated"))
+            set(activity, "bitcoinLastSyncStopped", true)
+            set(activity, "latestShakescapeExecutionStatus", submittedBitcoinStatus(now))
+            invoke(activity, "showShakedexDashboard")
+        }
+        onView(withText(containsString("Active swap"))).inRoot(isDialog())
+            .check(matches(isDisplayed()))
+        onView(withText(R.string.wallet_ux_swap_active_heading)).inRoot(isDialog())
+            .check(matches(not(isDisplayed())))
+        onView(withText(containsString("remaining to fund BTC"))).inRoot(isDialog())
+            .check(doesNotExist())
+        onView(withText(containsString("Funding window closes"))).inRoot(isDialog())
+            .check(matches(isDisplayed()))
+        onView(withText(R.string.wallet_ux_swap_readiness_sync_bitcoin)).inRoot(isDialog())
+            .check(matches(isDisplayed()))
+        capture("shakedex-submitted-bitcoin-lock")
+        onView(withText(containsString("Active swap"))).inRoot(isDialog()).perform(click())
+        onView(withText(R.string.wallet_ux_swap_technical_details)).inRoot(isDialog())
+            .check(matches(isDisplayed()))
+        capture("shakedex-submitted-bitcoin-detail")
+    }
+
+    @Test
+    fun submittedBitcoinLockScanningNeedsNoManualButton() = fixture { scenario ->
+        val now = System.currentTimeMillis() / 1_000L
+        scenario.onActivity { activity ->
+            set(activity, "bitcoinSnapshot", snapshot("validated"))
+            set(activity, "walletBitcoinSyncInProgress", true)
+            set(activity, "latestShakescapeExecutionStatus", submittedBitcoinStatus(now))
+            invoke(activity, "showShakedexDashboard")
+        }
+        onView(withText(containsString("Scanning Bitcoin for confirmation"))).inRoot(isDialog())
+            .check(matches(isDisplayed()))
+        onView(withText(R.string.wallet_ux_swap_readiness_sync_bitcoin)).inRoot(isDialog())
+            .check(doesNotExist())
+        capture("shakedex-scanning-bitcoin")
     }
 
     @Test
@@ -153,6 +204,25 @@ class WalletOverviewInstrumentationTest {
         immatureSats = 0, totalSats = 125_000, birthdayHeight = 800_000,
         birthdayState = state, synchronizedHeight = if (state == "validated") 900_000 else 0,
         connectedPeerCount = 0, requiredPeerCount = 2, recentActivity = emptyList(), recentActivityTotal = 0,
+    )
+
+    private fun submittedBitcoinStatus(now: Long) = NativeShakescapeExecutionStatus(
+        executions = listOf(NativeShakescapeExecutionSummary(
+            sessionId = "fixture-session", revision = 1, state = "first_funding_pending",
+            firstChain = "bitcoin", secondChain = "handshake",
+            offeredAsset = "btc", offeredAmount = 100_000,
+            receivedAsset = "hns", receivedAmount = 2_000_000,
+            localRole = "maker", fundingDeadlineUnix = now + 7_200,
+            firstFundingCutoffUnix = now + 3_600,
+            firstRefundAtUnix = now + 86_400,
+            secondRefundAtUnix = now + 43_200,
+            localFundingState = "broadcast", firstFundingConfirmed = false,
+            secondFundingConfirmed = false, firstRedemptionConfirmed = false,
+            secondRedemptionConfirmed = false, refundConfirmed = false,
+            lastVerifiedAtUnix = now, failureReason = null,
+        )),
+        pendingAcceptances = emptyList(), pendingOfferResponses = emptyList(),
+        bitcoinBroadcastRecovery = null,
     )
 
     private fun status(activity: WalletActivity) = get(activity, "bitcoinStatusView") as TextView

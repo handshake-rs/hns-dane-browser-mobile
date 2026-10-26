@@ -246,10 +246,7 @@ private final class AtomicSwapNotificationCoordinator {
                 sessionId: offer.sessionId,
                 fingerprint: "offer-response",
                 title: WalletCopy.text("wallet_swap_notification_offer_accepted"),
-                body: WalletCopy.format(
-                    "wallet_swap_notification_offer_accepted_detail",
-                    String(offer.sessionId.prefix(12))
-                ),
+                body: WalletCopy.text("wallet_swap_notification_offer_accepted_detail"),
                 historicalTerminal: false,
                 actionRequired: false,
                 initialTitle: nil,
@@ -273,14 +270,10 @@ private final class AtomicSwapNotificationCoordinator {
                 body: deadline.map {
                     WalletCopy.format(
                         "wallet_swap_acceptance_sent",
-                        String(pending.sessionId.prefix(12)),
                         localDeadline($0),
                         remainingTime(until: $0)
                     )
-                } ?? WalletCopy.format(
-                    "wallet_swap_notification_negotiating",
-                    String(pending.sessionId.prefix(12))
-                ),
+                } ?? WalletCopy.text("wallet_swap_notification_negotiating"),
                 historicalTerminal: false,
                 actionRequired: oneHourWarning,
                 initialTitle: nil,
@@ -310,8 +303,7 @@ private final class AtomicSwapNotificationCoordinator {
                 title: title,
                 body: WalletCopy.format(
                     "wallet_swap_notification_stage",
-                    stage,
-                    String(execution.sessionId.prefix(12))
+                    stage
                 ),
                 historicalTerminal: terminalStates.contains(execution.state) &&
                     execution.localRedemption == nil,
@@ -324,10 +316,7 @@ private final class AtomicSwapNotificationCoordinator {
                 initialBody: execution.localRole == "taker" &&
                     !terminalStates.contains(execution.state) &&
                     !actionRequired
-                    ? WalletCopy.format(
-                        "wallet_swap_notification_offer_accepted_detail",
-                        String(execution.sessionId.prefix(12))
-                    )
+                    ? WalletCopy.text("wallet_swap_notification_offer_accepted_detail")
                     : nil
             )
         }
@@ -405,7 +394,6 @@ private final class AtomicSwapNotificationCoordinator {
             content.title = WalletCopy.text("wallet_swap_notification_action_required")
             content.body = WalletCopy.format(
                 "wallet_swap_acceptance_sent",
-                String(pending.sessionId.prefix(12)),
                 localDeadline(deadline),
                 WalletCopy.format("wallet_swap_duration_hours_minutes", 1, 0)
             )
@@ -456,8 +444,7 @@ private final class AtomicSwapNotificationCoordinator {
             content.title = WalletCopy.text("wallet_swap_notification_action_required")
             content.body = WalletCopy.format(
                 "wallet_swap_notification_stage",
-                warningStage,
-                String(execution.sessionId.prefix(12))
+                warningStage
             )
             content.sound = .default
             content.interruptionLevel = .active
@@ -2975,7 +2962,6 @@ final class WalletViewController: UIViewController {
                             let now = UInt64(Date().timeIntervalSince1970)
                             self.swapActionStatusLabel.text = WalletCopy.format(
                                 "wallet_swap_acceptance_sent",
-                                String(summary.sessionId.prefix(12)),
                                 self.formatAtomicSwapDeadline(deadline),
                                 self.formatAtomicSwapRemaining(deadline, now: now)
                             )
@@ -3076,8 +3062,7 @@ final class WalletViewController: UIViewController {
                 for offer in status.pendingOfferResponses {
                     rows.append(WalletMenuRow(
                         title: WalletCopy.text("wallet_swap_notification_offer_accepted"),
-                        detail: WalletCopy.format("wallet_swap_notification_offer_accepted_detail",
-                                                  String(offer.sessionId.prefix(12)))
+                        detail: WalletCopy.text("wallet_swap_notification_offer_accepted_detail")
                     ))
                 }
                 if !status.pendingOfferCandidates.isEmpty {
@@ -4918,8 +4903,9 @@ final class WalletViewController: UIViewController {
         var lines = [WalletCopy.format("wallet_ux_swap_active_card_title",
             swapAmount(execution.offeredAmount, asset: execution.offeredAsset),
             swapAmount(execution.receivedAmount, asset: execution.receivedAsset))]
-        lines.append(shakescapeExecutionStage(execution))
         let pendingConfirmation = swapBitcoinConfirmationPending(execution)
+        lines.append(pendingConfirmation
+            ? swapExecutionHeadline(execution) : shakescapeExecutionStage(execution))
         if pendingConfirmation, let scan = shakedexBitcoinScanStatus(pendingConfirmation: true) {
             lines.append(scan)
         }
@@ -4934,6 +4920,13 @@ final class WalletViewController: UIViewController {
             execution.state == "failed"
             ? "wallet_ux_swap_action_needed" : "wallet_ux_swap_no_action_needed"))
         lines.append(shakescapeExecutionProgress(execution).summary)
+        if ["terms_frozen", "refunds_prepared", "first_funding_pending", "first_funded",
+            "second_funding_pending"].contains(execution.state),
+           now < execution.fundingDeadlineUnix,
+           !swapFundingActionRequired(execution, now: now) {
+            lines.append(WalletCopy.format("wallet_ux_swap_funding_window_closes",
+                formatAtomicSwapDeadline(execution.fundingDeadlineUnix)))
+        }
         if swapRedemptionActionRequired(execution) {
             let claimDeadline = execution.localRole == "maker"
                 ? execution.secondRefundAtUnix : execution.firstRefundAtUnix
@@ -5190,8 +5183,10 @@ final class WalletViewController: UIViewController {
         }
         presentWalletMenu(
             title: WalletCopy.text("wallet_dashboard_shakedex"),
-            rows: [WalletMenuRow(title: WalletCopy.text("wallet_ux_overview"), detail: shakedexOverviewSummary(),
-                liveDetail: { [weak self] in self?.shakedexOverviewSummary() ?? "" })],
+            rows: [WalletMenuRow(title: WalletCopy.text("wallet_ux_overview"),
+                detail: shakedexOverviewSummary(),
+                liveDetail: { [weak self] in self?.shakedexOverviewSummary() ?? "" },
+                liveVisible: { [weak self] in self?.singleActiveShakedexExecution() == nil })],
             actions: shakedexOverviewActions(), retainForChildActions: true,
             liveActions: { [weak self] in self?.shakedexOverviewActions() ?? [] }
         )
@@ -6216,22 +6211,25 @@ final class WalletViewController: UIViewController {
     private func shakescapeExecutionProgress(
         _ execution: NativeShakescapeExecutionSummary
     ) -> (summary: String, detail: String) {
+        let completed = execution.state == "completed"
         let agreed = !["offer_published", "offer_acceptance_received", "offer_reserved", "failed"]
             .contains(execution.state) || execution.firstFundingConfirmed ||
-            execution.secondFundingConfirmed
+            execution.secondFundingConfirmed || completed
         let maker = execution.localRole == "maker"
         let milestones: [(Bool, String)] = [
             (agreed, "Terms agreed"),
-            (execution.firstFundingConfirmed,
+            (completed || execution.firstFundingConfirmed,
              "\(maker ? "You" : "Other party") lock \(swapChainLabel(execution.firstChain))"),
-            (execution.secondFundingConfirmed,
+            (completed || execution.secondFundingConfirmed,
              "\(maker ? "Other party" : "You") lock \(swapChainLabel(execution.secondChain))"),
-            (execution.firstRedemptionConfirmed,
+            (completed || execution.firstRedemptionConfirmed,
              "\(maker ? "You" : "Other party") redeem \(swapChainLabel(execution.secondChain))"),
-            (execution.secondRedemptionConfirmed,
+            (completed || execution.secondRedemptionConfirmed,
              "\(maker ? "Other party" : "You") redeem \(swapChainLabel(execution.firstChain))"),
         ]
-        let summary = "\(milestones.filter { $0.0 }.count) of \(milestones.count) steps completed"
+        let summary = WalletCopy.format(
+            "wallet_ux_swap_progress_count", milestones.filter { $0.0 }.count, milestones.count
+        )
         let detail = milestones.map { milestone in
             "\(milestone.0 ? "✓" : "○") \(milestone.1)"
         }.joined(separator: "\n")
@@ -6380,7 +6378,8 @@ final class WalletViewController: UIViewController {
             }
         }
         if let fundingTarget,
-           now < execution.fundingDeadlineUnix {
+           now < execution.fundingDeadlineUnix,
+           swapFundingActionRequired(execution, now: now) {
             stage = WalletCopy.format(
                 "wallet_swap_stage_with_deadline",
                 stage,
@@ -9809,15 +9808,18 @@ private struct WalletMenuRow {
     let title: String
     let detail: String
     let liveDetail: (@MainActor () -> String)?
+    let liveVisible: (@MainActor () -> Bool)?
 
     init(
         title: String,
         detail: String,
-        liveDetail: (@MainActor () -> String)? = nil
+        liveDetail: (@MainActor () -> String)? = nil,
+        liveVisible: (@MainActor () -> Bool)? = nil
     ) {
         self.title = title
         self.detail = detail
         self.liveDetail = liveDetail
+        self.liveVisible = liveVisible
     }
 }
 
@@ -9895,6 +9897,7 @@ private final class WalletMenuViewController: UIViewController {
     private let actionContent = UIStackView()
     private var actionSignature: [String] = []
     private var liveDetails: [(UILabel, @MainActor () -> String)] = []
+    private var liveVisibility: [(UIView, @MainActor () -> Bool)] = []
     private var liveDetailTimer: Timer?
 
     init(
@@ -9954,13 +9957,17 @@ private final class WalletMenuViewController: UIViewController {
         actionContent.spacing = 8
         content.addArrangedSubview(actionContent)
         refreshActions()
-        if !liveDetails.isEmpty || liveActions != nil {
+        if !liveDetails.isEmpty || !liveVisibility.isEmpty || liveActions != nil {
             liveDetailTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) {
                 [weak self] _ in
                 guard let self else { return }
                 self.liveDetails.forEach { label, provider in
                     let text = provider()
                     if label.text != text { label.text = text }
+                }
+                self.liveVisibility.forEach { card, provider in
+                    let hidden = !provider()
+                    if card.isHidden != hidden { card.isHidden = hidden }
                 }
                 self.refreshActions()
             }
@@ -10048,6 +10055,10 @@ private final class WalletMenuViewController: UIViewController {
         card.addArrangedSubview(detail)
         if let provider = row.liveDetail {
             liveDetails.append((detail, provider))
+        }
+        if let provider = row.liveVisible {
+            card.isHidden = !provider()
+            liveVisibility.append((card, provider))
         }
         return card
     }

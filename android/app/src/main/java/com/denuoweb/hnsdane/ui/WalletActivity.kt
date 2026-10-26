@@ -2720,8 +2720,8 @@ class WalletActivity : ComponentActivity() {
         add(getString(R.string.wallet_ux_swap_active_card_title,
             formatSwapAmount(execution.offeredAsset, execution.offeredAmount),
             formatSwapAmount(execution.receivedAsset, execution.receivedAmount)))
-        add(swapExecutionStage(execution))
         val pendingConfirmation = swapBitcoinConfirmationPending(execution)
+        add(if (pendingConfirmation) swapExecutionHeadline(execution) else swapExecutionStage(execution))
         if (pendingConfirmation) shakedexBitcoinScanStatus(pendingConfirmation = true)?.let(::add)
         val scanPaused = bitcoinLastSyncStopped ||
             SystemClock.elapsedRealtime() < automaticSwapBitcoinSyncPausedUntilElapsedMillis
@@ -2732,6 +2732,12 @@ class WalletActivity : ComponentActivity() {
                 execution.state == "failed")
             R.string.wallet_ux_swap_action_needed else R.string.wallet_ux_swap_no_action_needed))
         add(swapExecutionProgress(execution).first)
+        if (execution.state in setOf("terms_frozen", "refunds_prepared", "first_funding_pending",
+                "first_funded", "second_funding_pending") && now < execution.fundingDeadlineUnix &&
+            !swapFundingActionRequired(execution, now)) {
+            add(getString(R.string.wallet_ux_swap_funding_window_closes,
+                formatAtomicSwapDeadline(execution.fundingDeadlineUnix)))
+        }
         if (swapRedemptionActionRequired(execution)) {
             val claimDeadline = if (execution.localRole == "maker")
                 execution.secondRefundAtUnix else execution.firstRefundAtUnix
@@ -2870,6 +2876,7 @@ class WalletActivity : ComponentActivity() {
         showWalletOverview(
             title = getString(R.string.wallet_dashboard_shakedex),
             summary = ::shakedexOverviewSummary,
+            showSummary = { singleActiveShakedexExecution() == null },
             sections = {
                 val available = overviewActionsAvailable() && latestReadSnapshot != null
                 val paired = directShakescapePeerEndpoint != null
@@ -3265,6 +3272,7 @@ class WalletActivity : ComponentActivity() {
         title: String,
         summary: () -> String,
         sections: () -> List<WalletModalActionSection>,
+        showSummary: () -> Boolean = { true },
     ) {
         val detail = TextView(this).apply {
             text = summary()
@@ -3281,8 +3289,12 @@ class WalletActivity : ComponentActivity() {
             liveUpdate = {
                 val updated = summary()
                 if (detail.text.toString() != updated) detail.text = updated
+                (detail.parent as? View)?.visibility =
+                    if (showSummary()) View.VISIBLE else View.GONE
             },
         )
+        (detail.parent as? View)?.visibility =
+            if (showSummary()) View.VISIBLE else View.GONE
     }
 
     private fun overviewActionsAvailable(): Boolean =
@@ -5174,8 +5186,7 @@ class WalletActivity : ComponentActivity() {
             visibleOpenCount > 0 -> getString(R.string.wallet_swap_overview_open, visibleOpenCount)
             candidateCount > 0 -> candidateCountSummary(candidateCount)
             offerResponse != null -> getString(
-                R.string.wallet_swap_notification_offer_accepted_detail,
-                offerResponse.sessionId.take(12),
+                R.string.wallet_swap_notification_offer_accepted_detail
             )
             pending != null -> pendingAcceptanceStage(pending)
             status.executions.isNotEmpty() -> {
@@ -5337,7 +5348,7 @@ class WalletActivity : ComponentActivity() {
                 "${if (maker) "Other party" else "You"} redeem ${swapChainLabel(execution.firstChain)}",
         )
         val count = milestones.count { it.first }
-        val summary = "$count of ${milestones.size} steps completed"
+        val summary = getString(R.string.wallet_ux_swap_progress_count, count, milestones.size)
         val detail = milestones.joinToString("\n") { (done, label) ->
             "${if (done) "✓" else "○"} $label"
         }
@@ -5457,7 +5468,8 @@ class WalletActivity : ComponentActivity() {
             val chain = if (execution.localRole == "maker") second else first
             localRedemptionStage(execution, chain)?.let { stage = "$it\n$stage" }
         }
-        if (fundingTarget != null && now < execution.fundingDeadlineUnix) {
+        if (fundingTarget != null && now < execution.fundingDeadlineUnix &&
+            swapFundingActionRequired(execution, now)) {
             stage = getString(
                 R.string.wallet_swap_stage_with_deadline,
                 stage,
@@ -5535,7 +5547,6 @@ class WalletActivity : ComponentActivity() {
             val now = System.currentTimeMillis() / 1_000L
             return getString(
                 R.string.wallet_swap_acceptance_sent,
-                acceptance.sessionId.take(12),
                 formatAtomicSwapDeadline(deadline),
                 formatAtomicSwapRemaining(deadline, now),
             )
@@ -6454,8 +6465,7 @@ class WalletActivity : ComponentActivity() {
                 getString(R.string.wallet_swap_executions_hidden_explanation))
             if (!showDismissed && page.index == 0) status.pendingOfferResponses.forEach {
                 add(getString(R.string.wallet_swap_notification_offer_accepted) to getString(
-                    R.string.wallet_swap_notification_offer_accepted_detail,
-                    it.sessionId.take(12),
+                    R.string.wallet_swap_notification_offer_accepted_detail
                 ))
             }
             if (!showDismissed && page.index == 0 && status.pendingOfferCandidates.isNotEmpty()) {
@@ -7688,7 +7698,6 @@ class WalletActivity : ComponentActivity() {
                                     val now = System.currentTimeMillis() / 1_000L
                                     getString(
                                         R.string.wallet_swap_acceptance_sent,
-                                        accepted.sessionId.take(12),
                                         formatAtomicSwapDeadline(deadline),
                                         formatAtomicSwapRemaining(deadline, now),
                                     )

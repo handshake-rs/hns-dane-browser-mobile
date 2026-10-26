@@ -6,12 +6,12 @@ Three source files store a keyed translation for every selected message and
 supported locale:
 
 - `wallet-critical.json`: 65 onboarding and first-transaction strings.
-- `wallet-operations.json`: 493 synchronization, send, swap, deletion,
+- `wallet-operations.json`: 541 synchronization, send, swap, deletion,
   activity, and name-market strings.
 - `wallet-swap-list.json`: 23 swap execution list, hide, pagination, and
   dashboard summary strings.
 
-The first two files project 558 canonical keys to 20 additional locale groups
+The first two files project 606 canonical keys to 20 additional locale groups
 on Android and iOS. The swap-list file adds 23 strings to both platforms in
 the same locale groups.
 
@@ -45,7 +45,8 @@ irreversible name transfers, swap funding/refunds, or wallet deletion. Advanced
 diagnostic and system-lifecycle copy marked `translatable="false"` remains
 English across locales.
 
-New `wallet_ux_*` keys use canonical English in Android base resources and an
-English-only entry in the generated Apple catalog until translations are
-reviewed. They are explicitly `translatable="false"`, are not counted as
-translated, and do not alter the existing complete localization cohorts.
+The new ShakeDex scan, active swap, buyer review, and funding approval copy
+is in the operations cohort for all supported locales. Other `wallet_ux_*`
+keys use canonical English in Android base resources and an English-only entry
+in the generated Apple catalog until translations are reviewed. They are
+explicitly `translatable="false"` and are not counted as translated.
